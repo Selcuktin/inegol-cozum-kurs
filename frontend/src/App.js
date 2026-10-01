@@ -390,7 +390,7 @@ function MainApp({ me, onLogout }) {
         {page === "dashboard" && <Dashboard me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} />}
         {page === "students" && <Students me={me} students={filtered} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
         {page === "payments" && <Payments me={me} data={data} onOpen={guardedOpen} />}
-        {page === "classes" && <Classes me={me} classes={data.classes} onOpen={guardedOpen} />}
+        {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} />}
         {page === "reminders" && <Reminders />}
         {page === "documents" && <Documents students={data.students} payments={data.payments} />}
         {page === "reports" && <Reports me={me} />}
@@ -409,8 +409,9 @@ function Button({ children, onClick, secondary = false, testid }) { return <butt
 
 function Dashboard({ me, data, totalCollected, totalExpected, totalExpenses, onOpen }) {
   const outstanding = totalExpected - totalCollected;
+  const todayLabel = new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()).toUpperCase();
   return <>
-    <PageHead eyebrow="PAZARTESİ · 16 MART 2026" title="Genel Bakış">
+    <PageHead eyebrow={todayLabel} title="Genel Bakış">
       {can(me,"payment_create") && <Button testid="add-payment-dashboard" onClick={() => onOpen("payment")}><Plus size={17} /> Tahsilat Ekle</Button>}
       {can(me,"student_create") && <Button testid="add-student-dashboard" secondary onClick={() => onOpen("student")}><Users size={17} /> Öğrenci Ekle</Button>}
     </PageHead>
@@ -446,12 +447,12 @@ function Payments({ me, data, onOpen }) {
 
 function PaymentTable({ payments, students }) { return <table><thead><tr><th>ÖĞRENCİ</th><th>TARİH</th><th>YÖNTEM</th><th>AÇIKLAMA</th><th>TUTAR</th><th>DURUM</th></tr></thead><tbody>{(payments.length ? payments : students.map((s,i) => ({ id: `p${i}`, student_id: s.id, payment_date: today(), method: i ? "Kredi Kartı" : "Banka Transferi", note: "Dönem ödemesi", amount: s.paid_amount })) ).map(p => { const s = students.find(x => x.id === p.student_id); return <tr key={p.id}><td><div className="person"><div className="student-avatar small">{s?.student_name?.split(" ").map(x=>x[0]).join("")}</div><b>{s?.student_name || "-"}</b></div></td><td>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</td><td><span className="method-tag">{p.method}</span></td><td className="muted-cell">{p.note || "-"}</td><td><b className="amount">{money(p.amount)}</b></td><td><span className="status-pill success">İşlendi</span></td></tr>})}</tbody></table> }
 
-function Classes({ me, classes, onOpen }) {
+function Classes({ me, classes, onOpen, students = [] }) {
   return <>
     <PageHead eyebrow="EĞİTİM · DERSLİKLER" title="Sınıflar">
       {can(me,"class_create") && <Button testid="add-class-button" onClick={() => onOpen("class")}><Plus size={17} /> Sınıf oluştur</Button>}
     </PageHead>
-    <div className="class-grid">{classes.map(c => <div className="class-card" key={c.id}><div className="class-top"><div className="class-icon"><BookOpen size={20} /></div><span className="active-label">AKTİF</span></div><h2>{c.name}</h2><p>{c.level} · {c.room}</p><div className="class-meta"><span><Users size={15} /> {c.capacity} kişilik</span><span>{c.teacher}</span></div><div className="class-progress"><div><span>Dolu kapasite</span><b>%68</b></div><div className="progress-track"><div style={{width:"68%"}} /></div></div></div>)}</div>
+    <div className="class-grid">{classes.map(c => <div className="class-card" key={c.id}><div className="class-top"><div className="class-icon"><BookOpen size={20} /></div><span className="active-label">AKTİF</span></div><h2>{c.name}</h2><p>{c.level} · {c.room}</p><div className="class-meta"><span><Users size={15} /> {c.capacity} kişilik</span><span>{c.teacher}</span></div><div className="class-progress"><div><span>Dolu kapasite</span><b>%{(() => { const n = students.filter(s => s.program === c.name).length; return c.capacity > 0 ? Math.min(100, Math.round(n/c.capacity*100)) : 0; })()}</b></div><div className="progress-track"><div style={{width:`${c.capacity > 0 ? Math.min(100, Math.round(students.filter(s => s.program === c.name).length/c.capacity*100)) : 0}%`}} /></div></div></div>)}</div>
   </>;
 }
 
