@@ -241,7 +241,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide edesis-wizard-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "880px" }}>
+      <div className="modal wide edesis-wizard-modal" onClick={(e) => e.stopPropagation()}>
         {/* Başlık ve Kapat Butonu */}
         <div className="modal-head">
           <div>

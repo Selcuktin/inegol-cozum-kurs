@@ -2060,7 +2060,7 @@ export function MentorshipPage({ me, API, students }) {
 // ==========================================================
 // 6. DASHBOARD EDESIS EĞİTİM WIDGET'LARI
 // ==========================================================
-export function EdesisDashboardWidgets({ data, onNavigate }) {
+export function EdesisDashboardWidgets({ data, onNavigate, onSelectStudent }) {
   // Sınav Geri Sayımı (YKS & LGS)
   const countdowns = useMemo(() => {
     const now = new Date();
@@ -2092,7 +2092,7 @@ export function EdesisDashboardWidgets({ data, onNavigate }) {
     <div className="edesis-dashboard-section">
       {/* Sınav Geri Sayımı Kartları */}
       <div className="edesis-countdown-grid">
-        <div className="countdown-card yks">
+        <div className="countdown-card yks" onClick={() => onNavigate("exams")} style={{ cursor: "pointer" }} title="Deneme sınavları ve karneleri görüntüle">
           <div className="countdown-icon">
             <GraduationCap size={22} />
           </div>
@@ -2101,11 +2101,11 @@ export function EdesisDashboardWidgets({ data, onNavigate }) {
             <div className="countdown-val">
               <strong>{countdowns.yksDiff}</strong> <span>GÜN</span>
             </div>
-            <small>Üniversiteye Hazırlık Süreci</small>
+            <small>Üniversiteye Hazırlık Süreci · İncele →</small>
           </div>
         </div>
 
-        <div className="countdown-card lgs">
+        <div className="countdown-card lgs" onClick={() => onNavigate("exams")} style={{ cursor: "pointer" }} title="LGS deneme sınavları ve karneleri görüntüle">
           <div className="countdown-icon">
             <Target size={22} />
           </div>
@@ -2114,11 +2114,11 @@ export function EdesisDashboardWidgets({ data, onNavigate }) {
             <div className="countdown-val">
               <strong>{countdowns.lgsDiff}</strong> <span>GÜN</span>
             </div>
-            <small>Nitelikli Liselere Hazırlık</small>
+            <small>Nitelikli Liselere Hazırlık · İncele →</small>
           </div>
         </div>
 
-        <div className="countdown-card attendance-card" onClick={() => onNavigate("attendance")}>
+        <div className="countdown-card attendance-card" onClick={() => onNavigate("attendance")} style={{ cursor: "pointer" }} title="Günlük yoklamayı aç">
           <div className="countdown-icon att">
             <UserCheck size={22} />
           </div>
@@ -2128,7 +2128,7 @@ export function EdesisDashboardWidgets({ data, onNavigate }) {
               <strong>{attSummary.present}</strong> <span style={{ fontSize: "14px", color: "var(--muted)" }}>/ {attSummary.total || data.students?.length || 2} Geldi</span>
             </div>
             <small style={{ color: attSummary.absent > 0 ? "var(--danger)" : "var(--success)" }}>
-              {attSummary.absent > 0 ? `${attSummary.absent} Öğrenci Devamsız (Veliye Bildir)` : "Tüm öğrenciler derste"}
+              {attSummary.absent > 0 ? `${attSummary.absent} Öğrenci Devamsız (Yoklama Al →)` : "Tüm öğrenciler derste · Yoklama Aç →"}
             </small>
           </div>
         </div>
@@ -2190,7 +2190,13 @@ export function EdesisDashboardWidgets({ data, onNavigate }) {
           ) : (
             <div className="top-rankings-list">
               {topRankings.map((r, i) => (
-                <div key={r.id || i} className="top-ranking-row">
+                <div
+                  key={r.id || i}
+                  className="top-ranking-row"
+                  onClick={() => onNavigate("exams")}
+                  style={{ cursor: "pointer" }}
+                  title="Sınav karnesini görüntüle"
+                >
                   <span className={`rank-badge rank-${i + 1}`}>{i + 1}</span>
                   <div className="person" style={{ flex: 1 }}>
                     <div className="student-avatar">
@@ -2235,7 +2241,12 @@ export function EdesisDashboardWidgets({ data, onNavigate }) {
           ) : (
             <div style={{ display: "grid", gap: "10px", padding: "12px 16px" }}>
               {(data.classCapacities || []).map((c) => (
-                <div key={c.id} style={{ display: "grid", gap: "4px" }}>
+                <div
+                  key={c.id}
+                  onClick={() => onNavigate("classes")}
+                  style={{ display: "grid", gap: "4px", cursor: "pointer", padding: "4px 6px", borderRadius: "6px" }}
+                  title={`${c.name} sınıfını ve öğrencilerini görüntüle`}
+                >
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
                     <b>{c.name} <small style={{ color: "var(--muted)", fontWeight: "normal" }}>({c.level})</small></b>
                     <span><strong>{c.occupied}</strong> / {c.capacity} Öğrenci (%{c.occupancyRate})</span>
@@ -2290,11 +2301,15 @@ export function EdesisDashboardWidgets({ data, onNavigate }) {
                     fontSize: "12px",
                     cursor: "pointer"
                   }}
-                  onClick={() => onNavigate("students")}
+                  onClick={() => {
+                    if (onSelectStudent && alert.studentId) onSelectStudent(alert.studentId);
+                    else onNavigate("students");
+                  }}
+                  title="Öğrenci detaylarını aç ve eksik evrağı tamamla"
                 >
                   <AlertTriangle size={15} color={alert.severity === "critical" ? "#ef4444" : "#f59e0b"} />
                   <div style={{ flex: 1 }}>
-                    <b style={{ color: "#1e293b" }}>{alert.studentName}:</b> <span style={{ color: "#64748b" }}>{alert.type}</span>
+                    <b style={{ color: "#1e293b" }}>{alert.studentName}:</b> <span style={{ color: "#64748b" }}>{alert.type || alert.message}</span>
                   </div>
                   <ChevronRight size={14} color="#94a3b8" />
                 </div>

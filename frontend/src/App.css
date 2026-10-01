@@ -2051,3 +2051,63 @@ td[colspan] {
   padding: 12px 16px 4px;
   margin-top: 6px;
 }
+
+/* ========================================================= */
+/* EDESIS WIZARD MODAL & INTERACTIVE CARDS RESPONSIVE        */
+/* ========================================================= */
+.edesis-wizard-modal {
+  max-width: 880px;
+  width: 100%;
+}
+
+.countdown-card[style*="cursor: pointer"],
+.stat-card[style*="cursor: pointer"],
+.collection-panel[style*="cursor: pointer"] {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.countdown-card[style*="cursor: pointer"]:hover,
+.stat-card[style*="cursor: pointer"]:hover,
+.collection-panel[style*="cursor: pointer"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.countdown-card[style*="cursor: pointer"]:active,
+.stat-card[style*="cursor: pointer"]:active,
+.collection-panel[style*="cursor: pointer"]:active {
+  transform: scale(0.98);
+}
+
+.alert-row[style*="cursor: pointer"]:hover {
+  background: #f8fafc;
+}
+
+@media (max-width: 640px) {
+  .edesis-wizard-modal {
+    width: 100% !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 92dvh !important;
+  }
+  .edesis-modal-tabs {
+    padding: 4px 8px !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+  }
+  .edesis-modal-tabs .tab-btn {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+    flex-shrink: 0 !important;
+  }
+  .countdown-card {
+    padding: 12px !important;
+  }
+  .countdown-val strong {
+    font-size: 22px !important;
+  }
+}
+
