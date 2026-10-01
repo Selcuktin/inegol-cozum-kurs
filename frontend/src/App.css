@@ -2416,9 +2416,15 @@ td[colspan] {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 20px;
   background: var(--surface);
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  min-height: 280px;
 }
 
 .edesis-master-table {
@@ -2458,7 +2464,12 @@ td[colspan] {
   vertical-align: middle;
 }
 
-/* Action Buttons in Table */
+/* Action Buttons & Dropdown in Table */
+.btn-group-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
 .btn-edesis-action {
   display: inline-flex;
   align-items: center;
@@ -2467,15 +2478,77 @@ td[colspan] {
   color: #fff;
   border: none;
   border-radius: 5px;
-  padding: 4px 8px;
-  font-size: 11.5px;
+  padding: 5px 9px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(54, 153, 255, 0.25);
 }
 
 .btn-edesis-action:hover {
   background: #187de4;
+  transform: translateY(-1px);
+}
+
+.btn-edesis-action:active {
+  transform: translateY(0);
+}
+
+.edesis-action-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 9999;
+  min-width: 200px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 6px 0;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #334155;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+
+.dropdown-menu-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.dropdown-menu-item.danger {
+  color: #ef4444;
+}
+
+.dropdown-menu-item.danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.dropdown-menu-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 4px 0;
 }
 
 .btn-edesis-rapor {

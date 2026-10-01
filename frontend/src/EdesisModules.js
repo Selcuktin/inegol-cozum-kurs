@@ -108,6 +108,13 @@ export function ExamsPage({ me, API, students, classes }) {
   const [resSocC, setResSocC] = useState("");
   const [resSocI, setResSocI] = useState("");
   const [resWeakTopics, setResWeakTopics] = useState("");
+  const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => setOpenDropdownId(null);
+    window.addEventListener("click", handleOutsideClick);
+    return () => window.removeEventListener("click", handleOutsideClick);
+  }, []);
 
   const loadExams = async () => {
     setLoading(true);
@@ -155,6 +162,9 @@ export function ExamsPage({ me, API, students, classes }) {
     } catch {
       setSelectedExam(exam);
     }
+    setTimeout(() => {
+      document.getElementById("exam-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   };
 
   const handleCreateExam = async (e) => {
@@ -524,16 +534,104 @@ export function ExamsPage({ me, API, students, classes }) {
                           onClick={() => openExamDetail(exam)}
                         >
                           {/* İşlemler Dropdown Button */}
-                          <td onClick={(e) => e.stopPropagation()}>
+                          <td onClick={(e) => e.stopPropagation()} style={{ position: "relative" }}>
                             <div className="btn-group-dropdown">
                               <button
                                 className="btn-edesis-action"
-                                onClick={() => openExamDetail(exam)}
-                                title="İncele & Sonuç Yönetimi"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenDropdownId(openDropdownId === exam.id ? null : exam.id);
+                                }}
+                                title="İşlemler Menüsü"
                               >
                                 <span>İşlemler</span>
                                 <ChevronDown size={13} />
                               </button>
+
+                              {openDropdownId === exam.id && (
+                                <div className="edesis-action-dropdown-menu show" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    className="dropdown-menu-item"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      openExamDetail(exam);
+                                    }}
+                                  >
+                                    <Eye size={14} style={{ color: "#3699FF" }} />
+                                    <span>Sınavı İncele & Detay</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="dropdown-menu-item"
+                                    onClick={() => {
+                                      setSelectedExam(exam);
+                                      setShowResultModal(true);
+                                      setOpenDropdownId(null);
+                                    }}
+                                  >
+                                    <Plus size={14} style={{ color: "#10b981" }} />
+                                    <span>Yeni Sonuç Ekle</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="dropdown-menu-item"
+                                    onClick={() => {
+                                      setSelectedExam(exam);
+                                      setShowRaporModal(exam);
+                                      setOpenDropdownId(null);
+                                    }}
+                                  >
+                                    <PieChart size={14} style={{ color: "#8b5cf6" }} />
+                                    <span>Raporlar & Karneler</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="dropdown-menu-item"
+                                    onClick={() => {
+                                      setShowCevapKeyModal(exam);
+                                      setOpenDropdownId(null);
+                                    }}
+                                  >
+                                    <Key size={14} style={{ color: "#f59e0b" }} />
+                                    <span>Cevap Anahtarı</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="dropdown-menu-item"
+                                    onClick={() => {
+                                      setShowOptikModal(exam);
+                                      setOpenDropdownId(null);
+                                    }}
+                                  >
+                                    <Edit size={14} style={{ color: "#0ea5e9" }} />
+                                    <span>Optik Şablon & Okuma</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="dropdown-menu-item"
+                                    onClick={() => {
+                                      exportExamExcel(exam);
+                                      setOpenDropdownId(null);
+                                    }}
+                                  >
+                                    <Download size={14} style={{ color: "#059669" }} />
+                                    <span>Sıralı Liste (Excel)</span>
+                                  </button>
+                                  <div className="dropdown-menu-divider" />
+                                  <button
+                                    type="button"
+                                    className="dropdown-menu-item danger"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleDeleteExam(exam.id);
+                                    }}
+                                  >
+                                    <Trash2 size={14} style={{ color: "#ef4444" }} />
+                                    <span>Bu Sınavı Sil</span>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </td>
 
