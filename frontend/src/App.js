@@ -15,16 +15,21 @@ export const getBackendBaseUrl = () => {
     const saved = localStorage.getItem("custom_api_url");
     if (saved) return saved;
   }
-  if (process.env.REACT_APP_BACKEND_URL) {
+  if (process.env.REACT_APP_BACKEND_URL && !process.env.REACT_APP_BACKEND_URL.includes("localhost")) {
     return process.env.REACT_APP_BACKEND_URL.replace(/\/+$/, "");
   }
-  return typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://localhost:8000"
-    : "";
+  if (typeof window !== "undefined") {
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      return "http://localhost:8000";
+    }
+    return "https://inegol-cozum-api.loca.lt";
+  }
+  return "https://inegol-cozum-api.loca.lt";
 };
 
 const API = `${getBackendBaseUrl()}/api`;
 axios.defaults.withCredentials = true;
+axios.defaults.headers.common["Bypass-Tunnel-Reminder"] = "true";
 const money = (n) => new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(n || 0);
 const today = () => new Date().toISOString().slice(0, 10);
 const LOGO = "/assets/logo.jpeg";
