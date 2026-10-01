@@ -1,0 +1,18 @@
+{
+  "short_name": "Çözüm Kurs",
+  "name": "Özel İnegöl Çözüm Kurs Yönetim Sistemi",
+  "description": "Öğrenci, veli, sınıf, sözleşme ve tahsilat yönetim paneli",
+  "icons": [
+    {
+      "src": "/assets/logo.jpeg",
+      "type": "image/jpeg",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#f8fafc",
+  "theme_color": "#1d4ed8",
+  "display": "standalone",
+  "orientation": "any",
+  "scope": "/"
+}

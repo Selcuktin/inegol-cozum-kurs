@@ -1,0 +1,1089 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import "@/App.css";
+import axios from "axios";
+import { Bell, BellRing, BookOpen, Camera, ChevronRight, CircleDollarSign, ClipboardList, Download, FileDown, FileText, History, LayoutDashboard, LogOut, Menu, Phone, Plus, Receipt, Search, Settings, ShieldCheck, TrendingDown, TrendingUp, UserCog, Users, Wallet, X } from "lucide-react";
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+axios.defaults.withCredentials = true;
+const money = (n) => new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(n || 0);
+const today = () => new Date().toISOString().slice(0, 10);
+const LOGO = "/assets/logo.jpeg";
+
+const ROLE_LABEL = { admin: "Yönetici", muhasebe: "Muhasebe", ogretmen: "Öğretmen" };
+const CAN = {
+  student_create: ["admin"],
+  payment_create: ["admin", "muhasebe"],
+  expense_create: ["admin", "muhasebe"],
+  class_create:   ["admin"],
+  audit_view:     ["admin"],
+  user_manage:    ["admin"],
+  reports_view:   ["admin", "muhasebe"],
+  reminders_view: ["admin", "muhasebe"],
+  export_data:    ["admin", "muhasebe"],
+  page_dashboard: ["admin", "muhasebe", "ogretmen"],
+  page_students:  ["admin", "muhasebe", "ogretmen"],
+  page_payments:  ["admin", "muhasebe"],
+  page_classes:   ["admin", "ogretmen"],
+  page_documents: ["admin", "muhasebe", "ogretmen"],
+  page_users:     ["admin"],
+  page_audit:     ["admin"],
+  page_reports:   ["admin", "muhasebe"],
+  page_reminders: ["admin", "muhasebe"],
+};
+const can = (me, action) => !!me && (CAN[action] || []).includes(me.role);
+
+async function downloadBlob(url, filename) {
+  const r = await axios.get(url, { responseType: "blob" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(r.data);
+  link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 800);
+}
+
+function Brand({ tight = false }) {
+  return <div className={tight ? "brand tight" : "brand"}>
+    <img className="brand-logo" src={LOGO} alt="İnegöl Çözüm Kurs" />
+    <div><strong>İNEGÖL ÇÖZÜM</strong><span>KURS YÖNETİM</span></div>
+  </div>;
+}
+
+// REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+function AuthCallback() {
+  const processed = useRef(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (processed.current) return;
+    processed.current = true;
+    const hash = window.location.hash || "";
+    const match = hash.match(/session_id=([^&]+)/);
+    const sessionId = match ? decodeURIComponent(match[1]) : null;
+    if (!sessionId) { window.location.replace("/"); return; }
+    (async () => {
+      try {
+        await axios.post(`${API}/auth/session`, null, { headers: { "X-Session-ID": sessionId } });
+        window.history.replaceState(null, "", "/");
+        window.location.replace("/");
+      } catch (e) {
+        const detail = e.response?.data?.detail || "Giriş doğrulanamadı. Lütfen tekrar deneyin.";
+        setError(detail);
+        setTimeout(() => { window.history.replaceState(null, "", "/"); }, 400);
+      }
+    })();
+  }, []);
+  return <div className="auth-screen"><div className="auth-card"><Brand tight /><h1>{error ? "Erişim reddedildi" : "Giriş yapılıyor..."}</h1><p>{error || "Google hesabınız doğrulanıyor, lütfen bekleyin."}</p>{error && <a data-testid="auth-error-back" className="google-btn" href="/">Giriş ekranına dön</a>}</div></div>;
+}
+
+function Login({ onLoginSuccess }) {
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [quickError, setQuickError] = useState("");
+
+  const handleQuickLogin = async (role) => {
+    setQuickLoading(true);
+    setQuickError("");
+    try {
+      const res = await axios.post(`${API}/auth/quick-login`, { role });
+      if (res.data?.session_token) {
+        localStorage.setItem("session_token", res.data.session_token);
+        axios.defaults.headers.common["Authorization"] = `Bearer ${res.data.session_token}`;
+      }
+      if (onLoginSuccess) {
+        onLoginSuccess(res.data);
+      }
+    } catch (e) {
+      setQuickError(e.response?.data?.detail || "Giriş başarısız oldu.");
+    } finally {
+      setQuickLoading(false);
+    }
+  };
+
+  const signIn = () => {
+    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    const redirectUrl = window.location.origin + "/";
+    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  };
+  return (
+    <div className="auth-screen">
+      <div className="auth-card">
+        <Brand tight />
+        <h1>Yönetim paneline giriş</h1>
+        <p>Sadece yetkilendirilmiş <b>İnegöl Çözüm Kurs</b> personeli giriş yapabilir.</p>
+
+        <div style={{ display: "grid", gap: "8px", margin: "16px 0" }}>
+          <button
+            data-testid="quick-login-admin"
+            className="btn"
+            style={{ width: "100%", justifyContent: "center", background: "#1d4ed8" }}
+            disabled={quickLoading}
+            onClick={() => handleQuickLogin("admin")}
+          >
+            👑 Yönetici Olarak Hızlı Giriş (Admin)
+          </button>
+          <button
+            data-testid="quick-login-muhasebe"
+            className="btn secondary"
+            style={{ width: "100%", justifyContent: "center" }}
+            disabled={quickLoading}
+            onClick={() => handleQuickLogin("muhasebe")}
+          >
+            💼 Muhasebe Olarak Hızlı Giriş
+          </button>
+          <button
+            data-testid="quick-login-ogretmen"
+            className="btn secondary"
+            style={{ width: "100%", justifyContent: "center" }}
+            disabled={quickLoading}
+            onClick={() => handleQuickLogin("ogretmen")}
+          >
+            📚 Öğretmen Olarak Hızlı Giriş
+          </button>
+        </div>
+
+        {quickError && <div className="modal-error" style={{ marginBottom: "12px" }}>{quickError}</div>}
+
+        <div style={{ textAlign: "center", margin: "12px 0 10px", color: "var(--muted)", fontSize: "11px", fontWeight: "600" }}>
+          VEYA BULUT GİRİŞİ
+        </div>
+
+        <button data-testid="google-login-button" className="google-btn" onClick={signIn}>
+          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Google ile giriş yap
+        </button>
+        <div className="auth-foot"><ShieldCheck size={13} /> Yetkili personel dışı erişim engellenir</div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [authState, setAuthState] = useState("checking");
+  const [me, setMe] = useState(null);
+  const hasSessionInUrl = typeof window !== "undefined" && window.location.hash.includes("session_id=");
+
+  useEffect(() => {
+    if (hasSessionInUrl) return;
+    const token = localStorage.getItem("session_token");
+    if (token) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    }
+    (async () => {
+      try {
+        const r = await axios.get(`${API}/auth/me`);
+        setMe(r.data);
+        setAuthState("authed");
+      } catch { setAuthState("guest"); }
+    })();
+  }, [hasSessionInUrl]);
+
+  if (hasSessionInUrl) return <AuthCallback />;
+  if (authState === "checking") return <div className="auth-screen"><div className="auth-card"><h1>Yükleniyor...</h1></div></div>;
+  if (authState === "guest") return <Login onLoginSuccess={(user) => { setMe(user); setAuthState("authed"); }} />;
+  return (
+    <MainApp
+      me={me}
+      onLogout={async () => {
+        try { await axios.post(`${API}/auth/logout`); } catch {}
+        localStorage.removeItem("session_token");
+        delete axios.defaults.headers.common["Authorization"];
+        setMe(null);
+        setAuthState("guest");
+      }}
+    />
+  );
+}
+
+function PwaBanner() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  if (dismissed || !deferredPrompt) return null;
+
+  const install = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setDeferredPrompt(null);
+    }
+  };
+
+  return (
+    <div className="pwa-banner" data-testid="pwa-banner">
+      <div className="pwa-info">
+        <img src={LOGO} alt="İnegöl Çözüm" className="pwa-logo" />
+        <div>
+          <strong>Çözüm Kurs Uygulamasını Cihazınıza Yükleyin</strong>
+          <span>Mobil ana ekrana ekleyip tek tıkla tam ekran kullanın</span>
+        </div>
+      </div>
+      <div className="pwa-actions">
+        <button className="btn pwa-install-btn" onClick={install}>Yükle</button>
+        <button className="pwa-close-btn" onClick={() => setDismissed(true)}><X size={16} /></button>
+      </div>
+    </div>
+  );
+}
+
+function MobileBottomNav({ page, setPage, setModal, canPayment }) {
+  return (
+    <nav className="mobile-bottom-nav">
+      <button className={`nav-btn ${page === "dashboard" ? "active" : ""}`} onClick={() => setPage("dashboard")}>
+        <LayoutDashboard size={20} />
+        <span>Genel Bakış</span>
+      </button>
+      <button className={`nav-btn ${page === "students" ? "active" : ""}`} onClick={() => setPage("students")}>
+        <Users size={20} />
+        <span>Öğrenciler</span>
+      </button>
+      {canPayment && (
+        <button className="nav-fab" onClick={() => setModal("payment")} title="Hızlı Tahsilat">
+          <Plus size={24} />
+        </button>
+      )}
+      <button className={`nav-btn ${page === "payments" ? "active" : ""}`} onClick={() => setPage("payments")}>
+        <Wallet size={20} />
+        <span>Tahsilat</span>
+      </button>
+      <button className={`nav-btn ${page === "documents" ? "active" : ""}`} onClick={() => setPage("documents")}>
+        <FileText size={20} />
+        <span>Sözleşme</span>
+      </button>
+    </nav>
+  );
+}
+
+function MainApp({ me, onLogout }) {
+  const [data, setData] = useState({ students: [], payments: [], expenses: [], classes: [] });
+  const [page, setPage] = useState("dashboard");
+  const [search, setSearch] = useState("");
+  const [modal, setModal] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
+  useEffect(() => { load(); }, []);
+  const filtered = useMemo(() => data.students.filter(s => `${s.student_name} ${s.parent_name} ${s.student_phone}`.toLowerCase().includes(search.toLowerCase())), [data.students, search]);
+  const totalCollected = data.summary?.collected || data.students.reduce((a, s) => a + (s.paid_amount || 0), 0);
+  const totalExpected = data.students.reduce((a, s) => a + (s.total_fee || 0), 0);
+  const totalExpenses = data.summary?.expenses || data.expenses.reduce((a, e) => a + (e.amount || 0), 0);
+  const navAll = [
+    { id: "dashboard", label: "Genel Bakış",   icon: LayoutDashboard, perm: "page_dashboard" },
+    { id: "students",  label: "Öğrenci Bul",   icon: Users,           perm: "page_students" },
+    { id: "payments",  label: "Tahsilat",      icon: Wallet,          perm: "page_payments" },
+    { id: "classes",   label: "Sınıflar",      icon: BookOpen,        perm: "page_classes" },
+    { id: "reminders", label: "Hatırlatmalar", icon: BellRing,        perm: "page_reminders" },
+    { id: "documents", label: "Sözleşme & Makbuz", icon: FileText,    perm: "page_documents" },
+    { id: "reports",   label: "Aylık Rapor",   icon: FileDown,        perm: "page_reports" },
+    { id: "users",     label: "Kullanıcılar",  icon: UserCog,         perm: "page_users" },
+    { id: "audit",     label: "Denetim Kaydı", icon: History,         perm: "page_audit" },
+  ];
+  const nav = navAll.filter(n => can(me, n.perm));
+  const guardedOpen = (type) => setModal(type);
+
+  return <div className="app-shell">
+    <aside className={mobileOpen ? "sidebar mobile-open" : "sidebar"}>
+      <Brand />
+      <div className="side-caption">YÖNETİM PANELİ</div>
+      <nav>{nav.map(({ id, label, icon: Icon, perm }) => <button key={id} data-testid={`nav-${id}`} className={page === id ? "nav-item active" : "nav-item"} onClick={() => { setPage(id); setMobileOpen(false); }}><Icon size={18} /><span>{label}</span>{id === "payments" && <i className="nav-dot" />}</button>)}</nav>
+      <div className="side-bottom">
+        <button data-testid="nav-logout" className="nav-item" onClick={onLogout}><LogOut size={18}/><span>Çıkış yap</span></button>
+        <div className="profile">
+          {me?.picture ? <img className="avatar" src={me.picture} alt="" /> : <div className="avatar">{(me?.name || "İÇ").slice(0,2).toUpperCase()}</div>}
+          <div><b>{me?.name || "Kurs Yönetimi"}</b><small data-testid="user-role">{ROLE_LABEL[me?.role] || me?.role_label || "Kullanıcı"}</small></div>
+          <ChevronRight size={16} />
+        </div>
+      </div>
+    </aside>
+    <main className="main">
+      <PwaBanner />
+      <header className="topbar">
+        <button className="mobile-menu" data-testid="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} /></button>
+        <div className="top-search"><Search size={17} /><input data-testid="global-search-input" placeholder="Öğrenci, veli veya telefon ara..." value={search} onChange={e => { setSearch(e.target.value); if (can(me,"page_students")) setPage("students"); }} /></div>
+        <div className="top-actions">
+          <span className="today-label">{new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
+          <button data-testid="notifications-button" className="icon-btn"><Bell size={18} /><i /></button>
+          <div className="user-mini">
+            {me?.picture ? <img className="avatar" src={me.picture} alt="" /> : <div className="avatar">{(me?.name || "İÇ").slice(0,2).toUpperCase()}</div>}
+            <span data-testid="user-name">{me?.name || "Yönetici"}</span>
+            <span data-testid="user-role-pill" className={`role-pill role-${me?.role}`}>{ROLE_LABEL[me?.role] || me?.role_label}</span>
+            <button data-testid="logout-button" className="icon-btn" title="Çıkış yap" onClick={onLogout}><LogOut size={16}/></button>
+          </div>
+        </div>
+      </header>
+      <div className="content">
+        {page === "dashboard" && <Dashboard me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} />}
+        {page === "students" && <Students me={me} students={filtered} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
+        {page === "payments" && <Payments me={me} data={data} onOpen={guardedOpen} />}
+        {page === "classes" && <Classes me={me} classes={data.classes} onOpen={guardedOpen} />}
+        {page === "reminders" && <Reminders />}
+        {page === "documents" && <Documents students={data.students} payments={data.payments} />}
+        {page === "reports" && <Reports me={me} />}
+        {page === "users" && <UsersPage me={me} />}
+        {page === "audit" && <AuditPage />}
+      </div>
+    </main>
+    <MobileBottomNav page={page} setPage={setPage} setModal={setModal} canPayment={can(me, "payment_create")} />
+    <Modal type={modal} selected={selected} data={data} close={() => setModal(null)} reload={load} />
+    <StudentDetailDrawer student={selected} onClose={() => setSelected(null)} me={me} />
+  </div>;
+}
+
+function PageHead({ eyebrow, title, children }) { return <div className="page-head"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div><div className="head-actions">{children}</div></div> }
+function Button({ children, onClick, secondary = false, testid }) { return <button data-testid={testid} onClick={onClick} className={secondary ? "btn secondary" : "btn"}>{children}</button> }
+
+function Dashboard({ me, data, totalCollected, totalExpected, totalExpenses, onOpen }) {
+  const outstanding = totalExpected - totalCollected;
+  return <>
+    <PageHead eyebrow="PAZARTESİ · 16 MART 2026" title="Genel Bakış">
+      {can(me,"payment_create") && <Button testid="add-payment-dashboard" onClick={() => onOpen("payment")}><Plus size={17} /> Tahsilat Ekle</Button>}
+      {can(me,"student_create") && <Button testid="add-student-dashboard" secondary onClick={() => onOpen("student")}><Users size={17} /> Öğrenci Ekle</Button>}
+    </PageHead>
+    <div className="stats-grid"><Stat icon={CircleDollarSign} label="Bu ay tahsilat" value={money(totalCollected)} note="Toplam tahsil edilen" color="blue" trend="+12.8%" /><Stat icon={Wallet} label="Bekleyen alacak" value={money(outstanding)} note="Öğrencilerden kalan" color="amber" trend="Takipte" /><Stat icon={Users} label="Aktif öğrenci" value={data.students.length} note={`${data.classes.length} aktif sınıfta`} color="green" trend="+4 yeni" /><Stat icon={TrendingDown} label="Bu ay gider" value={money(totalExpenses)} note="Genel toplamdan düşüldü" color="red" trend="Bu ay" /></div>
+    <div className="dashboard-grid"><section className="panel collection-panel"><div className="panel-head"><div><h2>Tahsilat görünümü</h2><p>Toplam kurs ücretlerinin gerçekleşme durumu</p></div><span className="period">Son 30 gün <ChevronRight size={15} /></span></div><div className="progress-wrap"><div className="progress-number"><strong>{Math.round((totalCollected / (totalExpected || 1)) * 100)}%</strong><span>tahsil edildi</span></div><div className="progress-track"><div style={{ width: `${Math.min(100, (totalCollected / (totalExpected || 1)) * 100)}%` }} /></div><div className="progress-labels"><span><i className="dot blue" /> Tahsil edilen <b>{money(totalCollected)}</b></span><span><i className="dot gray" /> Kalan bakiye <b>{money(outstanding)}</b></span></div></div><div className="mini-chart"><div className="chart-y"><span>₺40K</span><span>₺20K</span><span>₺0</span></div><div className="bars">{[42, 58, 46, 72, 62, 88, 67, 76, 55, 91, 73, 84].map((h, i) => <div key={i} className="bar-col"><div className={i > 8 ? "bar active" : "bar"} style={{ height: `${h}%` }} /><small>{["Oca", "", "", "Şub", "", "", "Mar", "", "", "Nis", "", ""][i]}</small></div>)}</div></div></section><section className="panel alerts-panel"><div className="panel-head"><div><h2>Ödeme takibi</h2><p>Yaklaşan ve geciken ödemeler</p></div>{can(me,"payment_create") && <button data-testid="view-all-payments" className="text-btn" onClick={() => onOpen("payment")}>Tümünü gör <ChevronRight size={15} /></button>}</div>{data.students.slice(0,6).map((s, i) => <div className="alert-row" key={s.id}><div className={`status-icon ${i === 1 ? "warning" : "danger"}`}><Bell size={15} /></div><div className="alert-info"><b>{s.student_name}</b><span>{i === 1 ? "Yaklaşan taksit" : "Geciken ödeme"} · {s.due_date ? new Date(s.due_date).toLocaleDateString("tr-TR") : "—"}</span></div><strong>{money(Math.round((s.total_fee||0) / (s.installment_count || 1)))}</strong><ChevronRight size={15} /></div>)}</section></div>
+    <section className="panel recent-panel"><div className="panel-head"><div><h2>Son tahsilatlar</h2><p>Hesabınıza işlenen son hareketler</p></div>{can(me,"payment_create") && <button data-testid="quick-receipt" className="text-btn" onClick={() => onOpen("payment")}>Makbuz oluştur <Receipt size={15} /></button>}</div><PaymentTable payments={data.payments} students={data.students} /></section>
+  </>;
+}
+
+function Stat({ icon: Icon, label, value, note, color, trend }) { return <div className="stat-card"><div className={`stat-icon ${color}`}><Icon size={19} /></div><div className="stat-copy"><span>{label}</span><strong>{value}</strong><small>{note}</small></div><em className={color}>{trend}</em></div> }
+
+function Students({ me, students, search, onSearch, onOpen, onSelect }) {
+  return <>
+    <PageHead eyebrow="KAYITLAR · ÖĞRENCİ VE VELİ" title="Öğrenci Bul">
+      {can(me,"export_data") && <Button testid="export-students-button" secondary onClick={() => downloadBlob(`${API}/export/students`, `inegol-cozum-ogrenciler.xlsx`)}><Download size={16}/> Excel indir</Button>}
+      {can(me,"student_create") && <Button testid="add-student-button" onClick={() => onOpen("student")}><Plus size={17} /> Yeni öğrenci</Button>}
+    </PageHead>
+    <div className="filter-bar"><div className="inline-search"><Search size={17} /><input data-testid="student-search-input" placeholder="İsim, veli veya telefon ile ara" value={search} onChange={e => onSearch(e.target.value)} /></div><span className="result-count">{students.length} kayıt</span></div>
+    <section className="panel table-panel"><table><thead><tr><th>ÖĞRENCİ</th><th>VELİ / TELEFON</th><th>OKUL & SINIF</th><th>PROGRAM</th><th>BAKİYE DURUMU</th><th></th></tr></thead><tbody>{students.map(s => <tr key={s.id} data-testid={`student-row-${s.id}`} onClick={() => onSelect(s)}><td><div className="person"><div className="student-avatar">{s.student_name.split(" ").map(x => x[0]).join("")}</div><div><b>{s.student_name}</b><span>{s.student_phone}</span></div></div></td><td><div className="cell-stack"><b>{s.parent_name}</b><span>{s.parent_phone}</span></div></td><td><div className="cell-stack"><b>{s.school}</b><span>{s.student_class}</span></div></td><td><span className="program-tag">{s.program}</span></td><td><div className="balance"><b>{money(s.remaining)}</b><span className={s.remaining === 0 ? "paid" : "pending"}>{s.remaining === 0 ? "Tamamlandı" : "Bekliyor"}</span></div></td><td><button data-testid={`student-detail-${s.id}`} className="row-arrow" onClick={() => onSelect(s)}><ChevronRight size={17} /></button></td></tr>)}</tbody></table></section>
+  </>;
+}
+
+function Payments({ me, data, onOpen }) {
+  return <>
+    <PageHead eyebrow="FİNANS · TAHSİLAT TAKİBİ" title="Tahsilatlar">
+      {can(me,"export_data") && <Button testid="export-payments-button" secondary onClick={() => downloadBlob(`${API}/export/payments`, `inegol-cozum-tahsilat.xlsx`)}><Download size={16}/> Excel indir</Button>}
+      {can(me,"payment_create") && <Button testid="add-payment-button" onClick={() => onOpen("payment")}><Plus size={17} /> Tahsilat ekle</Button>}
+    </PageHead>
+    <div className="stats-grid compact"><Stat icon={TrendingUp} label="Toplam tahsilat" value={money(data.students.reduce((a,s) => a+s.paid_amount,0))} note="Tüm öğrenciler" color="green" trend="Güncel" /><Stat icon={CircleDollarSign} label="Tahsilat adedi" value={data.payments.length} note="Kayıtlı işlem" color="blue" trend="" /></div>
+    <section className="panel table-panel"><div className="panel-head"><div><h2>Tahsilat hareketleri</h2><p>Renkli durumlar ödeme takibini kolaylaştırır</p></div></div><PaymentTable payments={data.payments} students={data.students} /></section>
+  </>;
+}
+
+function PaymentTable({ payments, students }) { return <table><thead><tr><th>ÖĞRENCİ</th><th>TARİH</th><th>YÖNTEM</th><th>AÇIKLAMA</th><th>TUTAR</th><th>DURUM</th></tr></thead><tbody>{(payments.length ? payments : students.map((s,i) => ({ id: `p${i}`, student_id: s.id, payment_date: today(), method: i ? "Kredi Kartı" : "Banka Transferi", note: "Dönem ödemesi", amount: s.paid_amount })) ).map(p => { const s = students.find(x => x.id === p.student_id); return <tr key={p.id}><td><div className="person"><div className="student-avatar small">{s?.student_name?.split(" ").map(x=>x[0]).join("")}</div><b>{s?.student_name || "-"}</b></div></td><td>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</td><td><span className="method-tag">{p.method}</span></td><td className="muted-cell">{p.note || "-"}</td><td><b className="amount">{money(p.amount)}</b></td><td><span className="status-pill success">İşlendi</span></td></tr>})}</tbody></table> }
+
+function Classes({ me, classes, onOpen }) {
+  return <>
+    <PageHead eyebrow="EĞİTİM · DERSLİKLER" title="Sınıflar">
+      {can(me,"class_create") && <Button testid="add-class-button" onClick={() => onOpen("class")}><Plus size={17} /> Sınıf oluştur</Button>}
+    </PageHead>
+    <div className="class-grid">{classes.map(c => <div className="class-card" key={c.id}><div className="class-top"><div className="class-icon"><BookOpen size={20} /></div><span className="active-label">AKTİF</span></div><h2>{c.name}</h2><p>{c.level} · {c.room}</p><div className="class-meta"><span><Users size={15} /> {c.capacity} kişilik</span><span>{c.teacher}</span></div><div className="class-progress"><div><span>Dolu kapasite</span><b>%68</b></div><div className="progress-track"><div style={{width:"68%"}} /></div></div></div>)}</div>
+  </>;
+}
+
+function Documents({ students, payments }) {
+  const [student, setStudent] = useState(students[0]?.id || "");
+  const [kind, setKind] = useState("contract");
+  const s = students.find(x => x.id === student);
+  const p = payments.find(x => x.student_id === student);
+  const now = new Date();
+  const yearStart = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  const schoolYear = `${yearStart} - ${yearStart + 1}`;
+  const kayitTarihi = s?.created_at ? new Date(s.created_at).toLocaleDateString("tr-TR") : "";
+  const blank = (v, min = 26) => (v && String(v).trim()) ? v : "\u2026".repeat(min);
+  const fee = s?.total_fee || 0;
+  const inst = s?.installment_count || 1;
+  const extras = s?.extra_fees || {};
+  const extraSum = EXTRA_KEYS.reduce((sum, x) => sum + Number(extras[x.k] || 0), 0);
+  const disc = Number(s?.discount_amount || 0);
+  const totalAll = fee + extraSum - disc;
+  const perInstallment = inst > 0 ? Math.round(totalAll / inst) : totalAll;
+  const dtype = s?.discount_type || "";
+  const check = (t) => dtype === t ? "( X )" : "(   )";
+
+  return <>
+    <PageHead eyebrow="BELGELER · ÇIKTI MERKEZİ" title="Sözleşme & Makbuz" />
+    <div className="document-layout">
+      <section className="panel document-tools">
+        <h2>Öğrenci seçin</h2>
+        <p>Resmî MEB Öğrenci Kayıt Sözleşmesi otomatik doldurulur; boş kalan alanlar veli tarafından ıslak imzayla tamamlanabilir.</p>
+        <select data-testid="document-student-select" value={student} onChange={e => setStudent(e.target.value)}>{students.map(x => <option key={x.id} value={x.id}>{x.student_name}</option>)}</select>
+        <div className="doc-actions">
+          <Button testid="print-contract-button" onClick={() => { setKind("contract"); setTimeout(() => window.print(), 60); }}><FileText size={17} /> Sözleşmeyi yazdır</Button>
+          <Button testid="print-receipt-button" secondary onClick={() => { setKind("receipt"); setTimeout(() => window.print(), 60); }}><Receipt size={17} /> Makbuzu yazdır</Button>
+        </div>
+        <div className="doc-tips"><b>İpucu:</b> Yazıcı diyaloğunda "Hedef: PDF olarak kaydet" seçerseniz sözleşme direkt PDF çıkar.</div>
+      </section>
+
+      {kind === "receipt" ? (
+        <section className="paper-preview" data-testid="receipt-preview">
+          <div className="paper-head"><img className="paper-logo" src={LOGO} alt="Logo" /><div className="paper-brand"><b>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ</b><small>Kemalpaşa Mah. Ilıca Sk. No:31/33A İnegöl / BURSA · 0224 715 00 02</small></div></div>
+          <h2>TAHSİLAT MAKBUZU</h2><div className="paper-line" />
+          <p>Makbuz no: <b>{p?.id?.slice(0, 8) || "ÖNİZLEME"}</b></p>
+          <p>Öğrenci: <b>{s?.student_name || "—"}</b></p>
+          <p>Veli: <b>{s?.parent_name || "—"}</b></p>
+          <p>Ödeme yöntemi: <b>{p?.method || "—"}</b>{p?.bank ? <> · <b>{p.bank}</b></> : null}</p>
+          <p>Ödeme tarihi: <b>{p?.payment_date ? new Date(p.payment_date).toLocaleDateString("tr-TR") : "—"}</b></p>
+          <p>Tahsil edilen tutar: <b>{money(p?.amount)}</b></p>
+          <p>Kalan bakiye: <b>{money(s?.remaining ?? Math.max(0,(s?.total_fee||0)-(s?.paid_amount||0)))}</b></p>
+          <div className="signature"><span>Veli imzası</span><span>Kurs yetkilisi · Nevin ÇAKMAK</span></div>
+        </section>
+      ) : (
+        <section className="contract-preview" data-testid="contract-preview">
+          {/* PAGE 1 */}
+          <div className="contract-page">
+            <div className="contract-header">
+              <img src={LOGO} alt="Çözüm Kurs" className="contract-logo" />
+              <div className="contract-title">
+                <div className="contract-tc">T.C.<br/>MİLLÎ EĞİTİM BAKANLIĞI<br/>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
+                <h1>ÖĞRENCİ KAYIT SÖZLEŞMESİ</h1>
+              </div>
+              <div className="contract-seal">MEB<br/><small>ÖZEL ÖĞR.<br/>KURUMLARI</small></div>
+            </div>
+
+            <div className="contract-course-name">
+              <b>ÖZEL ÖĞRETİM KURS ADI:</b> ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ &nbsp;·&nbsp; <b>{schoolYear}</b> Öğretim Yılı
+            </div>
+
+            <div className="contract-section-title">ÖĞRENCİNİN BİLGİLERİ</div>
+            <table className="contract-table"><tbody>
+              <tr><td className="lbl">T.C. Kimlik No</td><td>{blank(s?.student_tc)}</td></tr>
+              <tr><td className="lbl">Adı ve Soyadı</td><td>{blank(s?.student_name)}</td></tr>
+              <tr><td className="lbl">Veli/Vasi Adı ve Soyadı</td><td>{blank(s?.parent_name)}</td></tr>
+              <tr><td className="lbl">Sınıfı</td><td>{blank(s?.student_class)}</td></tr>
+              <tr><td className="lbl">Okula kayıt / nakil tarihi</td><td>{blank(kayitTarihi)}</td></tr>
+              <tr><td className="lbl">Ev adresi</td><td>{blank(s?.student_address || s?.parent_address)}</td></tr>
+              {s?.program && <tr><td className="lbl">Kayıt olduğu program</td><td>{s.program}</td></tr>}
+            </tbody></table>
+
+            <div className="contract-parents">
+              <div className="contract-parent">
+                <div className="contract-section-title small">ÖĞRENCİNİN ANNE BİLGİLERİ</div>
+                <table className="contract-table"><tbody>
+                  <tr><td className="lbl">T.C. Kimlik No</td><td>{blank(s?.mother_tc)}</td></tr>
+                  <tr><td className="lbl">Adı ve Soyadı</td><td>{blank(s?.mother_name)}</td></tr>
+                  <tr><td className="lbl">Mesleği</td><td>{blank(s?.mother_job)}</td></tr>
+                  <tr><td className="lbl">Cep telefonu</td><td>{blank(s?.mother_phone)}</td></tr>
+                  <tr><td className="lbl">İş telefonu</td><td>{blank(s?.mother_work_phone)}</td></tr>
+                  <tr><td className="lbl">Ev adresi</td><td>{blank(s?.mother_address)}</td></tr>
+                  <tr><td className="lbl">İş adresi</td><td>{blank(s?.mother_work_address)}</td></tr>
+                  <tr><td className="lbl">e-Posta</td><td>{blank(s?.mother_email)}</td></tr>
+                </tbody></table>
+              </div>
+              <div className="contract-parent">
+                <div className="contract-section-title small">ÖĞRENCİNİN BABA BİLGİLERİ</div>
+                <table className="contract-table"><tbody>
+                  <tr><td className="lbl">T.C. Kimlik No</td><td>{blank(s?.parent_tc)}</td></tr>
+                  <tr><td className="lbl">Adı ve Soyadı</td><td>{blank(s?.parent_name)}</td></tr>
+                  <tr><td className="lbl">Mesleği</td><td>{blank(s?.father_job)}</td></tr>
+                  <tr><td className="lbl">Cep telefonu</td><td>{blank(s?.parent_phone)}</td></tr>
+                  <tr><td className="lbl">İş telefonu</td><td>{blank(s?.father_work_phone)}</td></tr>
+                  <tr><td className="lbl">Ev adresi</td><td>{blank(s?.parent_address)}</td></tr>
+                  <tr><td className="lbl">İş adresi</td><td>{blank(s?.father_work_address)}</td></tr>
+                  <tr><td className="lbl">e-Posta</td><td>{blank(s?.father_email)}</td></tr>
+                </tbody></table>
+              </div>
+            </div>
+
+            <div className="contract-section-title">ÖĞRENCİNİN VASİ BİLGİLERİ (VARSA)</div>
+            <table className="contract-table two-col"><tbody>
+              <tr><td className="lbl">T.C. Kimlik No</td><td>{blank(s?.guardian_tc)}</td><td className="lbl">İş telefonu</td><td>{blank(s?.guardian_work_phone)}</td></tr>
+              <tr><td className="lbl">Adı ve Soyadı</td><td>{blank(s?.guardian_name)}</td><td className="lbl">Ev adresi</td><td>{blank(s?.guardian_home_address)}</td></tr>
+              <tr><td className="lbl">Mesleği</td><td>{blank(s?.guardian_job)}</td><td className="lbl">İş adresi</td><td>{blank(s?.guardian_work_address)}</td></tr>
+              <tr><td className="lbl">Cep telefonu</td><td>{blank(s?.guardian_phone)}</td><td className="lbl">e-Posta</td><td>{blank(s?.guardian_email)}</td></tr>
+              <tr><td className="lbl">Ev telefonu</td><td>{blank(s?.guardian_home_phone)}</td><td></td><td></td></tr>
+            </tbody></table>
+
+            <div className="contract-footer">ÇÖZÜM KURS EĞİTİM KOORDİNATÖRLÜĞÜ</div>
+          </div>
+
+          {/* PAGE 2 */}
+          <div className="contract-page">
+            <div className="contract-section-title center">ÖDEME BİLGİLERİ ({schoolYear} Öğretim Yılı İçin)</div>
+            <table className="contract-table fees"><thead>
+              <tr><th>KALEM</th><th>Kurumun İlan Ettiği Ücret (KDV Dahil)</th><th>Öğrenci İçin Belirlenen Ücret (KDV Dahil)</th></tr>
+            </thead><tbody>
+              <tr><td className="lbl">Öğrenim Ücreti</td><td className="right">{money(fee)}</td><td className="right"><b>{money(fee)}</b></td></tr>
+              <tr><td className="lbl">Kaynak Kitaplar Ücreti</td><td className="right">{Number(extras.kaynak) > 0 ? money(extras.kaynak) : blank("")}</td><td className="right">{Number(extras.kaynak) > 0 ? <b>{money(extras.kaynak)}</b> : blank("")}</td></tr>
+              <tr><td className="lbl">Dijital Platform Ücreti</td><td className="right">{Number(extras.dijital) > 0 ? money(extras.dijital) : blank("")}</td><td className="right">{Number(extras.dijital) > 0 ? <b>{money(extras.dijital)}</b> : blank("")}</td></tr>
+              <tr><td className="lbl">DNM Kulübü Ücreti</td><td className="right">{Number(extras.dnm) > 0 ? money(extras.dnm) : blank("")}</td><td className="right">{Number(extras.dnm) > 0 ? <b>{money(extras.dnm)}</b> : blank("")}</td></tr>
+              <tr><td className="lbl">Kütüphane / Kafe Ücreti</td><td className="right">{Number(extras.kutuphane) > 0 ? money(extras.kutuphane) : blank("")}</td><td className="right">{Number(extras.kutuphane) > 0 ? <b>{money(extras.kutuphane)}</b> : blank("")}</td></tr>
+              <tr><td className="lbl">Özel Ders Ücreti</td><td className="right">{Number(extras.ozel_ders) > 0 ? money(extras.ozel_ders) : blank("")}</td><td className="right">{Number(extras.ozel_ders) > 0 ? <b>{money(extras.ozel_ders)}</b> : blank("")}</td></tr>
+              {disc > 0 && <tr><td className="lbl">İndirim ({(DISCOUNT_TYPES.find(d => d.v === dtype) || {}).label || "—"})</td><td className="right">−{money(disc)}</td><td className="right"><b style={{color:"#dc2626"}}>−{money(disc)}</b></td></tr>}
+              <tr className="total-row"><td className="lbl">ÜCRETLER TOPLAMI</td><td className="right">{money(totalAll)}</td><td className="right"><b>{money(totalAll)}</b></td></tr>
+            </tbody></table>
+
+            <table className="contract-table two-col"><tbody>
+              <tr><td className="lbl">Ödeme Şekli</td><td>{inst > 1 ? "(   ) Peşin  ( X ) Taksit" : "( X ) Peşin  (   ) Taksit"}</td><td className="lbl">Peşinat</td><td>{blank("")}</td></tr>
+              <tr><td className="lbl">Taksit Başlangıç Tarihi</td><td>{blank(s?.due_date ? new Date(s.due_date).toLocaleDateString("tr-TR") : "")}</td><td className="lbl">Taksit Sayısı ve Tutarı</td><td>{inst > 1 ? `${inst} taksit × ${money(perInstallment)}` : blank("")}</td></tr>
+              <tr><td className="lbl">İndirim Yapıldı Mı?</td><td colSpan="3">{disc > 0 ? "( X ) Evet  (   ) Hayır" : "(   ) Evet  ( X ) Hayır"} &nbsp;&nbsp;&nbsp; İndirim tutarı: <b>{disc > 0 ? money(disc) : blank("", 10)}</b></td></tr>
+            </tbody></table>
+
+            <div className="contract-discount">
+              <b>İndirim Yapılmışsa Nedeni:</b><br/>
+              {check("kardes")} Kardeş İndirimi &nbsp;&nbsp; {check("ogretmen_cocugu")} Öğretmen Çocuğu İndirimi &nbsp;&nbsp; {check("personel_cocugu")} Personel Çocuğu İndirimi<br/>
+              {check("basari")} Başarı İndirimi &nbsp;&nbsp; {check("kurumsal")} Kurumsal İndirim &nbsp;&nbsp; {check("kayitli")} Kayıtlı Öğrenci İndirimi<br/>
+              {check("sehit_gazi")} Şehit/Gazi Çocuğu İndirimi &nbsp;&nbsp; {check("korucu")} Korucu Çocuğu İndirimi &nbsp;&nbsp; {check("diger")} Diğer: {dtype === "diger" ? blank(s?.discount_note, 20) : blank("", 20)}
+            </div>
+
+            <div className="contract-section-title">KAYIT SÖZLEŞMESİ İLE İLGİLİ GENEL HUSUSLAR</div>
+            <ol className="contract-clauses">
+              <li>Kurumumuza kayıt yaptıran öğrenci "bir öğretim dönemi boyunca alacağı dersler için" kurs ücreti öder. Öğrenci ve velinin isteğine bağlı diğer ücretler tamamen öğrenci velisinin inisiyatifine bağlıdır ve bu alandaki hizmetler öğrenim ücretinden ayrı hesaplanır.</li>
+              <li>Öğrencinin bir sonraki eğitim öğretim yılında kursa devam etmek istemesi durumunda, yukarıda "Ödeme Bilgileri Bölümünde Öğrenci İçin Belirlenen Öğrenim Ücreti" üzerinden artış yapılacaktır.</li>
+              <li>Kursun öğretim ücreti, bir önceki eğitim öğretim yılında ilan edilen ücrete (Y.İ-ÜFE+TÜFE)/2 oranına en fazla %10 artış; kursa devam eden öğrencilerin ücreti ise, öğrenci kayıt sözleşmesinde belirlenen eğitim ücretine, (Y.İ-ÜFE+TÜFE)/2 oranına en fazla %10 artış yapılarak hesaplanır.</li>
+              <li>Kurumumuz, bir sonraki yılın eğitim ve öğretim ücretini ve diğer (kırtasiye, dijital platform, deneme kulübü, kütüphane, özel ders vb.) ücretleri, Eylül ayından itibaren Kasım ayının sonuna kadar ilan eder. Bu ilanlarda ders yılı veya ders saati ücretiyle birlikte, peşin veya taksitli ödemeler ve diğer indirimler de belirtilir. Bu tarihten sonra oluşan ekonomik değişimlerden (asgari ücret artışı, memur ve işçi zamları gibi) kurumumuz bu zam oranlarının %'sinden en fazla %10 artış yapabilir ve bu durumu ilgili kayıt yapan öğrenci velisi kabul ve taahhüt eder.</li>
+              <li>Sosyal ve kültürel faaliyetler, gezi ve gözlem gibi diğer etkinlikler gönüllülük esaslı olup bunlar için ücretler, faaliyet öncesi belirlenir. Kurs ve faaliyetlere katılım ise veli/vasi izni doğrultusunda gerçekleşir.</li>
+              <li>Kurumumuz, öğrenci veya veli/vasilerinden kurs kaynakları, Kurs Deneme Kulübü, Kurs Kütüphanesi, Kurs dijital platform ücreti adı altında ayrı bir ücret talep edebilecektir.</li>
+              <li>Öğrenim ücreti, Özel Öğretim Kanunu'nda ilgili kademe/sınıf için belirlenen ders müfredat sayısından az olamaz. Öğrenci ders saat ücreti ilgili dönem için MEB DYK kurs öğretmen ders saat ücretinden az olamayacak miktarda ders saat ücreti hesaplanır.</li>
+            </ol>
+            <div className="contract-footer">ÇÖZÜM KURS EĞİTİM KOORDİNATÖRLÜĞÜ</div>
+          </div>
+
+          {/* PAGE 3 */}
+          <div className="contract-page">
+            <ol className="contract-clauses" start="8">
+              <li>Kurumumuzun eğitim ve öğretim ücreti kurs muhasebe birimine veya kurum adına açılan ve valiliğe bildirilen banka hesap numarasına yatırılarak tahsil edilir. Öğrencilerden alınan ücretler e-kurs sistemine işlenir ve velilerin bilgisine sunulur.</li>
+              <li>MEB Özel Öğretim Kurumları Yönetmeliği'nin 56. maddesi hükümlerince; eğitim ve öğretim yılı başlamadan kurumumuzdan ayrılanlara, 5580 sayılı Özel Öğretim Yasası gereğince öğrencinin ödeyeceği yıllık ücretin %10 dışındaki kısmı, eğitim ve öğretim yılı başladıktan sonra kurumumuzdan ayrılanlara ise öğrencinin ödeyeceği yıllık ücretin %10'u ile öğrenim gördüğü günlere göre hesaplanan miktarın dışındaki kısmı öğrenci veli/vasisine iade edilir.</li>
+              <li>Kurumumuz tarafından öğrencinin ücretsiz okumasının uygun bulunması veya indirim hakkı elde etmesi halinde kurumumuza ödenen ücret, eğitim ve öğretim başladıktan sonra iki ay içinde öğrenci veli/vasisine geri ödenir.</li>
+              <li>Herhangi bir şekilde kurumumuzdan ayrılan öğrenci ya da burslu öğrencilerden öğrenim gördüğü süre için kurumumuz tarafından ayrılacağı tarihe kadar verilen ders ücretleri dışında, eğer faydalanmışsa öğrenciden ayrıca kaynak ücreti, Deneme Kulübü ücreti, Kütüphane ücreti ve Dijital platform ücreti talep edilecektir.</li>
+              <li>Öğrencinin kursa devam etmesi esastır. Devamsızlık yapan öğrencilerin velileri/vasileri, öğrencilerin mazeretlerini kursa bildirir. Veli/vasi tarafından söz konusu bildirimin kursa yapılmaması halinde, kurs idaresi gelmeyen öğrencilerin velisiyle/vasisiyle iletişim kurarak devamsız öğrenci hakkında veli/vasiye bilgi verir. Hastalık, doğal afetler nedeniyle gelmediğini belgeleyen öğrencilerin dersleri sonradan kurs tarafından düzenlenen ek tamamlayıcı bir program ile tamamlanmak koşuluyla öğretim ve diğer ücretler talep edilir. (Kurs tarafından devamsız öğrenciye sunulan ek tamamlayıcı programa katılım göstermek zorundadır, aksi halde tüm ücret yükümlülüklerini kabul eder.)</li>
+              <li>İşbu sözleşmede yer alan hususların yerine getirilmesi ve gerekli tebligatların yapılabilmesi için veli/vasi tarafından yukarıda belirtilen adresin yasal ikametgâh adresi olduğu ve adres değişikliği durumunda 15 gün içerisinde yazılı olarak kursa bildirilmediği takdirde bu adrese yapılacak tebligat geçerli olacaktır. Öğrenci kayıt sözleşmesinin tüm hükümleri veli/vasi tarafından eksiksiz olarak okunmuş, anlaşılmış ve herhangi bir tereddüt olmaksızın tamamen hür irade ve arzu ile kesin olarak kabul edilmiştir.</li>
+            </ol>
+
+            <div className="contract-section-title">Özel Hususlar</div>
+            <div className="contract-note">(Yürürlükteki mevzuata ve kayıt sözleşmesi şartlarına aykırı olmamak kaydıyla özel şartlar belirlenebilir.)</div>
+            <div className="contract-blanks"><span>1. {"\u2026".repeat(90)}</span><span>2. {"\u2026".repeat(90)}</span></div>
+
+            <div className="contract-corp-info">
+              <b>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ</b> · Nevin ÇAKMAK<br/>
+              Kemalpaşa Mah. Ilıca Sokak No:31/33A İnegöl / BURSA · Tel: 0224 715 00 02 · 0553 715 00 02<br/>
+              Vergi No: 3171055818 · İnegöl V.D.
+            </div>
+
+            <div className="contract-signatures">
+              <div>
+                <div className="sig-title">Öğrenci Velisi/Vasisinin</div>
+                <div className="sig-title">Adı Soyadı ve İmzası</div>
+                <div className="sig-blank">{blank(s?.parent_name, 30)}</div>
+                <div className="sig-date">..... / ..... / 20.....</div>
+              </div>
+              <div>
+                <div className="sig-title">Kurumun</div>
+                <div className="sig-title">(Kaşe, Mühür ve Yetkilinin İmzası)</div>
+                <div className="sig-blank">Nevin ÇAKMAK</div>
+                <div className="sig-date">..... / ..... / 20.....</div>
+              </div>
+            </div>
+            <div className="contract-footer">ÇÖZÜM KURS EĞİTİM KOORDİNATÖRLÜĞÜ</div>
+          </div>
+        </section>
+      )}
+    </div>
+  </>;
+}
+
+function UsersPage({ me }) {
+  const [users, setUsers] = useState([]);
+  const [msg, setMsg] = useState("");
+  const load = async () => { try { const r = await axios.get(`${API}/users`); setUsers(r.data); } catch (e) { setMsg(e.response?.data?.detail || "Yüklenemedi"); } };
+  useEffect(() => { load(); }, []);
+  const change = async (user_id, role) => { try { await axios.put(`${API}/users/role`, { user_id, role }); await load(); setMsg("Rol güncellendi"); } catch (e) { setMsg(e.response?.data?.detail || "Güncellenemedi"); } };
+  return <>
+    <PageHead eyebrow="YETKİLENDİRME · PERSONEL" title="Kullanıcılar & Roller" />
+    <section className="panel table-panel">
+      <div className="panel-head"><div><h2>Erişim izinleri</h2><p>Sadece izinli e-postalar giriş yapabilir. Rolleri buradan değiştirin.</p></div>{msg && <span className="text-btn" data-testid="users-msg">{msg}</span>}</div>
+      <table><thead><tr><th>KULLANICI</th><th>E-POSTA</th><th>MEVCUT ROL</th><th>ROL DEĞİŞTİR</th></tr></thead><tbody>
+        {users.map(u => <tr key={u.user_id} data-testid={`user-row-${u.user_id}`}>
+          <td><div className="person">{u.picture ? <img className="student-avatar" src={u.picture} alt="" style={{objectFit:"cover"}}/> : <div className="student-avatar">{(u.name||"?").slice(0,2).toUpperCase()}</div>}<div><b>{u.name}</b><span>{u.user_id.slice(0,14)}</span></div></div></td>
+          <td className="muted-cell">{u.email}</td>
+          <td><span className={`role-pill role-${u.role}`}>{ROLE_LABEL[u.role] || u.role}</span></td>
+          <td><select data-testid={`role-select-${u.user_id}`} value={u.role} onChange={e => change(u.user_id, e.target.value)} disabled={u.user_id === me?.user_id}><option value="admin">Yönetici</option><option value="muhasebe">Muhasebe</option><option value="ogretmen">Öğretmen</option></select></td>
+        </tr>)}
+      </tbody></table>
+    </section>
+  </>;
+}
+
+function Reminders() {
+  const [items, setItems] = useState([]);
+  const [days, setDays] = useState(7);
+  const [msg, setMsg] = useState("");
+  useEffect(() => { (async () => { try { const r = await axios.get(`${API}/reminders?days=${days}`); setItems(r.data); } catch (e) { setMsg(e.response?.data?.detail || "Yüklenemedi"); } })(); }, [days]);
+  const overdue = items.filter(i => i.status === "overdue");
+  const upcoming = items.filter(i => i.status === "upcoming");
+  return <>
+    <PageHead eyebrow="TAKİP · ÖDEME HATIRLATMA" title="Hatırlatma Listesi">
+      <select data-testid="reminders-days-select" value={days} onChange={e => setDays(Number(e.target.value))} className="mini-select"><option value="3">Önümüzdeki 3 gün</option><option value="7">Önümüzdeki 7 gün</option><option value="14">Önümüzdeki 14 gün</option><option value="30">Önümüzdeki 30 gün</option></select>
+    </PageHead>
+    <div className="reminder-banner"><ShieldCheck size={17}/><div><b>NetGSM SMS entegrasyonu yakında</b><span>Bu liste hazır — otomatik gönderim NetGSM API bağlanınca aktif olacak. Şimdilik telefon numaralarını tek tıkla arayabilirsiniz.</span></div></div>
+    <div className="stats-grid compact"><Stat icon={BellRing} label="Geciken ödeme" value={overdue.length} note="Vadesi geçti" color="red" trend="Acil" /><Stat icon={Bell} label="Yaklaşan taksit" value={upcoming.length} note={`Önümüzdeki ${days} gün`} color="amber" trend="Takip" /></div>
+    <section className="panel table-panel">
+      <div className="panel-head"><div><h2>Aramaya hazır liste</h2><p>Numaraya tıklayın · WhatsApp/SMS gönderimi entegrasyon sonrası açılır</p></div>{msg && <span className="text-btn" data-testid="reminders-msg">{msg}</span>}</div>
+      <table><thead><tr><th>DURUM</th><th>ÖĞRENCİ</th><th>VELİ / TELEFON</th><th>TAKSİT NO</th><th>VADE</th><th>TUTAR</th><th></th></tr></thead><tbody>
+        {items.map((it, i) => <tr key={`${it.student_id}-${i}`} data-testid={`reminder-row-${it.student_id}`}>
+          <td><span className={`status-pill ${it.status === "overdue" ? "danger" : "warning"}`}>{it.status === "overdue" ? "Gecikti" : "Yaklaşan"}</span></td>
+          <td><b>{it.student_name}</b></td>
+          <td><div className="cell-stack"><b>{it.parent_name}</b><a className="phone-link" href={`tel:${(it.parent_phone||"").replace(/\s/g,"")}`}><Phone size={12}/> {it.parent_phone || "—"}</a></div></td>
+          <td>#{it.installment_no}</td>
+          <td>{new Date(it.due_date).toLocaleDateString("tr-TR")}<br/><span className="muted-cell" style={{fontSize:10}}>{it.status === "overdue" ? `${Math.abs(it.days_diff)} gün gecikti` : `${it.days_diff} gün kaldı`}</span></td>
+          <td><b className="amount">{money(it.amount_due)}</b></td>
+          <td><a data-testid={`whatsapp-${it.student_id}`} className="text-btn" target="_blank" rel="noreferrer" href={`https://wa.me/${(it.parent_phone||"").replace(/[^0-9]/g,"")}?text=${encodeURIComponent(`Sayın ${it.parent_name}, ${it.student_name} adına ${new Date(it.due_date).toLocaleDateString("tr-TR")} tarihli ${money(it.amount_due)} tutarındaki taksit ödemesini hatırlatmak isteriz. İnegöl Çözüm Kurs`)}`}>WhatsApp</a></td>
+        </tr>)}
+        {items.length === 0 && !msg && <tr><td colSpan="7" className="muted-cell" style={{textAlign:"center",padding:"30px"}}>Bu dönemde bekleyen ödeme yok. 🎉</td></tr>}
+      </tbody></table>
+    </section>
+  </>;
+}
+
+function Reports({ me }) {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0,7));
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const generate = async () => {
+    setLoading(true); setMsg("");
+    try { await downloadBlob(`${API}/reports/monthly?month=${month}`, `inegol-cozum-rapor-${month}.pdf`); setMsg("Rapor indirildi."); }
+    catch (e) { setMsg(e.response?.data?.detail || "İndirilemedi"); }
+    finally { setLoading(false); }
+  };
+  return <>
+    <PageHead eyebrow="RAPOR · AYLIK MUHASEBE" title="Aylık Rapor PDF" />
+    <div className="report-hero panel">
+      <div className="report-lead"><h2>Kurumsal aylık rapor</h2><p>Seçtiğiniz ay için toplam tahsilat, yöntem dağılımı, giderler ve net durum, kurumsal antetli tek PDF'de.</p><ul className="report-checks"><li>✓ İnegöl Çözüm Kurs logosu ve iletişim bilgileri</li><li>✓ Tahsilat kalemleri ve yöntem kırılımı</li><li>✓ Aylık giderler ve net kâr/zarar</li><li>✓ Toplam bekleyen alacak özeti</li></ul></div>
+      <div className="report-form">
+        <label>Rapor ayı<input data-testid="report-month-input" type="month" value={month} onChange={e => setMonth(e.target.value)} /></label>
+        <Button testid="download-report-button" onClick={generate}><Download size={17}/> {loading ? "Hazırlanıyor..." : "PDF olarak indir"}</Button>
+        {can(me,"export_data") && <Button testid="download-all-excel" secondary onClick={() => downloadBlob(`${API}/export/all`, `inegol-cozum-tum-kayitlar.xlsx`)}><FileDown size={17}/> Tüm kayıtları Excel indir</Button>}
+        {msg && <div data-testid="report-msg" className="report-msg">{msg}</div>}
+      </div>
+    </div>
+  </>;
+}
+
+function StudentDetailDrawer({ student, onClose, me }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [contractUrl, setContractUrl] = useState("");
+  const fileRef = useRef();
+
+  const refresh = () => {
+    if (!student) return;
+    setLoading(true); setDetail(null);
+    axios.get(`${API}/students/${student.id}/detail`).then(r => setDetail(r.data)).finally(() => setLoading(false));
+  };
+  useEffect(() => { refresh(); setContractUrl(""); setUploadMsg(""); /* eslint-disable-next-line */ }, [student?.id]);
+  if (!student) return null;
+
+  const s = detail?.student || student;
+  const payments = detail?.payments || [];
+  const plan = detail?.installment_plan || [];
+  const { extraSum, discount, effective } = computeEffective(s);
+  const canEdit = can(me, "student_create");
+
+  const uploadContract = async (file) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setUploadMsg("Dosya 10MB'dan büyük olamaz"); return; }
+    setUploading(true); setUploadMsg("");
+    try {
+      await axios.post(`${API}/students/${s.id}/contract-upload`, file, {
+        headers: { "Content-Type": file.type || "application/pdf", "X-Filename": file.name, "X-Content-Type": file.type || "application/pdf" }
+      });
+      setUploadMsg("İmzalı sözleşme yüklendi ✓");
+      refresh();
+    } catch (e) { setUploadMsg(e.response?.data?.detail || "Yüklenemedi"); }
+    finally { setUploading(false); }
+  };
+
+  const viewContract = async () => {
+    try {
+      const r = await axios.get(`${API}/students/${s.id}/contract-file`, { responseType: "blob" });
+      const url = URL.createObjectURL(r.data);
+      setContractUrl(url);
+      window.open(url, "_blank");
+    } catch (e) { setUploadMsg("Sözleşme açılamadı"); }
+  };
+
+  return <div className="drawer-backdrop" onClick={onClose}><div className="drawer" onClick={e => e.stopPropagation()}>
+    <div className="drawer-head">
+      <div className="drawer-title">
+        <div className="student-avatar big">{s.student_name?.split(" ").map(x=>x[0]).join("").slice(0,2)}</div>
+        <div><div className="eyebrow">ÖĞRENCİ KAYDI</div><h2>{s.student_name}</h2><span className="muted-cell">{s.school || "—"} · {s.student_class || "—"} · {s.program || "—"}</span></div>
+      </div>
+      <button data-testid="drawer-close" className="icon-btn" onClick={onClose}><X size={18}/></button>
+    </div>
+    {loading && <div className="drawer-loading">Yükleniyor...</div>}
+    <div className="drawer-body">
+      <div className="mini-stats">
+        <div><span>Öğrenim ücreti</span><b>{money(s.total_fee)}</b></div>
+        <div><span>+ Ekstra</span><b className="green">{money(extraSum)}</b></div>
+        <div><span>− İndirim</span><b className="red">{money(discount)}</b></div>
+        <div><span>Net toplam</span><b data-testid="drawer-net-total">{money(effective)}</b></div>
+      </div>
+      <div className="mini-stats">
+        <div><span>Ödenen</span><b className="green">{money(s.paid_amount)}</b></div>
+        <div><span>Kalan</span><b className="red">{money(Math.max(0, effective - (s.paid_amount||0)))}</b></div>
+        <div><span>Taksit</span><b>{s.installment_count || 1}</b></div>
+        <div><span>İndirim türü</span><b style={{fontSize:11}}>{(DISCOUNT_TYPES.find(d => d.v === s.discount_type) || {}).label || "—"}</b></div>
+      </div>
+
+      {(extraSum > 0 || discount > 0) && <>
+        <h3 className="drawer-h3">Ekstra Ücretler & İndirim</h3>
+        <div className="drawer-grid">
+          {EXTRA_KEYS.filter(x => Number((s.extra_fees||{})[x.k] || 0) > 0).map(x => <div key={x.k}><span>{x.label}</span><b>{money((s.extra_fees||{})[x.k])}</b></div>)}
+          {discount > 0 && <div><span>İndirim ({(DISCOUNT_TYPES.find(d => d.v === s.discount_type) || {}).label || "—"})</span><b className="red">−{money(discount)}</b></div>}
+        </div>
+      </>}
+
+      <h3 className="drawer-h3">İmzalı Sözleşme</h3>
+      <div className="contract-upload-box">
+        {s.signed_contract_path ? <>
+          <div className="contract-file">
+            <FileText size={22} />
+            <div><b>{s.signed_contract_filename || "Sözleşme"}</b><span>{s.signed_contract_uploaded_at ? new Date(s.signed_contract_uploaded_at).toLocaleString("tr-TR") : ""}</span></div>
+            <Button testid="view-contract-button" secondary onClick={viewContract}><FileText size={15}/> Görüntüle</Button>
+          </div>
+          {canEdit && <div className="contract-replace"><small>Yeni sürüm yüklemek için:</small><input data-testid="contract-file-input" ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => uploadContract(e.target.files?.[0])}/></div>}
+        </> : (canEdit ? <div className="contract-empty"><FileText size={28}/><div><b>Henüz imzalı sözleşme yüklenmedi</b><span>Veliyle imzaladığınız sözleşmeyi tarayıp arşivleyin (PDF/JPG/PNG · maks 10MB)</span></div><input data-testid="contract-file-input" ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => uploadContract(e.target.files?.[0])}/></div> : <div className="muted-cell">Henüz imzalı sözleşme yüklenmedi.</div>)}
+        {uploading && <div className="report-msg" style={{background:"#eff6ff",color:"#1d4ed8"}}>Yükleniyor...</div>}
+        {uploadMsg && <div className="report-msg" data-testid="contract-upload-msg">{uploadMsg}</div>}
+      </div>
+
+      <h3 className="drawer-h3">İletişim</h3>
+      <div className="drawer-grid">
+        <div><span>Öğrenci telefon</span><b>{s.student_phone || "—"}</b></div>
+        <div><span>Baba (Veli)</span><b>{s.parent_name || "—"}</b></div>
+        <div><span>Baba telefon</span><b>{s.parent_phone || "—"}</b></div>
+        <div><span>Anne</span><b>{s.mother_name || "—"}</b></div>
+        <div><span>Anne telefon</span><b>{s.mother_phone || "—"}</b></div>
+        <div><span>Vasi</span><b>{s.guardian_name || "—"}</b></div>
+      </div>
+
+      <h3 className="drawer-h3">Taksit Planı</h3>
+      <div className="plan-table">
+        <div className="plan-row plan-head"><span>#</span><span>Vade</span><span>Tutar</span><span>Ödenen</span><span>Durum</span></div>
+        {plan.map(p => <div key={p.no} className={`plan-row plan-${p.status}`} data-testid={`installment-${p.no}`}><span>#{p.no}</span><span>{new Date(p.due_date).toLocaleDateString("tr-TR")}</span><span>{money(p.amount)}</span><span>{money(p.paid)}</span><span className={`status-pill ${p.status === "paid" ? "success" : p.status === "partial" ? "warning" : "danger"}`}>{p.status === "paid" ? "Ödendi" : p.status === "partial" ? "Kısmi" : "Bekliyor"}</span></div>)}
+        {plan.length === 0 && <div className="muted-cell" style={{padding:"14px",textAlign:"center"}}>Taksit planı yok</div>}
+      </div>
+
+      <h3 className="drawer-h3">Tahsilat Geçmişi</h3>
+      <div className="plan-table">
+        <div className="plan-row plan-head"><span>Tarih</span><span>Yöntem</span><span>Tutar</span><span>Açıklama</span><span>Kaydeden</span></div>
+        {payments.map(p => <div key={p.id} className="plan-row" data-testid={`payment-${p.id}`}><span>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</span><span><span className="method-tag">{p.method}</span></span><span><b>{money(p.amount)}</b></span><span className="muted-cell">{p.note || "—"}</span><span className="muted-cell">{p.created_by_name || "—"}</span></div>)}
+        {payments.length === 0 && <div className="muted-cell" style={{padding:"14px",textAlign:"center"}}>Henüz tahsilat kaydı yok</div>}
+      </div>
+    </div>
+  </div></div>;
+}
+
+function AuditPage() {
+  const [logs, setLogs] = useState([]);
+  const [msg, setMsg] = useState("");
+  useEffect(() => { (async () => { try { const r = await axios.get(`${API}/audit-logs`); setLogs(r.data); } catch (e) { setMsg(e.response?.data?.detail || "Yüklenemedi"); } })(); }, []);
+  const labelFor = (a) => ({
+    "auth.login": "Giriş yapıldı", "auth.logout": "Çıkış yapıldı",
+    "student.create": "Öğrenci eklendi", "payment.create": "Tahsilat alındı",
+    "expense.create": "Gider kaydedildi", "class.create": "Sınıf oluşturuldu",
+    "user.role_update": "Rol değiştirildi", "export.excel": "Excel indirildi", "report.monthly": "Aylık rapor",
+  }[a] || a);
+  return <>
+    <PageHead eyebrow="DENETİM · AKTİVİTE GEÇMİŞİ" title="Denetim Kaydı">
+      <Button testid="export-audit-button" secondary onClick={() => downloadBlob(`${API}/export/audit`, `inegol-cozum-denetim.xlsx`)}><Download size={16}/> Excel indir</Button>
+    </PageHead>
+    <section className="panel table-panel">
+      <div className="panel-head"><div><h2>Son işlemler</h2><p>Hangi kullanıcı ne zaman ne yaptı - şeffaf takip</p></div>{msg && <span className="text-btn" data-testid="audit-msg">{msg}</span>}</div>
+      <table><thead><tr><th>TARİH</th><th>KULLANICI</th><th>ROL</th><th>İŞLEM</th><th>AÇIKLAMA</th></tr></thead><tbody>
+        {logs.map(l => <tr key={l.id} data-testid={`audit-row-${l.id}`}>
+          <td className="muted-cell">{new Date(l.created_at).toLocaleString("tr-TR")}</td>
+          <td><b>{l.user_name || "—"}</b><br/><span className="muted-cell" style={{fontSize:10}}>{l.user_email}</span></td>
+          <td><span className={`role-pill role-${l.user_role}`}>{ROLE_LABEL[l.user_role] || l.user_role}</span></td>
+          <td><span className="method-tag">{labelFor(l.action)}</span></td>
+          <td className="muted-cell">{l.detail || "—"}</td>
+        </tr>)}
+        {logs.length === 0 && !msg && <tr><td colSpan="5" className="muted-cell" style={{textAlign:"center",padding:"30px"}}>Kayıt bulunamadı.</td></tr>}
+      </tbody></table>
+    </section>
+  </>;
+}
+
+const DISCOUNT_TYPES = [
+  { v: "", label: "— İndirim yok —" },
+  { v: "kardes", label: "Kardeş İndirimi" },
+  { v: "ogretmen_cocugu", label: "Öğretmen Çocuğu İndirimi" },
+  { v: "personel_cocugu", label: "Personel Çocuğu İndirimi" },
+  { v: "basari", label: "Başarı İndirimi" },
+  { v: "kurumsal", label: "Kurumsal İndirim" },
+  { v: "kayitli", label: "Kayıtlı Öğrenci İndirimi" },
+  { v: "sehit_gazi", label: "Şehit/Gazi Çocuğu İndirimi" },
+  { v: "korucu", label: "Korucu Çocuğu İndirimi" },
+  { v: "diger", label: "Diğer" },
+];
+const EXTRA_KEYS = [
+  { k: "kaynak", label: "Kaynak Kitaplar Ücreti" },
+  { k: "dijital", label: "Dijital Platform Ücreti" },
+  { k: "dnm", label: "DNM Kulübü Ücreti" },
+  { k: "kutuphane", label: "Kütüphane / Kafe Ücreti" },
+  { k: "ozel_ders", label: "Özel Ders Ücreti" },
+];
+const computeEffective = (s) => {
+  const total = Number(s?.total_fee || 0);
+  const extras = s?.extra_fees || {};
+  const extraSum = Object.values(extras).reduce((a, b) => a + Number(b || 0), 0);
+  const discount = Number(s?.discount_amount || 0);
+  return { total, extraSum, discount, effective: total + extraSum - discount };
+};
+
+function Modal({ type, selected, data, close, reload }) {
+  const [form, setForm] = useState({ payment_date: today(), method: "Nakit", amount: "", installment_count: 1, extra_kaynak: 0, extra_dijital: 0, extra_dnm: 0, extra_kutuphane: 0, extra_ozel_ders: 0, discount_type: "", discount_amount: 0 });
+  const [photo, setPhoto] = useState("");
+  const [error, setError] = useState("");
+  const videoRef = useRef();
+  if (!type) return null;
+  const change = e => setForm({...form, [e.target.name]: e.target.value});
+  const extraSum = EXTRA_KEYS.reduce((s, x) => s + Number(form[`extra_${x.k}`] || 0), 0);
+  const effective = Number(form.total_fee || 0) + extraSum - Number(form.discount_amount || 0);
+  const submit = async e => {
+    e.preventDefault(); setError("");
+    try {
+      if (type === "student") {
+        const payload = {...form,
+          total_fee: Number(form.total_fee || 0),
+          installment_count: Number(form.installment_count || 1),
+          discount_amount: Number(form.discount_amount || 0),
+          extra_fees: EXTRA_KEYS.reduce((o, x) => ({...o, [x.k]: Number(form[`extra_${x.k}`] || 0)}), {}),
+          photo,
+        };
+        EXTRA_KEYS.forEach(x => delete payload[`extra_${x.k}`]);
+        await axios.post(`${API}/students`, payload);
+      }
+      if (type === "payment") await axios.post(`${API}/payments`, {...form, student_id: form.student_id, amount: Number(form.amount)});
+      if (type === "expense") await axios.post(`${API}/expenses`, {...form, amount: Number(form.amount)});
+      if (type === "class")   await axios.post(`${API}/classes`,  {...form, capacity: Number(form.capacity || 20)});
+      await reload(); close();
+    } catch (err) { setError(err.response?.data?.detail || "Kayıt sırasında bir sorun oluştu."); }
+  };
+  const title = {student:"Yeni öğrenci kaydı", payment:"Tahsilat ekle", expense:"Gider ekle", class:"Yeni sınıf oluştur"}[type];
+  return <div className="modal-backdrop" onClick={close}><div className="modal wide" onClick={e=>e.stopPropagation()}><div className="modal-head"><div><div className="eyebrow">KURS YÖNETİMİ</div><h2>{title}</h2></div><button data-testid="modal-close" className="icon-btn" onClick={close}><X size={18}/></button></div>
+    <form onSubmit={submit}>
+      {type === "student" && <>
+        <div className="form-section-title">Öğrenci Bilgileri</div>
+        <div className="form-grid">
+          <label>Öğrenci ad soyad<input data-testid="student-name-input" required name="student_name" onChange={change}/></label>
+          <label>Öğrenci T.C.<input data-testid="student-tc-input" name="student_tc" onChange={change}/></label>
+          <label>Öğrenci telefon<input data-testid="student-phone-input" name="student_phone" onChange={change}/></label>
+          <label>Okul<input data-testid="student-school-input" name="school" onChange={change}/></label>
+          <label>Sınıf<input data-testid="student-class-input" name="student_class" onChange={change}/></label>
+          <label>Program<input data-testid="program-input" name="program" placeholder="TYT - AYT" onChange={change}/></label>
+        </div>
+        <label>Öğrenci ev adresi<textarea data-testid="student-address-input" name="student_address" onChange={change}/></label>
+
+        <div className="form-section-title">Baba (Veli) Bilgileri</div>
+        <div className="form-grid">
+          <label>Ad soyad<input data-testid="parent-name-input" required name="parent_name" onChange={change}/></label>
+          <label>T.C.<input data-testid="parent-tc-input" name="parent_tc" onChange={change}/></label>
+          <label>Cep telefonu<input data-testid="parent-phone-input" name="parent_phone" onChange={change}/></label>
+          <label>Mesleği<input data-testid="father-job-input" name="father_job" onChange={change}/></label>
+          <label>İş telefonu<input data-testid="father-work-phone-input" name="father_work_phone" onChange={change}/></label>
+          <label>e-Posta<input data-testid="father-email-input" type="email" name="father_email" onChange={change}/></label>
+        </div>
+        <label>Baba ev adresi<textarea data-testid="parent-address-input" name="parent_address" onChange={change}/></label>
+        <label>Baba iş adresi<textarea data-testid="father-work-address-input" name="father_work_address" onChange={change}/></label>
+
+        <details className="form-details"><summary>Anne Bilgileri (isteğe bağlı)</summary>
+          <div className="form-grid">
+            <label>Ad soyad<input data-testid="mother-name-input" name="mother_name" onChange={change}/></label>
+            <label>T.C.<input data-testid="mother-tc-input" name="mother_tc" onChange={change}/></label>
+            <label>Cep telefonu<input data-testid="mother-phone-input" name="mother_phone" onChange={change}/></label>
+            <label>Mesleği<input data-testid="mother-job-input" name="mother_job" onChange={change}/></label>
+            <label>İş telefonu<input data-testid="mother-work-phone-input" name="mother_work_phone" onChange={change}/></label>
+            <label>e-Posta<input data-testid="mother-email-input" type="email" name="mother_email" onChange={change}/></label>
+          </div>
+          <label>Anne ev adresi<textarea data-testid="mother-address-input" name="mother_address" onChange={change}/></label>
+          <label>Anne iş adresi<textarea data-testid="mother-work-address-input" name="mother_work_address" onChange={change}/></label>
+        </details>
+
+        <details className="form-details"><summary>Vasi Bilgileri (varsa)</summary>
+          <div className="form-grid">
+            <label>Ad soyad<input data-testid="guardian-name-input" name="guardian_name" onChange={change}/></label>
+            <label>T.C.<input data-testid="guardian-tc-input" name="guardian_tc" onChange={change}/></label>
+            <label>Cep telefonu<input data-testid="guardian-phone-input" name="guardian_phone" onChange={change}/></label>
+            <label>Ev telefonu<input data-testid="guardian-home-phone-input" name="guardian_home_phone" onChange={change}/></label>
+            <label>İş telefonu<input data-testid="guardian-work-phone-input" name="guardian_work_phone" onChange={change}/></label>
+            <label>Mesleği<input data-testid="guardian-job-input" name="guardian_job" onChange={change}/></label>
+            <label>e-Posta<input data-testid="guardian-email-input" type="email" name="guardian_email" onChange={change}/></label>
+          </div>
+          <label>Ev adresi<textarea data-testid="guardian-home-address-input" name="guardian_home_address" onChange={change}/></label>
+          <label>İş adresi<textarea data-testid="guardian-work-address-input" name="guardian_work_address" onChange={change}/></label>
+        </details>
+
+        <div className="form-section-title">Ödeme Bilgileri</div>
+        <div className="form-grid">
+          <label>Öğrenim ücreti (₺)<input data-testid="total-fee-input" type="number" min="0" name="total_fee" onChange={change}/></label>
+          <label>Taksit sayısı<input data-testid="installment-count-input" type="number" min="1" name="installment_count" defaultValue="1" onChange={change}/></label>
+          <label>İlk ödeme tarihi<input data-testid="due-date-input" type="date" name="due_date" onChange={change}/></label>
+        </div>
+
+        <details className="form-details" open><summary>Ekstra Ücretler (isteğe bağlı)</summary>
+          <div className="form-grid">
+            {EXTRA_KEYS.map(x => <label key={x.k}>{x.label} (₺)<input data-testid={`extra-${x.k}-input`} type="number" min="0" name={`extra_${x.k}`} defaultValue="0" onChange={change}/></label>)}
+          </div>
+        </details>
+
+        <details className="form-details"><summary>İndirim</summary>
+          <div className="form-grid">
+            <label>İndirim türü<select data-testid="discount-type-select" name="discount_type" onChange={change}>{DISCOUNT_TYPES.map(d => <option key={d.v} value={d.v}>{d.label}</option>)}</select></label>
+            <label>İndirim tutarı (₺)<input data-testid="discount-amount-input" type="number" min="0" name="discount_amount" defaultValue="0" onChange={change}/></label>
+            <label>İndirim notu<input data-testid="discount-note-input" name="discount_note" placeholder="Örn. iki kardeş" onChange={change}/></label>
+          </div>
+        </details>
+
+        <div className="fee-summary" data-testid="fee-summary">
+          <div><span>Öğrenim ücreti</span><b>{money(Number(form.total_fee || 0))}</b></div>
+          <div><span>+ Ekstra ücretler</span><b className="green">{money(extraSum)}</b></div>
+          <div><span>− İndirim</span><b className="red">{money(Number(form.discount_amount || 0))}</b></div>
+          <div className="summary-total"><span>NET TOPLAM</span><b data-testid="effective-total">{money(effective)}</b></div>
+        </div>
+
+        <CameraCapture photo={photo} setPhoto={setPhoto} videoRef={videoRef}/>
+      </>}
+      {type === "payment" && <div className="form-grid"><label>Öğrenci<select data-testid="payment-student-select" required name="student_id" onChange={change}><option value="">Öğrenci seçin</option>{data.students.map(s=><option key={s.id} value={s.id}>{s.student_name}</option>)}</select></label><label>Tutar (₺)<input data-testid="payment-amount-input" required type="number" name="amount" onChange={change}/></label><label>Ödeme yöntemi<select data-testid="payment-method-select" name="method" onChange={change}><option>Nakit</option><option>Çek</option><option>Kredi Kartı</option><option>Banka Transferi</option></select></label><label>Banka seçimi<input data-testid="payment-bank-input" name="bank" placeholder="Banka adı" onChange={change}/></label><label>Ödeme tarihi<input data-testid="payment-date-input" type="date" name="payment_date" value={form.payment_date} onChange={change}/></label><label>Açıklama<input data-testid="payment-note-input" name="note" placeholder="Örn. Mart taksiti" onChange={change}/></label></div>}
+      {type === "class" && <div className="form-grid"><label>Sınıf adı<input data-testid="class-name-input" required name="name" onChange={change}/></label><label>Seviye<input data-testid="class-level-input" name="level" onChange={change}/></label><label>Derslik<input data-testid="class-room-input" name="room" onChange={change}/></label><label>Kontenjan<input data-testid="class-capacity-input" type="number" name="capacity" defaultValue="20" onChange={change}/></label><label>Öğretmen<input data-testid="class-teacher-input" name="teacher" onChange={change}/></label></div>}
+      {error && <div data-testid="modal-error" className="modal-error">{error}</div>}
+      <div className="modal-footer"><Button testid="modal-cancel" secondary onClick={close}>Vazgeç</Button><Button testid="modal-submit">Kaydet</Button></div>
+    </form>
+  </div></div>;
+}
+
+function CameraCapture({ photo, setPhoto, videoRef: externalRef }) {
+  const localRef = useRef(null);
+  const videoRef = externalRef || localRef;
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [facingMode, setFacingMode] = useState("user");
+  const [streamError, setStreamError] = useState("");
+  const fileInputRef = useRef(null);
+
+  const stopStream = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsStreaming(false);
+  };
+
+  const startStream = async (mode = facingMode) => {
+    stopStream();
+    setStreamError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: mode, width: { ideal: 640 }, height: { ideal: 480 } }
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setIsStreaming(true);
+      }
+    } catch (err) {
+      setStreamError("Kamera açılamadı. Tarayıcı izinlerini kontrol edin veya galeriden seçin.");
+    }
+  };
+
+  const toggleCamera = () => {
+    const nextMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(nextMode);
+    startStream(nextMode);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 320;
+    const ctx = canvas.getContext("2d");
+    const video = videoRef.current;
+    const size = Math.min(video.videoWidth || 320, video.videoHeight || 320);
+    const startX = ((video.videoWidth || 320) - size) / 2;
+    const startY = ((video.videoHeight || 320) - size) / 2;
+    ctx.drawImage(video, startX, startY, size, size, 0, 0, 320, 320);
+    setPhoto(canvas.toDataURL("image/jpeg", 0.85));
+    stopStream();
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setPhoto(ev.target.result);
+      stopStream();
+    };
+    reader.readAsDataURL(file);
+  };
+
+  useEffect(() => {
+    return () => stopStream();
+  }, []);
+
+  return (
+    <div className="camera-box">
+      <div className="camera-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span><Camera size={16} style={{ display: "inline", verticalAlign: "middle", marginRight: 5 }} /> Öğrenci Fotoğrafı</span>
+        {photo && <button type="button" className="small-btn danger" onClick={() => { setPhoto(""); startStream(); }}>Sil / Yeniden Çek</button>}
+      </div>
+
+      {photo ? (
+        <div className="photo-preview-wrap">
+          <img src={photo} alt="Öğrenci Vesikalık" className="captured-avatar" />
+          <span className="muted-cell" style={{ fontSize: 11 }}>Vesikalık fotoğraf başarıyla kaydedildi ✓</span>
+        </div>
+      ) : (
+        <div className="live-camera-wrap">
+          {isStreaming ? (
+            <div className="video-container">
+              <video ref={videoRef} autoPlay playsInline muted className="live-video" />
+              <div className="avatar-frame-overlay" />
+            </div>
+          ) : (
+            <div className="camera-placeholder" onClick={() => startStream()}>
+              <Camera size={28} />
+              <span>Fotoğraf çekmek için kamerayı açın</span>
+            </div>
+          )}
+
+          {streamError && <div className="modal-error" style={{ fontSize: 11 }}>{streamError}</div>}
+
+          <div className="camera-btn-group">
+            {!isStreaming ? (
+              <button type="button" data-testid="start-camera-button" className="small-btn" onClick={() => startStream()}>
+                <Camera size={13} style={{ display: "inline", marginRight: 4 }} /> Kamerayı Aç
+              </button>
+            ) : (
+              <>
+                <button type="button" data-testid="capture-photo-button" className="btn" style={{ height: 32, fontSize: 12, padding: "0 12px" }} onClick={capturePhoto}>
+                  📸 Çek
+                </button>
+                <button type="button" className="small-btn" onClick={toggleCamera} title="Ön/Arka Kamera">
+                  🔄 Çevir
+                </button>
+                <button type="button" className="small-btn" onClick={stopStream}>
+                  Kapat
+                </button>
+              </>
+            )}
+
+            <button type="button" className="small-btn" onClick={() => fileInputRef.current?.click()}>
+              📁 Galeriden / Dosyadan Seç
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileUpload} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;

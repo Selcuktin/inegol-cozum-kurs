@@ -1,0 +1,25 @@
+{
+  "summary": "Tested 4 new features: Monthly PDF report, Excel/CSV exports, Reminders panel, Student Detail drawer. Backend pytest (16 tests) all pass. Frontend end-to-end via Playwright confirms: admin nav shows Hatırlatmalar/Aylık Rapor/Denetim/Kullanıcılar; ogretmen role hides them (also hides Tahsilat/Payments). Student row click opens right-side drawer with 6-row taksit planı + tahsilat geçmişi (verified with student-001, 6 installments). Reminders page shows blue NetGSM banner and 17 WhatsApp deep-links with valid wa.me URLs. Aylık Rapor page generates a valid PDF (248KB, %PDF magic bytes) via axios blob download. Excel export for students returns valid xlsx (6.2KB). Audit endpoint enforces admin-only (403 for muhasebe/ogretmen). Audit log receives report.monthly and export.excel entries.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_iteration4.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py compute_installment_plan uses min(start.day, 28) as the day of month to avoid invalid February dates. This shifts all due dates to <=28, which is acceptable but note the fee is due 'up to' the 28th instead of user-configured day.",
+    "server.py /reminders always includes ALL students regardless of role - fine for admin/muhasebe (RBAC not enforced at endpoint) but ogretmen (if navigated directly via URL) could also fetch. Currently hidden in nav only; consider role guard at endpoint for defense-in-depth.",
+    "server.py /export/{kind} allows students/payments/expenses/all for any authed user including ogretmen. Only 'audit' is admin-gated. Consider gating exports to admin/muhasebe if data privacy is a concern.",
+    "server.py /reports/monthly accessible to all roles including ogretmen. Spec allows this, but consider restricting to admin/muhasebe (matches frontend CAN.reports_view).",
+    "Frontend App.js is now ~430 lines with many components in one file - approaching split threshold (700). No immediate action needed."
+  ],
+  "updated_files": ["/app/backend/tests/test_new_features.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100%"},
+  "test_credentials": "session_token=test_session_inegol_123 (admin restored after tests)",
+  "seed_data_creation": "Existing seed students (student-001 Eylül, student-002 Arda) plus prior TEST_* students used. No new data created this iteration beyond audit-log entries triggered by report + export.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test at /app/backend/tests/test_new_features.py toggles user role via MongoDB. Runs under pytest-xdist with -n 2 loadscope. Uses openpyxl to validate xlsx and checks %PDF magic bytes. For frontend PDF download testing, use page.expect_download() with the download button data-testid=download-report-button. Student detail drawer opens via clicking [data-testid=student-row-<id>]. Consider adding a role guard at backend /reports/monthly and non-audit /export endpoints if privacy tightens.",
+  "rca of the issue": "N/A - all features working as specified."
+}

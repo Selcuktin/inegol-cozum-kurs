@@ -1,0 +1,75 @@
+{
+  "app_name": "İnegöl Çözüm Kurs - Öğrenci ve Ön Muhasebe Yönetim Sistemi",
+  "context": "dashboards_and_admin_panels",
+  "archetype": "ARCHETYPE 4: SWISS & HIGH-CONTRAST (Authority, Clarity, Truth)",
+  "typography": {
+    "headings": "Outfit, sans-serif",
+    "body": "Inter, sans-serif",
+    "weights": {
+      "light": 300,
+      "normal": 400,
+      "medium": 500,
+      "bold": 700,
+      "black": 900
+    }
+  },
+  "colors": {
+    "primary": "#2563EB",
+    "primary_hover": "#1D4ED8",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "card_bg": "#FFFFFF",
+    "text_main": "#0F172A",
+    "text_muted": "#64748B",
+    "border": "#E2E8F0",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "danger": "#EF4444"
+  },
+  "visual_enhancers": {
+    "border_radius": "rounded-lg",
+    "shadows": "shadow-sm hover:shadow-md transition-shadow",
+    "glassmorphism": "backdrop-blur-xl bg-white/80 border border-slate-200/60"
+  },
+  "grids": {
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-4 lg:grid-cols-12 gap-6"
+  },
+  "layouts": {
+    "sidebar_width": "280px",
+    "container_padding": "p-6 md:p-8"
+  },
+  "motion": {
+    "transition": "transition-all duration-200 ease-in-out",
+    "hover_lift": "hover:-translate-y-0.5"
+  },
+  "accessibility": {
+    "contrast_ratio": "WCAG AA compliant (minimum 4.5:1 for normal text)",
+    "focus_states": "focus:ring-2 focus:ring-blue-500 focus:outline-none",
+    "data_testids": "Mandatory on all interactive elements"
+  },
+  "image_urls": {
+    "logo_placeholder": "https://images.unsplash.com/photo-1698209652952-6ccdcf934f13?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "student_sample_1": "https://images.unsplash.com/photo-1625241152315-4a698f74ceb7?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "student_sample_2": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&q=85"
+  },
+  "key_functionalities": [
+    "Dashboard summary with daily/monthly cash flow and quick metrics",
+    "Student, Parent & School records with TC Kimlik and address details",
+    "Webcam student photo capture with live snapshot functionality",
+    "Class Management (Sınıf Oluşturma & Derslikler)",
+    "Payment Collection (Tahsilat: Nakit, Çek, Kredi Kartı, Banka Transferi + Banka Seçimi)",
+    "Installment & Remaining Balance calculation with colored status badges",
+    "Income & Expense tracking with general balance deduction",
+    "Overdue & Upcoming payments alert center",
+    "Contract Display and PDF Generation with student placeholders",
+    "Receipt (Makbuz) PDF Generation with logo and payment breakdown",
+    "Global Student, Parent & Receipt Search"
+  ],
+  "universal_guidelines": [
+    "Always include data-testid on interactive elements",
+    "Ensure high contrast and WCAG compliance",
+    "Use clean Turkish labels and currency formatting (₺)",
+    "Strict table and form validation",
+    "No transparent backgrounds for headers or overlays"
+  ]
+}
