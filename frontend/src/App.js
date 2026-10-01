@@ -32,7 +32,12 @@ import {
   UserCog,
   Users,
   Wallet,
-  X
+  X,
+  Zap,
+  GraduationCap,
+  UserCheck,
+  UserPlus,
+  Clock
 } from "lucide-react";
 import {
   ExamsPage,
@@ -457,6 +462,7 @@ function MainApp({ me, onLogout }) {
       ]
     }
   ];
+  const [quickOpen, setQuickOpen] = useState(false);
   const guardedOpen = (type) => setModal(type);
 
   return <div className="app-shell">
@@ -517,6 +523,42 @@ function MainApp({ me, onLogout }) {
       <PwaBanner />
       <header className="topbar">
         <button className="mobile-menu" data-testid="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} /></button>
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            className="edesis-quick-actions-btn"
+            onClick={() => setQuickOpen(!quickOpen)}
+            title="Hızlı İşlemler Menüsü"
+          >
+            <Zap size={14} />
+            <span>Hızlı İşlemler</span>
+          </button>
+          {quickOpen && (
+            <div className="edesis-quick-dropdown" onClick={() => setQuickOpen(false)}>
+              <div className="quick-dropdown-header">HIZLI İŞLEMLER</div>
+              <div className="quick-dropdown-grid">
+                <div className="quick-col">
+                  <div className="quick-col-title">MUHASEBE</div>
+                  <button type="button" onClick={() => setPage("documents")}><FileText size={14} style={{ color: "#2563eb" }} /> Yeni Sözleşme <ChevronRight size={12} /></button>
+                  <button type="button" onClick={() => guardedOpen("payment")}><CircleDollarSign size={14} style={{ color: "#8b5cf6" }} /> Tahsilat Al <ChevronRight size={12} /></button>
+                  <button type="button" onClick={() => guardedOpen("expense")}><TrendingDown size={14} style={{ color: "#ef4444" }} /> Hızlı Gider <ChevronRight size={12} /></button>
+                </div>
+                <div className="quick-col">
+                  <div className="quick-col-title">SINAV & ANALİZ</div>
+                  <button type="button" onClick={() => setPage("exams")}><GraduationCap size={14} style={{ color: "#8b5cf6" }} /> Yeni Sınav / Deneme <ChevronRight size={12} /></button>
+                  <button type="button" onClick={() => setPage("exams")}><Target size={14} style={{ color: "#0d9488" }} /> Sınav Karnesi <ChevronRight size={12} /></button>
+                  <button type="button" onClick={() => setPage("attendance")}><UserCheck size={14} style={{ color: "#16a34a" }} /> Günlük Yoklama <ChevronRight size={12} /></button>
+                </div>
+                <div className="quick-col">
+                  <div className="quick-col-title">KAYIT & SİSTEM</div>
+                  <button type="button" onClick={() => guardedOpen("student")}><UserPlus size={14} style={{ color: "#d97706" }} /> Yeni Öğrenci Kaydı <ChevronRight size={12} /></button>
+                  <button type="button" onClick={() => setPage("schedules")}><Clock size={14} style={{ color: "#2563eb" }} /> Ders Programı <ChevronRight size={12} /></button>
+                  <button type="button" onClick={() => setPage("classes")}><Users size={14} style={{ color: "#4f46e5" }} /> Sınıf & Kontenjan <ChevronRight size={12} /></button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         <div className="top-search"><Search size={17} /><input data-testid="global-search-input" placeholder="Öğrenci, veli veya telefon ara..." value={search} onChange={e => { setSearch(e.target.value); if (can(me,"page_students")) setPage("students"); }} /></div>
         <div className="top-actions">
           <span className="today-label">{new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
