@@ -95,9 +95,113 @@ async function logAction(db, user, action, target_type = "", target_id = "", det
   }
 }
 
+
+function getEffectiveTotalFee(student) {
+  const base = Number(student?.total_fee) || 0;
+  let extraSum = 0;
+  try {
+    const extras = typeof student?.extra_fees === "string" ? JSON.parse(student?.extra_fees || "{}") : (student?.extra_fees || {});
+    extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
+  } catch {}
+  const discount = Number(student?.discount_amount) || 0;
+  return Math.max(0, base + extraSum - discount);
+}
+
+function generateMonthlyPdf({ month, collected, expenses, net, monthPayments, monthExpenses, studentsCount }) {
+  const cleanStr = (s) => String(s || "").replace(/[^\x20-\x7E]/g, "?").replace(/[()\\]/g, "");
+  const formatMoney = (n) => `${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL`;
+
+  const lines = [
+    "BT",
+    "/F1 16 Tf",
+    "50 780 Td",
+    "(OZEL INEGOL COZUM KURS MERKEZI) Tj",
+    "/F1 11 Tf",
+    "0 -22 Td",
+    `(${cleanStr(month)} DONEMI KURUMSAL AYLIK MUHASEBE RAPORU) Tj`,
+    "/F1 8 Tf",
+    "0 -14 Td",
+    "(Kemalpasa Mah. Ilica Sk. No:31/33A Inegol / BURSA - Tel: 0224 715 00 02) Tj",
+    "0 -16 Td",
+    "(---------------------------------------------------------------------------------------------------------------) Tj",
+    "/F1 10 Tf",
+    "0 -20 Td",
+    "(FINANSAL GENEL OZET) Tj",
+    "/F1 9 Tf",
+    "0 -16 Td",
+    `(- Toplam Tahsilat: ${formatMoney(collected)}) Tj`,
+    "0 -14 Td",
+    `(- Toplam Giderler: ${formatMoney(expenses)}) Tj`,
+    "0 -14 Td",
+    `(- Net Kar / Durum: ${formatMoney(net)}) Tj`,
+    "0 -14 Td",
+    `(- Kayitli Aktif Ogrenci: ${studentsCount}) Tj`,
+    "0 -14 Td",
+    `(- Islem Sayilari: ${monthPayments.length} Tahsilat, ${monthExpenses.length} Gider) Tj`,
+    "0 -20 Td",
+    "(---------------------------------------------------------------------------------------------------------------) Tj",
+    "/F1 10 Tf",
+    "0 -18 Td",
+    "(BU AYIN TAHSILAT HAREKETLERI (ILK 20 KAYIT)) Tj",
+    "/F1 8 Tf"
+  ];
+
+  for (let i = 0; i < Math.min(20, monthPayments.length); i++) {
+    const p = monthPayments[i];
+    const sName = cleanStr(p.student_name || "Ogrenci");
+    const pText = `${p.payment_date} | ${sName.slice(0, 22)} | ${cleanStr(p.method)} | ${formatMoney(p.amount)}`;
+    lines.push("0 -13 Td");
+    lines.push(`(${pText}) Tj`);
+  }
+  if (monthPayments.length === 0) {
+    lines.push("0 -14 Td");
+    lines.push("(Bu donemde tahsilat kaydi bulunmamaktadir.) Tj");
+  }
+
+  lines.push("0 -24 Td");
+  lines.push("/F1 8 Tf");
+  lines.push("(Inegol Cozum Kurs Yonetim Sistemi - Bulut Raporudur.) Tj");
+  lines.push("ET");
+
+  const streamContent = lines.join("\n");
+  const streamLength = streamContent.length;
+
+  return `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length ${streamLength} >>
+stream
+${streamContent}
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000244 00000 n 
+0000000325 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+${420 + streamLength}
+%%EOF`;
+}
 function computeInstallmentPlan(student, payments) {
   const n = Math.max(1, parseInt(student.installment_count) || 1);
-  const total = Number(student.total_fee) || 0;
+  const total = getEffectiveTotalFee(student);
   const per = Math.round((total / n) * 100) / 100;
   let paidRemaining = Number(student.paid_amount) || 0;
 
@@ -118,15 +222,16 @@ function computeInstallmentPlan(student, payments) {
     m = ((m - 1) % 12) + 1;
     const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, 28)).padStart(2, "0")}`;
 
-    const applied = Math.min(per, paidRemaining);
-    paidRemaining = Math.max(0, paidRemaining - per);
-    const remaining = Math.max(0, Math.round((per - applied) * 100) / 100);
-    const status = applied >= per - 0.5 ? "paid" : applied > 0 ? "partial" : "pending";
+    const installmentAmount = (i === n - 1) ? Math.max(0, Math.round((total - (per * (n - 1))) * 100) / 100) : per;
+    const applied = Math.min(installmentAmount, paidRemaining);
+    paidRemaining = Math.max(0, paidRemaining - installmentAmount);
+    const remaining = Math.max(0, Math.round((installmentAmount - applied) * 100) / 100);
+    const status = applied >= installmentAmount - 0.5 ? "paid" : applied > 0 ? "partial" : "pending";
 
     plan.push({
       no: i + 1,
       due_date: dueStr,
-      amount: per,
+      amount: installmentAmount,
       paid: Math.round(applied * 100) / 100,
       remaining,
       status,
@@ -276,7 +381,7 @@ export async function onRequest(context) {
 
       const students = (studentsRes.results || []).map((s) => ({
         ...s,
-        remaining: Math.max(0, (Number(s.total_fee) || 0) - (Number(s.paid_amount) || 0)),
+        remaining: Math.max(0, getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0)),
       }));
 
       const payments = paymentsRes.results || [];
@@ -317,7 +422,7 @@ export async function onRequest(context) {
       const res = await db.prepare(query).bind(...params).all();
       const students = (res.results || []).map((s) => ({
         ...s,
-        remaining: Math.max(0, (Number(s.total_fee) || 0) - (Number(s.paid_amount) || 0)),
+        remaining: Math.max(0, getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0)),
       }));
       return json(students);
     }
@@ -325,6 +430,9 @@ export async function onRequest(context) {
     if (path === "/students" && request.method === "POST") {
       const user = await getCurrentUser(request, db);
       const s = await request.json();
+      if (!s.student_name?.trim()) return json({ detail: "Öğrenci adı soyadı zorunludur" }, 422);
+      if (!s.parent_name?.trim()) return json({ detail: "Veli adı soyadı zorunludur" }, 422);
+      if (Number(s.total_fee) < 0) return json({ detail: "Öğrenim ücreti negatif olamaz" }, 422);
       const id = s.id || "student-" + crypto.randomUUID().slice(0, 8);
 
       await db
@@ -405,7 +513,7 @@ export async function onRequest(context) {
       const student = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
       if (!student) return json({ detail: "Öğrenci bulunamadı" }, 404);
 
-      student.remaining = Math.max(0, (Number(student.total_fee) || 0) - (Number(student.paid_amount) || 0));
+      student.remaining = Math.max(0, getEffectiveTotalFee(student) - (Number(student.paid_amount) || 0));
       const paymentsRes = await db
         .prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY payment_date DESC")
         .bind(studentId)
@@ -413,10 +521,80 @@ export async function onRequest(context) {
       const payments = paymentsRes.results || [];
       const plan = computeInstallmentPlan(student, payments);
 
+      const hasContract = !!student.signed_contract_path;
+      const studentDetail = {
+        ...student,
+        signed_contract_path: hasContract ? `/api/students/${student.id}/contract-file` : "",
+        has_signed_contract: hasContract,
+      };
+
       return json({
-        student,
+        student: studentDetail,
         payments,
         installment_plan: plan,
+      });
+    }
+
+    // Contract Upload: /students/:id/contract-upload
+    const uploadMatch = path.match(/^\/students\/([^\/]+)\/contract-upload$/);
+    if (uploadMatch && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const studentId = uploadMatch[1];
+      const student = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
+      if (!student) return json({ detail: "Öğrenci bulunamadı" }, 404);
+
+      const arrayBuffer = await request.arrayBuffer();
+      if (arrayBuffer.byteLength > 10 * 1024 * 1024) {
+        return json({ detail: "Dosya boyutu 10MB'dan büyük olamaz" }, 413);
+      }
+
+      let binary = "";
+      const bytes = new Uint8Array(arrayBuffer);
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+
+      const filename = request.headers.get("X-Filename") || "sozlesme.pdf";
+      const contentType = request.headers.get("X-Content-Type") || request.headers.get("Content-Type") || "application/pdf";
+
+      await db
+        .prepare(
+          "UPDATE students SET signed_contract_path = ?, signed_contract_filename = ?, signed_contract_content_type = ?, signed_contract_uploaded_at = datetime('now') WHERE id = ?"
+        )
+        .bind(base64, filename, contentType, studentId)
+        .run();
+
+      await logAction(db, user, "student.contract_upload", "student", studentId, `${student.student_name} için sözleşme yüklendi (${filename})`);
+      return json({ ok: true, filename, uploaded_at: new Date().toISOString() });
+    }
+
+    // Contract View/Download: /students/:id/contract-file
+    const fileMatch = path.match(/^\/students\/([^\/]+)\/contract-file$/);
+    if (fileMatch && request.method === "GET") {
+      const studentId = fileMatch[1];
+      const student = await db.prepare("SELECT signed_contract_path, signed_contract_filename, signed_contract_content_type FROM students WHERE id = ?").bind(studentId).first();
+      if (!student || !student.signed_contract_path) {
+        return json({ detail: "Yüklenmiş sözleşme bulunamadı" }, 404);
+      }
+
+      const binary = atob(student.signed_contract_path);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      const contentType = student.signed_contract_content_type || "application/pdf";
+      const filename = student.signed_contract_filename || "sozlesme.pdf";
+
+      return new Response(bytes, {
+        headers: {
+          "Content-Type": contentType,
+          "Content-Disposition": `inline; filename="${filename}"`,
+          ...CORS_HEADERS,
+        },
       });
     }
 
@@ -561,8 +739,12 @@ export async function onRequest(context) {
       const horizon = new Date(now.getTime() + days * 24 * 3600 * 1000);
       const items = [];
 
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const horizonStr = new Date(Date.now() + days * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const msPerDay = 24 * 3600 * 1000;
+
       for (const s of students) {
-        const remaining = (Number(s.total_fee) || 0) - (Number(s.paid_amount) || 0);
+        const remaining = getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0);
         if (remaining <= 0) continue;
 
         const sPayments = payments.filter((p) => p.student_id === s.id);
@@ -571,13 +753,15 @@ export async function onRequest(context) {
         const nextDue = plan.find((p) => p.status !== "paid");
         if (!nextDue) continue;
 
-        const dueDate = new Date(nextDue.due_date);
-        const isOverdue = dueDate < now;
-        const isUpcoming = dueDate <= horizon;
+        const isOverdue = nextDue.due_date < todayStr;
+        const isUpcoming = nextDue.due_date >= todayStr && nextDue.due_date <= horizonStr;
 
         if (!isOverdue && !isUpcoming) continue;
 
-        const diffDays = Math.round((dueDate.getTime() - now.getTime()) / (24 * 3600 * 1000));
+        const diffDays = Math.round(
+          (new Date(nextDue.due_date + "T12:00:00Z").getTime() - new Date(todayStr + "T12:00:00Z").getTime()) / msPerDay
+        );
+
         items.push({
           student_id: s.id,
           student_name: s.student_name,
@@ -599,6 +783,45 @@ export async function onRequest(context) {
       return json(items);
     }
 
+    // ---------------- MONTHLY REPORT ----------------
+    if (path === "/reports/monthly" && request.method === "GET") {
+      const month = url.searchParams.get("month") || new Date().toISOString().slice(0, 7);
+      const studentsRes = await db.prepare("SELECT * FROM students").all();
+      const paymentsRes = await db
+        .prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date ASC")
+        .all();
+      const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date ASC").all();
+
+      const students = studentsRes.results || [];
+      const payments = paymentsRes.results || [];
+      const expenses = expensesRes.results || [];
+
+      const monthPayments = payments.filter((p) => String(p.payment_date).startsWith(month));
+      const monthExpenses = expenses.filter((e) => String(e.expense_date).startsWith(month));
+
+      const collected = monthPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      const expTotal = monthExpenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+      const net = collected - expTotal;
+
+      const pdf = generateMonthlyPdf({
+        month,
+        collected,
+        expenses: expTotal,
+        net,
+        monthPayments,
+        monthExpenses,
+        studentsCount: students.length,
+      });
+
+      return new Response(pdf, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="inegol-cozum-rapor-${month}.pdf"`,
+          ...CORS_HEADERS,
+        },
+      });
+    }
+
     // ---------------- USERS & AUDIT ----------------
     if (path === "/users" && request.method === "GET") {
       const res = await db.prepare("SELECT user_id, email, name, picture, role, created_at FROM users").all();
@@ -611,8 +834,14 @@ export async function onRequest(context) {
 
     if (path === "/users/role" && request.method === "PUT") {
       const user = await getCurrentUser(request, db);
+      if (!user || user.role !== ROLE_ADMIN) {
+        return json({ detail: "Sadece yöneticiler rol değiştirebilir" }, 403);
+      }
       const body = await request.json();
       if (!ROLE_LABELS[body.role]) return json({ detail: "Geçersiz rol" }, 422);
+      if (body.user_id === user.user_id && body.role !== ROLE_ADMIN) {
+        return json({ detail: "Kendi yönetici rolünüzü kaldıramazsınız" }, 400);
+      }
 
       await db.prepare("UPDATE users SET role = ? WHERE user_id = ?").bind(body.role, body.user_id).run();
       await logAction(db, user, "user.role_update", "user", body.user_id, `Rol ${ROLE_LABELS[body.role]} yapıldı`);

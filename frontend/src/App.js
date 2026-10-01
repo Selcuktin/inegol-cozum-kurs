@@ -365,7 +365,7 @@ function MainApp({ me, onLogout }) {
   useEffect(() => { load(); }, []);
   const filtered = useMemo(() => data.students.filter(s => `${s.student_name} ${s.parent_name} ${s.student_phone}`.toLowerCase().includes(search.toLowerCase())), [data.students, search]);
   const totalCollected = data.summary?.collected || data.students.reduce((a, s) => a + (s.paid_amount || 0), 0);
-  const totalExpected = data.students.reduce((a, s) => a + (s.total_fee || 0), 0);
+  const totalExpected = data.students.reduce((a, s) => a + computeEffective(s).effective, 0);
   const totalExpenses = data.summary?.expenses || data.expenses.reduce((a, e) => a + (e.amount || 0), 0);
   const navAll = [
     { id: "dashboard", label: "Genel Bakış",   icon: LayoutDashboard, perm: "page_dashboard" },
@@ -469,7 +469,7 @@ function Stat({ icon: Icon, label, value, note, color, trend }) { return <div cl
 function Students({ me, students, search, onSearch, onOpen, onSelect }) {
   return <>
     <PageHead eyebrow="KAYITLAR · ÖĞRENCİ VE VELİ" title="Öğrenci Bul">
-      {can(me,"export_data") && <Button testid="export-students-button" secondary onClick={() => downloadBlob(`${API}/export/students`, `inegol-cozum-ogrenciler.xlsx`)}><Download size={16}/> Excel indir</Button>}
+      {can(me,"export_data") && <Button testid="export-students-button" secondary onClick={() => downloadBlob(`${API}/export/students`, `inegol-cozum-ogrenciler.csv`)}><Download size={16}/> Excel indir</Button>}
       {can(me,"student_create") && <Button testid="add-student-button" onClick={() => onOpen("student")}><Plus size={17} /> Yeni öğrenci</Button>}
     </PageHead>
     <div className="filter-bar"><div className="inline-search"><Search size={17} /><input data-testid="student-search-input" placeholder="İsim, veli veya telefon ile ara" value={search} onChange={e => onSearch(e.target.value)} /></div><span className="result-count">{students.length} kayıt</span></div>
@@ -480,7 +480,7 @@ function Students({ me, students, search, onSearch, onOpen, onSelect }) {
 function Payments({ me, data, onOpen }) {
   return <>
     <PageHead eyebrow="FİNANS · TAHSİLAT TAKİBİ" title="Tahsilatlar">
-      {can(me,"export_data") && <Button testid="export-payments-button" secondary onClick={() => downloadBlob(`${API}/export/payments`, `inegol-cozum-tahsilat.xlsx`)}><Download size={16}/> Excel indir</Button>}
+      {can(me,"export_data") && <Button testid="export-payments-button" secondary onClick={() => downloadBlob(`${API}/export/payments`, `inegol-cozum-tahsilat.csv`)}><Download size={16}/> Excel indir</Button>}
       {can(me,"payment_create") && <Button testid="add-payment-button" onClick={() => onOpen("payment")}><Plus size={17} /> Tahsilat ekle</Button>}
     </PageHead>
     <div className="stats-grid compact"><Stat icon={TrendingUp} label="Toplam tahsilat" value={money(data.students.reduce((a,s) => a+s.paid_amount,0))} note="Tüm öğrenciler" color="green" trend="Güncel" /><Stat icon={CircleDollarSign} label="Tahsilat adedi" value={data.payments.length} note="Kayıtlı işlem" color="blue" trend="" /></div>
@@ -574,13 +574,41 @@ function Classes({ me, classes, onOpen, students = [] }) {
     <PageHead eyebrow="EĞİTİM · DERSLİKLER" title="Sınıflar">
       {can(me,"class_create") && <Button testid="add-class-button" onClick={() => onOpen("class")}><Plus size={17} /> Sınıf oluştur</Button>}
     </PageHead>
-    <div className="class-grid">{classes.map(c => <div className="class-card" key={c.id}><div className="class-top"><div className="class-icon"><BookOpen size={20} /></div><span className="active-label">AKTİF</span></div><h2>{c.name}</h2><p>{c.level} · {c.room}</p><div className="class-meta"><span><Users size={15} /> {c.capacity} kişilik</span><span>{c.teacher}</span></div><div className="class-progress"><div><span>Dolu kapasite</span><b>%{(() => { const n = students.filter(s => s.program === c.name).length; return c.capacity > 0 ? Math.min(100, Math.round(n/c.capacity*100)) : 0; })()}</b></div><div className="progress-track"><div style={{width:`${c.capacity > 0 ? Math.min(100, Math.round(students.filter(s => s.program === c.name).length/c.capacity*100)) : 0}%`}} /></div></div></div>)}</div>
+    <div className="class-grid">{classes.map(c => {
+      const enrolled = students.filter(s => s.program === c.name || s.student_class === c.name).length;
+      const pct = c.capacity > 0 ? Math.min(100, Math.round((enrolled / c.capacity) * 100)) : 0;
+      return (
+        <div className="class-card" key={c.id}>
+          <div className="class-top">
+            <div className="class-icon"><BookOpen size={20} /></div>
+            <span className="active-label">AKTİF</span>
+          </div>
+          <h2>{c.name}</h2>
+          <p>{c.level} · {c.room}</p>
+          <div className="class-meta">
+            <span><Users size={15} /> {c.capacity} kişilik ({enrolled} kayıtlı)</span>
+            <span>{c.teacher}</span>
+          </div>
+          <div className="class-progress">
+            <div><span>Dolu kapasite</span><b>%{pct}</b></div>
+            <div className="progress-track"><div style={{ width: `${pct}%` }} /></div>
+          </div>
+        </div>
+      );
+    })}</div>
   </>;
 }
 
 function Documents({ students, payments }) {
   const [student, setStudent] = useState(students[0]?.id || "");
   const [kind, setKind] = useState("contract");
+
+  useEffect(() => {
+    if (!student && students.length > 0) {
+      setStudent(students[0].id);
+    }
+  }, [students, student]);
+
   const s = students.find(x => x.id === student);
   const p = payments.find(x => x.student_id === student);
   const now = new Date();
@@ -590,10 +618,13 @@ function Documents({ students, payments }) {
   const blank = (v, min = 26) => (v && String(v).trim()) ? v : "\u2026".repeat(min);
   const fee = s?.total_fee || 0;
   const inst = s?.installment_count || 1;
-  const extras = s?.extra_fees || {};
+  let extras = {};
+  try {
+    extras = typeof s?.extra_fees === "string" ? JSON.parse(s.extra_fees || "{}") : (s?.extra_fees || {});
+  } catch {}
   const extraSum = EXTRA_KEYS.reduce((sum, x) => sum + Number(extras[x.k] || 0), 0);
   const disc = Number(s?.discount_amount || 0);
-  const totalAll = fee + extraSum - disc;
+  const totalAll = Math.max(0, fee + extraSum - disc);
   const perInstallment = inst > 0 ? Math.round(totalAll / inst) : totalAll;
   const dtype = s?.discount_type || "";
   const check = (t) => dtype === t ? "( X )" : "(   )";
@@ -1006,7 +1037,7 @@ function Reports({ me }) {
       <div className="report-form">
         <label>Rapor ayı<input data-testid="report-month-input" type="month" value={month} onChange={e => setMonth(e.target.value)} /></label>
         <Button testid="download-report-button" onClick={generate}><Download size={17}/> {loading ? "Hazırlanıyor..." : "PDF olarak indir"}</Button>
-        {can(me,"export_data") && <Button testid="download-all-excel" secondary onClick={() => downloadBlob(`${API}/export/all`, `inegol-cozum-tum-kayitlar.xlsx`)}><FileDown size={17}/> Tüm kayıtları Excel indir</Button>}
+        {can(me,"export_data") && <Button testid="download-all-excel" secondary onClick={() => downloadBlob(`${API}/export/all`, `inegol-cozum-tum-kayitlar.csv`)}><FileDown size={17}/> Tüm kayıtları Excel indir</Button>}
         {msg && <div data-testid="report-msg" className="report-msg">{msg}</div>}
       </div>
     </div>
@@ -1162,7 +1193,7 @@ function AuditPage() {
         <Button
           testid="export-audit-button"
           secondary
-          onClick={() => downloadBlob(`${API}/export/audit`, `inegol-cozum-denetim.xlsx`)}
+          onClick={() => downloadBlob(`${API}/export/audit`, `inegol-cozum-denetim.csv`)}
         >
           <Download size={16} /> Excel indir
         </Button>
@@ -1258,10 +1289,13 @@ const EXTRA_KEYS = [
 ];
 const computeEffective = (s) => {
   const total = Number(s?.total_fee || 0);
-  const extras = s?.extra_fees || {};
-  const extraSum = Object.values(extras).reduce((a, b) => a + Number(b || 0), 0);
+  let extraSum = 0;
+  try {
+    const extras = typeof s?.extra_fees === "string" ? JSON.parse(s.extra_fees || "{}") : (s?.extra_fees || {});
+    extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
+  } catch {}
   const discount = Number(s?.discount_amount || 0);
-  return { total, extraSum, discount, effective: total + extraSum - discount };
+  return { total, extraSum, discount, effective: Math.max(0, total + extraSum - discount) };
 };
 
 function Modal({ type, selected, data, close, reload }) {
