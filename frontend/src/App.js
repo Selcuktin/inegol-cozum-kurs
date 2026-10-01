@@ -1,7 +1,47 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@/App.css";
 import axios from "axios";
-import { Bell, BellRing, BookOpen, Camera, ChevronRight, CircleDollarSign, ClipboardList, Download, FileDown, FileText, History, LayoutDashboard, LogOut, Menu, Phone, Plus, Receipt, Search, Settings, ShieldCheck, TrendingDown, TrendingUp, UserCog, Users, Wallet, X } from "lucide-react";
+import {
+  Award,
+  Bell,
+  BellRing,
+  BookOpen,
+  Calendar,
+  CalendarCheck,
+  Camera,
+  CheckSquare,
+  ChevronRight,
+  CircleDollarSign,
+  ClipboardList,
+  Download,
+  FileDown,
+  FileText,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Phone,
+  Plus,
+  Receipt,
+  Search,
+  Settings,
+  ShieldCheck,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  UserCog,
+  Users,
+  Wallet,
+  X
+} from "lucide-react";
+import {
+  ExamsPage,
+  AttendancePage,
+  SchedulesPage,
+  HomeworkPage,
+  MentorshipPage,
+  EdesisDashboardWidgets
+} from "./EdesisModules";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -30,24 +70,29 @@ const LOGO = "/assets/logo.jpeg";
 
 const ROLE_LABEL = { admin: "Yönetici", muhasebe: "Muhasebe", ogretmen: "Öğretmen" };
 const CAN = {
-  student_create: ["admin"],
-  payment_create: ["admin", "muhasebe"],
-  expense_create: ["admin", "muhasebe"],
-  class_create:   ["admin"],
-  audit_view:     ["admin"],
-  user_manage:    ["admin"],
-  reports_view:   ["admin", "muhasebe"],
-  reminders_view: ["admin", "muhasebe"],
-  export_data:    ["admin", "muhasebe"],
-  page_dashboard: ["admin", "muhasebe", "ogretmen"],
-  page_students:  ["admin", "muhasebe", "ogretmen"],
-  page_payments:  ["admin", "muhasebe"],
-  page_classes:   ["admin", "ogretmen"],
-  page_documents: ["admin", "muhasebe", "ogretmen"],
-  page_users:     ["admin"],
-  page_audit:     ["admin"],
-  page_reports:   ["admin", "muhasebe"],
-  page_reminders: ["admin", "muhasebe"],
+  student_create:  ["admin"],
+  payment_create:  ["admin", "muhasebe"],
+  expense_create:  ["admin", "muhasebe"],
+  class_create:    ["admin"],
+  audit_view:      ["admin"],
+  user_manage:     ["admin"],
+  reports_view:    ["admin", "muhasebe"],
+  reminders_view:  ["admin", "muhasebe"],
+  export_data:     ["admin", "muhasebe"],
+  page_dashboard:  ["admin", "muhasebe", "ogretmen"],
+  page_students:   ["admin", "muhasebe", "ogretmen"],
+  page_exams:      ["admin", "muhasebe", "ogretmen"],
+  page_attendance: ["admin", "ogretmen"],
+  page_schedules:  ["admin", "muhasebe", "ogretmen"],
+  page_homework:   ["admin", "ogretmen"],
+  page_mentorship: ["admin", "ogretmen"],
+  page_payments:   ["admin", "muhasebe"],
+  page_classes:    ["admin", "ogretmen"],
+  page_documents:  ["admin", "muhasebe", "ogretmen"],
+  page_users:      ["admin"],
+  page_audit:      ["admin"],
+  page_reports:    ["admin", "muhasebe"],
+  page_reminders:  ["admin", "muhasebe"],
 };
 const can = (me, action) => !!me && (CAN[action] || []).includes(me.role);
 
@@ -302,36 +347,35 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
         <LayoutDashboard size={20} />
         <span>Genel Bakış</span>
       </button>
+      <button className={`nav-btn ${page === "exams" ? "active" : ""}`} onClick={() => setPage("exams")}>
+        <Award size={20} />
+        <span>Sınavlar</span>
+      </button>
+      <button className={`nav-btn ${page === "attendance" ? "active" : ""}`} onClick={() => setPage("attendance")}>
+        <CalendarCheck size={20} />
+        <span>Yoklama</span>
+      </button>
       <button className={`nav-btn ${page === "students" ? "active" : ""}`} onClick={() => setPage("students")}>
         <Users size={20} />
         <span>Öğrenciler</span>
       </button>
-      {canPayment && (
-        <button className="nav-fab" onClick={() => setModal("payment")} title="Hızlı Tahsilat">
-          <Plus size={24} />
-        </button>
-      )}
       <button className={`nav-btn ${page === "payments" ? "active" : ""}`} onClick={() => setPage("payments")}>
         <Wallet size={20} />
         <span>Tahsilat</span>
-      </button>
-      <button className={`nav-btn ${page === "documents" ? "active" : ""}`} onClick={() => setPage("documents")}>
-        <FileText size={20} />
-        <span>Sözleşme</span>
       </button>
     </nav>
   );
 }
 
 function MainApp({ me, onLogout }) {
-  const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [] });
+  const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] });
+  const validPages = ["dashboard", "students", "exams", "attendance", "schedules", "homework", "mentorship", "payments", "classes", "reminders", "documents", "reports", "users", "audit"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace(/^#/, "");
-      const valid = ["dashboard", "students", "payments", "classes", "reminders", "documents", "reports", "users", "audit"];
-      if (hash && valid.includes(hash)) return hash;
+      if (hash && validPages.includes(hash)) return hash;
       const saved = localStorage.getItem("active_page");
-      if (saved && valid.includes(saved)) return saved;
+      if (saved && validPages.includes(saved)) return saved;
     }
     return "dashboard";
   };
@@ -347,8 +391,7 @@ function MainApp({ me, onLogout }) {
   useEffect(() => {
     const onHashChange = () => {
       const h = window.location.hash.replace(/^#/, "");
-      const valid = ["dashboard", "students", "payments", "classes", "reminders", "documents", "reports", "users", "audit"];
-      if (h && valid.includes(h)) {
+      if (h && validPages.includes(h)) {
         setPageState(h);
         localStorage.setItem("active_page", h);
       }
@@ -363,20 +406,25 @@ function MainApp({ me, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
   useEffect(() => { load(); }, []);
-  const filtered = useMemo(() => data.students.filter(s => `${s.student_name} ${s.parent_name} ${s.student_phone}`.toLowerCase().includes(search.toLowerCase())), [data.students, search]);
-  const totalCollected = data.summary?.collected || data.students.reduce((a, s) => a + (s.paid_amount || 0), 0);
-  const totalExpected = data.students.reduce((a, s) => a + computeEffective(s).effective, 0);
-  const totalExpenses = data.summary?.expenses || data.expenses.reduce((a, e) => a + (e.amount || 0), 0);
+  const filtered = useMemo(() => (data.students || []).filter(s => `${s.student_name} ${s.parent_name} ${s.student_phone}`.toLowerCase().includes(search.toLowerCase())), [data.students, search]);
+  const totalCollected = data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
+  const totalExpected = (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
+  const totalExpenses = data.summary?.expenses || (data.expenses || []).reduce((a, e) => a + (e.amount || 0), 0);
   const navAll = [
-    { id: "dashboard", label: "Genel Bakış",   icon: LayoutDashboard, perm: "page_dashboard" },
-    { id: "students",  label: "Öğrenci Bul",   icon: Users,           perm: "page_students" },
-    { id: "payments",  label: "Tahsilat",      icon: Wallet,          perm: "page_payments" },
-    { id: "classes",   label: "Sınıflar",      icon: BookOpen,        perm: "page_classes" },
-    { id: "reminders", label: "Hatırlatmalar", icon: BellRing,        perm: "page_reminders" },
-    { id: "documents", label: "Sözleşme & Makbuz", icon: FileText,    perm: "page_documents" },
-    { id: "reports",   label: "Aylık Rapor",   icon: FileDown,        perm: "page_reports" },
-    { id: "users",     label: "Kullanıcılar",  icon: UserCog,         perm: "page_users" },
-    { id: "audit",     label: "Denetim Kaydı", icon: History,         perm: "page_audit" },
+    { id: "dashboard",  label: "Genel Bakış",        icon: LayoutDashboard, perm: "page_dashboard" },
+    { id: "exams",      label: "Ölçme & Sınavlar",   icon: Award,           perm: "page_exams" },
+    { id: "attendance", label: "Yoklama",            icon: CalendarCheck,   perm: "page_attendance" },
+    { id: "schedules",  label: "Ders Programı",      icon: Calendar,        perm: "page_schedules" },
+    { id: "homework",   label: "Ödev Takip",         icon: CheckSquare,     perm: "page_homework" },
+    { id: "mentorship", label: "Rehberlik & Koçluk", icon: Target,          perm: "page_mentorship" },
+    { id: "students",   label: "Öğrenci Bul",        icon: Users,           perm: "page_students" },
+    { id: "payments",   label: "Tahsilat",           icon: Wallet,          perm: "page_payments" },
+    { id: "classes",    label: "Sınıflar",           icon: BookOpen,        perm: "page_classes" },
+    { id: "reminders",  label: "Hatırlatmalar",      icon: BellRing,        perm: "page_reminders" },
+    { id: "documents",  label: "Sözleşme & Makbuz",  icon: FileText,        perm: "page_documents" },
+    { id: "reports",    label: "Aylık Rapor",        icon: FileDown,        perm: "page_reports" },
+    { id: "users",      label: "Kullanıcılar",       icon: UserCog,         perm: "page_users" },
+    { id: "audit",      label: "Denetim Kaydı",      icon: History,         perm: "page_audit" },
   ];
   const nav = navAll.filter(n => can(me, n.perm));
   const guardedOpen = (type) => setModal(type);
@@ -430,7 +478,12 @@ function MainApp({ me, onLogout }) {
         </div>
       </header>
       <div className="content">
-        {page === "dashboard" && <Dashboard me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} />}
+        {page === "dashboard" && <Dashboard me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} onNavigate={setPage} />}
+        {page === "exams" && <ExamsPage me={me} API={API} students={data.students || []} classes={data.classes || []} />}
+        {page === "attendance" && <AttendancePage me={me} API={API} classes={data.classes || []} />}
+        {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
+        {page === "homework" && <HomeworkPage me={me} API={API} classes={data.classes || []} students={data.students || []} />}
+        {page === "mentorship" && <MentorshipPage me={me} API={API} students={data.students || []} />}
         {page === "students" && <Students me={me} students={filtered} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
         {page === "payments" && <Payments me={me} data={data} onOpen={guardedOpen} />}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} />}
@@ -450,7 +503,7 @@ function MainApp({ me, onLogout }) {
 function PageHead({ eyebrow, title, children }) { return <div className="page-head"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div><div className="head-actions">{children}</div></div> }
 function Button({ children, onClick, secondary = false, testid }) { return <button data-testid={testid} onClick={onClick} className={secondary ? "btn secondary" : "btn"}>{children}</button> }
 
-function Dashboard({ me, data, totalCollected, totalExpected, totalExpenses, onOpen }) {
+function Dashboard({ me, data, totalCollected, totalExpected, totalExpenses, onOpen, onNavigate }) {
   const outstanding = totalExpected - totalCollected;
   const todayLabel = new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()).toUpperCase();
   return <>
@@ -458,9 +511,10 @@ function Dashboard({ me, data, totalCollected, totalExpected, totalExpenses, onO
       {can(me,"payment_create") && <Button testid="add-payment-dashboard" onClick={() => onOpen("payment")}><Plus size={17} /> Tahsilat Ekle</Button>}
       {can(me,"student_create") && <Button testid="add-student-dashboard" secondary onClick={() => onOpen("student")}><Users size={17} /> Öğrenci Ekle</Button>}
     </PageHead>
-    <div className="stats-grid"><Stat icon={CircleDollarSign} label="Bu ay tahsilat" value={money(totalCollected)} note="Toplam tahsil edilen" color="blue" trend="+12.8%" /><Stat icon={Wallet} label="Bekleyen alacak" value={money(outstanding)} note="Öğrencilerden kalan" color="amber" trend="Takipte" /><Stat icon={Users} label="Aktif öğrenci" value={data.students.length} note={`${data.classes.length} aktif sınıfta`} color="green" trend="+4 yeni" /><Stat icon={TrendingDown} label="Bu ay gider" value={money(totalExpenses)} note="Genel toplamdan düşüldü" color="red" trend="Bu ay" /></div>
-    <div className="dashboard-grid"><section className="panel collection-panel"><div className="panel-head"><div><h2>Tahsilat görünümü</h2><p>Toplam kurs ücretlerinin gerçekleşme durumu</p></div><span className="period">Son 30 gün <ChevronRight size={15} /></span></div><div className="progress-wrap"><div className="progress-number"><strong>{Math.round((totalCollected / (totalExpected || 1)) * 100)}%</strong><span>tahsil edildi</span></div><div className="progress-track"><div style={{ width: `${Math.min(100, (totalCollected / (totalExpected || 1)) * 100)}%` }} /></div><div className="progress-labels"><span><i className="dot blue" /> Tahsil edilen <b>{money(totalCollected)}</b></span><span><i className="dot gray" /> Kalan bakiye <b>{money(outstanding)}</b></span></div></div><div className="mini-chart"><div className="chart-y"><span>₺40K</span><span>₺20K</span><span>₺0</span></div><div className="bars">{[42, 58, 46, 72, 62, 88, 67, 76, 55, 91, 73, 84].map((h, i) => <div key={i} className="bar-col"><div className={i > 8 ? "bar active" : "bar"} style={{ height: `${h}%` }} /><small>{["Oca", "", "", "Şub", "", "", "Mar", "", "", "Nis", "", ""][i]}</small></div>)}</div></div></section><section className="panel alerts-panel"><div className="panel-head"><div><h2>Ödeme takibi</h2><p>Yaklaşan ve geciken ödemeler</p></div>{can(me,"payment_create") && <button data-testid="view-all-payments" className="text-btn" onClick={() => onOpen("payment")}>Tümünü gör <ChevronRight size={15} /></button>}</div>{data.students.slice(0,6).map((s, i) => <div className="alert-row" key={s.id}><div className={`status-icon ${i === 1 ? "warning" : "danger"}`}><Bell size={15} /></div><div className="alert-info"><b>{s.student_name}</b><span>{i === 1 ? "Yaklaşan taksit" : "Geciken ödeme"} · {s.due_date ? new Date(s.due_date).toLocaleDateString("tr-TR") : "—"}</span></div><strong>{money(Math.round((s.total_fee||0) / (s.installment_count || 1)))}</strong><ChevronRight size={15} /></div>)}</section></div>
-    <section className="panel recent-panel"><div className="panel-head"><div><h2>Son tahsilatlar</h2><p>Hesabınıza işlenen son hareketler</p></div>{can(me,"payment_create") && <button data-testid="quick-receipt" className="text-btn" onClick={() => onOpen("payment")}>Makbuz oluştur <Receipt size={15} /></button>}</div><PaymentTable payments={data.payments} students={data.students} /></section>
+    <EdesisDashboardWidgets data={data} onNavigate={onNavigate} />
+    <div className="stats-grid"><Stat icon={CircleDollarSign} label="Bu ay tahsilat" value={money(totalCollected)} note="Toplam tahsil edilen" color="blue" trend="+12.8%" /><Stat icon={Wallet} label="Bekleyen alacak" value={money(outstanding)} note="Öğrencilerden kalan" color="amber" trend="Takipte" /><Stat icon={Users} label="Aktif öğrenci" value={(data.students || []).length} note={`${(data.classes || []).length} aktif sınıfta`} color="green" trend="+4 yeni" /><Stat icon={TrendingDown} label="Bu ay gider" value={money(totalExpenses)} note="Genel toplamdan düşüldü" color="red" trend="Bu ay" /></div>
+    <div className="dashboard-grid"><section className="panel collection-panel"><div className="panel-head"><div><h2>Tahsilat görünümü</h2><p>Toplam kurs ücretlerinin gerçekleşme durumu</p></div><span className="period">Son 30 gün <ChevronRight size={15} /></span></div><div className="progress-wrap"><div className="progress-number"><strong>{Math.round((totalCollected / (totalExpected || 1)) * 100)}%</strong><span>tahsil edildi</span></div><div className="progress-track"><div style={{ width: `${Math.min(100, (totalCollected / (totalExpected || 1)) * 100)}%` }} /></div><div className="progress-labels"><span><i className="dot blue" /> Tahsil edilen <b>{money(totalCollected)}</b></span><span><i className="dot gray" /> Kalan bakiye <b>{money(outstanding)}</b></span></div></div><div className="mini-chart"><div className="chart-y"><span>₺40K</span><span>₺20K</span><span>₺0</span></div><div className="bars">{[42, 58, 46, 72, 62, 88, 67, 76, 55, 91, 73, 84].map((h, i) => <div key={i} className="bar-col"><div className={i > 8 ? "bar active" : "bar"} style={{ height: `${h}%` }} /><small>{["Oca", "", "", "Şub", "", "", "Mar", "", "", "Nis", "", ""][i]}</small></div>)}</div></div></section><section className="panel alerts-panel"><div className="panel-head"><div><h2>Ödeme takibi</h2><p>Yaklaşan ve geciken ödemeler</p></div>{can(me,"payment_create") && <button data-testid="view-all-payments" className="text-btn" onClick={() => onOpen("payment")}>Tümünü gör <ChevronRight size={15} /></button>}</div>{(data.students || []).slice(0,6).map((s, i) => <div className="alert-row" key={s.id}><div className={`status-icon ${i === 1 ? "warning" : "danger"}`}><Bell size={15} /></div><div className="alert-info"><b>{s.student_name}</b><span>{i === 1 ? "Yaklaşan taksit" : "Geciken ödeme"} · {s.due_date ? new Date(s.due_date).toLocaleDateString("tr-TR") : "—"}</span></div><strong>{money(Math.round((s.total_fee||0) / (s.installment_count || 1)))}</strong><ChevronRight size={15} /></div>)}</section></div>
+    <section className="panel recent-panel"><div className="panel-head"><div><h2>Son tahsilatlar</h2><p>Hesabınıza işlenen son hareketler</p></div>{can(me,"payment_create") && <button data-testid="quick-receipt" className="text-btn" onClick={() => onOpen("payment")}>Makbuz oluştur <Receipt size={15} /></button>}</div><PaymentTable payments={data.payments || []} students={data.students || []} /></section>
   </>;
 }
 

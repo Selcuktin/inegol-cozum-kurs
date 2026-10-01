@@ -134,3 +134,105 @@ VALUES
 ('user_admin2', 'inegolcozumkurs@gmail.com', 'İnegöl Çözüm (Yönetici)', 'admin', datetime('now')),
 ('user_accounting', 'info@inegolcozumkurs.com', 'Muhasebe Sorumlusu', 'muhasebe', datetime('now')),
 ('user_teacher', 'ogretmen@inegolcozumkurs.com', 'Ayşe Kaya (Öğretmen)', 'ogretmen', datetime('now'));
+
+-- ================= EDESIS ERP EXTENSIONS =================
+CREATE TABLE IF NOT EXISTS exams (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  exam_type TEXT NOT NULL,
+  publisher TEXT DEFAULT '',
+  exam_date TEXT NOT NULL,
+  booklet_types TEXT DEFAULT 'A,B',
+  status TEXT DEFAULT 'completed',
+  description TEXT DEFAULT '',
+  created_by TEXT DEFAULT '',
+  created_by_name TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS exam_results (
+  id TEXT PRIMARY KEY,
+  exam_id TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  booklet TEXT DEFAULT 'A',
+  turkish_correct REAL DEFAULT 0,
+  turkish_incorrect REAL DEFAULT 0,
+  turkish_net REAL DEFAULT 0,
+  math_correct REAL DEFAULT 0,
+  math_incorrect REAL DEFAULT 0,
+  math_net REAL DEFAULT 0,
+  science_correct REAL DEFAULT 0,
+  science_incorrect REAL DEFAULT 0,
+  science_net REAL DEFAULT 0,
+  social_correct REAL DEFAULT 0,
+  social_incorrect REAL DEFAULT 0,
+  social_net REAL DEFAULT 0,
+  total_net REAL DEFAULT 0,
+  score REAL DEFAULT 0,
+  class_rank INTEGER DEFAULT 0,
+  overall_rank INTEGER DEFAULT 0,
+  weak_topics TEXT DEFAULT '[]',
+  created_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS attendance (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  class_id TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  lesson_slot TEXT DEFAULT 'Tüm Gün',
+  status TEXT NOT NULL DEFAULT 'geldi',
+  note TEXT DEFAULT '',
+  notified_parent INTEGER DEFAULT 0,
+  created_by TEXT DEFAULT '',
+  created_by_name TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL,
+  day_of_week INTEGER NOT NULL,
+  time_slot TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  teacher_name TEXT NOT NULL,
+  room TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS homework (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  title TEXT NOT NULL,
+  source_book TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  due_date TEXT NOT NULL,
+  teacher_name TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS homework_submissions (
+  id TEXT PRIMARY KEY,
+  homework_id TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  status TEXT DEFAULT 'yapildi',
+  note TEXT DEFAULT '',
+  updated_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS mentorship (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  mentor_name TEXT NOT NULL,
+  session_date TEXT NOT NULL,
+  target_uni TEXT DEFAULT '',
+  target_department TEXT DEFAULT '',
+  weekly_target_questions INTEGER DEFAULT 0,
+  solved_questions INTEGER DEFAULT 0,
+  topics_covered TEXT DEFAULT '',
+  next_session_date TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+

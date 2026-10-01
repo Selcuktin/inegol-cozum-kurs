@@ -395,11 +395,56 @@ export async function onRequest(context) {
       const collected = monthPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
       const expTotal = monthExpenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
 
+      // Edesis Educational Analytics
+      const now = new Date();
+      const jsDay = now.getDay();
+      const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+      const todayStr = now.toISOString().slice(0, 10);
+
+      const examsRes = await db.prepare(`
+        SELECT e.*, 
+          COUNT(r.id) as participant_count,
+          ROUND(AVG(r.total_net), 2) as avg_total_net,
+          ROUND(AVG(r.score), 2) as avg_score
+        FROM exams e
+        LEFT JOIN exam_results r ON e.id = r.exam_id
+        GROUP BY e.id
+        ORDER BY e.exam_date DESC LIMIT 5
+      `).all().catch(() => ({ results: [] }));
+
+      const attendanceTodayRes = await db.prepare(`
+        SELECT a.*, s.student_name, s.student_class, c.name as class_name 
+        FROM attendance a 
+        LEFT JOIN students s ON a.student_id = s.id 
+        LEFT JOIN classes c ON a.class_id = c.id 
+        WHERE a.date = ?
+      `).bind(todayStr).all().catch(() => ({ results: [] }));
+
+      const topRankingsRes = await db.prepare(`
+        SELECT r.*, s.student_name, s.student_class, e.title as exam_title, e.exam_type 
+        FROM exam_results r 
+        LEFT JOIN students s ON r.student_id = s.id 
+        LEFT JOIN exams e ON r.exam_id = e.id 
+        ORDER BY r.total_net DESC LIMIT 5
+      `).all().catch(() => ({ results: [] }));
+
+      const todaySchedulesRes = await db.prepare(`
+        SELECT sc.*, c.name as class_name 
+        FROM schedules sc 
+        LEFT JOIN classes c ON sc.class_id = c.id 
+        WHERE sc.day_of_week = ? 
+        ORDER BY sc.time_slot ASC
+      `).bind(dayOfWeek).all().catch(() => ({ results: [] }));
+
       return json({
         students,
         payments,
         expenses,
         classes,
+        exams: examsRes.results || [],
+        attendanceToday: attendanceTodayRes.results || [],
+        topRankings: topRankingsRes.results || [],
+        todaySchedules: todaySchedulesRes.results || [],
         summary: {
           period: currentMonth,
           collected,
@@ -702,6 +747,11 @@ export async function onRequest(context) {
     }
 
     // ---------------- CLASSES ----------------
+    if (path === "/classes" && request.method === "GET") {
+      const res = await db.prepare("SELECT * FROM classes ORDER BY name ASC").all();
+      return json(res.results || []);
+    }
+
     if (path === "/classes" && request.method === "POST") {
       const user = await getCurrentUser(request, db);
       const c = await request.json();
@@ -820,6 +870,394 @@ export async function onRequest(context) {
           ...CORS_HEADERS,
         },
       });
+    }
+
+    // ================= EDESIS ERP ENDPOINTS =================
+
+    // ---------------- EXAMS ----------------
+    if (path === "/exams" && request.method === "GET") {
+      const res = await db.prepare(`
+        SELECT e.*, 
+          COUNT(r.id) as participant_count,
+          ROUND(AVG(r.total_net), 2) as avg_total_net,
+          ROUND(AVG(r.score), 2) as avg_score
+        FROM exams e
+        LEFT JOIN exam_results r ON e.id = r.exam_id
+        GROUP BY e.id
+        ORDER BY e.exam_date DESC
+      `).all();
+      return json(res.results || []);
+    }
+
+    if (path === "/exams" && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const body = await request.json();
+      if (!body.title?.trim()) return json({ detail: "Sınav adı zorunludur" }, 422);
+      const id = body.id || "exam-" + crypto.randomUUID().slice(0, 8);
+      await db.prepare(`
+        INSERT INTO exams (id, title, exam_type, publisher, exam_date, booklet_types, status, description, created_by, created_by_name, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        id,
+        body.title.trim(),
+        body.exam_type || "TYT",
+        body.publisher || "",
+        body.exam_date || new Date().toISOString().slice(0, 10),
+        body.booklet_types || "A,B",
+        body.status || "completed",
+        body.description || "",
+        user?.user_id || "",
+        user?.name || ""
+      ).run();
+      await logAction(db, user, "exam.create", "exam", id, `Sınav eklendi: ${body.title}`);
+      return json({ id, ok: true }, 201);
+    }
+
+    const examIdMatch = path.match(/^\/exams\/([^\/]+)$/);
+    if (examIdMatch && request.method === "GET") {
+      const id = examIdMatch[1];
+      const exam = await db.prepare("SELECT * FROM exams WHERE id = ?").bind(id).first();
+      if (!exam) return json({ detail: "Sınav bulunamadı" }, 404);
+      const resultsRes = await db.prepare(`
+        SELECT r.*, s.student_name, s.student_class, s.school, s.parent_phone, s.student_phone
+        FROM exam_results r
+        LEFT JOIN students s ON r.student_id = s.id
+        WHERE r.exam_id = ?
+        ORDER BY r.total_net DESC
+      `).bind(id).all();
+      return json({ ...exam, results: resultsRes.results || [] });
+    }
+
+    if (examIdMatch && request.method === "DELETE") {
+      const user = await getCurrentUser(request, db);
+      const id = examIdMatch[1];
+      await db.prepare("DELETE FROM exam_results WHERE exam_id = ?").bind(id).run();
+      await db.prepare("DELETE FROM exams WHERE id = ?").bind(id).run();
+      await logAction(db, user, "exam.delete", "exam", id, "Sınav ve sonuçları silindi");
+      return json({ ok: true });
+    }
+
+    const examResMatch = path.match(/^\/exams\/([^\/]+)\/results$/);
+    if (examResMatch && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const examId = examResMatch[1];
+      const body = await request.json();
+      const items = Array.isArray(body) ? body : [body];
+      for (const item of items) {
+        if (!item.student_id) continue;
+        const rid = item.id || "res-" + crypto.randomUUID().slice(0, 8);
+        const divisor = item.exam_type === "LGS" ? 3 : 4;
+        const tNet = item.turkish_net !== undefined ? Number(item.turkish_net) : Math.max(0, (Number(item.turkish_correct) || 0) - ((Number(item.turkish_incorrect) || 0) / divisor));
+        const mNet = item.math_net !== undefined ? Number(item.math_net) : Math.max(0, (Number(item.math_correct) || 0) - ((Number(item.math_incorrect) || 0) / divisor));
+        const fNet = item.science_net !== undefined ? Number(item.science_net) : Math.max(0, (Number(item.science_correct) || 0) - ((Number(item.science_incorrect) || 0) / divisor));
+        const sNet = item.social_net !== undefined ? Number(item.social_net) : Math.max(0, (Number(item.social_correct) || 0) - ((Number(item.social_incorrect) || 0) / divisor));
+        const totalNet = Math.round((tNet + mNet + fNet + sNet) * 100) / 100;
+        const score = Number(item.score) || Math.round((100 + (totalNet * 3.3)) * 100) / 100;
+        const weakTopics = typeof item.weak_topics === "string" ? item.weak_topics : JSON.stringify(item.weak_topics || []);
+
+        // Delete existing for this student in this exam to avoid duplicate
+        await db.prepare("DELETE FROM exam_results WHERE exam_id = ? AND student_id = ?").bind(examId, item.student_id).run();
+
+        await db.prepare(`
+          INSERT INTO exam_results (
+            id, exam_id, student_id, booklet,
+            turkish_correct, turkish_incorrect, turkish_net,
+            math_correct, math_incorrect, math_net,
+            science_correct, science_incorrect, science_net,
+            social_correct, social_incorrect, social_net,
+            total_net, score, class_rank, overall_rank, weak_topics, created_at
+          ) VALUES (
+            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?, ?, ?, datetime('now')
+          )
+        `).bind(
+          rid, examId, item.student_id, item.booklet || "A",
+          Number(item.turkish_correct) || 0, Number(item.turkish_incorrect) || 0, tNet,
+          Number(item.math_correct) || 0, Number(item.math_incorrect) || 0, mNet,
+          Number(item.science_correct) || 0, Number(item.science_incorrect) || 0, fNet,
+          Number(item.social_correct) || 0, Number(item.social_incorrect) || 0, sNet,
+          totalNet, score, Number(item.class_rank) || 1, Number(item.overall_rank) || 1, weakTopics
+        ).run();
+      }
+      await logAction(db, user, "exam.results_saved", "exam", examId, `${items.length} sınav sonucu güncellendi`);
+      return json({ ok: true });
+    }
+
+    // ---------------- ATTENDANCE (YOKLAMA) ----------------
+    if (path === "/attendance" && request.method === "GET") {
+      const date = url.searchParams.get("date") || new Date().toISOString().slice(0, 10);
+      const classId = url.searchParams.get("class_id");
+
+      let query = `
+        SELECT 
+          s.id as student_id,
+          s.student_name,
+          s.student_class,
+          s.parent_name,
+          s.parent_phone,
+          COALESCE(a.id, '') as attendance_id,
+          COALESCE(a.date, ?) as date,
+          COALESCE(a.class_id, s.student_class) as class_id,
+          COALESCE(a.lesson_slot, 'Tüm Gün') as lesson_slot,
+          COALESCE(a.status, 'geldi') as status,
+          COALESCE(a.note, '') as note,
+          COALESCE(a.notified_parent, 0) as notified_parent
+        FROM students s
+        LEFT JOIN attendance a ON a.student_id = s.id AND a.date = ?
+      `;
+      const params = [date, date];
+
+      if (classId) {
+        query += " WHERE s.student_class = ? OR a.class_id = ?";
+        params.push(classId, classId);
+      }
+      query += " ORDER BY s.student_name ASC";
+
+      const res = await db.prepare(query).bind(...params).all();
+      return json(res.results || []);
+    }
+
+    if (path === "/attendance" && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const body = await request.json();
+      const date = body.date || new Date().toISOString().slice(0, 10);
+      const records = body.records || [];
+
+      for (const rec of records) {
+        if (!rec.student_id) continue;
+        const aid = rec.attendance_id || "att-" + crypto.randomUUID().slice(0, 8);
+        await db.prepare("DELETE FROM attendance WHERE student_id = ? AND date = ?").bind(rec.student_id, date).run();
+        await db.prepare(`
+          INSERT INTO attendance (id, date, class_id, student_id, lesson_slot, status, note, notified_parent, created_by, created_by_name, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(
+          aid,
+          date,
+          rec.class_id || "",
+          rec.student_id,
+          rec.lesson_slot || "Tüm Gün",
+          rec.status || "geldi",
+          rec.note || "",
+          rec.notified_parent ? 1 : 0,
+          user?.user_id || "",
+          user?.name || ""
+        ).run();
+      }
+
+      await logAction(db, user, "attendance.save", "attendance", date, `${date} tarihli ${records.length} yoklama kaydı kaydedildi`);
+      return json({ ok: true, count: records.length });
+    }
+
+    if (path === "/attendance/notify" && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const body = await request.json();
+      if (body.student_id && body.date) {
+        await db.prepare("UPDATE attendance SET notified_parent = 1 WHERE student_id = ? AND date = ?").bind(body.student_id, body.date).run();
+        await logAction(db, user, "attendance.parent_notified", "student", body.student_id, "Veliye yoklama bildirimi iletildi");
+      }
+      return json({ ok: true });
+    }
+
+    // ---------------- SCHEDULES (DERS PROGRAMI) ----------------
+    if (path === "/schedules" && request.method === "GET") {
+      const classId = url.searchParams.get("class_id");
+      let query = "SELECT sc.*, c.name as class_name FROM schedules sc LEFT JOIN classes c ON sc.class_id = c.id";
+      const params = [];
+      if (classId) {
+        query += " WHERE sc.class_id = ?";
+        params.push(classId);
+      }
+      query += " ORDER BY sc.day_of_week ASC, sc.time_slot ASC";
+      const res = await db.prepare(query).bind(...params).all();
+      return json(res.results || []);
+    }
+
+    if (path === "/schedules" && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const body = await request.json();
+      if (!body.subject?.trim() || !body.time_slot?.trim()) {
+        return json({ detail: "Ders adı ve saat aralığı zorunludur" }, 422);
+      }
+      const id = body.id || "sch-" + crypto.randomUUID().slice(0, 8);
+      await db.prepare(`
+        INSERT INTO schedules (id, class_id, day_of_week, time_slot, subject, teacher_name, room, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        id,
+        body.class_id || "",
+        Number(body.day_of_week) || 1,
+        body.time_slot.trim(),
+        body.subject.trim(),
+        body.teacher_name || "",
+        body.room || ""
+      ).run();
+      await logAction(db, user, "schedule.create", "schedule", id, `${body.subject} dersi programa eklendi`);
+      return json({ id, ok: true }, 201);
+    }
+
+    const scheduleIdMatch = path.match(/^\/schedules\/([^\/]+)$/);
+    if (scheduleIdMatch && request.method === "DELETE") {
+      const user = await getCurrentUser(request, db);
+      const id = scheduleIdMatch[1];
+      await db.prepare("DELETE FROM schedules WHERE id = ?").bind(id).run();
+      await logAction(db, user, "schedule.delete", "schedule", id, "Ders programı saati silindi");
+      return json({ ok: true });
+    }
+
+    // ---------------- HOMEWORK (ÖDEV TAKİP) ----------------
+    if (path === "/homework" && request.method === "GET") {
+      const classId = url.searchParams.get("class_id");
+      let query = `
+        SELECT h.*, c.name as class_name,
+          COUNT(s.id) as total_submissions,
+          SUM(CASE WHEN s.status = 'yapildi' THEN 1 ELSE 0 END) as completed_count
+        FROM homework h
+        LEFT JOIN classes c ON h.class_id = c.id
+        LEFT JOIN homework_submissions s ON h.id = s.homework_id
+      `;
+      const params = [];
+      if (classId) {
+        query += " WHERE h.class_id = ?";
+        params.push(classId);
+      }
+      query += " GROUP BY h.id ORDER BY h.due_date DESC";
+      const res = await db.prepare(query).bind(...params).all();
+      return json(res.results || []);
+    }
+
+    if (path === "/homework" && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const body = await request.json();
+      if (!body.title?.trim() || !body.subject?.trim()) {
+        return json({ detail: "Ödev başlığı ve ders adı zorunludur" }, 422);
+      }
+      const id = body.id || "hw-" + crypto.randomUUID().slice(0, 8);
+      await db.prepare(`
+        INSERT INTO homework (id, class_id, subject, title, source_book, description, due_date, teacher_name, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        id,
+        body.class_id || "",
+        body.subject.trim(),
+        body.title.trim(),
+        body.source_book || "",
+        body.description || "",
+        body.due_date || new Date().toISOString().slice(0, 10),
+        body.teacher_name || user?.name || ""
+      ).run();
+      await logAction(db, user, "homework.create", "homework", id, `Ödev verildi: ${body.title}`);
+      return json({ id, ok: true }, 201);
+    }
+
+    const homeworkIdMatch = path.match(/^\/homework\/([^\/]+)$/);
+    if (homeworkIdMatch && request.method === "DELETE") {
+      const user = await getCurrentUser(request, db);
+      const id = homeworkIdMatch[1];
+      await db.prepare("DELETE FROM homework_submissions WHERE homework_id = ?").bind(id).run();
+      await db.prepare("DELETE FROM homework WHERE id = ?").bind(id).run();
+      await logAction(db, user, "homework.delete", "homework", id, "Ödev silindi");
+      return json({ ok: true });
+    }
+
+    const hwSubMatch = path.match(/^\/homework\/([^\/]+)\/submissions$/);
+    if (hwSubMatch && request.method === "GET") {
+      const hwId = hwSubMatch[1];
+      const hw = await db.prepare("SELECT * FROM homework WHERE id = ?").bind(hwId).first();
+      if (!hw) return json({ detail: "Ödev bulunamadı" }, 404);
+
+      const res = await db.prepare(`
+        SELECT 
+          st.id as student_id,
+          st.student_name,
+          st.student_class,
+          st.parent_phone,
+          COALESCE(sub.id, '') as submission_id,
+          COALESCE(sub.status, 'yapilmadi') as status,
+          COALESCE(sub.note, '') as note
+        FROM students st
+        LEFT JOIN homework_submissions sub ON sub.student_id = st.id AND sub.homework_id = ?
+        ORDER BY st.student_name ASC
+      `).bind(hwId).all();
+
+      return json({ homework: hw, students: res.results || [] });
+    }
+
+    if (hwSubMatch && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const hwId = hwSubMatch[1];
+      const body = await request.json();
+      const records = Array.isArray(body) ? body : [body];
+
+      for (const r of records) {
+        if (!r.student_id) continue;
+        const subId = r.submission_id || "sub-" + crypto.randomUUID().slice(0, 8);
+        await db.prepare("DELETE FROM homework_submissions WHERE homework_id = ? AND student_id = ?").bind(hwId, r.student_id).run();
+        await db.prepare(`
+          INSERT INTO homework_submissions (id, homework_id, student_id, status, note, updated_at)
+          VALUES (?, ?, ?, ?, ?, datetime('now'))
+        `).bind(subId, hwId, r.student_id, r.status || "yapildi", r.note || "").run();
+      }
+
+      await logAction(db, user, "homework.submit_update", "homework", hwId, `${records.length} ödev teslim durumu güncellendi`);
+      return json({ ok: true });
+    }
+
+    // ---------------- MENTORSHIP (REHBERLİK & KOÇLUK) ----------------
+    if (path === "/mentorship" && request.method === "GET") {
+      const studentId = url.searchParams.get("student_id");
+      let query = `
+        SELECT m.*, s.student_name, s.student_class, s.student_phone, s.parent_phone
+        FROM mentorship m
+        LEFT JOIN students s ON m.student_id = s.id
+      `;
+      const params = [];
+      if (studentId) {
+        query += " WHERE m.student_id = ?";
+        params.push(studentId);
+      }
+      query += " ORDER BY m.session_date DESC";
+      const res = await db.prepare(query).bind(...params).all();
+      return json(res.results || []);
+    }
+
+    if (path === "/mentorship" && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const body = await request.json();
+      if (!body.student_id) return json({ detail: "Öğrenci seçimi zorunludur" }, 422);
+      const id = body.id || "men-" + crypto.randomUUID().slice(0, 8);
+      await db.prepare(`
+        INSERT INTO mentorship (
+          id, student_id, mentor_name, session_date, target_uni, target_department,
+          weekly_target_questions, solved_questions, topics_covered, next_session_date, notes, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        id,
+        body.student_id,
+        body.mentor_name || user?.name || "Rehberlik Servisi",
+        body.session_date || new Date().toISOString().slice(0, 10),
+        body.target_uni || "",
+        body.target_department || "",
+        Number(body.weekly_target_questions) || 0,
+        Number(body.solved_questions) || 0,
+        body.topics_covered || "",
+        body.next_session_date || "",
+        body.notes || ""
+      ).run();
+      await logAction(db, user, "mentorship.create", "mentorship", id, "Koçluk görüşme kaydı eklendi");
+      return json({ id, ok: true }, 201);
+    }
+
+    const mentorshipIdMatch = path.match(/^\/mentorship\/([^\/]+)$/);
+    if (mentorshipIdMatch && request.method === "DELETE") {
+      const user = await getCurrentUser(request, db);
+      const id = mentorshipIdMatch[1];
+      await db.prepare("DELETE FROM mentorship WHERE id = ?").bind(id).run();
+      await logAction(db, user, "mentorship.delete", "mentorship", id, "Koçluk kaydı silindi");
+      return json({ ok: true });
     }
 
     // ---------------- USERS & AUDIT ----------------
