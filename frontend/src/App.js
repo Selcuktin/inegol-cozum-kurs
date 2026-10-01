@@ -324,6 +324,7 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
 }
 
 function MainApp({ me, onLogout }) {
+  const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [] });
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace(/^#/, "");
@@ -342,6 +343,20 @@ function MainApp({ me, onLogout }) {
       localStorage.setItem("active_page", p);
     }
   };
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const h = window.location.hash.replace(/^#/, "");
+      const valid = ["dashboard", "students", "payments", "classes", "reminders", "documents", "reports", "users", "audit"];
+      if (h && valid.includes(h)) {
+        setPageState(h);
+        localStorage.setItem("active_page", h);
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -367,9 +382,26 @@ function MainApp({ me, onLogout }) {
   const guardedOpen = (type) => setModal(type);
 
   return <div className="app-shell">
-    {mobileOpen && <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} onTouchStart={() => setMobileOpen(false)} />}
+    {mobileOpen && (
+      <div
+        className="sidebar-backdrop"
+        onClick={() => setMobileOpen(false)}
+        onTouchEnd={(e) => { e.preventDefault(); setMobileOpen(false); }}
+        aria-label="Menüyü kapat"
+      />
+    )}
     <aside className={mobileOpen ? "sidebar mobile-open" : "sidebar"}>
-      <Brand />
+      <div className="sidebar-brand-row">
+        <Brand />
+        <button
+          type="button"
+          className="sidebar-close-btn"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Menüyü kapat"
+        >
+          <X size={20} />
+        </button>
+      </div>
       <div className="side-caption">YÖNETİM PANELİ</div>
       <nav>{nav.map(({ id, label, icon: Icon, perm }) => <button key={id} data-testid={`nav-${id}`} className={page === id ? "nav-item active" : "nav-item"} onClick={() => { setPage(id); setMobileOpen(false); }}><Icon size={18} /><span>{label}</span>{id === "payments" && <i className="nav-dot" />}</button>)}</nav>
       <div className="side-bottom">
@@ -456,7 +488,86 @@ function Payments({ me, data, onOpen }) {
   </>;
 }
 
-function PaymentTable({ payments, students }) { return <table><thead><tr><th>ÖĞRENCİ</th><th>TARİH</th><th>YÖNTEM</th><th>AÇIKLAMA</th><th>TUTAR</th><th>DURUM</th></tr></thead><tbody>{(payments.length ? payments : students.map((s,i) => ({ id: `p${i}`, student_id: s.id, payment_date: today(), method: i ? "Kredi Kartı" : "Banka Transferi", note: "Dönem ödemesi", amount: s.paid_amount })) ).map(p => { const s = students.find(x => x.id === p.student_id); return <tr key={p.id}><td><div className="person"><div className="student-avatar small">{s?.student_name?.split(" ").map(x=>x[0]).join("")}</div><b>{s?.student_name || "-"}</b></div></td><td>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</td><td><span className="method-tag">{p.method}</span></td><td className="muted-cell">{p.note || "-"}</td><td><b className="amount">{money(p.amount)}</b></td><td><span className="status-pill success">İşlendi</span></td></tr>})}</tbody></table> }
+function PaymentTable({ payments, students }) {
+  const list = payments.length ? payments : students.map((s, i) => ({
+    id: `p${i}`,
+    student_id: s.id,
+    payment_date: today(),
+    method: i ? "Kredi Kartı" : "Banka Transferi",
+    note: "Dönem ödemesi",
+    amount: s.paid_amount || 0
+  }));
+
+  return (
+    <>
+      <div className="desktop-only-table table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ÖĞRENCİ</th>
+              <th>TARİH</th>
+              <th>YÖNTEM</th>
+              <th>AÇIKLAMA</th>
+              <th>TUTAR</th>
+              <th>DURUM</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map(p => {
+              const s = students.find(x => x.id === p.student_id);
+              return (
+                <tr key={p.id}>
+                  <td>
+                    <div className="person">
+                      <div className="student-avatar small">
+                        {s?.student_name?.split(" ").map(x => x[0]).join("") || "?"}
+                      </div>
+                      <b>{s?.student_name || "—"}</b>
+                    </div>
+                  </td>
+                  <td>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</td>
+                  <td><span className="method-tag">{p.method}</span></td>
+                  <td className="muted-cell">{p.note || "—"}</td>
+                  <td><b className="amount">{money(p.amount)}</b></td>
+                  <td><span className="status-pill success">İşlendi</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mobile-only-cards payments-mobile-list">
+        {list.map(p => {
+          const s = students.find(x => x.id === p.student_id);
+          return (
+            <div key={p.id} className="mobile-data-card payment-card" data-testid={`payment-card-${p.id}`}>
+              <div className="payment-card-top">
+                <div className="person">
+                  <div className="student-avatar small">
+                    {s?.student_name?.split(" ").map(x => x[0]).join("") || "?"}
+                  </div>
+                  <div>
+                    <b>{s?.student_name || "—"}</b>
+                    <span className="card-subtext">{new Date(p.payment_date).toLocaleDateString("tr-TR")}</span>
+                  </div>
+                </div>
+                <b className="amount green-amount">{money(p.amount)}</b>
+              </div>
+              <div className="payment-card-bottom">
+                <div className="payment-meta-tags">
+                  <span className="method-tag">{p.method}</span>
+                  <span className="card-note">{p.note || "Tahsilat kaydı"}</span>
+                </div>
+                <span className="status-pill success">İşlendi</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
 
 function Classes({ me, classes, onOpen, students = [] }) {
   return <>
@@ -671,23 +782,124 @@ function Documents({ students, payments }) {
 function UsersPage({ me }) {
   const [users, setUsers] = useState([]);
   const [msg, setMsg] = useState("");
-  const load = async () => { try { const r = await axios.get(`${API}/users`); setUsers(r.data); } catch (e) { setMsg(e.response?.data?.detail || "Yüklenemedi"); } };
+  const load = async () => {
+    try {
+      const r = await axios.get(`${API}/users`);
+      setUsers(r.data);
+    } catch (e) {
+      setMsg(e.response?.data?.detail || "Yüklenemedi");
+    }
+  };
   useEffect(() => { load(); }, []);
-  const change = async (user_id, role) => { try { await axios.put(`${API}/users/role`, { user_id, role }); await load(); setMsg("Rol güncellendi"); } catch (e) { setMsg(e.response?.data?.detail || "Güncellenemedi"); } };
-  return <>
-    <PageHead eyebrow="YETKİLENDİRME · PERSONEL" title="Kullanıcılar & Roller" />
-    <section className="panel table-panel">
-      <div className="panel-head"><div><h2>Erişim izinleri</h2><p>Sadece izinli e-postalar giriş yapabilir. Rolleri buradan değiştirin.</p></div>{msg && <span className="text-btn" data-testid="users-msg">{msg}</span>}</div>
-      <table><thead><tr><th>KULLANICI</th><th>E-POSTA</th><th>MEVCUT ROL</th><th>ROL DEĞİŞTİR</th></tr></thead><tbody>
-        {users.map(u => <tr key={u.user_id} data-testid={`user-row-${u.user_id}`}>
-          <td><div className="person">{u.picture ? <img className="student-avatar" src={u.picture} alt="" style={{objectFit:"cover"}}/> : <div className="student-avatar">{(u.name||"?").slice(0,2).toUpperCase()}</div>}<div><b>{u.name}</b><span>{u.user_id.slice(0,14)}</span></div></div></td>
-          <td className="muted-cell">{u.email}</td>
-          <td><span className={`role-pill role-${u.role}`}>{ROLE_LABEL[u.role] || u.role}</span></td>
-          <td><select className="mini-select" data-testid={`role-select-${u.user_id}`} value={u.role} onChange={e => change(u.user_id, e.target.value)} disabled={u.user_id === me?.user_id}><option value="admin">Yönetici</option><option value="muhasebe">Muhasebe</option><option value="ogretmen">Öğretmen</option></select></td>
-        </tr>)}
-      </tbody></table>
-    </section>
-  </>;
+  const change = async (user_id, role) => {
+    try {
+      await axios.put(`${API}/users/role`, { user_id, role });
+      await load();
+      setMsg("Rol güncellendi");
+      setTimeout(() => setMsg(""), 3000);
+    } catch (e) {
+      setMsg(e.response?.data?.detail || "Güncellenemedi");
+    }
+  };
+
+  return (
+    <>
+      <PageHead eyebrow="YETKİLENDİRME · PERSONEL" title="Kullanıcılar & Roller" />
+      <section className="panel table-panel">
+        <div className="panel-head">
+          <div>
+            <h2>Erişim izinleri</h2>
+            <p>Sadece izinli personeller giriş yapabilir. Rolleri buradan değiştirin.</p>
+          </div>
+          {msg && <span className="text-btn" data-testid="users-msg">{msg}</span>}
+        </div>
+
+        <div className="desktop-only-table table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>KULLANICI</th>
+                <th>E-POSTA</th>
+                <th>MEVCUT ROL</th>
+                <th>ROL DEĞİŞTİR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.user_id} data-testid={`user-row-${u.user_id}`}>
+                  <td>
+                    <div className="person">
+                      {u.picture ? (
+                        <img className="student-avatar" src={u.picture} alt="" style={{ objectFit: "cover" }} />
+                      ) : (
+                        <div className="student-avatar">{(u.name || "?").slice(0, 2).toUpperCase()}</div>
+                      )}
+                      <div>
+                        <b>{u.name}</b>
+                        <span>{u.user_id.slice(0, 14)}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="muted-cell">{u.email}</td>
+                  <td><span className={`role-pill role-${u.role}`}>{ROLE_LABEL[u.role] || u.role}</span></td>
+                  <td>
+                    <select
+                      className="mini-select"
+                      data-testid={`role-select-${u.user_id}`}
+                      value={u.role}
+                      onChange={e => change(u.user_id, e.target.value)}
+                      disabled={u.user_id === me?.user_id}
+                    >
+                      <option value="admin">Yönetici</option>
+                      <option value="muhasebe">Muhasebe</option>
+                      <option value="ogretmen">Öğretmen</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mobile-only-cards users-mobile-list">
+          {users.map(u => (
+            <div key={u.user_id} className="mobile-data-card user-card" data-testid={`user-card-${u.user_id}`}>
+              <div className="user-card-head">
+                <div className="person">
+                  {u.picture ? (
+                    <img className="student-avatar" src={u.picture} alt="" style={{ objectFit: "cover" }} />
+                  ) : (
+                    <div className="student-avatar">{(u.name || "?").slice(0, 2).toUpperCase()}</div>
+                  )}
+                  <div>
+                    <b>{u.name}</b>
+                    <span className="card-email">{u.email}</span>
+                  </div>
+                </div>
+                <span className={`role-pill role-${u.role}`}>{ROLE_LABEL[u.role] || u.role}</span>
+              </div>
+              <div className="user-card-actions">
+                <label className="card-select-label">
+                  <span>Rol Değiştir:</span>
+                  <select
+                    className="mini-select mobile-role-select"
+                    data-testid={`role-select-mobile-${u.user_id}`}
+                    value={u.role}
+                    onChange={e => change(u.user_id, e.target.value)}
+                    disabled={u.user_id === me?.user_id}
+                  >
+                    <option value="admin">👑 Yönetici (Admin)</option>
+                    <option value="muhasebe">💼 Muhasebe</option>
+                    <option value="ogretmen">📚 Öğretmen</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
 }
 
 function Reminders() {
@@ -705,18 +917,74 @@ function Reminders() {
     <div className="stats-grid compact"><Stat icon={BellRing} label="Geciken ödeme" value={overdue.length} note="Vadesi geçti" color="red" trend="Acil" /><Stat icon={Bell} label="Yaklaşan taksit" value={upcoming.length} note={`Önümüzdeki ${days} gün`} color="amber" trend="Takip" /></div>
     <section className="panel table-panel">
       <div className="panel-head"><div><h2>Aramaya hazır liste</h2><p>Numaraya tıklayın · WhatsApp/SMS gönderimi entegrasyon sonrası açılır</p></div>{msg && <span className="text-btn" data-testid="reminders-msg">{msg}</span>}</div>
-      <table><thead><tr><th>DURUM</th><th>ÖĞRENCİ</th><th>VELİ / TELEFON</th><th>TAKSİT NO</th><th>VADE</th><th>TUTAR</th><th></th></tr></thead><tbody>
-        {items.map((it, i) => <tr key={`${it.student_id}-${i}`} data-testid={`reminder-row-${it.student_id}`}>
-          <td><span className={`status-pill ${it.status === "overdue" ? "danger" : "warning"}`}>{it.status === "overdue" ? "Gecikti" : "Yaklaşan"}</span></td>
-          <td><b>{it.student_name}</b></td>
-          <td><div className="cell-stack"><b>{it.parent_name}</b><a className="phone-link" href={`tel:${(it.parent_phone||"").replace(/\s/g,"")}`}><Phone size={12}/> {it.parent_phone || "—"}</a></div></td>
-          <td>#{it.installment_no}</td>
-          <td>{new Date(it.due_date).toLocaleDateString("tr-TR")}<br/><span className="muted-cell" style={{fontSize:10}}>{it.status === "overdue" ? `${Math.abs(it.days_diff)} gün gecikti` : `${it.days_diff} gün kaldı`}</span></td>
-          <td><b className="amount">{money(it.amount_due)}</b></td>
-          <td><a data-testid={`whatsapp-${it.student_id}`} className="text-btn" target="_blank" rel="noreferrer" href={`https://wa.me/${(it.parent_phone||"").replace(/[^0-9]/g,"")}?text=${encodeURIComponent(`Sayın ${it.parent_name}, ${it.student_name} adına ${new Date(it.due_date).toLocaleDateString("tr-TR")} tarihli ${money(it.amount_due)} tutarındaki taksit ödemesini hatırlatmak isteriz. İnegöl Çözüm Kurs`)}`}>WhatsApp</a></td>
-        </tr>)}
-        {items.length === 0 && !msg && <tr><td colSpan="7" className="muted-cell" style={{textAlign:"center",padding:"30px"}}>Bu dönemde bekleyen ödeme yok. 🎉</td></tr>}
-      </tbody></table>
+      <div className="desktop-only-table table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>DURUM</th>
+              <th>ÖĞRENCİ</th>
+              <th>VELİ / TELEFON</th>
+              <th>TAKSİT NO</th>
+              <th>VADE</th>
+              <th>TUTAR</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => (
+              <tr key={`${it.student_id}-${i}`} data-testid={`reminder-row-${it.student_id}`}>
+                <td><span className={`status-pill ${it.status === "overdue" ? "danger" : "warning"}`}>{it.status === "overdue" ? "Gecikti" : "Yaklaşan"}</span></td>
+                <td><b>{it.student_name}</b></td>
+                <td><div className="cell-stack"><b>{it.parent_name}</b><a className="phone-link" href={`tel:${(it.parent_phone || "").replace(/\s/g, "")}`}><Phone size={12}/> {it.parent_phone || "—"}</a></div></td>
+                <td>#{it.installment_no}</td>
+                <td>{new Date(it.due_date).toLocaleDateString("tr-TR")}<br/><span className="muted-cell" style={{ fontSize: 10 }}>{it.status === "overdue" ? `${Math.abs(it.days_diff)} gün gecikti` : `${it.days_diff} gün kaldı`}</span></td>
+                <td><b className="amount">{money(it.amount_due)}</b></td>
+                <td><a data-testid={`whatsapp-${it.student_id}`} className="text-btn" target="_blank" rel="noreferrer" href={`https://wa.me/${(it.parent_phone || "").replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Sayın ${it.parent_name}, ${it.student_name} adına ${new Date(it.due_date).toLocaleDateString("tr-TR")} tarihli ${money(it.amount_due)} tutarındaki taksit ödemesini hatırlatmak isteriz. İnegöl Çözüm Kurs`)}`}>WhatsApp</a></td>
+              </tr>
+            ))}
+            {items.length === 0 && !msg && <tr><td colSpan="7" className="muted-cell" style={{ textAlign: "center", padding: "30px" }}>Bu dönemde bekleyen ödeme yok. 🎉</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mobile-only-cards reminders-mobile-list">
+        {items.map((it, i) => (
+          <div key={`${it.student_id}-${i}`} className="mobile-data-card reminder-card" data-testid={`reminder-card-${it.student_id}`}>
+            <div className="reminder-card-top">
+              <div>
+                <b className="reminder-student-name">{it.student_name}</b>
+                <span className="card-subtext">Taksit #{it.installment_no} · Vade: {new Date(it.due_date).toLocaleDateString("tr-TR")}</span>
+              </div>
+              <span className={`status-pill ${it.status === "overdue" ? "danger" : "warning"}`}>
+                {it.status === "overdue" ? `${Math.abs(it.days_diff)} gün gecikti` : `${it.days_diff} gün kaldı`}
+              </span>
+            </div>
+            <div className="reminder-card-mid">
+              <div className="reminder-parent-stack">
+                <span className="card-label">Veli: <b>{it.parent_name}</b></span>
+                <a className="phone-link" href={`tel:${(it.parent_phone || "").replace(/\s/g, "")}`}>
+                  <Phone size={13} /> {it.parent_phone || "—"}
+                </a>
+              </div>
+              <b className="amount red-amount">{money(it.amount_due)}</b>
+            </div>
+            <div className="reminder-card-actions">
+              <a
+                data-testid={`whatsapp-mobile-${it.student_id}`}
+                className="whatsapp-btn"
+                target="_blank"
+                rel="noreferrer"
+                href={`https://wa.me/${(it.parent_phone || "").replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Sayın ${it.parent_name}, ${it.student_name} adına ${new Date(it.due_date).toLocaleDateString("tr-TR")} tarihli ${money(it.amount_due)} tutarındaki taksit ödemesini hatırlatmak isteriz. İnegöl Çözüm Kurs`)}`}
+              >
+                💬 WhatsApp ile Hatırlat
+              </a>
+            </div>
+          </div>
+        ))}
+        {items.length === 0 && !msg && (
+          <div className="empty-card-msg">Bu dönemde bekleyen ödeme yok. 🎉</div>
+        )}
+      </div>
     </section>
   </>;
 }
@@ -865,31 +1133,108 @@ function StudentDetailDrawer({ student, onClose, me }) {
 function AuditPage() {
   const [logs, setLogs] = useState([]);
   const [msg, setMsg] = useState("");
-  useEffect(() => { (async () => { try { const r = await axios.get(`${API}/audit-logs`); setLogs(r.data); } catch (e) { setMsg(e.response?.data?.detail || "Yüklenemedi"); } })(); }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await axios.get(`${API}/audit-logs`);
+        setLogs(r.data);
+      } catch (e) {
+        setMsg(e.response?.data?.detail || "Yüklenemedi");
+      }
+    })();
+  }, []);
+
   const labelFor = (a) => ({
-    "auth.login": "Giriş yapıldı", "auth.logout": "Çıkış yapıldı",
-    "student.create": "Öğrenci eklendi", "payment.create": "Tahsilat alındı",
-    "expense.create": "Gider kaydedildi", "class.create": "Sınıf oluşturuldu",
-    "user.role_update": "Rol değiştirildi", "export.excel": "Excel indirildi", "report.monthly": "Aylık rapor",
+    "auth.login": "Giriş yapıldı",
+    "auth.logout": "Çıkış yapıldı",
+    "student.create": "Öğrenci eklendi",
+    "payment.create": "Tahsilat alındı",
+    "expense.create": "Gider kaydedildi",
+    "class.create": "Sınıf oluşturuldu",
+    "user.role_update": "Rol değiştirildi",
+    "export.excel": "Excel indirildi",
+    "report.monthly": "Aylık rapor",
   }[a] || a);
-  return <>
-    <PageHead eyebrow="DENETİM · AKTİVİTE GEÇMİŞİ" title="Denetim Kaydı">
-      <Button testid="export-audit-button" secondary onClick={() => downloadBlob(`${API}/export/audit`, `inegol-cozum-denetim.xlsx`)}><Download size={16}/> Excel indir</Button>
-    </PageHead>
-    <section className="panel table-panel">
-      <div className="panel-head"><div><h2>Son işlemler</h2><p>Hangi kullanıcı ne zaman ne yaptı - şeffaf takip</p></div>{msg && <span className="text-btn" data-testid="audit-msg">{msg}</span>}</div>
-      <table><thead><tr><th>TARİH</th><th>KULLANICI</th><th>ROL</th><th>İŞLEM</th><th>AÇIKLAMA</th></tr></thead><tbody>
-        {logs.map(l => <tr key={l.id} data-testid={`audit-row-${l.id}`}>
-          <td className="muted-cell">{new Date(l.created_at).toLocaleString("tr-TR")}</td>
-          <td><b>{l.user_name || "—"}</b><br/><span className="muted-cell" style={{fontSize:10}}>{l.user_email}</span></td>
-          <td><span className={`role-pill role-${l.user_role}`}>{ROLE_LABEL[l.user_role] || l.user_role}</span></td>
-          <td><span className="method-tag">{labelFor(l.action)}</span></td>
-          <td className="muted-cell">{l.detail || "—"}</td>
-        </tr>)}
-        {logs.length === 0 && !msg && <tr><td colSpan="5" className="muted-cell" style={{textAlign:"center",padding:"30px"}}>Kayıt bulunamadı.</td></tr>}
-      </tbody></table>
-    </section>
-  </>;
+
+  return (
+    <>
+      <PageHead eyebrow="DENETİM · AKTİVİTE GEÇMİŞİ" title="Denetim Kaydı">
+        <Button
+          testid="export-audit-button"
+          secondary
+          onClick={() => downloadBlob(`${API}/export/audit`, `inegol-cozum-denetim.xlsx`)}
+        >
+          <Download size={16} /> Excel indir
+        </Button>
+      </PageHead>
+      <section className="panel table-panel">
+        <div className="panel-head">
+          <div>
+            <h2>Son işlemler</h2>
+            <p>Hangi kullanıcı ne zaman ne yaptı — şeffaf takip</p>
+          </div>
+          {msg && <span className="text-btn" data-testid="audit-msg">{msg}</span>}
+        </div>
+
+        <div className="desktop-only-table table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>TARİH</th>
+                <th>KULLANICI</th>
+                <th>ROL</th>
+                <th>İŞLEM</th>
+                <th>AÇIKLAMA</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map(l => (
+                <tr key={l.id} data-testid={`audit-row-${l.id}`}>
+                  <td className="muted-cell">{new Date(l.created_at).toLocaleString("tr-TR")}</td>
+                  <td>
+                    <b>{l.user_name || "—"}</b>
+                    <br />
+                    <span className="muted-cell" style={{ fontSize: 10 }}>{l.user_email}</span>
+                  </td>
+                  <td><span className={`role-pill role-${l.user_role}`}>{ROLE_LABEL[l.user_role] || l.user_role}</span></td>
+                  <td><span className="method-tag">{labelFor(l.action)}</span></td>
+                  <td className="muted-cell">{l.detail || "—"}</td>
+                </tr>
+              ))}
+              {logs.length === 0 && !msg && (
+                <tr>
+                  <td colSpan="5" className="muted-cell" style={{ textAlign: "center", padding: "30px" }}>
+                    Kayıt bulunamadı.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mobile-only-cards audit-mobile-list">
+          {logs.map(l => (
+            <div key={l.id} className="mobile-data-card audit-card" data-testid={`audit-card-${l.id}`}>
+              <div className="audit-card-top">
+                <div className="audit-user-info">
+                  <b>{l.user_name || "Bilinmeyen Kullanıcı"}</b>
+                  <span className="card-subtext">{new Date(l.created_at).toLocaleString("tr-TR")}</span>
+                </div>
+                <span className={`role-pill role-${l.user_role}`}>{ROLE_LABEL[l.user_role] || l.user_role}</span>
+              </div>
+              <div className="audit-card-action">
+                <span className="method-tag audit-tag">{labelFor(l.action)}</span>
+                <span className="audit-detail-text">{l.detail || "İşlem detayı yok"}</span>
+              </div>
+            </div>
+          ))}
+          {logs.length === 0 && !msg && (
+            <div className="empty-card-msg">Kayıt bulunamadı.</div>
+          )}
+        </div>
+      </section>
+    </>
+  );
 }
 
 const DISCOUNT_TYPES = [
@@ -949,8 +1294,20 @@ function Modal({ type, selected, data, close, reload }) {
     } catch (err) { setError(err.response?.data?.detail || "Kayıt sırasında bir sorun oluştu."); }
   };
   const title = {student:"Yeni öğrenci kaydı", payment:"Tahsilat ekle", expense:"Gider ekle", class:"Yeni sınıf oluştur"}[type];
-  return <div className="modal-backdrop" onClick={close}><div className="modal wide" onClick={e=>e.stopPropagation()}><div className="modal-head"><div><div className="eyebrow">KURS YÖNETİMİ</div><h2>{title}</h2></div><button data-testid="modal-close" className="icon-btn" onClick={close}><X size={18}/></button></div>
-    <form onSubmit={submit}>
+  return (
+    <div className="modal-backdrop" onClick={close}>
+      <div className="modal wide" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <div className="eyebrow">KURS YÖNETİMİ</div>
+            <h2>{title}</h2>
+          </div>
+          <button data-testid="modal-close" className="icon-btn" onClick={close} type="button">
+            <X size={18} />
+          </button>
+        </div>
+        <form onSubmit={submit} className="modal-form">
+          <div className="modal-form-body">
       {type === "student" && <>
         <div className="form-section-title">Öğrenci Bilgileri</div>
         <div className="form-grid">
@@ -1034,10 +1391,20 @@ function Modal({ type, selected, data, close, reload }) {
       </>}
       {type === "payment" && <div className="form-grid"><label>Öğrenci<select data-testid="payment-student-select" required name="student_id" onChange={change}><option value="">Öğrenci seçin</option>{data.students.map(s=><option key={s.id} value={s.id}>{s.student_name}</option>)}</select></label><label>Tutar (₺)<input data-testid="payment-amount-input" required type="number" name="amount" onChange={change}/></label><label>Ödeme yöntemi<select data-testid="payment-method-select" name="method" onChange={change}><option>Nakit</option><option>Çek</option><option>Kredi Kartı</option><option>Banka Transferi</option></select></label><label>Banka seçimi<input data-testid="payment-bank-input" name="bank" placeholder="Banka adı" onChange={change}/></label><label>Ödeme tarihi<input data-testid="payment-date-input" type="date" name="payment_date" value={form.payment_date} onChange={change}/></label><label>Açıklama<input data-testid="payment-note-input" name="note" placeholder="Örn. Mart taksiti" onChange={change}/></label></div>}
       {type === "class" && <div className="form-grid"><label>Sınıf adı<input data-testid="class-name-input" required name="name" onChange={change}/></label><label>Seviye<input data-testid="class-level-input" name="level" onChange={change}/></label><label>Derslik<input data-testid="class-room-input" name="room" onChange={change}/></label><label>Kontenjan<input data-testid="class-capacity-input" type="number" name="capacity" defaultValue="20" onChange={change}/></label><label>Öğretmen<input data-testid="class-teacher-input" name="teacher" onChange={change}/></label></div>}
-      {error && <div data-testid="modal-error" className="modal-error">{error}</div>}
-      <div className="modal-footer"><Button testid="modal-cancel" secondary onClick={close}>Vazgeç</Button><Button testid="modal-submit">Kaydet</Button></div>
-    </form>
-  </div></div>;
+            {error && <div data-testid="modal-error" className="modal-error">{error}</div>}
+          </div>
+          <div className="modal-footer">
+            <Button testid="modal-cancel" secondary onClick={close} type="button">
+              Vazgeç
+            </Button>
+            <Button testid="modal-submit" type="submit">
+              Kaydet
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function CameraCapture({ photo, setPhoto, videoRef: externalRef }) {
