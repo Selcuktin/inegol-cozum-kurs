@@ -1,0 +1,8 @@
+name = "inegol-cozum-kurs"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "build"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "inegol-cozum-db"
+database_id = "2e4de05a-6062-4349-a3be-09d5c59608c1"

@@ -13,18 +13,12 @@ export const getBackendBaseUrl = () => {
       return clean;
     }
     const saved = localStorage.getItem("custom_api_url");
-    if (saved) return saved;
+    if (saved && !saved.includes("loca.lt")) return saved;
   }
   if (process.env.REACT_APP_BACKEND_URL && !process.env.REACT_APP_BACKEND_URL.includes("localhost")) {
     return process.env.REACT_APP_BACKEND_URL.replace(/\/+$/, "");
   }
-  if (typeof window !== "undefined") {
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-      return "http://localhost:8000";
-    }
-    return "https://inegol-cozum-api.loca.lt";
-  }
-  return "https://inegol-cozum-api.loca.lt";
+  return "";
 };
 
 const API = `${getBackendBaseUrl()}/api`;
