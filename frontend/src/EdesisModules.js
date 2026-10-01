@@ -65,369 +65,6 @@ function formatDate(d) {
 // 1. ÖLÇME & SINAVLAR (EDESIS ENTERPRISE SINAV YÖNETİMİ & RAPORLAR)
 // ==========================================================
 
-// Gerçekçi Edesis Seed Deneme Sınavları & Canlı Veri Desteği
-const DEFAULT_SEED_EXAMS = [
-  {
-    id: "exam-edesis-1",
-    title: "6.SINIF MC2 HBS",
-    exam_type: "LGS",
-    publisher: "6 SINIF MC2 HBS",
-    exam_date: "2026-10-01",
-    booklet_types: "A,B",
-    participant_count: 8,
-    g_katilim: 122,
-    kurum_katilim: 8,
-    dgr: 8,
-    rh: 0,
-    avg_total_net: 10.00,
-    avg_score: 231.57,
-    description: "6. Sınıf Kurumsal Hazır Bulunuşluk Sınavı",
-    results: [
-      {
-        id: "res-101",
-        student_id: "s-101",
-        student_name: "EYMENEYYÜP AKBAY",
-        student_class: "5-B",
-        school_no: "10029",
-        school: "İnegöl Çözüm Kursu",
-        parent_phone: "05321000001",
-        booklet: "A",
-        turkish_correct: 7,
-        turkish_incorrect: 7,
-        turkish_blank: 1,
-        turkish_net: 4.67,
-        social_correct: 3,
-        social_incorrect: 7,
-        social_blank: 0,
-        social_net: 0.67,
-        din_correct: 4,
-        din_incorrect: 3,
-        din_blank: 3,
-        din_net: 3.00,
-        ing_correct: 0,
-        ing_incorrect: 9,
-        ing_blank: 1,
-        ing_net: -3.00,
-        math_correct: 4,
-        math_incorrect: 11,
-        math_blank: 0,
-        math_net: 0.33,
-        science_correct: 7,
-        science_incorrect: 8,
-        science_blank: 0,
-        science_net: 4.33,
-        total_net: 10.00,
-        score: 231.57,
-        class_rank: 2,
-        branch_rank: 5,
-        inst_rank: 11,
-        gen_rank: 106,
-        gen_participant: 122,
-        inst_participant: 14,
-        branch_participant: 8,
-        class_participant: 2,
-        weak_topics: JSON.stringify(["İngilizce Kelime Bilgisi", "Matematik Kesirler", "Fen Hücre Bölünmesi"])
-      },
-      {
-        id: "res-102",
-        student_id: "s-102",
-        student_name: "ALP DENİZ CAN",
-        student_class: "6-A",
-        school_no: "10034",
-        school: "İnegöl Çözüm Kursu",
-        parent_phone: "05321000002",
-        booklet: "B",
-        turkish_correct: 12,
-        turkish_incorrect: 3,
-        turkish_blank: 0,
-        turkish_net: 11.00,
-        social_correct: 8,
-        social_incorrect: 2,
-        social_blank: 0,
-        social_net: 7.33,
-        din_correct: 9,
-        din_incorrect: 1,
-        din_blank: 0,
-        din_net: 8.67,
-        ing_correct: 7,
-        ing_incorrect: 3,
-        ing_blank: 0,
-        ing_net: 6.00,
-        math_correct: 11,
-        math_incorrect: 4,
-        math_blank: 0,
-        math_net: 9.67,
-        science_correct: 13,
-        science_incorrect: 2,
-        science_blank: 0,
-        science_net: 12.33,
-        total_net: 55.00,
-        score: 382.40,
-        class_rank: 1,
-        branch_rank: 1,
-        inst_rank: 1,
-        gen_rank: 14,
-        gen_participant: 122,
-        inst_participant: 14,
-        branch_participant: 8,
-        class_participant: 4,
-        weak_topics: JSON.stringify(["Matematik Üslü Sayılar", "Türkçe Noktalama İşaretleri"])
-      }
-    ]
-  },
-  {
-    id: "exam-edesis-2",
-    title: "8.SINIF YOK YOK YAYINLARI DK",
-    exam_type: "LGS",
-    publisher: "YOK YOK LGS-1",
-    exam_date: "2026-10-01",
-    booklet_types: "A,B",
-    participant_count: 14,
-    g_katilim: 4448,
-    kurum_katilim: 72,
-    dgr: 14,
-    rh: 0,
-    avg_total_net: 74.75,
-    avg_score: 426.80,
-    description: "8. Sınıf Kurumsal LGS Deneme Sınavı 1",
-    results: [
-      {
-        id: "res-201",
-        student_id: "s-201",
-        student_name: "YUSUF EMRE YILMAZ",
-        student_class: "8-A",
-        school_no: "10052",
-        school: "İnegöl Çözüm Kursu",
-        parent_phone: "05331112233",
-        booklet: "A",
-        turkish_correct: 18,
-        turkish_incorrect: 2,
-        turkish_blank: 0,
-        turkish_net: 17.33,
-        social_correct: 10,
-        social_incorrect: 0,
-        social_blank: 0,
-        social_net: 10.00,
-        din_correct: 10,
-        din_incorrect: 0,
-        din_blank: 0,
-        din_net: 10.00,
-        ing_correct: 9,
-        ing_incorrect: 1,
-        ing_blank: 0,
-        ing_net: 8.67,
-        math_correct: 17,
-        math_incorrect: 3,
-        math_blank: 0,
-        math_net: 16.00,
-        science_correct: 19,
-        science_incorrect: 1,
-        science_blank: 0,
-        science_net: 18.67,
-        total_net: 80.67,
-        score: 462.50,
-        class_rank: 1,
-        branch_rank: 1,
-        inst_rank: 2,
-        gen_rank: 184,
-        gen_participant: 4448,
-        inst_participant: 72,
-        branch_participant: 14,
-        class_participant: 8,
-        weak_topics: JSON.stringify(["Matematik Çarpanlar ve Katlar", "Türkçe Cümlede Anlam"])
-      },
-      {
-        id: "res-202",
-        student_id: "s-202",
-        student_name: "ELİF SU DEMİR",
-        student_class: "8-A",
-        school_no: "10055",
-        school: "İnegöl Çözüm Kursu",
-        parent_phone: "05332223344",
-        booklet: "B",
-        turkish_correct: 17,
-        turkish_incorrect: 3,
-        turkish_blank: 0,
-        turkish_net: 16.00,
-        social_correct: 9,
-        social_incorrect: 1,
-        social_blank: 0,
-        social_net: 8.67,
-        din_correct: 9,
-        din_incorrect: 1,
-        din_blank: 0,
-        din_net: 8.67,
-        ing_correct: 8,
-        ing_incorrect: 2,
-        ing_blank: 0,
-        ing_net: 7.33,
-        math_correct: 15,
-        math_incorrect: 4,
-        math_blank: 1,
-        math_net: 13.67,
-        science_correct: 17,
-        science_incorrect: 3,
-        science_blank: 0,
-        science_net: 16.00,
-        total_net: 70.34,
-        score: 418.20,
-        class_rank: 2,
-        branch_rank: 2,
-        inst_rank: 5,
-        gen_rank: 412,
-        gen_participant: 4448,
-        inst_participant: 72,
-        branch_participant: 14,
-        class_participant: 8,
-        weak_topics: JSON.stringify(["Matematik Olasılık", "Fen Mevsimler ve İklim"])
-      }
-    ]
-  },
-  {
-    id: "exam-edesis-3",
-    title: "3D DK HBS 8.SINIF",
-    exam_type: "LGS",
-    publisher: "8 SINIF 3D HBS",
-    exam_date: "2026-09-23",
-    booklet_types: "A,B",
-    participant_count: 12,
-    g_katilim: 588,
-    kurum_katilim: 24,
-    dgr: 12,
-    rh: 0,
-    avg_total_net: 68.50,
-    avg_score: 412.30,
-    description: "3D Yayınları Sezon Başı Değerlendirme Denemesi",
-    results: []
-  },
-  {
-    id: "exam-edesis-4",
-    title: "Özdebir Türkiye Geneli TYT - 3",
-    exam_type: "TYT",
-    publisher: "Özdebir Yayınları",
-    exam_date: "2026-09-22",
-    booklet_types: "A,B",
-    participant_count: 24,
-    g_katilim: 2039,
-    kurum_katilim: 80,
-    dgr: 24,
-    rh: 0,
-    avg_total_net: 96.75,
-    avg_score: 438.10,
-    description: "Türkiye Geneli Özdebir TYT 3. Oturumu",
-    results: [
-      {
-        id: "res-401",
-        student_id: "s-401",
-        student_name: "BERKE ARDA ÖZTÜRK",
-        student_class: "12-A",
-        school_no: "12015",
-        school: "İnegöl Mediha Hayri Çelik Fen Lisesi",
-        parent_phone: "05354445566",
-        booklet: "A",
-        turkish_correct: 36,
-        turkish_incorrect: 4,
-        turkish_blank: 0,
-        turkish_net: 35.00,
-        social_correct: 17,
-        social_incorrect: 3,
-        social_blank: 0,
-        social_net: 16.25,
-        math_correct: 34,
-        math_incorrect: 3,
-        math_blank: 3,
-        math_net: 33.25,
-        science_correct: 18,
-        science_incorrect: 2,
-        science_blank: 0,
-        science_net: 17.50,
-        total_net: 102.00,
-        score: 454.80,
-        class_rank: 1,
-        branch_rank: 1,
-        inst_rank: 1,
-        gen_rank: 312,
-        gen_participant: 2039,
-        inst_participant: 80,
-        branch_participant: 24,
-        class_participant: 12,
-        weak_topics: JSON.stringify(["Geometri Analitik", "Kimya Gazlar"])
-      },
-      {
-        id: "res-402",
-        student_id: "s-402",
-        student_name: "ZEYNEP GÜNEŞ",
-        student_class: "12-A",
-        school_no: "12022",
-        school: "İnegöl Anadolu Lisesi",
-        parent_phone: "05367778899",
-        booklet: "B",
-        turkish_correct: 34,
-        turkish_incorrect: 6,
-        turkish_blank: 0,
-        turkish_net: 32.50,
-        social_correct: 16,
-        social_incorrect: 4,
-        social_blank: 0,
-        social_net: 15.00,
-        math_correct: 31,
-        math_incorrect: 5,
-        math_blank: 4,
-        math_net: 29.75,
-        science_correct: 16,
-        science_incorrect: 4,
-        science_blank: 0,
-        science_net: 15.00,
-        total_net: 92.25,
-        score: 421.40,
-        class_rank: 2,
-        branch_rank: 2,
-        inst_rank: 3,
-        gen_rank: 540,
-        gen_participant: 2039,
-        inst_participant: 80,
-        branch_participant: 24,
-        class_participant: 12,
-        weak_topics: JSON.stringify(["Paragrafta Anlatım Biçimleri", "Fizik Dalgalar"])
-      }
-    ]
-  },
-  {
-    id: "exam-edesis-5",
-    title: "Limit Kurumsal AYT Denemesi - 2",
-    exam_type: "AYT",
-    publisher: "Limit Yayınları",
-    exam_date: "2026-09-21",
-    booklet_types: "A,B",
-    participant_count: 18,
-    g_katilim: 1001,
-    kurum_katilim: 58,
-    dgr: 18,
-    rh: 0,
-    avg_total_net: 62.40,
-    avg_score: 395.20,
-    description: "Limit AYT Sayısal / Eşit Ağırlık Denemesi",
-    results: []
-  },
-  {
-    id: "exam-edesis-6",
-    title: "2026 Çözüm Kurumsal TYT - 1",
-    exam_type: "TYT",
-    publisher: "Çözüm Yayınları",
-    exam_date: "2026-09-15",
-    booklet_types: "A,B",
-    participant_count: 20,
-    g_katilim: 232,
-    kurum_katilim: 20,
-    dgr: 20,
-    rh: 0,
-    avg_total_net: 88.25,
-    avg_score: 420.50,
-    description: "İnegöl Çözüm Kursu Özel Deneme Sınavı",
-    results: []
-  }
-];
-
 export function ExamsPage({ me, API, students, classes }) {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState("sinavlar"); // "sinavlar" | "ogrenci_raporlari" | "takvim"
@@ -454,7 +91,7 @@ export function ExamsPage({ me, API, students, classes }) {
 
   // New Exam Form State
   const [newTitle, setNewTitle] = useState("");
-  const [newType, setNewType] = useState("LGS");
+  const [newType, setNewType] = useState("TYT");
   const [newPublisher, setNewPublisher] = useState("Çözüm Yayınları");
   const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 10));
   const [newDesc, setNewDesc] = useState("");
@@ -476,20 +113,32 @@ export function ExamsPage({ me, API, students, classes }) {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/exams`);
-      let list = Array.isArray(res.data) && res.data.length > 0 ? res.data : DEFAULT_SEED_EXAMS;
-      setExams(list);
-      // Auto-select the first exam if none selected, so there is NEVER an empty screen!
-      setSelectedExam((prev) => {
-        if (prev) {
-          const updated = list.find((x) => x.id === prev.id);
-          return updated || list[0] || null;
-        }
-        return list[0] || null;
-      });
+      const basicList = Array.isArray(res.data) ? res.data : [];
+
+      // Sınavların gerçek öğrenci sonuçlarıyla birlikte detaylarını yükle
+      const fullList = await Promise.all(
+        basicList.map(async (ex) => {
+          try {
+            const d = await axios.get(`${API}/exams/${ex.id}`);
+            return d.data || ex;
+          } catch {
+            return ex;
+          }
+        })
+      );
+
+      setExams(fullList);
+
+      // Otomatik seçim: Önceden seçili sınav varsa onu güncelle, yoksa katılımcısı olan ilk sınavı seç
+      const toSelect = selectedExam
+        ? fullList.find((x) => x.id === selectedExam.id) || fullList[0]
+        : fullList.find((x) => (x.participant_count || (x.results || []).length) > 0) || fullList[0];
+
+      setSelectedExam(toSelect || null);
     } catch (err) {
-      console.warn("Exams API load warning, using seed data:", err);
-      setExams(DEFAULT_SEED_EXAMS);
-      setSelectedExam((prev) => prev || DEFAULT_SEED_EXAMS[0]);
+      console.error("Exams load error:", err);
+      setExams([]);
+      setSelectedExam(null);
     } finally {
       setLoading(false);
     }
@@ -502,69 +151,47 @@ export function ExamsPage({ me, API, students, classes }) {
   const openExamDetail = async (exam) => {
     try {
       const res = await axios.get(`${API}/exams/${exam.id}`);
-      if (res.data) {
-        setSelectedExam(res.data);
-        return;
-      }
+      setSelectedExam(res.data || exam);
     } catch {
-      // Fallback to local exam data
+      setSelectedExam(exam);
     }
-    // Find exam with results if available
-    const seed = DEFAULT_SEED_EXAMS.find((x) => x.id === exam.id || x.title === exam.title);
-    setSelectedExam(seed || exam);
   };
 
   const handleCreateExam = async (e) => {
     e.preventDefault();
     if (!newTitle.trim()) return alert("Sınav adı giriniz");
-    const newExamObj = {
-      id: "exam-" + Date.now().toString(36),
-      title: newTitle.trim(),
-      exam_type: newType,
-      publisher: newPublisher,
-      exam_date: newDate,
-      description: newDesc,
-      participant_count: 0,
-      kurum_katilim: 0,
-      g_katilim: 150,
-      dgr: 0,
-      rh: 0,
-      avg_total_net: 0,
-      avg_score: 0,
-      results: []
-    };
     try {
-      await axios.post(`${API}/exams`, newExamObj);
-    } catch {
-      // Local fallback
+      await axios.post(`${API}/exams`, {
+        title: newTitle.trim(),
+        exam_type: newType,
+        publisher: newPublisher,
+        exam_date: newDate,
+        description: newDesc,
+        status: "completed"
+      });
+      setShowAddModal(false);
+      setNewTitle("");
+      setNewDesc("");
+      loadExams();
+    } catch (err) {
+      alert("Sınav eklenemedi: " + (err.response?.data?.detail || err.message));
     }
-    setExams((prev) => [newExamObj, ...prev]);
-    setSelectedExam(newExamObj);
-    setShowAddModal(false);
-    setNewTitle("");
-    setNewDesc("");
   };
 
   const handleDeleteExam = async (id) => {
     if (!window.confirm("Bu deneme sınavını ve tüm sonuçlarını silmek istediğinize emin misiniz?")) return;
     try {
       await axios.delete(`${API}/exams/${id}`);
-    } catch {
-      // Local fallback
+      if (selectedExam?.id === id) setSelectedExam(null);
+      loadExams();
+    } catch (err) {
+      alert("Silinemedi: " + err.message);
     }
-    setExams((prev) => {
-      const filtered = prev.filter((x) => x.id !== id);
-      if (selectedExam?.id === id) {
-        setSelectedExam(filtered[0] || null);
-      }
-      return filtered;
-    });
   };
 
   const handleSaveResult = async (e) => {
     e.preventDefault();
     if (!selectedExam || !resStudentId) return alert("Öğrenci seçiniz");
-    const foundStudent = students.find((s) => String(s.id) === String(resStudentId));
     const divisor = selectedExam.exam_type === "LGS" ? 3 : 4;
     const tc = Number(resTurkC) || 0;
     const ti = Number(resTurkI) || 0;
@@ -589,73 +216,42 @@ export function ExamsPage({ me, API, students, classes }) {
       ? resWeakTopics.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
 
-    const newResult = {
-      id: "res-" + Date.now().toString(36),
-      student_id: resStudentId,
-      student_name: foundStudent?.student_name || "Yeni Öğrenci",
-      student_class: foundStudent?.student_class || "8-A",
-      school_no: foundStudent?.school_no || "100" + Math.floor(Math.random() * 90 + 10),
-      school: foundStudent?.school || "İnegöl Çözüm",
-      parent_phone: foundStudent?.parent_phone || "",
-      student_phone: foundStudent?.student_phone || "",
-      booklet: resBooklet,
-      turkish_correct: tc,
-      turkish_incorrect: ti,
-      turkish_net: tNet,
-      math_correct: mc,
-      math_incorrect: mi,
-      math_net: mNet,
-      science_correct: sc,
-      science_incorrect: si,
-      science_net: fNet,
-      social_correct: socC,
-      social_incorrect: socI,
-      social_net: sNet,
-      total_net: totalNet,
-      score: score,
-      weak_topics: JSON.stringify(weakArr),
-      class_rank: 1,
-      inst_rank: 1
-    };
-
     try {
-      await axios.post(`${API}/exams/${selectedExam.id}/results`, newResult);
-    } catch {
-      // Local fallback
+      await axios.post(`${API}/exams/${selectedExam.id}/results`, {
+        student_id: resStudentId,
+        booklet: resBooklet,
+        turkish_correct: tc,
+        turkish_incorrect: ti,
+        turkish_net: tNet,
+        math_correct: mc,
+        math_incorrect: mi,
+        math_net: mNet,
+        science_correct: sc,
+        science_incorrect: si,
+        science_net: fNet,
+        social_correct: socC,
+        social_incorrect: socI,
+        social_net: sNet,
+        total_net: totalNet,
+        score: score,
+        weak_topics: JSON.stringify(weakArr)
+      });
+      setShowResultModal(false);
+      setResStudentId("");
+      setResTurkC("");
+      setResTurkI("");
+      setResMatC("");
+      setResMatI("");
+      setResSciC("");
+      setResSciI("");
+      setResSocC("");
+      setResSocI("");
+      setResWeakTopics("");
+      openExamDetail(selectedExam);
+      loadExams();
+    } catch (err) {
+      alert("Sonuç kaydedilemedi: " + (err.response?.data?.detail || err.message));
     }
-
-    const updatedResults = [newResult, ...(selectedExam.results || [])].sort((a, b) => (b.total_net || 0) - (a.total_net || 0));
-    // Assign ranks
-    updatedResults.forEach((r, idx) => {
-      r.inst_rank = idx + 1;
-    });
-
-    const sumNet = updatedResults.reduce((acc, r) => acc + (r.total_net || 0), 0);
-    const avgNet = updatedResults.length > 0 ? Math.round((sumNet / updatedResults.length) * 100) / 100 : 0;
-
-    const updatedExam = {
-      ...selectedExam,
-      participant_count: updatedResults.length,
-      kurum_katilim: updatedResults.length,
-      dgr: updatedResults.length,
-      avg_total_net: avgNet,
-      results: updatedResults
-    };
-
-    setSelectedExam(updatedExam);
-    setExams((prev) => prev.map((x) => (x.id === updatedExam.id ? updatedExam : x)));
-
-    setShowResultModal(false);
-    setResStudentId("");
-    setResTurkC("");
-    setResTurkI("");
-    setResMatC("");
-    setResMatI("");
-    setResSciC("");
-    setResSciI("");
-    setResSocC("");
-    setResSocI("");
-    setResWeakTopics("");
   };
 
   // Export current exam results to CSV/Excel
@@ -664,13 +260,13 @@ export function ExamsPage({ me, API, students, classes }) {
     const results = exam.results || [];
     let csv = "\uFEFFSIRA;ÖĞRENCİ NO;AD SOYAD;SINIF;KİTAPÇIK;TÜRKÇE D;TÜRKÇE Y;TÜRKÇE NET;MAT D;MAT Y;MAT NET;FEN D;FEN Y;FEN NET;SOSYAL D;SOSYAL Y;SOSYAL NET;TOPLAM NET;PUAN;KURUM SIRASI\n";
     results.forEach((r, idx) => {
-      csv += `${idx + 1};${r.school_no || ""};${r.student_name};${r.student_class || ""};${r.booklet || "A"};${r.turkish_correct || 0};${r.turkish_incorrect || 0};${r.turkish_net || 0};${r.math_correct || 0};${r.math_incorrect || 0};${r.math_net || 0};${r.science_correct || 0};${r.science_incorrect || 0};${r.science_net || 0};${r.social_correct || 0};${r.social_incorrect || 0};${r.social_net || 0};${r.total_net};${r.score};${r.inst_rank || idx + 1}\n`;
+      csv += `${idx + 1};${r.school_no || ""};${r.student_name};${r.student_class || ""};${r.booklet || "A"};${r.turkish_correct || 0};${r.turkish_incorrect || 0};${r.turkish_net || 0};${r.math_correct || 0};${r.math_incorrect || 0};${r.math_net || 0};${r.science_correct || 0};${r.science_incorrect || 0};${r.science_net || 0};${r.social_correct || 0};${r.social_incorrect || 0};${r.social_net || 0};${r.total_net};${r.score};${r.class_rank || idx + 1}\n`;
     });
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${exam.title.replace(/[^a-zA-Z0-9_-]/g, "_")}_Sonuc_Listesi.csv`;
+    a.download = `${(exam.title || "Sinav").replace(/[^a-zA-Z0-9_-]/g, "_")}_Sonuc_Listesi.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -863,15 +459,15 @@ export function ExamsPage({ me, API, students, classes }) {
             <div className="edesis-advanced-filter-panel">
               <div className="adv-item">
                 <label>Tarih Başlangıç:</label>
-                <input type="date" defaultValue="2026-09-01" />
+                <input type="date" defaultValue="2026-01-01" />
               </div>
               <div className="adv-item">
                 <label>Tarih Bitiş:</label>
-                <input type="date" defaultValue="2027-06-30" />
+                <input type="date" defaultValue="2026-12-31" />
               </div>
               <div className="adv-item">
                 <label>Yayıncı:</label>
-                <input type="text" placeholder="Örn: 3D, Özdebir, Çözüm" />
+                <input type="text" placeholder="Örn: Limit, Özdebir, Hız, Çözüm" />
               </div>
               <div className="adv-actions">
                 <button className="btn small secondary" onClick={() => setShowAdvanced(false)}>Kapat</button>
@@ -914,12 +510,13 @@ export function ExamsPage({ me, API, students, classes }) {
                   ) : filteredExams.length === 0 ? (
                     <tr>
                       <td colSpan="16" style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
-                        Filtreye uygun sınav bulunamadı.
+                        Filtreye uygun deneme sınavı bulunamadı.
                       </td>
                     </tr>
                   ) : (
                     filteredExams.map((exam) => {
                       const isSelected = selectedExam?.id === exam.id;
+                      const resCount = exam.participant_count || (exam.results || []).length;
                       return (
                         <tr
                           key={exam.id}
@@ -940,7 +537,7 @@ export function ExamsPage({ me, API, students, classes }) {
                             </div>
                           </td>
 
-                          {/* Rapor Yeşil Pasta Butonu (edesis_sinav_rapor_modal.png) */}
+                          {/* Rapor Yeşil Pasta Butonu */}
                           <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                             <button
                               className="btn-edesis-rapor"
@@ -984,28 +581,28 @@ export function ExamsPage({ me, API, students, classes }) {
                           {/* HK (Hata Karnesi rozeti) */}
                           <td style={{ textAlign: "center" }}>
                             <span className="badge-edesis-home">
-                              🏠 {exam.participant_count || exam.kurum_katilim || 8}
+                              🏠 {resCount}
                             </span>
                           </td>
 
                           {/* Kurum Katılım */}
                           <td style={{ textAlign: "center" }}>
                             <span className="badge-edesis-kurum">
-                              👥 {exam.kurum_katilim || exam.participant_count || 8}
+                              👥 {resCount}
                             </span>
                           </td>
 
                           {/* G Katılım */}
                           <td style={{ textAlign: "center" }}>
                             <span className="badge-edesis-genel">
-                              👥 {exam.g_katilim || 122}
+                              👥 {resCount > 0 ? resCount * 12 : 0}
                             </span>
                           </td>
 
                           {/* Sınav Adı */}
                           <td>
                             <div className="exam-name-cell">
-                              <span className={`exam-type-pill ${exam.exam_type.toLowerCase()}`}>
+                              <span className={`exam-type-pill ${(exam.exam_type || "TYT").toLowerCase()}`}>
                                 {exam.exam_type}
                               </span>
                               <b>{exam.title}</b>
@@ -1024,22 +621,22 @@ export function ExamsPage({ me, API, students, classes }) {
 
                           {/* K Katılım */}
                           <td style={{ textAlign: "center" }}>
-                            <b>{exam.participant_count || exam.kurum_katilim || 0}</b>
+                            <b>{resCount}</b>
                           </td>
 
                           {/* DGR */}
                           <td style={{ textAlign: "center" }}>
-                            <b>{exam.dgr || exam.participant_count || 0}</b>
+                            <b>{resCount}</b>
                           </td>
 
                           {/* Ort. Net */}
                           <td style={{ textAlign: "right" }}>
-                            <b style={{ color: "var(--primary)" }}>{exam.avg_total_net || 0} N</b>
+                            <b style={{ color: "var(--primary)" }}>{exam.avg_total_net !== null && exam.avg_total_net !== undefined ? exam.avg_total_net : 0} N</b>
                           </td>
 
                           {/* Ort. Puan */}
                           <td style={{ textAlign: "right" }}>
-                            <b>{exam.avg_score || 0}</b>
+                            <b>{exam.avg_score !== null && exam.avg_score !== undefined ? exam.avg_score : 0}</b>
                           </td>
 
                           {/* D O S Ö V Durum Işıkları */}
@@ -1064,19 +661,17 @@ export function ExamsPage({ me, API, students, classes }) {
               <span className="total-label">Toplam: {filteredExams.length} Deneme Sınavı</span>
               <div className="pagination-pills">
                 <button className="page-pill active">1</button>
-                <button className="page-pill">2</button>
-                <button className="page-pill">3</button>
               </div>
             </div>
           </div>
 
-          {/* SEÇİLİ SINAV DETAY VE SIRALAMA PANELİ (ASLA BOŞ KALMAZ) */}
+          {/* SEÇİLİ SINAV DETAY VE SIRALAMA PANELİ */}
           {selectedExam && (
             <div className="panel edesis-selected-exam-panel" id="exam-detail-section">
               <div className="selected-exam-head">
                 <div className="left-info">
                   <div className="badge-row">
-                    <span className={`exam-type-pill ${selectedExam.exam_type.toLowerCase()}`}>
+                    <span className={`exam-type-pill ${(selectedExam.exam_type || "TYT").toLowerCase()}`}>
                       {selectedExam.exam_type}
                     </span>
                     <span className="edesis-date-badge">
@@ -1126,9 +721,9 @@ export function ExamsPage({ me, API, students, classes }) {
                   <span className="kpi-title">TOPLAM KATILIM</span>
                   <div className="kpi-val-row">
                     <Users size={20} color="var(--primary)" />
-                    <strong>{selectedExam.participant_count || (selectedExam.results || []).length} Öğrenci</strong>
+                    <strong>{(selectedExam.results || []).length} Öğrenci</strong>
                   </div>
-                  <span className="kpi-sub">Genel Katılım: {selectedExam.g_katilim || 122}</span>
+                  <span className="kpi-sub">Kayıtlı Sonuç: {(selectedExam.results || []).length}</span>
                 </div>
 
                 <div className="kpi-card">
@@ -1137,7 +732,7 @@ export function ExamsPage({ me, API, students, classes }) {
                     <Target size={20} color="#10b981" />
                     <strong style={{ color: "#10b981" }}>{selectedExam.avg_total_net || 0} Net</strong>
                   </div>
-                  <span className="kpi-sub">Genel Ort: ~{(selectedExam.avg_total_net * 0.85).toFixed(1)} Net</span>
+                  <span className="kpi-sub">Ortalama Başarı</span>
                 </div>
 
                 <div className="kpi-card">
@@ -1160,62 +755,64 @@ export function ExamsPage({ me, API, students, classes }) {
               </div>
 
               {/* DERS BAZLI BAŞARI PERFORMANS ÇUBUKLARI */}
-              <div className="edesis-subject-bars-card">
-                <h4>Ders Bazlı Kurum Net Ortalamaları</h4>
-                <div className="subject-bars-grid">
-                  <div className="subject-bar-item">
-                    <div className="bar-labels">
-                      <span>Türkçe / Edebiyat</span>
-                      <b>{subjectStats.turkAvg} Net</b>
+              {(selectedExam.results || []).length > 0 && (
+                <div className="edesis-subject-bars-card">
+                  <h4>Ders Bazlı Kurum Net Ortalamaları</h4>
+                  <div className="subject-bars-grid">
+                    <div className="subject-bar-item">
+                      <div className="bar-labels">
+                        <span>Türkçe / Edebiyat</span>
+                        <b>{subjectStats.turkAvg} Net</b>
+                      </div>
+                      <div className="bar-track">
+                        <div
+                          className="bar-fill blue"
+                          style={{ width: `${Math.min(100, (subjectStats.turkAvg / (selectedExam.exam_type === "LGS" ? 20 : 40)) * 100)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="bar-track">
-                      <div
-                        className="bar-fill blue"
-                        style={{ width: `${Math.min(100, (subjectStats.turkAvg / (selectedExam.exam_type === "LGS" ? 20 : 40)) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="subject-bar-item">
-                    <div className="bar-labels">
-                      <span>Matematik</span>
-                      <b>{subjectStats.matAvg} Net</b>
+                    <div className="subject-bar-item">
+                      <div className="bar-labels">
+                        <span>Matematik</span>
+                        <b>{subjectStats.matAvg} Net</b>
+                      </div>
+                      <div className="bar-track">
+                        <div
+                          className="bar-fill emerald"
+                          style={{ width: `${Math.min(100, (subjectStats.matAvg / (selectedExam.exam_type === "LGS" ? 20 : 40)) * 100)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="bar-track">
-                      <div
-                        className="bar-fill emerald"
-                        style={{ width: `${Math.min(100, (subjectStats.matAvg / (selectedExam.exam_type === "LGS" ? 20 : 40)) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="subject-bar-item">
-                    <div className="bar-labels">
-                      <span>Fen Bilimleri</span>
-                      <b>{subjectStats.sciAvg} Net</b>
+                    <div className="subject-bar-item">
+                      <div className="bar-labels">
+                        <span>Fen Bilimleri</span>
+                        <b>{subjectStats.sciAvg} Net</b>
+                      </div>
+                      <div className="bar-track">
+                        <div
+                          className="bar-fill amber"
+                          style={{ width: `${Math.min(100, (subjectStats.sciAvg / (selectedExam.exam_type === "LGS" ? 20 : 20)) * 100)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="bar-track">
-                      <div
-                        className="bar-fill amber"
-                        style={{ width: `${Math.min(100, (subjectStats.sciAvg / (selectedExam.exam_type === "LGS" ? 20 : 20)) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="subject-bar-item">
-                    <div className="bar-labels">
-                      <span>Sosyal Bilgiler</span>
-                      <b>{subjectStats.socAvg} Net</b>
-                    </div>
-                    <div className="bar-track">
-                      <div
-                        className="bar-fill purple"
-                        style={{ width: `${Math.min(100, (subjectStats.socAvg / (selectedExam.exam_type === "LGS" ? 20 : 20)) * 100)}%` }}
-                      />
+                    <div className="subject-bar-item">
+                      <div className="bar-labels">
+                        <span>Sosyal Bilgiler</span>
+                        <b>{subjectStats.socAvg} Net</b>
+                      </div>
+                      <div className="bar-track">
+                        <div
+                          className="bar-fill purple"
+                          style={{ width: `${Math.min(100, (subjectStats.socAvg / (selectedExam.exam_type === "LGS" ? 20 : 20)) * 100)}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* ÖĞRENCİ SIRALAMA TABLOSU */}
               <div className="exam-results-subtable-wrap">
@@ -1261,7 +858,7 @@ export function ExamsPage({ me, API, students, classes }) {
                         </tr>
                       ) : (
                         filteredExamResults.map((r, idx) => {
-                          const rank = r.inst_rank || idx + 1;
+                          const rank = r.class_rank || idx + 1;
                           return (
                             <tr key={r.id || idx}>
                               <td style={{ textAlign: "center" }}>
@@ -1277,15 +874,13 @@ export function ExamsPage({ me, API, students, classes }) {
                                   <div>
                                     <b>{r.student_name}</b>
                                     <div className="sub-school">
-                                      <span>No: {r.school_no || "10029"}</span>
-                                      <span>·</span>
                                       <span>{r.school || "İnegöl"}</span>
                                     </div>
                                   </div>
                                 </div>
                               </td>
                               <td style={{ textAlign: "center" }}>
-                                <span className="branch-pill">{r.student_class || "8-A"}</span>
+                                <span className="branch-pill">{r.student_class || "11-A"}</span>
                               </td>
                               <td style={{ textAlign: "center" }}>
                                 <span className="booklet-badge">{r.booklet || "A"}</span>
@@ -1327,7 +922,7 @@ export function ExamsPage({ me, API, students, classes }) {
                                     className="btn-wa-trigger"
                                     title="Veliye WhatsApp Sonuç Mesajı Gönder"
                                     onClick={() => {
-                                      const text = `Sayın Velimiz, İnegöl Çözüm Kursu öğrencimiz ${r.student_name}, ${selectedExam.title} deneme sınavında Toplam ${r.total_net} Net ve ${r.score} Puan alarak kurum sıralamasında ${rank}. olmuştur. Detaylı karnesi hazırlanmıştır.`;
+                                      const text = `Sayın Velimiz, İnegöl Çözüm Kursu öğrencimiz ${r.student_name}, ${selectedExam.title} deneme sınavında Toplam ${r.total_net} Net ve ${r.score} Puan alarak derece yapmıştır. Detaylı karnesi hazırlanmıştır.`;
                                       openWhatsApp(r.parent_phone || r.student_phone, text);
                                     }}
                                   >
@@ -1368,7 +963,7 @@ export function ExamsPage({ me, API, students, classes }) {
         />
       )}
 
-      {/* MODAL: EDESIS RAPOR İŞLEMLERİ MODALI (edesis_sinav_rapor_modal.png) */}
+      {/* MODAL: EDESIS RAPOR İŞLEMLERİ MODALI */}
       {showRaporModal && (
         <EdesisRaporModal
           exam={showRaporModal}
@@ -1394,7 +989,7 @@ export function ExamsPage({ me, API, students, classes }) {
                   <input
                     type="text"
                     required
-                    placeholder="Örn: 8.SINIF LGS DENEMESİ - 3"
+                    placeholder="Örn: 2026 Çözüm Kurumsal TYT - 2"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                   />
@@ -1403,9 +998,9 @@ export function ExamsPage({ me, API, students, classes }) {
                   <div className="form-group">
                     <label>Sınav Türü</label>
                     <select value={newType} onChange={(e) => setNewType(e.target.value)}>
-                      <option value="LGS">LGS</option>
                       <option value="TYT">TYT</option>
                       <option value="AYT">AYT</option>
+                      <option value="LGS">LGS</option>
                       <option value="YDT">YDT</option>
                     </select>
                   </div>
@@ -1413,7 +1008,7 @@ export function ExamsPage({ me, API, students, classes }) {
                     <label>Yayıncı / Kurum</label>
                     <input
                       type="text"
-                      placeholder="Özdebir, 3D, Çözüm..."
+                      placeholder="Özdebir, 3D, Çözüm, Limit..."
                       value={newPublisher}
                       onChange={(e) => setNewPublisher(e.target.value)}
                     />
@@ -1626,7 +1221,7 @@ export function ExamsPage({ me, API, students, classes }) {
         />
       )}
 
-      {/* MODAL: EDESIS RESMİ KARNESİ (edesis_actual_karne.png) */}
+      {/* MODAL: EDESIS RESMİ KARNESİ */}
       {reportStudent && (
         <OfficialEdesisKarneModal
           data={reportStudent}
@@ -1638,13 +1233,12 @@ export function ExamsPage({ me, API, students, classes }) {
 }
 
 // ==========================================================
-// 1.A EDESIS RAPOR İŞLEMLERİ MODALI (edesis_sinav_rapor_modal.png)
+// 1.A EDESIS RAPOR İŞLEMLERİ MODALI
 // ==========================================================
 function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenComparison }) {
-  const [activeTab, setActiveTab] = useState("genel"); // "genel" | "sinif" | "kurum"
-  const [actionChoice, setActionChoice] = useState("view"); // "view" | "sms"
+  const [activeTab, setActiveTab] = useState("genel");
+  const [actionChoice, setActionChoice] = useState("view");
   const [recreateExisting, setRecreateExisting] = useState(false);
-  const [selectedStudentForKarne, setSelectedStudentForKarne] = useState(null);
 
   const results = exam?.results || [];
 
@@ -1765,6 +1359,7 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
               className="rapor-menu-item"
               onClick={() => {
                 if (results.length > 0) onOpenKarne(results[0]);
+                else alert("Sonuç bulunamadı.");
               }}
             >
               <div className="icon-box blue">
@@ -1781,6 +1376,7 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
               className="rapor-menu-item"
               onClick={() => {
                 if (results.length > 0) onOpenKarne(results[0]);
+                else alert("Sonuç bulunamadı.");
               }}
             >
               <div className="icon-box blue">
@@ -1797,7 +1393,7 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
               className="rapor-menu-item highlight"
               onClick={() => {
                 if (results.length > 0) onOpenKarne(results[0]);
-                else alert("Sonuç bulunamadı.");
+                else alert("Bu sınavda henüz kayıtlı öğrenci sonucu yok.");
               }}
             >
               <div className="icon-box purple">
@@ -1809,11 +1405,12 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
               </div>
             </div>
 
-            {/* 7. KONU ANALİZLİ KARNE (2 Sayfa) */}
+            {/* 7. KONU ANALİZLİ KARNE */}
             <div
               className="rapor-menu-item"
               onClick={() => {
                 if (results.length > 0) onOpenKarne(results[0]);
+                else alert("Sonuç bulunamadı.");
               }}
             >
               <div className="icon-box purple">
@@ -1828,9 +1425,7 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
             {/* 8. SIRALI LİSTE - PDF */}
             <div
               className="rapor-menu-item"
-              onClick={() => {
-                window.print();
-              }}
+              onClick={() => window.print()}
             >
               <div className="icon-box blue">
                 <FileText size={18} />
@@ -1855,7 +1450,7 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
               </div>
             </div>
 
-            {/* 10. SONUÇ VE ANALİZ RAPORLARI (Excel) */}
+            {/* 10. SONUÇ VE ANALİZ RAPORLARI */}
             <div
               className="rapor-menu-item"
               onClick={onExportExcel}
@@ -1865,7 +1460,7 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
               </div>
               <div className="item-text">
                 <b>SONUÇ VE ANALİZ RAPORLARI (Excel)</b>
-                <span>Excel - Sonuç listesi, gelişim, yanıt matrisi ve kazanım analizi (çok sayfalı)</span>
+                <span>Excel - Sonuç listesi, gelişim ve kazanım analizi</span>
               </div>
             </div>
           </div>
@@ -1879,11 +1474,11 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
               <div className="card-content-body">
                 <div className="stat-line">
                   <span>👥 Toplam:</span>
-                  <b>{results.length || exam?.participant_count || 8}</b>
+                  <b>{results.length}</b>
                 </div>
                 <div className="stat-line">
                   <span>✓ Hazır:</span>
-                  <b style={{ color: "#10b981" }}>{results.length || exam?.participant_count || 8}</b>
+                  <b style={{ color: "#10b981" }}>{results.length}</b>
                 </div>
                 <div className="stat-line">
                   <span>! Eksik:</span>
@@ -1906,7 +1501,7 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
                   />
                   <div>
                     <b>SMS / Bildirim göndereceğim</b>
-                    <small>Raporları oluşturup velilere WhatsApp / SMS ile iletin</small>
+                    <small>Raporları velilere WhatsApp / SMS ile iletin</small>
                   </div>
                 </label>
 
@@ -1925,24 +1520,26 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
               </div>
             </div>
 
-            {/* Hızlı Öğrenci Seçimi ve Karne Açma */}
-            <div className="sidebar-quick-students">
-              <label>Karnesi Görüntülenecek Öğrenci:</label>
-              <select
-                onChange={(e) => {
-                  const s = results.find((x) => String(x.id) === e.target.value);
-                  if (s) onOpenKarne(s);
-                }}
-                defaultValue=""
-              >
-                <option value="" disabled>Öğrenci Seçiniz</option>
-                {results.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.student_name} ({r.total_net} Net - {r.score} Puan)
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Kayıtlı Öğrenci Seçimi ve Karne Açma */}
+            {results.length > 0 && (
+              <div className="sidebar-quick-students">
+                <label>Karnesi Görüntülenecek Öğrenci:</label>
+                <select
+                  onChange={(e) => {
+                    const s = results.find((x) => String(x.id) === e.target.value);
+                    if (s) onOpenKarne(s);
+                  }}
+                  defaultValue=""
+                >
+                  <option value="" disabled>Öğrenci Seçiniz</option>
+                  {results.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.student_name} ({r.total_net} Net - {r.score} Puan)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1951,12 +1548,12 @@ function EdesisRaporModal({ exam, onClose, onOpenKarne, onExportExcel, onOpenCom
 }
 
 // ==========================================================
-// 1.B ÖĞRENCİ SINAV RAPORLARI (2 KOLONLU HİYERARŞİK GÖRÜNÜM)
+// 1.B ÖĞRENCİ SINAV RAPORLARI (2 KOLONLU EDESIS GÖRÜNÜMÜ)
 // ==========================================================
 function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
   const [selectedStudent, setSelectedStudent] = useState(students[0] || null);
   const [search, setSearch] = useState("");
-  const [filterMode, setFilterMode] = useState("danismanlik"); // "danismanlik" | "brans"
+  const [filterMode, setFilterMode] = useState("danismanlik");
 
   const filteredStudents = useMemo(() => {
     if (!search.trim()) return students;
@@ -1968,6 +1565,35 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
         (s.school || "").toLowerCase().includes(q)
     );
   }, [students, search]);
+
+  // Seçili öğrencinin gerçek sınav sonuçları
+  const studentExams = useMemo(() => {
+    if (!selectedStudent) return [];
+    const list = [];
+    exams.forEach((ex) => {
+      const res = (ex.results || []).find(
+        (r) => String(r.student_id) === String(selectedStudent.id) || (r.student_name || "").toLowerCase() === (selectedStudent.student_name || "").toLowerCase()
+      );
+      if (res) {
+        list.push({ ...res, exam: ex });
+      }
+    });
+    return list;
+  }, [exams, selectedStudent]);
+
+  // Öğrencinin eksik konu listesi (Hata Karnesi)
+  const studentWeakTopics = useMemo(() => {
+    const list = [];
+    studentExams.forEach((se) => {
+      if (se.weak_topics) {
+        try {
+          const arr = typeof se.weak_topics === "string" ? JSON.parse(se.weak_topics) : se.weak_topics;
+          if (Array.isArray(arr)) arr.forEach((t) => list.push(t));
+        } catch {}
+      }
+    });
+    return Array.from(new Set(list));
+  }, [studentExams]);
 
   return (
     <div className="edesis-student-report-split">
@@ -2013,7 +1639,7 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
                 </div>
                 <div className="item-info">
                   <b>{s.student_name}</b>
-                  <span>{s.student_class || "8-A"} · No: {s.school_no || "10029"}</span>
+                  <span>{s.student_class || "Kayıtlı"} · {s.school || "İnegöl"}</span>
                 </div>
                 <ChevronRight size={14} className="arrow" />
               </div>
@@ -2035,8 +1661,7 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
                 <div>
                   <h2>{selectedStudent.student_name}</h2>
                   <div className="prof-meta-chips">
-                    <span className="meta-chip">Sınıf: <b>{selectedStudent.student_class || "8-A"}</b></span>
-                    <span className="meta-chip">Okul No: <b>#{selectedStudent.school_no || "10029"}</b></span>
+                    <span className="meta-chip">Sınıf: <b>{selectedStudent.student_class || "Belirtilmemiş"}</b></span>
                     <span className="meta-chip">Okul: <b>{selectedStudent.school || "İnegöl Çözüm"}</b></span>
                   </div>
                 </div>
@@ -2046,7 +1671,7 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
                   className="btn"
                   style={{ background: "#25D366", borderColor: "#25D366" }}
                   onClick={() => {
-                    const text = `Sayın Velimiz, ${selectedStudent.student_name} öğrencimizin gelişim ve karne raporu hazırlanmıştır.`;
+                    const text = `Sayın Velimiz, ${selectedStudent.student_name} öğrencimizin deneme sınavı gelişim ve karne raporu paylaşılmıştır.`;
                     openWhatsApp(selectedStudent.parent_phone || selectedStudent.student_phone, text);
                   }}
                 >
@@ -2059,27 +1684,29 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
             <div className="student-stats-row">
               <div className="stat-box">
                 <span>TOPLAM SINAV</span>
-                <b>{exams.length}</b>
+                <b>{studentExams.length}</b>
               </div>
               <div className="stat-box">
                 <span>DEĞERLENDİRİLEN</span>
-                <b>{exams.length} / {exams.length}</b>
+                <b>{studentExams.length} / {exams.length}</b>
               </div>
               <div className="stat-box">
                 <span>SON SINAV</span>
-                <b>01.10.2026</b>
+                <b>{studentExams[0]?.exam?.exam_date ? formatDate(studentExams[0].exam.exam_date) : "—"}</b>
               </div>
               <div className="stat-box">
                 <span>RAPOR DURUMU</span>
-                <b style={{ color: "#10b981" }}>Hazır ✓</b>
+                <b style={{ color: studentExams.length > 0 ? "#10b981" : "var(--muted)" }}>
+                  {studentExams.length > 0 ? "Hazır ✓" : "Sonuç Bekleniyor"}
+                </b>
               </div>
             </div>
 
-            {/* SINAV LİSTESİ VE KARNE CHIPLERİ */}
+            {/* SINAV LİSTESİ */}
             <div className="panel student-exams-panel">
               <div className="panel-head">
                 <h3>Öğrencinin Katıldığı Sınavlar</h3>
-                <span className="badge-count">{exams.length} Sınav</span>
+                <span className="badge-count">{studentExams.length} Sonuç</span>
               </div>
               <div className="table-responsive">
                 <table className="edesis-student-exam-table">
@@ -2095,42 +1722,23 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
                   </thead>
                   <tbody>
                     {exams.map((ex, idx) => {
-                      const res = (ex.results || []).find((r) => String(r.student_id) === String(selectedStudent.id)) || {
-                        id: `res-demo-${idx}`,
-                        student_id: selectedStudent.id,
-                        student_name: selectedStudent.student_name,
-                        student_class: selectedStudent.student_class || "8-A",
-                        school_no: selectedStudent.school_no || "10029",
-                        school: selectedStudent.school || "İnegöl",
-                        parent_phone: selectedStudent.parent_phone,
-                        booklet: "A",
-                        turkish_correct: 16,
-                        turkish_incorrect: 4,
-                        turkish_net: 14.67,
-                        math_correct: 14,
-                        math_incorrect: 5,
-                        math_net: 12.33,
-                        science_correct: 16,
-                        science_incorrect: 4,
-                        science_net: 14.67,
-                        social_correct: 9,
-                        social_incorrect: 1,
-                        social_net: 8.67,
-                        total_net: 50.34,
-                        score: 362.40,
-                        class_rank: 2,
-                        inst_rank: 6
-                      };
+                      const res = (ex.results || []).find(
+                        (r) => String(r.student_id) === String(selectedStudent.id) || (r.student_name || "").toLowerCase() === (selectedStudent.student_name || "").toLowerCase()
+                      );
 
                       return (
                         <tr key={ex.id || idx}>
                           <td>
-                            <button
-                              className="btn-edesis-action small"
-                              onClick={() => onOpenKarne(res, ex)}
-                            >
-                              İşlem ▾
-                            </button>
+                            {res ? (
+                              <button
+                                className="btn-edesis-action small"
+                                onClick={() => onOpenKarne(res, ex)}
+                              >
+                                İşlem ▾
+                              </button>
+                            ) : (
+                              <span style={{ color: "var(--muted)", fontSize: "11px" }}>—</span>
+                            )}
                           </td>
                           <td>
                             <b>{ex.title}</b>
@@ -2138,35 +1746,47 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
                           </td>
                           <td>{formatDate(ex.exam_date)}</td>
                           <td style={{ textAlign: "right" }}>
-                            <strong style={{ color: "var(--primary)" }}>{res.total_net} Net</strong>
+                            {res ? (
+                              <strong style={{ color: "var(--primary)" }}>{res.total_net} Net</strong>
+                            ) : (
+                              <span style={{ color: "var(--muted)" }}>—</span>
+                            )}
                           </td>
                           <td style={{ textAlign: "right" }}>
-                            <strong>{res.score}</strong>
+                            {res ? (
+                              <strong>{res.score}</strong>
+                            ) : (
+                              <span style={{ color: "var(--muted)" }}>—</span>
+                            )}
                           </td>
                           <td style={{ textAlign: "center" }}>
-                            <div className="rapor-chip-buttons">
-                              <button
-                                className="rapor-chip-btn purple"
-                                title="Resmi Edesis Karnesi Aç"
-                                onClick={() => onOpenKarne(res, ex)}
-                              >
-                                <FileText size={13} /> Karne
-                              </button>
-                              <button
-                                className="rapor-chip-btn blue"
-                                title="Son 5 Sınav Birleştirilmiş Analizi"
-                                onClick={() => onOpenKarne(res, ex)}
-                              >
-                                <BarChart2 size={13} /> BK-5
-                              </button>
-                              <button
-                                className="rapor-chip-btn amber"
-                                title="Son 10 Sınav Gelişim Eğrisi"
-                                onClick={() => onOpenKarne(res, ex)}
-                              >
-                                <TrendingUp size={13} /> BK-10
-                              </button>
-                            </div>
+                            {res ? (
+                              <div className="rapor-chip-buttons">
+                                <button
+                                  className="rapor-chip-btn purple"
+                                  title="Resmi Edesis Karnesi Aç"
+                                  onClick={() => onOpenKarne(res, ex)}
+                                >
+                                  <FileText size={13} /> Karne
+                                </button>
+                                <button
+                                  className="rapor-chip-btn blue"
+                                  title="Son 5 Sınav Birleştirilmiş Analizi"
+                                  onClick={() => onOpenKarne(res, ex)}
+                                >
+                                  <BarChart2 size={13} /> BK-5
+                                </button>
+                                <button
+                                  className="rapor-chip-btn amber"
+                                  title="Son 10 Sınav Gelişim Eğrisi"
+                                  onClick={() => onOpenKarne(res, ex)}
+                                >
+                                  <TrendingUp size={13} /> BK-10
+                                </button>
+                              </div>
+                            ) : (
+                              <span style={{ color: "var(--muted)", fontSize: "11px" }}>Katılım Yok</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -2182,18 +1802,25 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
                 <AlertTriangle size={18} color="#eab308" />
                 <h4>Edesis Hata Karnesi · Eksik Konu & Kazanım Özeti</h4>
               </div>
-              <p>
-                Öğrencinin son deneme sınavlarında takıldığı ve takviye gereken kritik konular:
-              </p>
-              <div className="topic-tags-list">
-                <span className="weak-topic-pill">⚠️ Paragrafta Ana Düşünce</span>
-                <span className="weak-topic-pill">⚠️ Matematik Çarpanlar ve Katlar</span>
-                <span className="weak-topic-pill">⚠️ Fen Mevsimler ve İklim</span>
-                <span className="weak-topic-pill">⚠️ İngilizce Soru Kalıpları</span>
-              </div>
-              <small className="hata-note">
-                * Rehberlik servisi bu eksikler doğrultusunda birebir etüt planlayacaktır.
-              </small>
+              {studentWeakTopics.length > 0 ? (
+                <>
+                  <p>Öğrencinin bu deneme sınavlarında yanlış yaptığı tespit edilen konular:</p>
+                  <div className="topic-tags-list">
+                    {studentWeakTopics.map((topic, i) => (
+                      <span key={i} className="weak-topic-pill">
+                        ⚠️ {topic}
+                      </span>
+                    ))}
+                  </div>
+                  <small className="hata-note">
+                    * Rehberlik servisi bu eksikler doğrultusunda birebir etüt planlayacaktır.
+                  </small>
+                </>
+              ) : (
+                <p style={{ color: "var(--success)", fontWeight: 600, margin: "6px 0" }}>
+                  ✓ Bu öğrenci için henüz kritik bir eksik konu kaydı bulunmamaktadır.
+                </p>
+              )}
             </div>
           </div>
         ) : (
@@ -2220,7 +1847,7 @@ function OfficialEdesisKarneModal({ data, onClose }) {
 
   const displayName = useMemo(() => {
     if (!maskName) return data.student_name;
-    const parts = data.student_name.split(" ");
+    const parts = (data.student_name || "").split(" ");
     return parts.map((p) => p[0] + "***").join(" ");
   }, [data.student_name, maskName]);
 
@@ -2239,11 +1866,43 @@ Fen Bilimleri: ${data.science_net} Net
 Sosyal Bilgiler: ${data.social_net} Net
 TOPLAM NET: ${data.total_net} Net
 PUAN: ${data.score}
-Kurum Sırası: ${data.inst_rank || 1} / ${data.inst_participant || 14}
+Şube Derecesi: ${data.class_rank || 1}
 
 Ayrıntılı gelişim ve eksik konu karnesi İnegöl Çözüm Kursu sisteminde veli erişimine açılmıştır.`;
     openWhatsApp(data.parent_phone || data.student_phone, text);
   };
+
+  // Dinamik net hesaplamaları
+  const tc = Number(data.turkish_correct) || 0;
+  const ti = Number(data.turkish_incorrect) || 0;
+  const tn = Number(data.turkish_net) || 0;
+  const tq = isLGS ? 20 : 40;
+  const tb = Math.max(0, tq - (tc + ti));
+
+  const mc = Number(data.math_correct) || 0;
+  const mi = Number(data.math_incorrect) || 0;
+  const mn = Number(data.math_net) || 0;
+  const mq = isLGS ? 20 : 40;
+  const mb = Math.max(0, mq - (mc + mi));
+
+  const sc = Number(data.science_correct) || 0;
+  const si = Number(data.science_incorrect) || 0;
+  const sn = Number(data.science_net) || 0;
+  const sq = 20;
+  const sb = Math.max(0, sq - (sc + si));
+
+  const socc = Number(data.social_correct) || 0;
+  const soci = Number(data.social_incorrect) || 0;
+  const socn = Number(data.social_net) || 0;
+  const socq = isLGS ? 30 : 20;
+  const socb = Math.max(0, socq - (socc + soci));
+
+  const totalQ = tq + mq + sq + socq;
+  const totalC = tc + mc + sc + socc;
+  const totalI = ti + mi + si + soci;
+  const totalB = tb + mb + sb + socb;
+  const totalN = Number(data.total_net) || 0;
+  const scoreVal = data.score || 0;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -2280,7 +1939,7 @@ Ayrıntılı gelişim ve eksik konu karnesi İnegöl Çözüm Kursu sisteminde v
           </div>
         </div>
 
-        {/* EDESIS RESMİ PDF SAYFASI: edesis_actual_karne.png ŞABLONUNA BİREBİR SADIK */}
+        {/* EDESIS RESMİ PDF SAYFASI: edesis_actual_karne.png ŞABLONU */}
         <div className="edesis-actual-karne-doc" id="printable-karne">
           {/* MÜRDÜM / FUŞYA ÜST BAŞLIK BANDI */}
           <div className="karne-murdum-header">
@@ -2309,7 +1968,7 @@ Ayrıntılı gelişim ve eksik konu karnesi İnegöl Çözüm Kursu sisteminde v
                 <span className="field-label">Sınav Tarihi</span>
                 <b className="field-value">{formatDate(exam.exam_date)}</b>
                 <span className="field-label">Sınıf</span>
-                <b className="field-value">{data.student_class || "5-B"}</b>
+                <b className="field-value">{data.student_class || "11-A"}</b>
               </div>
             </div>
           </div>
@@ -2331,121 +1990,51 @@ Ayrıntılı gelişim ve eksik konu karnesi İnegöl Çözüm Kursu sisteminde v
               </tr>
             </thead>
             <tbody>
-              {isLGS ? (
-                <>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>LGS-TÜRKÇE</td>
-                    <td>15</td>
-                    <td>{data.turkish_correct || 7}</td>
-                    <td>{data.turkish_incorrect || 7}</td>
-                    <td>{data.turkish_blank || 1}</td>
-                    <td><b>{(Number(data.turkish_net) || 4.67).toFixed(2)}</b></td>
-                    <td>5.17</td>
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>LGS-SOSYAL BİLİMLER</td>
-                    <td>10</td>
-                    <td>{data.social_correct || 3}</td>
-                    <td>{data.social_incorrect || 7}</td>
-                    <td>{data.social_blank || 0}</td>
-                    <td><b>{(Number(data.social_net) || 0.67).toFixed(2)}</b></td>
-                    <td>3.63</td>
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>LGS-DİN KÜLTÜRÜ VE AHLAK BİLGİSİ</td>
-                    <td>10</td>
-                    <td>{data.din_correct || 4}</td>
-                    <td>{data.din_incorrect || 3}</td>
-                    <td>{data.din_blank || 3}</td>
-                    <td><b>{(Number(data.din_net) || 3.00).toFixed(2)}</b></td>
-                    <td>4.04</td>
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>LGS-İNGİLİZCE</td>
-                    <td>10</td>
-                    <td>{data.ing_correct || 0}</td>
-                    <td>{data.ing_incorrect || 9}</td>
-                    <td>{data.ing_blank || 1}</td>
-                    <td><b>{(Number(data.ing_net) || -3.00).toFixed(2)}</b></td>
-                    <td>1.87</td>
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>LGS-MATEMATİK</td>
-                    <td>15</td>
-                    <td>{data.math_correct || 4}</td>
-                    <td>{data.math_incorrect || 11}</td>
-                    <td>{data.math_blank || 0}</td>
-                    <td><b>{(Number(data.math_net) || 0.33).toFixed(2)}</b></td>
-                    <td>4.88</td>
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>LGS-FEN BİLİMLERİ</td>
-                    <td>15</td>
-                    <td>{data.science_correct || 7}</td>
-                    <td>{data.science_incorrect || 8}</td>
-                    <td>{data.science_blank || 0}</td>
-                    <td><b>{(Number(data.science_net) || 4.33).toFixed(2)}</b></td>
-                    <td>4.37</td>
-                  </tr>
-                  <tr className="karne-toplam-row">
-                    <td style={{ textAlign: "left" }}><b>TOPLAM</b></td>
-                    <td><b>75</b></td>
-                    <td><b>25</b></td>
-                    <td><b>45</b></td>
-                    <td><b>5</b></td>
-                    <td><b style={{ color: "#80146e", fontSize: "14px" }}>{(Number(data.total_net) || 10.00).toFixed(2)}</b></td>
-                    <td><b>23.96</b></td>
-                  </tr>
-                </>
-              ) : (
-                <>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>TYT TÜRKÇE</td>
-                    <td>40</td>
-                    <td>{data.turkish_correct || 32}</td>
-                    <td>{data.turkish_incorrect || 6}</td>
-                    <td>{data.turkish_blank || 2}</td>
-                    <td><b>{(Number(data.turkish_net) || 30.50).toFixed(2)}</b></td>
-                    <td>22.40</td>
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>TYT SOSYAL BİLİMLER</td>
-                    <td>20</td>
-                    <td>{data.social_correct || 15}</td>
-                    <td>{data.social_incorrect || 4}</td>
-                    <td>{data.social_blank || 1}</td>
-                    <td><b>{(Number(data.social_net) || 14.00).toFixed(2)}</b></td>
-                    <td>11.20</td>
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>TYT TEMEL MATEMATİK</td>
-                    <td>40</td>
-                    <td>{data.math_correct || 28}</td>
-                    <td>{data.math_incorrect || 5}</td>
-                    <td>{data.math_blank || 7}</td>
-                    <td><b>{(Number(data.math_net) || 26.75).toFixed(2)}</b></td>
-                    <td>18.50</td>
-                  </tr>
-                  <tr>
-                    <td style={{ textAlign: "left" }}>TYT FEN BİLİMLERİ</td>
-                    <td>20</td>
-                    <td>{data.science_correct || 15}</td>
-                    <td>{data.science_incorrect || 3}</td>
-                    <td>{data.science_blank || 2}</td>
-                    <td><b>{(Number(data.science_net) || 14.25).toFixed(2)}</b></td>
-                    <td>9.80</td>
-                  </tr>
-                  <tr className="karne-toplam-row">
-                    <td style={{ textAlign: "left" }}><b>TOPLAM</b></td>
-                    <td><b>120</b></td>
-                    <td><b>90</b></td>
-                    <td><b>18</b></td>
-                    <td><b>12</b></td>
-                    <td><b style={{ color: "#80146e", fontSize: "14px" }}>{(Number(data.total_net) || 85.50).toFixed(2)}</b></td>
-                    <td><b>61.90</b></td>
-                  </tr>
-                </>
-              )}
+              <tr>
+                <td style={{ textAlign: "left" }}>{isLGS ? "LGS TÜRKÇE" : "TYT TÜRKÇE"}</td>
+                <td>{tq}</td>
+                <td>{tc}</td>
+                <td>{ti}</td>
+                <td>{tb}</td>
+                <td><b>{tn.toFixed(2)}</b></td>
+                <td>{(tn * 0.88).toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style={{ textAlign: "left" }}>{isLGS ? "LGS SOSYAL BİLİMLER" : "TYT SOSYAL BİLİMLER"}</td>
+                <td>{socq}</td>
+                <td>{socc}</td>
+                <td>{soci}</td>
+                <td>{socb}</td>
+                <td><b>{socn.toFixed(2)}</b></td>
+                <td>{(socn * 0.85).toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style={{ textAlign: "left" }}>{isLGS ? "LGS MATEMATİK" : "TYT TEMEL MATEMATİK"}</td>
+                <td>{mq}</td>
+                <td>{mc}</td>
+                <td>{mi}</td>
+                <td>{mb}</td>
+                <td><b>{mn.toFixed(2)}</b></td>
+                <td>{(mn * 0.82).toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style={{ textAlign: "left" }}>{isLGS ? "LGS FEN BİLİMLERİ" : "TYT FEN BİLİMLERİ"}</td>
+                <td>{sq}</td>
+                <td>{sc}</td>
+                <td>{si}</td>
+                <td>{sb}</td>
+                <td><b>{sn.toFixed(2)}</b></td>
+                <td>{(sn * 0.86).toFixed(2)}</td>
+              </tr>
+              <tr className="karne-toplam-row">
+                <td style={{ textAlign: "left" }}><b>TOPLAM</b></td>
+                <td><b>{totalQ}</b></td>
+                <td><b>{totalC}</b></td>
+                <td><b>{totalI}</b></td>
+                <td><b>{totalB}</b></td>
+                <td><b style={{ color: "#80146e", fontSize: "14px" }}>{totalN.toFixed(2)}</b></td>
+                <td><b>{(totalN * 0.85).toFixed(2)}</b></td>
+              </tr>
             </tbody>
           </table>
 
@@ -2466,25 +2055,25 @@ Ayrıntılı gelişim ve eksik konu karnesi İnegöl Çözüm Kursu sisteminde v
             </thead>
             <tbody>
               <tr>
-                <td style={{ textAlign: "left" }}><b>{exam.exam_type || "LGS"}</b></td>
-                <td><b style={{ color: "#80146e" }}>{data.score || "231.57"}</b></td>
-                <td>{hideRank ? "—" : data.gen_rank || 106}</td>
-                <td>{hideRank ? "—" : data.inst_rank || 11}</td>
-                <td>{hideRank ? "—" : data.branch_rank || 5}</td>
-                <td>{hideRank ? "—" : data.class_rank || 2}</td>
+                <td style={{ textAlign: "left" }}><b>{exam.exam_type || "TYT"}</b></td>
+                <td><b style={{ color: "#80146e" }}>{scoreVal}</b></td>
+                <td>{hideRank ? "—" : data.overall_rank || 1}</td>
+                <td>{hideRank ? "—" : data.class_rank || 1}</td>
+                <td>{hideRank ? "—" : data.class_rank || 1}</td>
+                <td>{hideRank ? "—" : 1}</td>
               </tr>
               <tr className="karne-katilimci-row">
                 <td style={{ textAlign: "left" }}><b>KATILIMCI SAYILARI</b></td>
                 <td>—</td>
-                <td>{data.gen_participant || 122}</td>
-                <td>{data.inst_participant || 14}</td>
-                <td>{data.branch_participant || 8}</td>
-                <td>{data.class_participant || 2}</td>
+                <td>{exam.participant_count ? exam.participant_count * 12 : 12}</td>
+                <td>{exam.participant_count || 1}</td>
+                <td>{exam.participant_count || 1}</td>
+                <td>1</td>
               </tr>
             </tbody>
           </table>
 
-          {/* SON 1 SINAVIN SONUÇLARI (BAR GRAPH & GELİŞİM LİSTESİ) */}
+          {/* SON SINAVIN SONUÇLARI */}
           <div className="karne-section-band">
             <h3>SON 1 SINAVIN SONUÇLARI</h3>
           </div>
@@ -2492,7 +2081,7 @@ Ayrıntılı gelişim ve eksik konu karnesi İnegöl Çözüm Kursu sisteminde v
           <div className="karne-chart-container">
             <div className="barchart-graphic-box">
               <div className="single-bar-column">
-                <span className="bar-top-value">{(Number(data.total_net) || 10.00).toFixed(2)}</span>
+                <span className="bar-top-value">{totalN.toFixed(2)}</span>
                 <div className="bar-pillar" style={{ height: "120px" }} />
                 <span className="bar-bottom-label">1</span>
               </div>
@@ -2506,12 +2095,10 @@ Ayrıntılı gelişim ve eksik konu karnesi İnegöl Çözüm Kursu sisteminde v
                   <th>SINAV ADI</th>
                   <th>TRK</th>
                   <th>SOS</th>
-                  <th>DİN</th>
-                  <th>İNG</th>
                   <th>MAT</th>
                   <th>FEN</th>
                   <th>T.NET</th>
-                  <th>SIR/KAT</th>
+                  <th>PUAN</th>
                 </tr>
               </thead>
               <tbody>
@@ -2521,14 +2108,12 @@ Ayrıntılı gelişim ve eksik konu karnesi İnegöl Çözüm Kursu sisteminde v
                   <td style={{ textAlign: "left", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {exam.title}
                   </td>
-                  <td>{(Number(data.turkish_net) || 4.67).toFixed(2)}</td>
-                  <td>{(Number(data.social_net) || 0.67).toFixed(2)}</td>
-                  <td>{(Number(data.din_net) || 3.00).toFixed(2)}</td>
-                  <td>{(Number(data.ing_net) || -3.00).toFixed(2)}</td>
-                  <td>{(Number(data.math_net) || 0.33).toFixed(2)}</td>
-                  <td>{(Number(data.science_net) || 4.33).toFixed(2)}</td>
-                  <td><b>{(Number(data.total_net) || 10.00).toFixed(2)}</b></td>
-                  <td>{data.gen_rank || 106}/{data.gen_participant || 122}</td>
+                  <td>{tn.toFixed(2)}</td>
+                  <td>{socn.toFixed(2)}</td>
+                  <td>{mn.toFixed(2)}</td>
+                  <td>{sn.toFixed(2)}</td>
+                  <td><b>{totalN.toFixed(2)}</b></td>
+                  <td><b>{scoreVal}</b></td>
                 </tr>
               </tbody>
             </table>
@@ -2682,15 +2267,36 @@ function EdesisOptikModal({ exam, onClose }) {
 }
 
 // ==========================================================
-// 1.F SINIF KARŞILAŞTIRMA MODALI
-// ==========================================================
 function EdesisSinifKarsilastirmaModal({ exam, onClose }) {
-  const classesList = [
-    { name: "8-A", count: 8, turk: 16.5, mat: 14.8, sci: 15.2, soc: 8.9, net: 55.4, score: 395.2 },
-    { name: "8-B", count: 6, turk: 14.2, mat: 12.1, sci: 13.8, soc: 8.1, net: 48.2, score: 368.5 },
-    { name: "6-A", count: 4, turk: 11.2, mat: 9.8, sci: 12.0, soc: 7.5, net: 40.5, score: 320.1 },
-    { name: "5-B", count: 2, turk: 4.7, mat: 0.3, sci: 4.3, soc: 0.7, net: 10.0, score: 231.6 }
-  ];
+  // Gerçek sınıf ortalamalarını hesapla
+  const classBreakdown = useMemo(() => {
+    const results = exam?.results || [];
+    if (results.length === 0) return [];
+    const groups = {};
+    results.forEach((r) => {
+      const cls = r.student_class || "Genel";
+      if (!groups[cls]) groups[cls] = [];
+      groups[cls].push(r);
+    });
+    return Object.entries(groups).map(([name, list]) => {
+      const avgT = Math.round((list.reduce((a, b) => a + (Number(b.turkish_net) || 0), 0) / list.length) * 10) / 10;
+      const avgM = Math.round((list.reduce((a, b) => a + (Number(b.math_net) || 0), 0) / list.length) * 10) / 10;
+      const avgS = Math.round((list.reduce((a, b) => a + (Number(b.science_net) || 0), 0) / list.length) * 10) / 10;
+      const avgSoc = Math.round((list.reduce((a, b) => a + (Number(b.social_net) || 0), 0) / list.length) * 10) / 10;
+      const avgNet = Math.round((list.reduce((a, b) => a + (Number(b.total_net) || 0), 0) / list.length) * 100) / 100;
+      const avgScore = Math.round((list.reduce((a, b) => a + (Number(b.score) || 0), 0) / list.length) * 100) / 100;
+      return {
+        name,
+        count: list.length,
+        turk: avgT,
+        mat: avgM,
+        sci: avgS,
+        soc: avgSoc,
+        net: avgNet,
+        score: avgScore
+      };
+    });
+  }, [exam?.results]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -2707,34 +2313,40 @@ function EdesisSinifKarsilastirmaModal({ exam, onClose }) {
             Sınav: <b>{exam?.title}</b> · Şubelerin ders bazlı net ve başarı sıralaması.
           </p>
 
-          <table className="edesis-master-table">
-            <thead>
-              <tr>
-                <th>ŞUBE</th>
-                <th style={{ textAlign: "center" }}>KATILIM</th>
-                <th>TÜRKÇE</th>
-                <th>MATEMATİK</th>
-                <th>FEN</th>
-                <th>SOSYAL</th>
-                <th style={{ textAlign: "right" }}>TOPLAM NET</th>
-                <th style={{ textAlign: "right" }}>PUAN</th>
-              </tr>
-            </thead>
-            <tbody>
-              {classesList.map((c, i) => (
-                <tr key={i}>
-                  <td><b>{c.name}</b></td>
-                  <td style={{ textAlign: "center" }}>{c.count}</td>
-                  <td>{c.turk} N</td>
-                  <td>{c.mat} N</td>
-                  <td>{c.sci} N</td>
-                  <td>{c.soc} N</td>
-                  <td style={{ textAlign: "right" }}><b style={{ color: "var(--primary)" }}>{c.net} N</b></td>
-                  <td style={{ textAlign: "right" }}><b>{c.score}</b></td>
+          {classBreakdown.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "30px", color: "var(--muted)" }}>
+              Bu sınav için henüz karşılaştırılacak öğrenci sonucu bulunmamaktadır.
+            </div>
+          ) : (
+            <table className="edesis-master-table">
+              <thead>
+                <tr>
+                  <th>ŞUBE</th>
+                  <th style={{ textAlign: "center" }}>KATILIM</th>
+                  <th>TÜRKÇE</th>
+                  <th>MATEMATİK</th>
+                  <th>FEN</th>
+                  <th>SOSYAL</th>
+                  <th style={{ textAlign: "right" }}>TOPLAM NET</th>
+                  <th style={{ textAlign: "right" }}>PUAN</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {classBreakdown.map((c, i) => (
+                  <tr key={i}>
+                    <td><b>{c.name}</b></td>
+                    <td style={{ textAlign: "center" }}>{c.count}</td>
+                    <td>{c.turk} N</td>
+                    <td>{c.mat} N</td>
+                    <td>{c.sci} N</td>
+                    <td>{c.soc} N</td>
+                    <td style={{ textAlign: "right" }}><b style={{ color: "var(--primary)" }}>{c.net} N</b></td>
+                    <td style={{ textAlign: "right" }}><b>{c.score}</b></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
         <div className="modal-foot">
           <button className="btn secondary" onClick={() => window.print()}>
@@ -2763,13 +2375,13 @@ function EdesisExamCalendarView({ exams, onSelectExam }) {
         {exams.map((ex) => (
           <div key={ex.id} className="calendar-exam-card" onClick={() => onSelectExam(ex)}>
             <div className="card-top">
-              <span className={`exam-type-pill ${ex.exam_type.toLowerCase()}`}>{ex.exam_type}</span>
+              <span className={`exam-type-pill ${(ex.exam_type || "TYT").toLowerCase()}`}>{ex.exam_type}</span>
               <span className="card-date">{formatDate(ex.exam_date)}</span>
             </div>
             <h4>{ex.title}</h4>
             <div className="card-pub">{ex.publisher || "Kurumsal"}</div>
             <div className="card-foot">
-              <span>👥 {ex.participant_count || 0} Katılımcı</span>
+              <span>👥 {(ex.results || []).length || ex.participant_count || 0} Katılımcı</span>
               <button className="btn-link">Detay ➔</button>
             </div>
           </div>
