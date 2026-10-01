@@ -2206,3 +2206,1682 @@ td[colspan] {
 }
 
 
+
+
+/* ========================================================== */
+/* EDESIS ENTERPRISE SINAV YÖNETİMİ & RAPORLAR CSS SUITE       */
+/* ========================================================== */
+
+/* Modül Üst Sekme Barı */
+.edesis-subnav-bar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.edesis-subnav-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  margin-bottom: -2px;
+}
+
+.edesis-subnav-btn:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.edesis-subnav-btn.active {
+  color: #3699FF;
+  border-bottom-color: #3699FF;
+}
+
+.edesis-subnav-btn .count-pill {
+  background: rgba(54, 153, 255, 0.12);
+  color: #3699FF;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+/* Sayfa Başlığı ve Açıklama */
+.edesis-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.edesis-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.edesis-title-group h1 {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.edesis-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.btn-edesis-excel {
+  color: #107c41 !important;
+  border-color: #107c41 !important;
+}
+
+.btn-edesis-excel:hover {
+  background: #f0fdf4 !important;
+}
+
+/* Tek Satır Filtre Çubuğu (edesis_sinav_yonetimi.png) */
+.edesis-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.edesis-filter-toolbar .search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-width: 240px;
+  flex: 1;
+  max-width: 380px;
+}
+
+.edesis-filter-toolbar .search-box input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  width: 100%;
+  color: var(--text);
+}
+
+.filter-select-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.filter-select select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.filter-btn-advanced {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-btn-advanced.active,
+.filter-btn-advanced:hover {
+  background: var(--bg);
+  color: var(--text);
+  border-color: #94a3b8;
+}
+
+.edesis-advanced-filter-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.adv-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.adv-item input {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* Master Data Table */
+.edesis-table-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  margin-bottom: 20px;
+  background: var(--surface);
+}
+
+.edesis-master-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.edesis-master-table thead th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 11.5px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  text-align: left;
+}
+
+.edesis-master-table tbody tr.edesis-exam-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-bottom: 1px solid var(--border);
+}
+
+.edesis-master-table tbody tr.edesis-exam-row:hover {
+  background: #f1f5f9;
+}
+
+.edesis-master-table tbody tr.selected-row {
+  background: rgba(54, 153, 255, 0.08);
+  border-left: 3px solid #3699FF;
+}
+
+.edesis-master-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+/* Action Buttons in Table */
+.btn-edesis-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #3699FF;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-edesis-action:hover {
+  background: #187de4;
+}
+
+.btn-edesis-rapor {
+  background: #10b981;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.btn-edesis-rapor:hover {
+  transform: scale(1.08);
+  background: #059669;
+}
+
+.btn-edesis-key {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 5px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.btn-edesis-optik {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 5px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.status-czm-check {
+  color: #10b981;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.badge-edesis-home,
+.badge-edesis-kurum,
+.badge-edesis-genel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.badge-edesis-genel {
+  color: #1e40af;
+  background: #eff6ff;
+  border-color: #dbeafe;
+}
+
+.exam-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exam-name-cell b {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.exam-type-pill {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.exam-type-pill.lgs {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.exam-type-pill.tyt {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.exam-type-pill.ayt {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.exam-type-pill.ydt {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.exam-publisher-text {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.exam-date-text {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* D O S Ö V Status Indicators */
+.edesis-status-indicators {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.status-ind {
+  display: inline-block;
+  width: 17px;
+  height: 17px;
+  line-height: 17px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.status-ind.active {
+  background: #dcfce7;
+  color: #15803d;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+}
+
+.edesis-table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.total-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.pagination-pills {
+  display: flex;
+  gap: 4px;
+}
+
+.page-pill {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-pill.active {
+  background: #3699FF;
+  color: #fff;
+  border-color: #3699FF;
+}
+
+/* Selected Exam Detail & Results Panel */
+.edesis-selected-exam-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.selected-exam-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+}
+
+.selected-exam-head .badge-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.edesis-date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.edesis-pub-badge {
+  font-size: 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.selected-exam-head h2 {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 4px 0;
+}
+
+.selected-exam-head p {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.selected-exam-head .right-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 4 KPI Grid */
+.edesis-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .edesis-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.kpi-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: transform 0.15s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+}
+
+.kpi-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.kpi-val-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.kpi-val-row strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.kpi-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Subject Net Bars Card */
+.edesis-subject-bars-card {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.edesis-subject-bars-card h4 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: #334155;
+}
+
+.subject-bars-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 800px) {
+  .subject-bars-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.subject-bar-item .bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.subject-bar-item .bar-track {
+  width: 100%;
+  height: 7px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.subject-bar-item .bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.bar-fill.blue { background: #3b82f6; }
+.bar-fill.emerald { background: #10b981; }
+.bar-fill.amber { background: #f59e0b; }
+.bar-fill.purple { background: #8b5cf6; }
+
+/* Subtable: Student Results inside Exam */
+.exam-results-subtable-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.subtable-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border);
+}
+
+.subtable-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.subtable-title h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.search-in-results {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.search-in-results input {
+  border: none;
+  outline: none;
+  font-size: 12px;
+}
+
+.edesis-student-ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.edesis-student-ranking-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.edesis-student-ranking-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.edesis-rank-badge {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--bg);
+  display: inline-block;
+}
+
+.edesis-rank-badge.rank-1 {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.edesis-rank-badge.rank-2 {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.edesis-rank-badge.rank-3 {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.student-profile-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar-mini {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #3699FF;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.sub-school {
+  display: flex;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.branch-pill {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--bg);
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+
+.booklet-badge {
+  font-size: 11px;
+  font-weight: 800;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.action-buttons-cell {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.btn-karne-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: #80146e;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(128, 20, 110, 0.3);
+  transition: all 0.15s ease;
+}
+
+.btn-karne-trigger:hover {
+  background: #671058;
+  transform: translateY(-1px);
+}
+
+.btn-wa-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #25D366;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.btn-wa-trigger:hover {
+  transform: scale(1.08);
+}
+
+/* ========================================================== */
+/* EDESIS RAPOR İŞLEMLERİ MODALI (edesis_sinav_rapor_modal.png) */
+/* ========================================================== */
+.edesis-rapor-dialog {
+  max-width: 900px !important;
+  width: 95% !important;
+  padding: 0 !important;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.edesis-rapor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.edesis-rapor-head .title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.edesis-rapor-head h2 {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.exam-badge-tag {
+  background: #3699FF;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.toggle-switch-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.edesis-rapor-tabs {
+  display: flex;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border);
+}
+
+.rapor-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.rapor-tab-btn:hover {
+  background: #f1f5f9;
+}
+
+.rapor-tab-btn.active {
+  background: #fff;
+  border-bottom-color: #3699FF;
+}
+
+.rapor-tab-btn b {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.rapor-tab-btn small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.edesis-rapor-body-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  min-height: 480px;
+}
+
+@media (max-width: 800px) {
+  .edesis-rapor-body-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rapor-list-pane {
+  padding: 14px;
+  border-right: 1px solid var(--border);
+  max-height: 520px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rapor-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rapor-menu-item:hover {
+  background: #f8fafc;
+  border-color: #3699FF;
+  transform: translateX(2px);
+}
+
+.rapor-menu-item.highlight {
+  background: #faf5ff;
+  border-color: #d8b4fe;
+}
+
+.rapor-menu-item .icon-box {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-box.green { background: #dcfce7; color: #15803d; }
+.icon-box.red { background: #fee2e2; color: #b91c1c; }
+.icon-box.blue { background: #dbeafe; color: #1d4ed8; }
+.icon-box.purple { background: #f3e8ff; color: #7e22ce; }
+
+.rapor-menu-item .item-text b {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.rapor-menu-item .item-text span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.rapor-sidebar-pane {
+  padding: 16px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sidebar-blue-card,
+.sidebar-action-card {
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.sidebar-action-card {
+  border-color: #e2e8f0;
+}
+
+.card-header-bar {
+  background: #3699FF;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-header-bar.gray {
+  background: #64748b;
+}
+
+.card-content-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.radio-label-row {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.radio-label-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.sidebar-quick-students select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* ========================================================== */
+/* EDESIS RESMİ KARNE (edesis_actual_karne.png ŞABLONU)        */
+/* ========================================================== */
+.official-karne-dialog {
+  max-width: 860px !important;
+  width: 95% !important;
+  padding: 0 !important;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.official-karne-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.doc-title-badge {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #80146e;
+  background: #fdf2f8;
+  border: 1px solid #fbcfe8;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.checkbox-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+/* Resmî A4 Karne Dokümanı */
+.edesis-actual-karne-doc {
+  background: #ffffff;
+  color: #000000;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+.karne-murdum-header {
+  background: #80146e;
+  color: #ffffff;
+  text-align: center;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.karne-murdum-header h1 {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.karne-meta-box {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 12px;
+  border: 1px solid #000000;
+  padding: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.meta-logo-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.karne-school-logo {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+.meta-fields-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 80px 1fr;
+  font-size: 12px;
+  border-bottom: 1px dotted #cbd5e1;
+  padding-bottom: 2px;
+}
+
+.meta-row:last-child {
+  border-bottom: none;
+}
+
+.field-label {
+  color: #475569;
+  font-weight: 600;
+}
+
+.field-value {
+  color: #000000;
+  font-weight: 700;
+}
+
+.karne-section-band {
+  background: #80146e;
+  color: #ffffff;
+  text-align: center;
+  padding: 4px 8px;
+  margin-top: 10px;
+}
+
+.karne-section-band h3 {
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.karne-murdum-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.karne-murdum-table th {
+  border: 1px solid #000000;
+  padding: 5px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-align: center;
+  background: #ffffff;
+}
+
+.karne-murdum-table td {
+  border: 1px solid #000000;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.karne-toplam-row td {
+  background: #f1f5f9;
+  font-weight: 800;
+}
+
+.karne-katilimci-row td {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+}
+
+.karne-chart-container {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  border: 1px solid #000000;
+  padding: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.barchart-graphic-box {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 140px;
+  border-right: 1px solid #cbd5e1;
+  padding-right: 10px;
+}
+
+.single-bar-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.bar-top-value {
+  font-size: 10px;
+  font-weight: 800;
+  color: #80146e;
+}
+
+.bar-pillar {
+  width: 32px;
+  background: linear-gradient(180deg, #d946ef 0%, #80146e 100%);
+  border-radius: 3px 3px 0 0;
+}
+
+.bar-bottom-label {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.karne-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.karne-history-table th {
+  border: 1px solid #000000;
+  padding: 4px;
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.karne-history-table td {
+  border: 1px solid #000000;
+  padding: 4px;
+  text-align: center;
+}
+
+.karne-official-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9.5px;
+  color: #475569;
+  margin-top: 14px;
+  border-top: 1px solid #cbd5e1;
+  padding-top: 6px;
+}
+
+/* ========================================================== */
+/* ÖĞRENCİ SINAV RAPORLARI 2-KOLONLU EDESIS GÖRÜNÜMÜ          */
+/* ========================================================== */
+.edesis-student-report-split {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 850px) {
+  .edesis-student-report-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.student-tree-pane {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 80vh;
+}
+
+.tree-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn-toggle-pair {
+  display: flex;
+  background: var(--bg);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.pair-btn {
+  flex: 1;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pair-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.tree-search-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.tree-search-input input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12px;
+  width: 100%;
+}
+
+.tree-student-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.tree-student-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tree-student-item:hover {
+  background: #f8fafc;
+  border-color: #3699FF;
+}
+
+.tree-student-item.active {
+  background: rgba(54, 153, 255, 0.08);
+  border-color: #3699FF;
+}
+
+.tree-student-item .item-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #3699FF;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tree-student-item .item-info b {
+  display: block;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.tree-student-item .item-info span {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.tree-student-item .arrow {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+/* Student Detail Pane */
+.student-detail-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.student-report-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.student-profile-header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.student-profile-header-card .prof-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.big-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  background: #3699FF;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.prof-meta-chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.meta-chip {
+  font-size: 11.5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.student-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 700px) {
+  .student-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+
+.stat-box span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.stat-box b {
+  font-size: 18px;
+  color: var(--text);
+}
+
+.student-exams-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 0;
+  overflow: hidden;
+}
+
+.edesis-student-exam-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.edesis-student-exam-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.edesis-student-exam-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.rapor-chip-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.rapor-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.rapor-chip-btn:hover {
+  transform: translateY(-1px);
+}
+
+.rapor-chip-btn.purple {
+  background: #80146e;
+  color: #fff;
+}
+
+.rapor-chip-btn.blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.rapor-chip-btn.amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+/* Deneme Takvimi Grid */
+.edesis-calendar-view {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.calendar-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+  .calendar-grid-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.calendar-exam-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.calendar-exam-card:hover {
+  border-color: #3699FF;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.calendar-exam-card .card-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.calendar-exam-card h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+}
+
+.calendar-exam-card .card-pub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.calendar-exam-card .card-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--muted);
+  border-top: 1px dotted var(--border);
+  padding-top: 8px;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #3699FF;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Yazdırma Medya Sorguları */
+@media print {
+  .no-print,
+  .sidebar,
+  .topbar,
+  .edesis-subnav-bar,
+  .edesis-head,
+  .edesis-filter-toolbar,
+  .official-karne-toolbar,
+  .modal-backdrop {
+    display: none !important;
+  }
+
+  body, html {
+    background: #fff !important;
+    color: #000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .modal.official-karne-dialog {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .edesis-actual-karne-doc {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+}
