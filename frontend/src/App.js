@@ -3,7 +3,27 @@ import "@/App.css";
 import axios from "axios";
 import { Bell, BellRing, BookOpen, Camera, ChevronRight, CircleDollarSign, ClipboardList, Download, FileDown, FileText, History, LayoutDashboard, LogOut, Menu, Phone, Plus, Receipt, Search, Settings, ShieldCheck, TrendingDown, TrendingUp, UserCog, Users, Wallet, X } from "lucide-react";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+export const getBackendBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    const queryApi = params.get("api");
+    if (queryApi) {
+      const clean = queryApi.replace(/\/+$/, "");
+      localStorage.setItem("custom_api_url", clean);
+      return clean;
+    }
+    const saved = localStorage.getItem("custom_api_url");
+    if (saved) return saved;
+  }
+  if (process.env.REACT_APP_BACKEND_URL) {
+    return process.env.REACT_APP_BACKEND_URL.replace(/\/+$/, "");
+  }
+  return typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:8000"
+    : "";
+};
+
+const API = `${getBackendBaseUrl()}/api`;
 axios.defaults.withCredentials = true;
 const money = (n) => new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(n || 0);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -150,6 +170,49 @@ function Login({ onLoginSuccess }) {
           Google ile giriş yap
         </button>
         <div className="auth-foot"><ShieldCheck size={13} /> Yetkili personel dışı erişim engellenir</div>
+
+        <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px dashed var(--border)", fontSize: "11px", color: "var(--muted)", textAlign: "center" }}>
+          <details>
+            <summary style={{ cursor: "pointer", userSelect: "none" }}>⚙️ Sunucu API: <span style={{ color: "var(--primary)", fontWeight: "600" }}>{getBackendBaseUrl() || "Yerel (Varsayılan)"}</span></summary>
+            <div style={{ marginTop: "8px", display: "grid", gap: "6px" }}>
+              <input
+                type="text"
+                placeholder="Örn: http://192.168.1.5:8000"
+                defaultValue={localStorage.getItem("custom_api_url") || ""}
+                id="custom-api-input"
+                style={{ fontSize: "11px", padding: "6px 8px", borderRadius: "6px", border: "1px solid var(--border)", width: "100%", boxSizing: "border-box" }}
+              />
+              <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  className="small-btn"
+                  onClick={() => {
+                    const el = document.getElementById("custom-api-input");
+                    const val = el ? el.value.trim().replace(/\/+$/, "") : "";
+                    if (val) {
+                      localStorage.setItem("custom_api_url", val);
+                    } else {
+                      localStorage.removeItem("custom_api_url");
+                    }
+                    window.location.reload();
+                  }}
+                >
+                  Kaydet & Yenile
+                </button>
+                <button
+                  type="button"
+                  className="small-btn"
+                  onClick={() => {
+                    localStorage.setItem("custom_api_url", "http://192.168.1.5:8000");
+                    window.location.reload();
+                  }}
+                >
+                  Wi-Fi (192.168.1.5)
+                </button>
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
   );
