@@ -351,6 +351,7 @@ function MainApp({ me, onLogout }) {
   const guardedOpen = (type) => setModal(type);
 
   return <div className="app-shell">
+    {mobileOpen && <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />}
     <aside className={mobileOpen ? "sidebar mobile-open" : "sidebar"}>
       <Brand />
       <div className="side-caption">YÖNETİM PANELİ</div>
