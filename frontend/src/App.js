@@ -324,8 +324,24 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
 }
 
 function MainApp({ me, onLogout }) {
-  const [data, setData] = useState({ students: [], payments: [], expenses: [], classes: [] });
-  const [page, setPage] = useState("dashboard");
+  const getInitialPage = () => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace(/^#/, "");
+      const valid = ["dashboard", "students", "payments", "classes", "reminders", "documents", "reports", "users", "audit"];
+      if (hash && valid.includes(hash)) return hash;
+      const saved = localStorage.getItem("active_page");
+      if (saved && valid.includes(saved)) return saved;
+    }
+    return "dashboard";
+  };
+  const [page, setPageState] = useState(getInitialPage);
+  const setPage = (p) => {
+    setPageState(p);
+    if (typeof window !== "undefined") {
+      window.location.hash = p;
+      localStorage.setItem("active_page", p);
+    }
+  };
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -351,7 +367,7 @@ function MainApp({ me, onLogout }) {
   const guardedOpen = (type) => setModal(type);
 
   return <div className="app-shell">
-    {mobileOpen && <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />}
+    {mobileOpen && <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} onTouchStart={() => setMobileOpen(false)} />}
     <aside className={mobileOpen ? "sidebar mobile-open" : "sidebar"}>
       <Brand />
       <div className="side-caption">YÖNETİM PANELİ</div>
@@ -667,7 +683,7 @@ function UsersPage({ me }) {
           <td><div className="person">{u.picture ? <img className="student-avatar" src={u.picture} alt="" style={{objectFit:"cover"}}/> : <div className="student-avatar">{(u.name||"?").slice(0,2).toUpperCase()}</div>}<div><b>{u.name}</b><span>{u.user_id.slice(0,14)}</span></div></div></td>
           <td className="muted-cell">{u.email}</td>
           <td><span className={`role-pill role-${u.role}`}>{ROLE_LABEL[u.role] || u.role}</span></td>
-          <td><select data-testid={`role-select-${u.user_id}`} value={u.role} onChange={e => change(u.user_id, e.target.value)} disabled={u.user_id === me?.user_id}><option value="admin">Yönetici</option><option value="muhasebe">Muhasebe</option><option value="ogretmen">Öğretmen</option></select></td>
+          <td><select className="mini-select" data-testid={`role-select-${u.user_id}`} value={u.role} onChange={e => change(u.user_id, e.target.value)} disabled={u.user_id === me?.user_id}><option value="admin">Yönetici</option><option value="muhasebe">Muhasebe</option><option value="ogretmen">Öğretmen</option></select></td>
         </tr>)}
       </tbody></table>
     </section>
