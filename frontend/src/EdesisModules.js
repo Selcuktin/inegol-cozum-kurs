@@ -2213,6 +2213,96 @@ export function EdesisDashboardWidgets({ data, onNavigate }) {
           )}
         </section>
       </div>
+
+      {/* Edesis ERP: Sınıf Kontenjanları ve Eksik Veri Uyarıları Paneli */}
+      <div className="dashboard-grid" style={{ marginTop: "14px" }}>
+        {/* Sınıf Kontenjan & Doluluk Oranları */}
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Sınıf Kontenjanları & Doluluk</h2>
+              <p>Kurum içi aktif sınıfların kayıt ve boş kontenjan durumu</p>
+            </div>
+            <button className="text-btn" onClick={() => onNavigate("classes")}>
+              Sınıfları Yönet <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {(data.classCapacities || []).length === 0 ? (
+            <div className="empty-panel" style={{ padding: "20px" }}>
+              <p>Tanımlı sınıf bulunmamaktadır.</p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "10px", padding: "12px 16px" }}>
+              {(data.classCapacities || []).map((c) => (
+                <div key={c.id} style={{ display: "grid", gap: "4px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+                    <b>{c.name} <small style={{ color: "var(--muted)", fontWeight: "normal" }}>({c.level})</small></b>
+                    <span><strong>{c.occupied}</strong> / {c.capacity} Öğrenci (%{c.occupancyRate})</span>
+                  </div>
+                  <div style={{ height: "7px", background: "var(--border)", borderRadius: "4px", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: `${Math.min(100, c.occupancyRate)}%`,
+                        height: "100%",
+                        background: c.occupancyRate > 90 ? "var(--danger)" : c.occupancyRate > 70 ? "var(--primary)" : "#10b981",
+                        borderRadius: "4px",
+                        transition: "width 0.4s ease"
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Edesis Eksik Veri / Evrak Uyarıları */}
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Eksik Veri & Evrak Uyarıları</h2>
+              <p>TC, fotoğraf veya sözleşmesi eksik öğrenciler</p>
+            </div>
+            <button className="text-btn" onClick={() => onNavigate("students")}>
+              Öğrenciler <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {(data.missingAlerts || []).length === 0 ? (
+            <div className="empty-panel" style={{ padding: "20px", color: "var(--success)" }}>
+              <CheckCircle2 size={24} color="#10b981" />
+              <p style={{ marginTop: "6px" }}>Harika! Tüm öğrenci kayıtları ve evrakları eksiksiz.</p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "8px", padding: "12px 16px" }}>
+              {(data.missingAlerts || []).slice(0, 5).map((alert) => (
+                <div
+                  key={alert.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "8px 12px",
+                    background: alert.severity === "critical" ? "#fef2f2" : "#fffbeb",
+                    borderLeft: `3px solid ${alert.severity === "critical" ? "#ef4444" : "#f59e0b"}`,
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    cursor: "pointer"
+                  }}
+                  onClick={() => onNavigate("students")}
+                >
+                  <AlertTriangle size={15} color={alert.severity === "critical" ? "#ef4444" : "#f59e0b"} />
+                  <div style={{ flex: 1 }}>
+                    <b style={{ color: "#1e293b" }}>{alert.studentName}:</b> <span style={{ color: "#64748b" }}>{alert.type}</span>
+                  </div>
+                  <ChevronRight size={14} color="#94a3b8" />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

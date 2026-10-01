@@ -236,3 +236,26 @@ CREATE TABLE IF NOT EXISTS mentorship (
   created_at TEXT DEFAULT ''
 );
 
+-- ================= EDESIS PARITY EXTENSIONS =================
+CREATE TABLE IF NOT EXISTS academic_periods (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id INTEGER DEFAULT 6114,
+  name TEXT NOT NULL,
+  is_active INTEGER DEFAULT 1,
+  start_date TEXT,
+  end_date TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS data_alerts (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  alert_type TEXT NOT NULL,
+  severity TEXT DEFAULT 'warning',
+  message TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO academic_periods (id, tenant_id, name, is_active, start_date, end_date)
+VALUES (113, 6114, '2024-2025 Eğitim Öğretim Yılı (Aktif)', 1, '2024-09-09', '2025-06-20');
+

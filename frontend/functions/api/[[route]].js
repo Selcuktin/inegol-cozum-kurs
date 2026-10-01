@@ -436,11 +436,65 @@ export async function onRequest(context) {
         ORDER BY sc.time_slot ASC
       `).bind(dayOfWeek).all().catch(() => ({ results: [] }));
 
+      // Class capacities calculation
+      const studentCountByClass = {};
+      students.forEach(s => {
+        const cName = s.student_class || "";
+        studentCountByClass[cName] = (studentCountByClass[cName] || 0) + 1;
+      });
+      const classCapacities = classes.map(c => {
+        const cap = Number(c.capacity) || 20;
+        const occ = studentCountByClass[c.name] || studentCountByClass[c.level] || 0;
+        return {
+          id: c.id,
+          name: c.name,
+          level: c.level,
+          capacity: cap,
+          occupied: occ,
+          occupancyRate: cap > 0 ? Math.min(100, Math.round((occ / cap) * 100)) : 0,
+        };
+      });
+
+      // Grade distribution
+      const gradeCounts = { "LGS (8. Sınıf)": 0, "11. Sınıf (TYT)": 0, "12. Sınıf (YKS)": 0, "Mezun Grubu": 0, "Ara Sınıflar": 0 };
+      students.forEach(s => {
+        const t = ((s.student_class || "") + " " + (s.program || "")).toLowerCase();
+        if (t.includes("8") || t.includes("lgs")) gradeCounts["LGS (8. Sınıf)"]++;
+        else if (t.includes("12") || t.includes("ayt")) gradeCounts["12. Sınıf (YKS)"]++;
+        else if (t.includes("11") || t.includes("tyt")) gradeCounts["11. Sınıf (TYT)"]++;
+        else if (t.includes("mezun")) gradeCounts["Mezun Grubu"]++;
+        else gradeCounts["Ara Sınıflar"]++;
+      });
+      const gradeDistribution = Object.entries(gradeCounts)
+        .filter(([_, cnt]) => cnt > 0)
+        .map(([grade, count]) => ({
+          grade,
+          count,
+          percentage: Math.round((count / (students.length || 1)) * 100),
+        }));
+
+      // Missing data alerts
+      const missingAlerts = [];
+      students.forEach(s => {
+        if (!s.student_tc || s.student_tc.length < 11) {
+          missingAlerts.push({ id: `tc-${s.id}`, studentId: s.id, studentName: s.student_name, type: "TC Kimlik Eksik", severity: "warning" });
+        }
+        if (!s.photo) {
+          missingAlerts.push({ id: `photo-${s.id}`, studentId: s.id, studentName: s.student_name, type: "Fotoğraf Eksik", severity: "info" });
+        }
+        if (!s.signed_contract_path) {
+          missingAlerts.push({ id: `contract-${s.id}`, studentId: s.id, studentName: s.student_name, type: "Sözleşme Yok", severity: "critical" });
+        }
+      });
+
       return json({
         students,
         payments,
         expenses,
         classes,
+        classCapacities,
+        gradeDistribution,
+        missingAlerts,
         exams: examsRes.results || [],
         attendanceToday: attendanceTodayRes.results || [],
         topRankings: topRankingsRes.results || [],
@@ -449,7 +503,262 @@ export async function onRequest(context) {
           period: currentMonth,
           collected,
           expenses: expTotal,
+          capacityOccupancyRate: classes.reduce((a, c) => a + (Number(c.capacity) || 20), 0) > 0 
+            ? Math.round((students.length / classes.reduce((a, c) => a + (Number(c.capacity) || 20), 0)) * 100) 
+            : 0,
         },
+      });
+    }
+
+    // ==========================================================
+    // EDESIS PARITY: CORE DASHBOARD & SIS APIS
+    // ==========================================================
+
+    // 1. GetSummary (Edesis Dashboard Counters)
+    if ((path === "/GetSummary" || path === "/services/app/Dashboard/GetSummary") && request.method === "GET") {
+      const donemId = parseInt(url.searchParams.get("DonemId")) || 113;
+      const studentsRes = await db.prepare("SELECT * FROM students").all();
+      const paymentsRes = await db.prepare("SELECT * FROM payments").all();
+      const expensesRes = await db.prepare("SELECT * FROM expenses").all();
+      const classesRes = await db.prepare("SELECT * FROM classes").all();
+      const examsRes = await db.prepare("SELECT COUNT(*) as count FROM exams").first().catch(() => ({ count: 0 }));
+      const attendanceRes = await db.prepare("SELECT status, COUNT(*) as count FROM attendance GROUP BY status").all().catch(() => ({ results: [] }));
+
+      const students = studentsRes.results || [];
+      const payments = paymentsRes.results || [];
+      const expenses = expensesRes.results || [];
+      const classes = classesRes.results || [];
+
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const monthPayments = payments.filter((p) => String(p.payment_date).startsWith(currentMonth));
+      const monthExpenses = expenses.filter((e) => String(e.expense_date).startsWith(currentMonth));
+
+      const monthlyCollected = monthPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      const monthlyExpenses = monthExpenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+      const totalExpected = students.reduce((acc, s) => acc + getEffectiveTotalFee(s), 0);
+      const totalCollected = students.reduce((acc, s) => acc + (Number(s.paid_amount) || 0), 0);
+      const totalOutstanding = Math.max(0, totalExpected - totalCollected);
+
+      const totalCapacity = classes.reduce((acc, c) => acc + (Number(c.capacity) || 20), 0);
+      const capacityRate = totalCapacity > 0 ? Math.round((students.length / totalCapacity) * 100) : 0;
+
+      let totalAtt = 0, presentAtt = 0;
+      (attendanceRes.results || []).forEach(r => {
+        totalAtt += Number(r.count) || 0;
+        if (r.status === "geldi") presentAtt += Number(r.count) || 0;
+      });
+      const attendanceRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 95;
+
+      return json({
+        success: true,
+        result: {
+          donemId,
+          totalStudents: students.length,
+          activeStudents: students.filter(s => s.status !== "Ayrildi").length,
+          totalClasses: classes.length,
+          totalCapacity,
+          capacityOccupancyRate: capacityRate,
+          monthlyCollected,
+          monthlyExpenses,
+          totalExpected,
+          totalOutstanding,
+          todayAttendanceRate: attendanceRate,
+          totalExamsCount: examsRes.count || 0,
+        }
+      });
+    }
+
+    // 2. GetRecentRegistrations
+    if ((path === "/GetRecentRegistrations" || path === "/services/app/Dashboard/GetRecentRegistrations") && request.method === "GET") {
+      const count = parseInt(url.searchParams.get("Count")) || 5;
+      const res = await db.prepare("SELECT * FROM students ORDER BY created_at DESC LIMIT ?").bind(count).all();
+      const items = (res.results || []).map((s) => ({
+        id: s.id,
+        studentName: s.student_name,
+        studentClass: s.student_class || "11-A",
+        school: s.school || "İnegöl",
+        parentName: s.parent_name,
+        parentPhone: s.parent_phone || s.student_phone,
+        registrationDate: s.created_at || new Date().toISOString().slice(0, 10),
+        status: s.status || "Kayitli",
+        totalFee: Number(s.total_fee) || 0,
+        paidAmount: Number(s.paid_amount) || 0,
+        remainingAmount: Math.max(0, getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0)),
+      }));
+
+      return json({
+        success: true,
+        result: items,
+      });
+    }
+
+    // 3. GetClassCapacities
+    if ((path === "/GetClassCapacities" || path === "/services/app/Dashboard/GetClassCapacities") && request.method === "GET") {
+      const classesRes = await db.prepare("SELECT * FROM classes ORDER BY name ASC").all();
+      const studentsRes = await db.prepare("SELECT student_class FROM students").all();
+      const classes = classesRes.results || [];
+      const students = studentsRes.results || [];
+
+      const studentCountByClass = {};
+      students.forEach(s => {
+        const cName = s.student_class || "";
+        studentCountByClass[cName] = (studentCountByClass[cName] || 0) + 1;
+      });
+
+      const items = classes.map(c => {
+        const capacity = Number(c.capacity) || 20;
+        const occupied = studentCountByClass[c.name] || studentCountByClass[c.level] || 0;
+        const available = Math.max(0, capacity - occupied);
+        const occupancyRate = capacity > 0 ? Math.min(100, Math.round((occupied / capacity) * 100)) : 0;
+        return {
+          id: c.id,
+          className: c.name,
+          level: c.level || "Genel",
+          room: c.room || "Derslik",
+          teacher: c.teacher || "Belirtilmemiş",
+          capacity,
+          occupied,
+          available,
+          occupancyRate,
+        };
+      });
+
+      return json({
+        success: true,
+        result: {
+          totalCount: items.length,
+          items,
+        }
+      });
+    }
+
+    // 4. GetGradeDistribution
+    if ((path === "/GetGradeDistribution" || path === "/services/app/Dashboard/GetGradeDistribution") && request.method === "GET") {
+      const studentsRes = await db.prepare("SELECT student_class, program FROM students").all();
+      const students = studentsRes.results || [];
+
+      const gradeCounts = {
+        "LGS Hazırlık (8. Sınıf)": 0,
+        "9 & 10. Sınıf (Ara Sınıflar)": 0,
+        "11. Sınıf (TYT Başlangıç)": 0,
+        "12. Sınıf (YKS Hazırlık)": 0,
+        "Mezun Grubu": 0,
+      };
+
+      students.forEach(s => {
+        const target = ((s.student_class || "") + " " + (s.program || "")).toLowerCase();
+        if (target.includes("8") || target.includes("lgs")) {
+          gradeCounts["LGS Hazırlık (8. Sınıf)"]++;
+        } else if (target.includes("12") || target.includes("ayt")) {
+          gradeCounts["12. Sınıf (YKS Hazırlık)"]++;
+        } else if (target.includes("11") || target.includes("tyt")) {
+          gradeCounts["11. Sınıf (TYT Başlangıç)"]++;
+        } else if (target.includes("mezun")) {
+          gradeCounts["Mezun Grubu"]++;
+        } else {
+          gradeCounts["9 & 10. Sınıf (Ara Sınıflar)"]++;
+        }
+      });
+
+      const total = students.length || 1;
+      const result = Object.entries(gradeCounts).map(([grade, count]) => ({
+        grade,
+        count,
+        percentage: Math.round((count / total) * 100),
+      }));
+
+      return json({
+        success: true,
+        result,
+      });
+    }
+
+    // 5. GetStudentStateDistribution
+    if ((path === "/GetStudentStateDistribution" || path === "/services/app/Dashboard/GetStudentStateDistribution") && request.method === "GET") {
+      const studentsRes = await db.prepare("SELECT status FROM students").all();
+      const students = studentsRes.results || [];
+      const counts = { "Kayıtlı": 0, "Ayrıldı": 0, "Donduruldu": 0, "Burslu": 0 };
+      students.forEach(s => {
+        const st = s.status || "Kayıtlı";
+        counts[st] = (counts[st] || 0) + 1;
+      });
+      if (counts["Kayıtlı"] === 0 && students.length > 0) counts["Kayıtlı"] = students.length;
+
+      const colors = {
+        "Kayıtlı": "#10b981",
+        "Ayrıldı": "#ef4444",
+        "Donduruldu": "#f59e0b",
+        "Burslu": "#3b82f6"
+      };
+
+      const result = Object.entries(counts).map(([state, count]) => ({
+        state,
+        count,
+        color: colors[state] || "#6366f1"
+      }));
+
+      return json({
+        success: true,
+        result,
+      });
+    }
+
+    // 6. GetMissingDataAlerts
+    if ((path === "/GetMissingDataAlerts" || path === "/services/app/Dashboard/GetMissingDataAlerts") && request.method === "GET") {
+      const studentsRes = await db.prepare("SELECT id, student_name, student_tc, parent_tc, photo, signed_contract_path, due_date, paid_amount, total_fee FROM students").all();
+      const students = studentsRes.results || [];
+      const alerts = [];
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      students.forEach(s => {
+        if (!s.student_tc || s.student_tc.length < 11) {
+          alerts.push({
+            id: `alert-tc-${s.id}`,
+            studentId: s.id,
+            studentName: s.student_name,
+            alertType: "TC Kimlik Eksik",
+            severity: "warning",
+            message: `${s.student_name} öğrencisinin T.C. kimlik numarası sisteme girilmemiş.`,
+          });
+        }
+        if (!s.photo) {
+          alerts.push({
+            id: `alert-photo-${s.id}`,
+            studentId: s.id,
+            studentName: s.student_name,
+            alertType: "Fotoğraf Eksik",
+            severity: "info",
+            message: `${s.student_name} öğrencisinin profil vesikalık fotoğrafı yüklenmemiş.`,
+          });
+        }
+        if (!s.signed_contract_path) {
+          alerts.push({
+            id: `alert-contract-${s.id}`,
+            studentId: s.id,
+            studentName: s.student_name,
+            alertType: "Sözleşme Yüklenmedi",
+            severity: "critical",
+            message: `${s.student_name} için ıslak imzalı veli sözleşme PDF belgesi arşivlenmemiş.`,
+          });
+        }
+        if (s.due_date && s.due_date < todayStr && (Number(s.paid_amount) || 0) < (Number(s.total_fee) || 0)) {
+          alerts.push({
+            id: `alert-overdue-${s.id}`,
+            studentId: s.id,
+            studentName: s.student_name,
+            alertType: "Gecikmiş Taksit",
+            severity: "warning",
+            message: `${s.student_name} öğrencisinin vade tarihi (${s.due_date}) geçmiş taksit ödemesi bulunmaktadır.`,
+          });
+        }
+      });
+
+      return json({
+        success: true,
+        result: {
+          totalCount: alerts.length,
+          items: alerts.slice(0, 20),
+        }
       });
     }
 
