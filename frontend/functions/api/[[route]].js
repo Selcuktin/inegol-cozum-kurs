@@ -763,8 +763,8 @@ export async function onRequest(context) {
     }
 
     // ---------------- STUDENTS ----------------
-    if (path === "/students" && request.method === "GET") {
-      const q = url.searchParams.get("q");
+    if ((path === "/students" || path.endsWith("/Ogrencies/GetAll")) && request.method === "GET") {
+      const q = url.searchParams.get("q") || url.searchParams.get("Filter");
       let query = "SELECT * FROM students";
       const params = [];
       if (q) {
@@ -778,12 +778,67 @@ export async function onRequest(context) {
         ...s,
         remaining: Math.max(0, getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0)),
       }));
+      if (path.includes("Ogrencies")) {
+        return json({
+          success: true,
+          result: {
+            totalCount: students.length,
+            items: students
+          }
+        });
+      }
       return json(students);
     }
 
-    if (path === "/students" && request.method === "POST") {
+    if (path.endsWith("/Ogrencies/GetStudentNumber") && request.method === "GET") {
+      const maxNo = await db.prepare("SELECT MAX(CAST(student_no AS INTEGER)) as max_no FROM students WHERE student_no GLOB '[0-9]*'").first();
+      const nextNo = (maxNo?.max_no || 1000) + 1;
+      return json({ success: true, result: nextNo });
+    }
+
+    if (path.endsWith("/Ogrencies/CheckTcNo") && request.method === "POST") {
+      const body = await request.json();
+      const tc = String(body.tcNo || body.student_tc || "");
+      const existing = await db.prepare("SELECT id, student_name FROM students WHERE student_tc = ?").bind(tc).first();
+      return json({
+        success: true,
+        result: {
+          isValid: tc.length === 11,
+          exists: !!existing,
+          studentName: existing?.student_name || null
+        }
+      });
+    }
+
+    if ((path === "/students" || path.endsWith("/Ogrencies/CreateWizardRegistration") || path.endsWith("/Ogrencies/CreateOrEdit")) && request.method === "POST") {
       const user = await getCurrentUser(request, db);
-      const s = await request.json();
+      let s = await request.json();
+      if (s.ogrenciInfo || s.userInfo || s.veliler) {
+        const o = s.ogrenciInfo || {};
+        const u = s.userInfo?.user || {};
+        const v = Array.isArray(s.veliler) && s.veliler.length > 0 ? s.veliler[0] : {};
+        s = {
+          student_name: u.name && u.surname ? `${u.name} ${u.surname}` : u.name || o.adSoyad || s.student_name || "",
+          student_tc: o.tcNo ? String(o.tcNo) : s.student_tc || "",
+          student_no: o.okulNumarasi ? String(o.okulNumarasi) : s.student_no || "",
+          student_phone: u.phoneNumber || s.student_phone || "",
+          student_address: o.adres || s.student_address || "",
+          birth_date: o.dogumTarihi || s.birth_date || "",
+          student_class: o.classroomName || o.classroomId ? String(o.classroomId) : s.student_class || "",
+          department: o.bolumName || s.department || "Sayısal",
+          parent_name: v.veliUser ? `${v.veliUser.name || ""} ${v.veliUser.surname || ""}`.trim() : v.adSoyad || s.parent_name || "",
+          parent_phone: v.veliUser?.phoneNumber || v.telefon || s.parent_phone || "",
+          parent_tc: v.tcNo ? String(v.tcNo) : s.parent_tc || "",
+          status: o.studentState || s.status || "Kayitli",
+          din_muaf: o.dinKulturuMuaf ? 1 : 0,
+          ing_muaf: o.ingMuaf ? 1 : 0,
+          uses_service: o.isUsedService ? 1 : 0,
+          diploma_grade: o.diplomaNotu || 0,
+          total_fee: s.total_fee || 35000,
+          installment_count: s.installment_count || 6,
+          ...s
+        };
+      }
       if (!s.student_name?.trim()) return json({ detail: "Öğrenci adı soyadı zorunludur" }, 422);
       if (!s.parent_name?.trim()) return json({ detail: "Veli adı soyadı zorunludur" }, 422);
       if (Number(s.total_fee) < 0) return json({ detail: "Öğrenim ücreti negatif olamaz" }, 422);
@@ -797,14 +852,18 @@ export async function onRequest(context) {
           mother_tc, mother_name, mother_job, mother_phone, mother_work_phone, mother_address, mother_work_address, mother_email,
           father_job, father_work_phone, father_work_address, father_email,
           guardian_tc, guardian_name, guardian_job, guardian_phone, guardian_home_phone, guardian_work_phone, guardian_home_address, guardian_work_address, guardian_email,
-          program, total_fee, extra_fees, discount_type, discount_amount, discount_note, paid_amount, installment_count, due_date, photo, created_at, created_by, created_by_name
+          program, total_fee, extra_fees, discount_type, discount_amount, discount_note, paid_amount, installment_count, due_date, photo,
+          student_no, gender, birth_date, department, status, din_muaf, ing_muaf, uses_service, diploma_grade, primary_parent, health_notes,
+          created_at, created_by, created_by_name
         ) VALUES (
           ?, ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          datetime('now'), ?, ?
         )`
         )
         .bind(
@@ -850,6 +909,17 @@ export async function onRequest(context) {
           parseInt(s.installment_count) || 1,
           s.due_date || "",
           s.photo || "",
+          s.student_no || "",
+          s.gender || "Erkek",
+          s.birth_date || "",
+          s.department || "Sayısal",
+          s.status || "Kayitli",
+          Number(s.din_muaf) ? 1 : 0,
+          Number(s.ing_muaf) ? 1 : 0,
+          Number(s.uses_service) ? 1 : 0,
+          Number(s.diploma_grade) || 0,
+          s.primary_parent || "baba",
+          s.health_notes || "",
           user?.user_id || "",
           user?.name || ""
         )
@@ -857,6 +927,9 @@ export async function onRequest(context) {
 
       await logAction(db, user, "student.create", "student", id, `${s.student_name} kaydedildi`);
       const created = await db.prepare("SELECT * FROM students WHERE id = ?").bind(id).first();
+      if (path.includes("Ogrencies")) {
+        return json({ success: true, result: created });
+      }
       return json(created);
     }
 
@@ -971,7 +1044,8 @@ export async function onRequest(context) {
           "mother_tc", "mother_name", "mother_job", "mother_phone", "mother_work_phone", "mother_address", "mother_work_address", "mother_email",
           "father_job", "father_work_phone", "father_work_address", "father_email",
           "guardian_tc", "guardian_name", "guardian_job", "guardian_phone", "guardian_home_phone", "guardian_work_phone", "guardian_home_address", "guardian_work_address", "guardian_email",
-          "program", "total_fee", "extra_fees", "discount_type", "discount_amount", "discount_note", "installment_count", "due_date", "photo"
+          "program", "total_fee", "extra_fees", "discount_type", "discount_amount", "discount_note", "installment_count", "due_date", "photo",
+          "student_no", "gender", "birth_date", "department", "status", "din_muaf", "ing_muaf", "uses_service", "diploma_grade", "primary_parent", "health_notes"
         ];
         const updates = [];
         const values = [];
@@ -980,6 +1054,9 @@ export async function onRequest(context) {
             updates.push(`${key} = ?`);
             let v = patch[key];
             if (key === "extra_fees" && typeof v === "object") v = JSON.stringify(v);
+            if (["din_muaf", "ing_muaf", "uses_service"].includes(key)) v = Number(v) ? 1 : 0;
+            if (key === "diploma_grade" || key === "total_fee" || key === "discount_amount") v = Number(v) || 0;
+            if (key === "installment_count") v = parseInt(v) || 1;
             values.push(v);
           }
         }

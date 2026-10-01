@@ -42,6 +42,7 @@ import {
   MentorshipPage,
   EdesisDashboardWidgets
 } from "./EdesisModules";
+import { EdesisStudentModal } from "./components/EdesisStudentModal";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -410,23 +411,52 @@ function MainApp({ me, onLogout }) {
   const totalCollected = data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
   const totalExpected = (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
   const totalExpenses = data.summary?.expenses || (data.expenses || []).reduce((a, e) => a + (e.amount || 0), 0);
-  const navAll = [
-    { id: "dashboard",  label: "Genel Bakış",        icon: LayoutDashboard, perm: "page_dashboard" },
-    { id: "exams",      label: "Ölçme & Sınavlar",   icon: Award,           perm: "page_exams" },
-    { id: "attendance", label: "Yoklama",            icon: CalendarCheck,   perm: "page_attendance" },
-    { id: "schedules",  label: "Ders Programı",      icon: Calendar,        perm: "page_schedules" },
-    { id: "homework",   label: "Ödev Takip",         icon: CheckSquare,     perm: "page_homework" },
-    { id: "mentorship", label: "Rehberlik & Koçluk", icon: Target,          perm: "page_mentorship" },
-    { id: "students",   label: "Öğrenci Bul",        icon: Users,           perm: "page_students" },
-    { id: "payments",   label: "Tahsilat",           icon: Wallet,          perm: "page_payments" },
-    { id: "classes",    label: "Sınıflar",           icon: BookOpen,        perm: "page_classes" },
-    { id: "reminders",  label: "Hatırlatmalar",      icon: BellRing,        perm: "page_reminders" },
-    { id: "documents",  label: "Sözleşme & Makbuz",  icon: FileText,        perm: "page_documents" },
-    { id: "reports",    label: "Aylık Rapor",        icon: FileDown,        perm: "page_reports" },
-    { id: "users",      label: "Kullanıcılar",       icon: UserCog,         perm: "page_users" },
-    { id: "audit",      label: "Denetim Kaydı",      icon: History,         perm: "page_audit" },
+  const navCategories = [
+    {
+      title: "KURUMSAL",
+      items: [
+        { id: "dashboard",  label: "Genel Bakış",        icon: LayoutDashboard, perm: "page_dashboard" },
+      ]
+    },
+    {
+      title: "ÖĞRENCİ İŞLERİ",
+      items: [
+        { id: "students",   label: "Öğrenci Listesi",    icon: Users,           perm: "page_students" },
+        { id: "classes",    label: "Sınıf & Şubeler",    icon: BookOpen,        perm: "page_classes" },
+      ]
+    },
+    {
+      title: "ÖLÇME & DEĞERLENDİRME",
+      items: [
+        { id: "exams",      label: "Deneme Sınavları & Karne", icon: Award,     perm: "page_exams" },
+      ]
+    },
+    {
+      title: "EĞİTİM & AKADEMİK",
+      items: [
+        { id: "schedules",  label: "Ders Programı",      icon: Calendar,        perm: "page_schedules" },
+        { id: "attendance", label: "Günlük Yoklama",     icon: CalendarCheck,   perm: "page_attendance" },
+        { id: "homework",   label: "Ödev Takip",         icon: CheckSquare,     perm: "page_homework" },
+        { id: "mentorship", label: "Rehberlik & Koçluk", icon: Target,          perm: "page_mentorship" },
+      ]
+    },
+    {
+      title: "FİNANS & MUHASEBE",
+      items: [
+        { id: "payments",   label: "Tahsilat & Kasa",    icon: Wallet,          perm: "page_payments" },
+        { id: "reminders",  label: "Taksit Takibi",      icon: BellRing,        perm: "page_reminders" },
+        { id: "documents",  label: "Sözleşme & Makbuz",  icon: FileText,        perm: "page_documents" },
+        { id: "reports",    label: "Aylık Rapor",        icon: FileDown,        perm: "page_reports" },
+      ]
+    },
+    {
+      title: "SİSTEM",
+      items: [
+        { id: "users",      label: "Kullanıcılar",       icon: UserCog,         perm: "page_users" },
+        { id: "audit",      label: "Denetim Kaydı",      icon: History,         perm: "page_audit" },
+      ]
+    }
   ];
-  const nav = navAll.filter(n => can(me, n.perm));
   const guardedOpen = (type) => setModal(type);
 
   return <div className="app-shell">
@@ -450,8 +480,30 @@ function MainApp({ me, onLogout }) {
           <X size={20} />
         </button>
       </div>
-      <div className="side-caption">YÖNETİM PANELİ</div>
-      <nav>{nav.map(({ id, label, icon: Icon, perm }) => <button key={id} data-testid={`nav-${id}`} className={page === id ? "nav-item active" : "nav-item"} onClick={() => { setPage(id); setMobileOpen(false); }}><Icon size={18} /><span>{label}</span>{id === "payments" && <i className="nav-dot" />}</button>)}</nav>
+      <div className="side-caption">EDESİS ERP SİSTEMİ</div>
+      <nav>
+        {navCategories.map((cat, ci) => {
+          const visibleItems = cat.items.filter(it => can(me, it.perm));
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={ci} className="sidebar-group">
+              <div className="sidebar-category-title">{cat.title}</div>
+              {visibleItems.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  data-testid={`nav-${id}`}
+                  className={page === id ? "nav-item active" : "nav-item"}
+                  onClick={() => { setPage(id); setMobileOpen(false); }}
+                >
+                  <Icon size={18} />
+                  <span>{label}</span>
+                  {id === "payments" && <i className="nav-dot" />}
+                </button>
+              ))}
+            </div>
+          );
+        })}
+      </nav>
       <div className="side-bottom">
         <button data-testid="nav-logout" className="nav-item" onClick={onLogout}><LogOut size={18}/><span>Çıkış yap</span></button>
         <div className="profile">
@@ -495,7 +547,16 @@ function MainApp({ me, onLogout }) {
       </div>
     </main>
     <MobileBottomNav page={page} setPage={setPage} setModal={setModal} canPayment={can(me, "payment_create")} />
-    <Modal type={modal} selected={selected} data={data} close={() => setModal(null)} reload={load} />
+    <EdesisStudentModal
+      isOpen={modal === "student"}
+      onClose={() => setModal(null)}
+      classes={data.classes || []}
+      API={API}
+      onStudentAdded={() => { load(); setModal(null); }}
+    />
+    {modal && modal !== "student" && (
+      <Modal type={modal} selected={selected} data={data} close={() => setModal(null)} reload={load} />
+    )}
     <StudentDetailDrawer student={selected} onClose={() => setSelected(null)} me={me} />
   </div>;
 }
@@ -527,7 +588,7 @@ function Students({ me, students, search, onSearch, onOpen, onSelect }) {
       {can(me,"student_create") && <Button testid="add-student-button" onClick={() => onOpen("student")}><Plus size={17} /> Yeni öğrenci</Button>}
     </PageHead>
     <div className="filter-bar"><div className="inline-search"><Search size={17} /><input data-testid="student-search-input" placeholder="İsim, veli veya telefon ile ara" value={search} onChange={e => onSearch(e.target.value)} /></div><span className="result-count">{students.length} kayıt</span></div>
-    <section className="panel table-panel"><table><thead><tr><th>ÖĞRENCİ</th><th>VELİ / TELEFON</th><th>OKUL & SINIF</th><th>PROGRAM</th><th>BAKİYE DURUMU</th><th></th></tr></thead><tbody>{students.map(s => <tr key={s.id} data-testid={`student-row-${s.id}`} onClick={() => onSelect(s)}><td><div className="person"><div className="student-avatar">{s.student_name.split(" ").map(x => x[0]).join("")}</div><div><b>{s.student_name}</b><span>{s.student_phone}</span></div></div></td><td><div className="cell-stack"><b>{s.parent_name}</b><span>{s.parent_phone}</span></div></td><td><div className="cell-stack"><b>{s.school}</b><span>{s.student_class}</span></div></td><td><span className="program-tag">{s.program}</span></td><td><div className="balance"><b>{money(s.remaining)}</b><span className={s.remaining === 0 ? "paid" : "pending"}>{s.remaining === 0 ? "Tamamlandı" : "Bekliyor"}</span></div></td><td><button data-testid={`student-detail-${s.id}`} className="row-arrow" onClick={() => onSelect(s)}><ChevronRight size={17} /></button></td></tr>)}</tbody></table></section>
+    <section className="panel table-panel"><table><thead><tr><th>ÖĞRENCİ</th><th>VELİ / TELEFON</th><th>OKUL & SINIF</th><th>ALAN / PROGRAM</th><th>BAKİYE DURUMU</th><th></th></tr></thead><tbody>{students.map(s => <tr key={s.id} data-testid={`student-row-${s.id}`} onClick={() => onSelect(s)}><td><div className="person">{s.photo ? <img src={s.photo} alt="" className="student-avatar" style={{objectFit:"cover"}} /> : <div className="student-avatar">{s.student_name.split(" ").map(x => x[0]).join("").slice(0,2)}</div>}<div><div style={{display:"flex",alignItems:"center",gap:6}}><b>{s.student_name}</b>{s.student_no && <span className="role-pill" style={{fontSize:10,padding:"1px 6px",background:"#f1f5f9",color:"#475569"}}>#{s.student_no}</span>}</div><span>{s.student_phone || "Telefon yok"}</span></div></div></td><td><div className="cell-stack"><b>{s.parent_name}</b><span>{s.parent_phone}</span></div></td><td><div className="cell-stack"><b>{s.school}</b><span>{s.student_class}</span></div></td><td><div className="cell-stack"><span className="program-tag">{s.program}</span>{s.department && <small style={{color:"#64748b",fontSize:11}}>{s.department}</small>}</div></td><td><div className="balance"><b>{money(s.remaining)}</b><span className={s.remaining === 0 ? "paid" : "pending"}>{s.remaining === 0 ? "Tamamlandı" : "Bekliyor"}</span></div></td><td><button data-testid={`student-detail-${s.id}`} className="row-arrow" onClick={() => onSelect(s)}><ChevronRight size={17} /></button></td></tr>)}</tbody></table></section>
   </>;
 }
 
@@ -1188,14 +1249,36 @@ function StudentDetailDrawer({ student, onClose, me }) {
         {uploadMsg && <div className="report-msg" data-testid="contract-upload-msg">{uploadMsg}</div>}
       </div>
 
-      <h3 className="drawer-h3">İletişim</h3>
+      <h3 className="drawer-h3">Öğrenci & Kayıt Bilgileri (Edesis)</h3>
+      <div className="drawer-grid">
+        <div><span>Öğrenci No</span><b>{s.student_no ? `#${s.student_no}` : "—"}</b></div>
+        <div><span>T.C. Kimlik No</span><b>{s.student_tc || "—"}</b></div>
+        <div><span>Cinsiyet</span><b>{s.gender || "—"}</b></div>
+        <div><span>Doğum Tarihi</span><b>{s.birth_date ? new Date(s.birth_date).toLocaleDateString("tr-TR") : "—"}</b></div>
+        <div><span>Alanı / Bölümü</span><b>{s.department || "—"}</b></div>
+        <div><span>Kayıt Durumu</span><b className="status-pill success">{s.status || "Kayıtlı"}</b></div>
+        <div><span>Din Kültürü</span><b>{s.din_muaf ? "Muaf" : "Dahil"}</b></div>
+        <div><span>Yabancı Dil</span><b>{s.ing_muaf ? "Muaf" : "Dahil"}</b></div>
+        <div><span>Servis Kullanımı</span><b>{s.uses_service ? "Servis Kullanıyor" : "Kullanmıyor"}</b></div>
+        <div><span>Diploma / OBP Notu</span><b>{s.diploma_grade || "—"}</b></div>
+      </div>
+      {s.health_notes && (
+        <div style={{ margin: "10px 0 16px", padding: "10px 14px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}>
+          <b style={{ color: "#475569" }}>Sağlık & Rehberlik Notu:</b> {s.health_notes}
+        </div>
+      )}
+
+      <h3 className="drawer-h3">İletişim & Veli Bilgileri</h3>
       <div className="drawer-grid">
         <div><span>Öğrenci telefon</span><b>{s.student_phone || "—"}</b></div>
+        <div><span>Öğrenci Adresi</span><b>{s.student_address || "—"}</b></div>
         <div><span>Baba (Veli)</span><b>{s.parent_name || "—"}</b></div>
         <div><span>Baba telefon</span><b>{s.parent_phone || "—"}</b></div>
+        <div><span>Baba Meslek</span><b>{s.father_job || "—"}</b></div>
         <div><span>Anne</span><b>{s.mother_name || "—"}</b></div>
         <div><span>Anne telefon</span><b>{s.mother_phone || "—"}</b></div>
-        <div><span>Vasi</span><b>{s.guardian_name || "—"}</b></div>
+        <div><span>Anne Meslek</span><b>{s.mother_job || "—"}</b></div>
+        <div><span>Vasi (Varsa)</span><b>{s.guardian_name || "—"}</b></div>
       </div>
 
       <h3 className="drawer-h3">Taksit Planı</h3>
