@@ -36,7 +36,7 @@ const EXTRA_SERVICES = [
   { k: "kutuphane", label: "Sessiz Kütüphane & Etüt Kullanımı", defaultPrice: 1500 }
 ];
 
-export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStudentAdded }) {
+export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStudentAdded, initialData = null }) {
   const [activeTab, setActiveTab] = useState("genel"); // 'genel' | 'veli' | 'egitim' | 'muhasebe'
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -86,22 +86,38 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
     din_muaf: 0,
     ing_muaf: 0,
     uses_service: 0,
-    diploma_grade: 85,
-    program: "TYT - AYT",
+    diploma_grade: "",
     health_notes: "",
 
-    // 4. Muhasebe & Taksit
+    // 4. Finans & Taksit
     total_fee: 35000,
-    extra_kaynak: 0,
-    extra_dijital: 0,
-    extra_dnm: 0,
-    extra_kutuphane: 0,
     discount_type: "",
     discount_amount: 0,
     discount_note: "",
+    paid_amount: 0,
     installment_count: 6,
-    due_date: new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    due_date: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+    extra_kaynak: 4500,
+    extra_dijital: 0,
+    extra_dnm: 3500,
+    extra_kutuphane: 0
   });
+
+  React.useEffect(() => {
+    if (initialData) {
+      let extras = {};
+      try {
+        extras = typeof initialData.extra_fees === "string" ? JSON.parse(initialData.extra_fees || "{}") : (initialData.extra_fees || {});
+      } catch {}
+      setFormData({
+        ...initialData,
+        extra_kaynak: extras.kaynak !== undefined ? Number(extras.kaynak) : 4500,
+        extra_dijital: extras.dijital !== undefined ? Number(extras.dijital) : 0,
+        extra_dnm: extras.dnm !== undefined ? Number(extras.dnm) : 3500,
+        extra_kutuphane: extras.kutuphane !== undefined ? Number(extras.kutuphane) : 0,
+      });
+    }
+  }, [initialData]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -226,7 +242,11 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         }
       };
 
-      await axios.post(`${API}/students`, payload);
+      if (initialData?.id) {
+        await axios.patch(`${API}/students/${initialData.id}`, payload);
+      } else {
+        await axios.post(`${API}/students`, payload);
+      }
       if (onStudentAdded) onStudentAdded();
       stopCamera();
       onClose();
@@ -246,7 +266,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         <div className="modal-head">
           <div>
             <div className="eyebrow">EDESİS ÖĞRENCİ İŞLERİ · RESMİ KAYIT FORMU</div>
-            <h2>Yeni Öğrenci ve Sözleşme Kaydı</h2>
+            <h2>{initialData ? `Öğrenci Düzenleme: ${initialData.student_name}` : "Yeni Öğrenci ve Sözleşme Kaydı"}</h2>
           </div>
           <button className="icon-btn" onClick={onClose} type="button">
             <X size={19} />

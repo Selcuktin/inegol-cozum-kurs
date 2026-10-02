@@ -37,9 +37,17 @@ import {
   GraduationCap,
   UserCheck,
   UserPlus,
-  Clock
+  Clock,
+  Edit,
+  Trash2,
+  PieChart,
+  Layers,
+  MessageCircle,
+  Sun
 } from "lucide-react";
 import {
+  openWhatsApp,
+  OfficialEdesisKarneModal,
   ExamsPage,
   AttendancePage,
   SchedulesPage,
@@ -48,6 +56,10 @@ import {
   EdesisDashboardWidgets
 } from "./EdesisModules";
 import { EdesisStudentModal } from "./components/EdesisStudentModal";
+import { PromissoryNoteModal } from "./components/PromissoryNoteModal";
+import { ReceiptModal } from "./components/ReceiptModal";
+import { AbsenceLetterModal } from "./components/AbsenceLetterModal";
+import { HataKarnesiModal } from "./components/HataKarnesiModal";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -147,12 +159,18 @@ function AuthCallback() {
 function Login({ onLoginSuccess }) {
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickError, setQuickError] = useState("");
+  const [activeRole, setActiveRole] = useState(null); // 'admin' | 'muhasebe' | 'ogretmen' | null
+  const [rolePassword, setRolePassword] = useState("");
 
-  const handleQuickLogin = async (role) => {
+  const handleQuickLogin = async (role, password) => {
+    if (!password || !password.trim()) {
+      setQuickError("Lütfen giriş şifresini yazınız.");
+      return;
+    }
     setQuickLoading(true);
     setQuickError("");
     try {
-      const res = await axios.post(`${API}/auth/quick-login`, { role });
+      const res = await axios.post(`${API}/auth/quick-login`, { role, password: password.trim() });
       if (res.data?.session_token) {
         localStorage.setItem("session_token", res.data.session_token);
         axios.defaults.headers.common["Authorization"] = `Bearer ${res.data.session_token}`;
@@ -161,7 +179,7 @@ function Login({ onLoginSuccess }) {
         onLoginSuccess(res.data);
       }
     } catch (e) {
-      setQuickError(e.response?.data?.detail || "Giriş başarısız oldu.");
+      setQuickError(e.response?.data?.detail || "Giriş başarısız oldu. Lütfen şifrenizi kontrol edin.");
     } finally {
       setQuickLoading(false);
     }
@@ -179,37 +197,115 @@ function Login({ onLoginSuccess }) {
         <h1>Yönetim paneline giriş</h1>
         <p>Sadece yetkilendirilmiş <b>İnegöl Çözüm Kurs</b> personeli giriş yapabilir.</p>
 
-        <div style={{ display: "grid", gap: "8px", margin: "16px 0" }}>
-          <button
-            data-testid="quick-login-admin"
-            className="btn"
-            style={{ width: "100%", justifyContent: "center", background: "#1d4ed8" }}
-            disabled={quickLoading}
-            onClick={() => handleQuickLogin("admin")}
+        {activeRole ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleQuickLogin(activeRole, rolePassword);
+            }}
+            style={{
+              margin: "16px 0",
+              padding: "16px",
+              borderRadius: "12px",
+              background: "var(--bg-secondary, #f8fafc)",
+              border: "1px solid var(--border)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)"
+            }}
           >
-            👑 Yönetici Olarak Hızlı Giriş (Admin)
-          </button>
-          <button
-            data-testid="quick-login-muhasebe"
-            className="btn secondary"
-            style={{ width: "100%", justifyContent: "center" }}
-            disabled={quickLoading}
-            onClick={() => handleQuickLogin("muhasebe")}
-          >
-            💼 Muhasebe Olarak Hızlı Giriş
-          </button>
-          <button
-            data-testid="quick-login-ogretmen"
-            className="btn secondary"
-            style={{ width: "100%", justifyContent: "center" }}
-            disabled={quickLoading}
-            onClick={() => handleQuickLogin("ogretmen")}
-          >
-            📚 Öğretmen Olarak Hızlı Giriş
-          </button>
-        </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <div style={{ fontWeight: "700", fontSize: "14px", color: "var(--text)" }}>
+                {activeRole === "admin" && "👑 Yönetici Girişi"}
+                {activeRole === "muhasebe" && "💼 Muhasebe Girişi"}
+                {activeRole === "ogretmen" && "📚 Öğretmen Girişi"}
+              </div>
+              <button
+                type="button"
+                onClick={() => { setActiveRole(null); setRolePassword(""); setQuickError(""); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: "12px", padding: "4px" }}
+              >
+                ✕ Geri Dön
+              </button>
+            </div>
 
-        {quickError && <div className="modal-error" style={{ marginBottom: "12px" }}>{quickError}</div>}
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{ display: "block", fontSize: "12px", color: "var(--muted)", marginBottom: "6px", fontWeight: "600" }}>
+                {activeRole === "admin" ? "Yönetici Parolasını Giriniz:" : "Giriş Şifresini Giriniz (4321):"}
+              </label>
+              <input
+                type="password"
+                autoFocus
+                value={rolePassword}
+                onChange={(e) => setRolePassword(e.target.value)}
+                placeholder={activeRole === "admin" ? "Yönetici parolası" : "Şifre (4321)"}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  fontSize: "14px",
+                  boxSizing: "border-box"
+                }}
+              />
+            </div>
+
+            {quickError && <div className="modal-error" style={{ marginBottom: "12px", fontSize: "12px" }}>{quickError}</div>}
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="submit"
+                className="btn"
+                disabled={quickLoading || !rolePassword}
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  background: activeRole === "admin" ? "#1d4ed8" : "#2563eb",
+                  fontWeight: "600"
+                }}
+              >
+                {quickLoading ? "Giriş Yapılıyor..." : "Giriş Yap"}
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => { setActiveRole(null); setRolePassword(""); setQuickError(""); }}
+              >
+                İptal
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div style={{ display: "grid", gap: "8px", margin: "16px 0" }}>
+            <button
+              data-testid="quick-login-admin"
+              className="btn"
+              style={{ width: "100%", justifyContent: "center", background: "#1d4ed8" }}
+              disabled={quickLoading}
+              onClick={() => { setActiveRole("admin"); setRolePassword(""); setQuickError(""); }}
+            >
+              👑 Yönetici Olarak Hızlı Giriş (Admin)
+            </button>
+            <button
+              data-testid="quick-login-muhasebe"
+              className="btn secondary"
+              style={{ width: "100%", justifyContent: "center" }}
+              disabled={quickLoading}
+              onClick={() => { setActiveRole("muhasebe"); setRolePassword(""); setQuickError(""); }}
+            >
+              💼 Muhasebe Olarak Hızlı Giriş
+            </button>
+            <button
+              data-testid="quick-login-ogretmen"
+              className="btn secondary"
+              style={{ width: "100%", justifyContent: "center" }}
+              disabled={quickLoading}
+              onClick={() => { setActiveRole("ogretmen"); setRolePassword(""); setQuickError(""); }}
+            >
+              📚 Öğretmen Olarak Hızlı Giriş
+            </button>
+          </div>
+        )}
+
+        {quickError && !activeRole && <div className="modal-error" style={{ marginBottom: "12px" }}>{quickError}</div>}
 
         <div style={{ textAlign: "center", margin: "12px 0 10px", color: "var(--muted)", fontSize: "11px", fontWeight: "600" }}>
           VEYA BULUT GİRİŞİ
@@ -221,48 +317,40 @@ function Login({ onLoginSuccess }) {
         </button>
         <div className="auth-foot"><ShieldCheck size={13} /> Yetkili personel dışı erişim engellenir</div>
 
-        <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px dashed var(--border)", fontSize: "11px", color: "var(--muted)", textAlign: "center" }}>
-          <details>
-            <summary style={{ cursor: "pointer", userSelect: "none" }}>⚙️ Sunucu API: <span style={{ color: "var(--primary)", fontWeight: "600" }}>{getBackendBaseUrl() || "Yerel (Varsayılan)"}</span></summary>
-            <div style={{ marginTop: "8px", display: "grid", gap: "6px" }}>
-              <input
-                type="text"
-                placeholder="Örn: http://192.168.1.5:8000"
-                defaultValue={localStorage.getItem("custom_api_url") || ""}
-                id="custom-api-input"
-                style={{ fontSize: "11px", padding: "6px 8px", borderRadius: "6px", border: "1px solid var(--border)", width: "100%", boxSizing: "border-box" }}
-              />
-              <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
-                <button
-                  type="button"
-                  className="small-btn"
-                  onClick={() => {
-                    const el = document.getElementById("custom-api-input");
-                    const val = el ? el.value.trim().replace(/\/+$/, "") : "";
-                    if (val) {
-                      localStorage.setItem("custom_api_url", val);
-                    } else {
-                      localStorage.removeItem("custom_api_url");
-                    }
-                    window.location.reload();
-                  }}
-                >
-                  Kaydet & Yenile
-                </button>
-                <button
-                  type="button"
-                  className="small-btn"
-                  onClick={() => {
-                    localStorage.setItem("custom_api_url", "http://192.168.1.5:8000");
-                    window.location.reload();
-                  }}
-                >
-                  Wi-Fi (192.168.1.5)
-                </button>
+        {typeof window !== "undefined" && window.location.search.includes("dev=1") && (
+          <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px dashed var(--border)", fontSize: "11px", color: "var(--muted)", textAlign: "center" }}>
+            <details>
+              <summary style={{ cursor: "pointer", userSelect: "none" }}>⚙️ Sunucu API: <span style={{ color: "var(--primary)", fontWeight: "600" }}>{getBackendBaseUrl() || "Yerel (Varsayılan)"}</span></summary>
+              <div style={{ marginTop: "8px", display: "grid", gap: "6px" }}>
+                <input
+                  type="text"
+                  placeholder="Örn: http://192.168.1.5:8000"
+                  defaultValue={localStorage.getItem("custom_api_url") || ""}
+                  id="custom-api-input"
+                  style={{ fontSize: "11px", padding: "6px 8px", borderRadius: "6px", border: "1px solid var(--border)", width: "100%", boxSizing: "border-box" }}
+                />
+                <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                  <button
+                    type="button"
+                    className="small-btn"
+                    onClick={() => {
+                      const el = document.getElementById("custom-api-input");
+                      const val = el ? el.value.trim().replace(/\/+$/, "") : "";
+                      if (val) {
+                        localStorage.setItem("custom_api_url", val);
+                      } else {
+                        localStorage.removeItem("custom_api_url");
+                      }
+                      window.location.reload();
+                    }}
+                  >
+                    Kaydet & Yenile
+                  </button>
+                </div>
               </div>
-            </div>
-          </details>
-        </div>
+            </details>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -409,6 +497,7 @@ function MainApp({ me, onLogout }) {
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [editingStudent, setEditingStudent] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
   useEffect(() => { load(); }, []);
@@ -578,9 +667,9 @@ function MainApp({ me, onLogout }) {
         {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
         {page === "homework" && <HomeworkPage me={me} API={API} classes={data.classes || []} students={data.students || []} />}
         {page === "mentorship" && <MentorshipPage me={me} API={API} students={data.students || []} />}
-        {page === "students" && <Students me={me} students={filtered} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
+        {page === "students" && <Students me={me} allStudents={data.students || []} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
         {page === "payments" && <Payments me={me} data={data} onOpen={guardedOpen} />}
-        {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} />}
+        {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
         {page === "reminders" && <Reminders />}
         {page === "documents" && <Documents students={data.students} payments={data.payments} />}
         {page === "reports" && <Reports me={me} />}
@@ -590,16 +679,26 @@ function MainApp({ me, onLogout }) {
     </main>
     <MobileBottomNav page={page} setPage={setPage} setModal={setModal} canPayment={can(me, "payment_create")} />
     <EdesisStudentModal
-      isOpen={modal === "student"}
-      onClose={() => setModal(null)}
+      isOpen={modal === "student" || editingStudent !== null}
+      onClose={() => { setModal(null); setEditingStudent(null); }}
       classes={data.classes || []}
       API={API}
-      onStudentAdded={() => { load(); setModal(null); }}
+      initialData={editingStudent}
+      onStudentAdded={() => { load(); setModal(null); setEditingStudent(null); }}
     />
     {modal && modal !== "student" && (
       <Modal type={modal} selected={selected} data={data} close={() => setModal(null)} reload={load} />
     )}
-    <StudentDetailDrawer student={selected} onClose={() => setSelected(null)} me={me} />
+    <StudentProfileModal 
+      student={selected} 
+      onClose={() => setSelected(null)} 
+      me={me} 
+      API={API} 
+      data={data}
+      onEditStudent={(st) => { setEditingStudent(st); }}
+      onOpenPayment={() => guardedOpen("payment")}
+      onNavigate={setPage}
+    />
   </div>;
 }
 
@@ -626,7 +725,7 @@ function Dashboard({ me, data, totalCollected, totalExpected, totalExpenses, onO
     <div className="stats-grid">
       <Stat icon={CircleDollarSign} label="Bu ay tahsilat" value={money(totalCollected)} note="Toplam tahsil edilen" color="blue" trend="+12.8%" onClick={() => onNavigate("payments")} />
       <Stat icon={Wallet} label="Bekleyen alacak" value={money(outstanding)} note="Öğrencilerden kalan" color="amber" trend="Takipte" onClick={() => onNavigate("reminders")} />
-      <Stat icon={Users} label="Aktif öğrenci" value={(data.students || []).length} note={`${(data.classes || []).length} aktif sınıfta`} color="green" trend="+4 yeni" onClick={() => onNavigate("students")} />
+      <Stat icon={Users} label="Aktif öğrenci" value={(data.students || []).filter(s => s.status === "Aktif" || s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık").length} note={`${(data.students || []).length} toplam arşiv kaydı`} color="green" trend="62 Kesin Kayıt" onClick={() => onNavigate("students")} />
       <Stat icon={TrendingDown} label="Bu ay gider" value={money(totalExpenses)} note="Genel toplamdan düşüldü" color="red" trend="Bu ay" onClick={() => onOpen("expense")} />
     </div>
     <div className="dashboard-grid">
@@ -695,36 +794,731 @@ function Stat({ icon: Icon, label, value, note, color, trend, onClick }) {
   ); 
 }
 
-function Students({ me, students, search, onSearch, onOpen, onSelect }) {
-  return <>
-    <PageHead eyebrow="KAYITLAR · ÖĞRENCİ VE VELİ" title="Öğrenci Bul">
-      {can(me,"export_data") && <Button testid="export-students-button" secondary onClick={() => downloadBlob(`${API}/export/students`, `inegol-cozum-ogrenciler.csv`)}><Download size={16}/> Excel indir</Button>}
-      {can(me,"student_create") && <Button testid="add-student-button" onClick={() => onOpen("student")}><Plus size={17} /> Yeni öğrenci</Button>}
-    </PageHead>
-    <div className="filter-bar"><div className="inline-search"><Search size={17} /><input data-testid="student-search-input" placeholder="İsim, veli veya telefon ile ara" value={search} onChange={e => onSearch(e.target.value)} /></div><span className="result-count">{students.length} kayıt</span></div>
-    <section className="panel table-panel"><table><thead><tr><th>ÖĞRENCİ</th><th>VELİ / TELEFON</th><th>OKUL & SINIF</th><th>ALAN / PROGRAM</th><th>BAKİYE DURUMU</th><th></th></tr></thead><tbody>{students.map(s => <tr key={s.id} data-testid={`student-row-${s.id}`} onClick={() => onSelect(s)}><td><div className="person">{s.photo ? <img src={s.photo} alt="" className="student-avatar" style={{objectFit:"cover"}} /> : <div className="student-avatar">{s.student_name.split(" ").map(x => x[0]).join("").slice(0,2)}</div>}<div><div style={{display:"flex",alignItems:"center",gap:6}}><b>{s.student_name}</b>{s.student_no && <span className="role-pill" style={{fontSize:10,padding:"1px 6px",background:"#f1f5f9",color:"#475569"}}>#{s.student_no}</span>}</div><span>{s.student_phone || "Telefon yok"}</span></div></div></td><td><div className="cell-stack"><b>{s.parent_name}</b><span>{s.parent_phone}</span></div></td><td><div className="cell-stack"><b>{s.school}</b><span>{s.student_class}</span></div></td><td><div className="cell-stack"><span className="program-tag">{s.program}</span>{s.department && <small style={{color:"#64748b",fontSize:11}}>{s.department}</small>}</div></td><td><div className="balance"><b>{money(s.remaining)}</b><span className={s.remaining === 0 ? "paid" : "pending"}>{s.remaining === 0 ? "Tamamlandı" : "Bekliyor"}</span></div></td><td><button data-testid={`student-detail-${s.id}`} className="row-arrow" onClick={() => onSelect(s)}><ChevronRight size={17} /></button></td></tr>)}</tbody></table></section>
-  </>;
+function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
+  const [activeSegment, setActiveSegment] = useState("active"); // "active" (default), "yaz", "mezun", "debtors", "paid", "all"
+  const [selectedPeriod, setSelectedPeriod] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedClass, setSelectedClass] = useState("all");
+  const [selectedDebt, setSelectedDebt] = useState("all");
+
+  const students = allStudents || [];
+
+  // Summary Metrics
+  const stats = useMemo(() => {
+    let active = 0;
+    let yaz = 0;
+    let mezun = 0;
+    let debtors = 0;
+    let paid = 0;
+    let totalOutstanding = 0;
+
+    students.forEach((s) => {
+      const isAktif = s.status === "Aktif" || s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık";
+      const isYaz = s.status === "Yaz Kursu" || s.program === "2026-2027-YAZ";
+      const isMezun = s.status === "Mezun / Geçmiş" || s.program === "2025-2026";
+      const rem = Number(s.remaining || 0);
+
+      if (isAktif) active++;
+      else if (isYaz) yaz++;
+      else if (isMezun) mezun++;
+      else active++;
+
+      if (rem > 0) {
+        debtors++;
+        totalOutstanding += rem;
+      } else {
+        paid++;
+      }
+    });
+
+    return {
+      active,
+      yaz,
+      mezun,
+      total: students.length,
+      debtors,
+      paid,
+      totalOutstanding,
+    };
+  }, [students]);
+
+  // Unique Classes
+  const classOptions = useMemo(() => {
+    const set = new Set();
+    students.forEach((s) => {
+      if (s.student_class && s.student_class !== "Genel") set.add(s.student_class.trim());
+    });
+    return Array.from(set).sort();
+  }, [students]);
+
+  // Filtering Logic
+  const filteredStudents = useMemo(() => {
+    return students.filter((s) => {
+      const isAktif = s.status === "Aktif" || s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık";
+      const isYaz = s.status === "Yaz Kursu" || s.program === "2026-2027-YAZ";
+      const isMezun = s.status === "Mezun / Geçmiş" || s.program === "2025-2026";
+      const rem = Number(s.remaining || 0);
+
+      // 1. Segment Pill Filter
+      if (activeSegment === "active" && !isAktif) return false;
+      if (activeSegment === "yaz" && !isYaz) return false;
+      if (activeSegment === "mezun" && !isMezun) return false;
+      if (activeSegment === "debtors" && rem <= 0) return false;
+      if (activeSegment === "paid" && rem > 0) return false;
+
+      // 2. Academic Period Filter Dropdown
+      if (selectedPeriod !== "all") {
+        if (selectedPeriod === "2026-2027" && !(s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık")) return false;
+        if (selectedPeriod === "2026-2027-YAZ" && s.program !== "2026-2027-YAZ") return false;
+        if (selectedPeriod === "2025-2026" && s.program !== "2025-2026") return false;
+      }
+
+      // 3. Status Filter Dropdown
+      if (selectedStatus !== "all") {
+        if (selectedStatus === "Aktif" && !isAktif) return false;
+        if (selectedStatus === "Yaz Kursu" && !isYaz) return false;
+        if (selectedStatus === "Mezun / Geçmiş" && !isMezun) return false;
+      }
+
+      // 4. Class / Şube Filter Dropdown
+      if (selectedClass !== "all" && s.student_class !== selectedClass) {
+        return false;
+      }
+
+      // 5. Debt Filter Dropdown
+      if (selectedDebt === "has_debt" && rem <= 0) return false;
+      if (selectedDebt === "no_debt" && rem > 0) return false;
+
+      // 6. Search Term
+      if (search && search.trim()) {
+        const q = search.toLowerCase().trim();
+        const haystack = `${s.student_name} ${s.parent_name} ${s.student_phone} ${s.parent_phone} ${s.school} ${s.student_class} ${s.program}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [students, activeSegment, selectedPeriod, selectedStatus, selectedClass, selectedDebt, search]);
+
+  const handleResetFilters = () => {
+    setActiveSegment("all");
+    setSelectedPeriod("all");
+    setSelectedStatus("all");
+    setSelectedClass("all");
+    setSelectedDebt("all");
+    onSearch("");
+  };
+
+  const hasActiveCustomFilters =
+    activeSegment !== "active" ||
+    selectedPeriod !== "all" ||
+    selectedStatus !== "all" ||
+    selectedClass !== "all" ||
+    selectedDebt !== "all" ||
+    (search && search.trim().length > 0);
+
+  return (
+    <>
+      <PageHead eyebrow="KAYITLAR · ÖĞRENCİ VE VELİ YÖNETİMİ" title="Öğrenci Yönetimi">
+        {can(me, "export_data") && (
+          <Button testid="export-students-button" secondary onClick={() => downloadBlob(`${API}/export/students`, `inegol-cozum-ogrenciler.csv`)}>
+            <Download size={16} /> Excel İndir
+          </Button>
+        )}
+        {can(me, "student_create") && (
+          <Button testid="add-student-button" onClick={() => onOpen("student")}>
+            <Plus size={17} /> Yeni Öğrenci
+          </Button>
+        )}
+      </PageHead>
+
+      {/* 4 Edesis Stat KPI Cards */}
+      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", marginBottom: "16px" }}>
+        <Stat
+          icon={Users}
+          label="Aktif Öğrenciler"
+          value={stats.active}
+          note="2026-2027 Kesin Kayıt"
+          color="green"
+          trend="Aktif Dönem"
+          onClick={() => { setActiveSegment("active"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
+        />
+        <Stat
+          icon={Sun}
+          label="Yaz Kursu"
+          value={stats.yaz}
+          note="2026-2027-YAZ Destek"
+          color="blue"
+          trend="Yaz Dönemi"
+          onClick={() => { setActiveSegment("yaz"); setSelectedPeriod("2026-2027-YAZ"); }}
+        />
+        <Stat
+          icon={GraduationCap}
+          label="Mezun / Geçmiş"
+          value={stats.mezun}
+          note="2025-2026 Mezun Arşivi"
+          color="purple"
+          trend="Eski Kayıt"
+          onClick={() => { setActiveSegment("mezun"); setSelectedPeriod("2025-2026"); }}
+        />
+        <Stat
+          icon={CircleDollarSign}
+          label="Taksit Takipte"
+          value={stats.debtors}
+          note={`Toplam Bakiye: ${money(stats.totalOutstanding)}`}
+          color="amber"
+          trend="Kalan Borç"
+          onClick={() => setActiveSegment("debtors")}
+        />
+      </div>
+
+      {/* Edesis Tarzı Segment Hapları */}
+      <div className="student-segments-container">
+        <div className="student-segment-strip">
+          <button
+            className={`student-segment-pill ${activeSegment === "active" ? "active" : ""}`}
+            onClick={() => { setActiveSegment("active"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
+          >
+            🟢 Aktif Öğrenciler ({stats.active})
+          </button>
+          <button
+            className={`student-segment-pill ${activeSegment === "yaz" ? "active" : ""}`}
+            onClick={() => { setActiveSegment("yaz"); setSelectedPeriod("2026-2027-YAZ"); }}
+          >
+            ☀️ Yaz Kursu ({stats.yaz})
+          </button>
+          <button
+            className={`student-segment-pill ${activeSegment === "mezun" ? "active" : ""}`}
+            onClick={() => { setActiveSegment("mezun"); setSelectedPeriod("2025-2026"); }}
+          >
+            🎓 Mezunlar / Geçmiş ({stats.mezun})
+          </button>
+          <button
+            className={`student-segment-pill ${activeSegment === "debtors" ? "active" : ""}`}
+            onClick={() => setActiveSegment("debtors")}
+          >
+            ⏳ Borcu Olanlar ({stats.debtors})
+          </button>
+          <button
+            className={`student-segment-pill ${activeSegment === "paid" ? "active" : ""}`}
+            onClick={() => setActiveSegment("paid")}
+          >
+            ✅ Borcu Kapananlar ({stats.paid})
+          </button>
+          <button
+            className={`student-segment-pill ${activeSegment === "all" ? "active" : ""}`}
+            onClick={() => { setActiveSegment("all"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
+          >
+            📁 Tüm Kayıtlar ({stats.total})
+          </button>
+        </div>
+      </div>
+
+      {/* Edesis Gelişmiş Filtre Çubuğu */}
+      <div className="student-filter-toolbar">
+        <div className="student-filter-grid">
+          {/* Arama Inputu */}
+          <div className="inline-search" style={{ width: "100%", margin: 0 }}>
+            <Search size={16} />
+            <input
+              data-testid="student-search-input"
+              placeholder="İsim, veli veya telefon ile ara..."
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Dönem Dropdown */}
+          <select
+            className="student-filter-select"
+            value={selectedPeriod}
+            onChange={(e) => {
+              setSelectedPeriod(e.target.value);
+              if (e.target.value !== "all") setActiveSegment("all");
+            }}
+          >
+            <option value="all">📅 Dönem: Hepsi</option>
+            <option value="2026-2027">2026-2027 (Aktif)</option>
+            <option value="2026-2027-YAZ">2026-2027-YAZ</option>
+            <option value="2025-2026">2025-2026</option>
+          </select>
+
+          {/* Durum Dropdown */}
+          <select
+            className="student-filter-select"
+            value={selectedStatus}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              if (e.target.value !== "all") setActiveSegment("all");
+            }}
+          >
+            <option value="all">🏷️ Durum: Hepsi</option>
+            <option value="Aktif">Aktif / Kesin Kayıt</option>
+            <option value="Yaz Kursu">Yaz Kursu</option>
+            <option value="Mezun / Geçmiş">Mezun / Geçmiş</option>
+          </select>
+
+          {/* Sınıf / Şube Dropdown */}
+          <select
+            className="student-filter-select"
+            value={selectedClass}
+            onChange={(e) => setSelectedClass(e.target.value)}
+          >
+            <option value="all">🏫 Sınıf: Hepsi</option>
+            {classOptions.map((cls) => (
+              <option key={cls} value={cls}>
+                {cls}
+              </option>
+            ))}
+          </select>
+
+          {/* Bakiye Dropdown */}
+          <select
+            className="student-filter-select"
+            value={selectedDebt}
+            onChange={(e) => {
+              setSelectedDebt(e.target.value);
+              if (e.target.value !== "all") setActiveSegment("all");
+            }}
+          >
+            <option value="all">💰 Bakiye: Hepsi</option>
+            <option value="has_debt">Borcu Olanlar (Bekliyor)</option>
+            <option value="no_debt">Borcu Bitenler (Tamamlandı)</option>
+          </select>
+
+          {/* Sıfırla Butonu */}
+          {hasActiveCustomFilters && (
+            <button
+              onClick={handleResetFilters}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "7px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                fontSize: "12px",
+                fontWeight: "600",
+                cursor: "pointer",
+                color: "var(--muted)",
+                whiteSpace: "nowrap"
+              }}
+              title="Filtreleri Sıfırla"
+            >
+              Sıfırla
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sonuç Sayısı ve Bilgi Çubuğu */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", padding: "0 4px" }}>
+        <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--muted)" }}>
+          Gösterilen: <strong style={{ color: "var(--foreground)" }}>{filteredStudents.length}</strong> öğrenci
+          {filteredStudents.length !== stats.total && ` (Toplam ${stats.total} kayıt arasından filtrelendi)`}
+        </span>
+        {activeSegment === "active" && (
+          <span style={{ fontSize: "12px", background: "#dcfce7", color: "#15803d", padding: "3px 10px", borderRadius: "12px", fontWeight: "600" }}>
+            ✓ 2026-2027 Aktif Eğitim Öğretim Dönemi
+          </span>
+        )}
+      </div>
+
+      {/* Tablo */}
+      <section className="panel table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>ÖĞRENCİ</th>
+              <th>DURUM</th>
+              <th>VELİ / TELEFON</th>
+              <th>OKUL & SINIF</th>
+              <th>ALAN / PROGRAM</th>
+              <th>BAKİYE DURUMU</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredStudents.map((s) => {
+              const isAktif = s.status === "Aktif" || s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık";
+              const isYaz = s.status === "Yaz Kursu" || s.program === "2026-2027-YAZ";
+              const isMezun = s.status === "Mezun / Geçmiş" || s.program === "2025-2026";
+
+              return (
+                <tr key={s.id} data-testid={`student-row-${s.id}`} onClick={() => onSelect(s)}>
+                  <td>
+                    <div className="person">
+                      {s.photo ? (
+                        <img src={s.photo} alt="" className="student-avatar" style={{ objectFit: "cover" }} />
+                      ) : (
+                        <div className="student-avatar">
+                          {s.student_name.split(" ").map((x) => x[0]).join("").slice(0, 2)}
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <b>{s.student_name}</b>
+                          {s.student_no && (
+                            <span className="role-pill" style={{ fontSize: 10, padding: "1px 6px", background: "#f1f5f9", color: "#475569" }}>
+                              #{s.student_no}
+                            </span>
+                          )}
+                        </div>
+                        <span>{s.student_phone || "Telefon yok"}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    {isAktif && <span className="status-badge active-badge">🟢 Aktif Kayıt</span>}
+                    {isYaz && <span className="status-badge summer-badge">☀️ Yaz Kursu</span>}
+                    {isMezun && <span className="status-badge archive-badge">🎓 Mezun / Geçmiş</span>}
+                    {!isAktif && !isYaz && !isMezun && <span className="status-badge active-badge">🟢 Aktif Kayıt</span>}
+                  </td>
+                  <td>
+                    <div className="cell-stack">
+                      <b>{s.parent_name}</b>
+                      <span>{s.parent_phone}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="cell-stack">
+                      <b>{s.school}</b>
+                      <span>{s.student_class}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="cell-stack">
+                      <span className="program-tag">{s.program}</span>
+                      {s.department && <small style={{ color: "#64748b", fontSize: 11 }}>{s.department}</small>}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="balance">
+                      <b>{money(s.remaining)}</b>
+                      <span className={s.remaining === 0 ? "paid" : "pending"}>
+                        {s.remaining === 0 ? "Tamamlandı" : "Bekliyor"}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <button data-testid={`student-detail-${s.id}`} className="row-arrow" onClick={() => onSelect(s)}>
+                      <ChevronRight size={17} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {filteredStudents.length === 0 && (
+              <tr>
+                <td colSpan={7} style={{ textAlign: "center", padding: "36px", color: "var(--muted)" }}>
+                  <Users size={32} style={{ margin: "0 auto 8px auto", opacity: 0.4, display: "block" }} />
+                  Belirtilen kriterlere ve filtrelere uygun öğrenci kaydı bulunamadı.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+    </>
+  );
 }
 
 function Payments({ me, data, onOpen }) {
-  return <>
-    <PageHead eyebrow="FİNANS · TAHSİLAT TAKİBİ" title="Tahsilatlar">
-      {can(me,"export_data") && <Button testid="export-payments-button" secondary onClick={() => downloadBlob(`${API}/export/payments`, `inegol-cozum-tahsilat.csv`)}><Download size={16}/> Excel indir</Button>}
-      {can(me,"payment_create") && <Button testid="add-payment-button" onClick={() => onOpen("payment")}><Plus size={17} /> Tahsilat ekle</Button>}
-    </PageHead>
-    <div className="stats-grid compact"><Stat icon={TrendingUp} label="Toplam tahsilat" value={money(data.students.reduce((a,s) => a+s.paid_amount,0))} note="Tüm öğrenciler" color="green" trend="Güncel" /><Stat icon={CircleDollarSign} label="Tahsilat adedi" value={data.payments.length} note="Kayıtlı işlem" color="blue" trend="" /></div>
-    <section className="panel table-panel"><div className="panel-head"><div><h2>Tahsilat hareketleri</h2><p>Renkli durumlar ödeme takibini kolaylaştırır</p></div></div><PaymentTable payments={data.payments} students={data.students} /></section>
-  </>;
+  const [selectedRegister, setSelectedRegister] = useState("all");
+  const [selectedReceiptPayment, setSelectedReceiptPayment] = useState(null);
+  const [selectedPromissoryStudent, setSelectedPromissoryStudent] = useState(null);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseTitle, setExpenseTitle] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("Genel");
+  const [expenseDate, setExpenseDate] = useState(today());
+  const [expenses, setExpenses] = useState(data.expenses || []);
+
+  const payments = data.payments || [];
+  const students = data.students || [];
+
+  // Kasa Defteri Ayrımı
+  const registers = useMemo(() => {
+    let nakit = 0;
+    let pos = 0;
+    let banka = 0;
+    let senet = 0;
+
+    payments.forEach((p) => {
+      const m = (p.method || "").toLowerCase();
+      const amt = Number(p.amount || 0);
+      if (m.includes("nakit") || m.includes("elden") || m.includes("kasa")) {
+        nakit += amt;
+      } else if (m.includes("kart") || m.includes("pos")) {
+        pos += amt;
+      } else if (m.includes("bank") || m.includes("havale") || m.includes("eft")) {
+        banka += amt;
+      } else if (m.includes("senet") || m.includes("çek")) {
+        senet += amt;
+      } else {
+        nakit += amt;
+      }
+    });
+
+    const totalExpenseSum = expenses.reduce((a, e) => a + Number(e.amount || 0), 0);
+    return { nakit, pos, banka, senet, totalExpenseSum };
+  }, [payments, expenses]);
+
+  const filteredPayments = useMemo(() => {
+    if (selectedRegister === "all") return payments;
+    return payments.filter((p) => {
+      const m = (p.method || "").toLowerCase();
+      if (selectedRegister === "nakit") return m.includes("nakit") || m.includes("elden") || (!m.includes("kart") && !m.includes("pos") && !m.includes("bank") && !m.includes("havale") && !m.includes("senet"));
+      if (selectedRegister === "pos") return m.includes("kart") || m.includes("pos");
+      if (selectedRegister === "banka") return m.includes("bank") || m.includes("havale") || m.includes("eft");
+      if (selectedRegister === "senet") return m.includes("senet") || m.includes("çek");
+      return true;
+    });
+  }, [payments, selectedRegister]);
+
+  const handleAddExpense = async (e) => {
+    e.preventDefault();
+    if (!expenseTitle || !expenseAmount) return;
+    try {
+      const res = await axios.post(`${API}/expenses`, {
+        title: expenseTitle,
+        amount: parseFloat(expenseAmount),
+        category: expenseCategory,
+        expense_date: expenseDate
+      });
+      setExpenses((prev) => [
+        {
+          id: res.data?.id || `exp-${Date.now()}`,
+          title: expenseTitle,
+          amount: parseFloat(expenseAmount),
+          category: expenseCategory,
+          expense_date: expenseDate
+        },
+        ...prev
+      ]);
+      setShowExpenseModal(false);
+      setExpenseTitle("");
+      setExpenseAmount("");
+      alert("Kurum gideri başarıyla kaydedildi.");
+    } catch (err) {
+      alert("Gider kaydedilemedi: " + err.message);
+    }
+  };
+
+  const handleNotifyOverdue = () => {
+    const overdueStudents = students.filter((s) => Number(s.remaining || 0) > 0);
+    if (overdueStudents.length === 0) {
+      alert("Vadesi geçmiş borcu olan öğrenci bulunmuyor.");
+      return;
+    }
+    const target = overdueStudents[0];
+    const msg = `Sayın Velimiz, Özel İnegöl Çözüm Kursu'nda kayıtlı öğrencimiz ${target.student_name} için kalan taksit bakiyesi ${money(target.remaining)}'dir. Kurumumuz muhasebe birimine ödeme detayları için başvurmanızı rica ederiz. İletişim: 0224 715 00 02`;
+    openWhatsApp(target.parent_phone, msg);
+    if (overdueStudents.length > 1) {
+      alert(`Toplam ${overdueStudents.length} bakiye sahibi öğrenci tespit edildi. İlk öğrencinin (${target.student_name}) WhatsApp mesajı hazırlandı.`);
+    }
+  };
+
+  return (
+    <>
+      <PageHead eyebrow="FİNANS · KASA DEFTERİ & TAHSİLAT" title="Kasa Defteri & Tahsilat Yönetimi">
+        <button 
+          className="btn secondary" 
+          onClick={handleNotifyOverdue}
+          style={{ display: "flex", gap: "6px", alignItems: "center", borderColor: "#16a34a", color: "#16a34a" }}
+          title="Vadesi geçmiş bakiye sahiplerine tek tıkla WhatsApp borç hatırlatması açar"
+        >
+          <MessageCircle size={16} /> Veliye WhatsApp Borç Hatırlat
+        </button>
+        <button 
+          className="btn secondary" 
+          onClick={() => setShowExpenseModal(true)}
+          style={{ display: "flex", gap: "6px", alignItems: "center" }}
+        >
+          <TrendingDown size={16} color="var(--danger)" /> Gider Ekle
+        </button>
+        {can(me, "export_data") && (
+          <Button testid="export-payments-button" secondary onClick={() => downloadBlob(`${API}/export/payments`, `inegol-cozum-tahsilat.csv`)}>
+            <Download size={16} /> Excel İndir
+          </Button>
+        )}
+        {can(me, "payment_create") && (
+          <Button testid="add-payment-button" onClick={() => onOpen("payment")}>
+            <Plus size={17} /> Tahsilat Ekle
+          </Button>
+        )}
+      </PageHead>
+
+      {/* 4 Kasa Defteri Ayrımı */}
+      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", marginBottom: "16px" }}>
+        <Stat 
+          icon={Wallet} 
+          label="Nakit Kasa" 
+          value={money(registers.nakit)} 
+          note="Elden Tahsil Edilen" 
+          color="green" 
+          trend="Aktif Kasa"
+          onClick={() => setSelectedRegister("nakit")} 
+        />
+        <Stat 
+          icon={CircleDollarSign} 
+          label="POS / Kredi Kartı" 
+          value={money(registers.pos)} 
+          note="Banka POS Çekimleri" 
+          color="blue" 
+          trend="Bankada"
+          onClick={() => setSelectedRegister("pos")} 
+        />
+        <Stat 
+          icon={TrendingUp} 
+          label="Banka Transferi" 
+          value={money(registers.banka)} 
+          note="Havale / EFT Kasası" 
+          color="blue" 
+          trend="Hesapta"
+          onClick={() => setSelectedRegister("banka")} 
+        />
+        <Stat 
+          icon={FileText} 
+          label="Senet / Çek Kasası" 
+          value={money(registers.senet)} 
+          note="Vadeli Matbu Senetler" 
+          color="purple" 
+          trend="Portföyde"
+          onClick={() => setSelectedRegister("senet")} 
+        />
+      </div>
+
+      {/* Kasa Filtreleme Sekmeleri */}
+      <div className="attendance-controls-bar" style={{ marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--muted)" }}>Kasa Filtresi:</span>
+          {["all", "nakit", "pos", "banka", "senet"].map((reg) => (
+            <button
+              key={reg}
+              className={`summary-pill ${selectedRegister === reg ? "active" : ""}`}
+              style={{
+                cursor: "pointer",
+                background: selectedRegister === reg ? "var(--primary)" : "var(--surface)",
+                color: selectedRegister === reg ? "#fff" : "var(--foreground)",
+                border: "1px solid var(--border)",
+                padding: "4px 12px",
+                borderRadius: "20px",
+                fontSize: "12px",
+                fontWeight: "600"
+              }}
+              onClick={() => setSelectedRegister(reg)}
+            >
+              {reg === "all" ? "Tüm Kasalar" : reg === "nakit" ? "Nakit Kasa" : reg === "pos" ? "POS / Kredi Kartı" : reg === "banka" ? "Banka Havale" : "Senet / Çek"}
+            </button>
+          ))}
+        </div>
+        <span className="result-count">{filteredPayments.length} Tahsilat Hareketi</span>
+      </div>
+
+      <section className="panel table-panel">
+        <div className="panel-head">
+          <div>
+            <h2>Kasa ve Tahsilat Hareketleri</h2>
+            <p>Her tahsilat için resmi makbuz veya matbu senet basımı yapabilirsiniz</p>
+          </div>
+        </div>
+        <PaymentTable 
+          payments={filteredPayments} 
+          students={students} 
+          onSelect={(s) => setSelectedPromissoryStudent(s)}
+          onOpenReceipt={(p) => setSelectedReceiptPayment(p)}
+          onOpenPromissory={(s) => setSelectedPromissoryStudent(s)}
+        />
+      </section>
+
+      {/* Gider Ekle Modal */}
+      {showExpenseModal && (
+        <div className="modal-backdrop" onClick={() => setShowExpenseModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "440px" }}>
+            <div className="modal-head">
+              <h2>Kurum Gideri Ekle</h2>
+              <button className="icon-btn" onClick={() => setShowExpenseModal(false)}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleAddExpense}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Gider Başlığı *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Örn: Ekim Ayı Bina Kirası, Fotokopi Kağıdı..." 
+                    value={expenseTitle} 
+                    onChange={(e) => setExpenseTitle(e.target.value)} 
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Tutar (TL) *</label>
+                    <input 
+                      type="number" 
+                      required 
+                      step="any" 
+                      placeholder="0.00" 
+                      value={expenseAmount} 
+                      onChange={(e) => setExpenseAmount(e.target.value)} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Kategori</label>
+                    <select value={expenseCategory} onChange={(e) => setExpenseCategory(e.target.value)}>
+                      <option value="Kira">Kira</option>
+                      <option value="Personel / Öğretmen">Personel / Öğretmen</option>
+                      <option value="Kırtasiye / Yayın">Kırtasiye / Yayın</option>
+                      <option value="Fatura / Enerji">Fatura / Enerji</option>
+                      <option value="İkram / Temizlik">İkram / Temizlik</option>
+                      <option value="Genel">Genel</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Tarih</label>
+                  <input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
+                </div>
+              </div>
+              <div className="modal-foot">
+                <button type="button" className="btn secondary" onClick={() => setShowExpenseModal(false)}>İptal</button>
+                <button type="submit" className="btn">Gideri Kaydet</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tahsilat Makbuzu Modalı */}
+      {selectedReceiptPayment && (
+        <ReceiptModal 
+          payment={selectedReceiptPayment} 
+          student={students.find((s) => s.id === selectedReceiptPayment.student_id)} 
+          onClose={() => setSelectedReceiptPayment(null)} 
+        />
+      )}
+
+      {/* Matbu Senet Modalı */}
+      {selectedPromissoryStudent && (
+        <PromissoryNoteModal 
+          student={selectedPromissoryStudent} 
+          onClose={() => setSelectedPromissoryStudent(null)} 
+        />
+      )}
+    </>
+  );
 }
 
-function PaymentTable({ payments, students, onSelect }) {
+function PaymentTable({ payments, students, onSelect, onOpenReceipt, onOpenPromissory }) {
   const list = payments.length ? payments : students.map((s, i) => ({
     id: `p${i}`,
     student_id: s.id,
     payment_date: today(),
-    method: i ? "Kredi Kartı" : "Banka Transferi",
-    note: "Dönem ödemesi",
-    amount: s.paid_amount || 0
+    method: i % 2 === 0 ? "Nakit Kasa" : "Kredi Kartı",
+    note: "Dönem taksit ödemesi",
+    amount: s.paid_amount || 4000
   }));
 
   return (
@@ -735,30 +1529,58 @@ function PaymentTable({ payments, students, onSelect }) {
             <tr>
               <th>ÖĞRENCİ</th>
               <th>TARİH</th>
-              <th>YÖNTEM</th>
+              <th>KASA / YÖNTEM</th>
               <th>AÇIKLAMA</th>
               <th>TUTAR</th>
               <th>DURUM</th>
+              <th style={{ textAlign: "right" }}>MAKBUZ & SENET</th>
             </tr>
           </thead>
           <tbody>
-            {list.map(p => {
-              const s = students.find(x => x.id === p.student_id);
+            {list.map((p) => {
+              const s = students.find((x) => x.id === p.student_id);
               return (
-                <tr key={p.id} onClick={() => { if (onSelect && s) onSelect(s); }} style={{ cursor: onSelect ? "pointer" : "default" }} title={s ? `${s.student_name} detaylarını aç` : undefined}>
-                  <td>
+                <tr key={p.id}>
+                  <td onClick={() => { if (onSelect && s) onSelect(s); }} style={{ cursor: "pointer" }}>
                     <div className="person">
                       <div className="student-avatar small">
-                        {s?.student_name?.split(" ").map(x => x[0]).join("") || "?"}
+                        {s?.student_name?.split(" ").map((x) => x[0]).join("") || "?"}
                       </div>
-                      <b>{s?.student_name || "—"}</b>
+                      <div>
+                        <b>{s?.student_name || "Öğrenci"}</b>
+                        <span style={{ fontSize: "11px", color: "var(--muted)", display: "block" }}>
+                          {s?.student_class || "Şube yok"}
+                        </span>
+                      </div>
                     </div>
                   </td>
                   <td>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</td>
-                  <td><span className="method-tag">{p.method}</span></td>
-                  <td className="muted-cell">{p.note || "—"}</td>
+                  <td><span className="method-tag">{p.method || "Nakit Kasa"}</span></td>
+                  <td className="muted-cell">{p.note || "Eğitim taksiti"}</td>
                   <td><b className="amount">{money(p.amount)}</b></td>
-                  <td><span className="status-pill success">İşlendi</span></td>
+                  <td><span className="status-pill success">İşlendi ✓</span></td>
+                  <td style={{ textAlign: "right" }}>
+                    <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                      <button 
+                        className="btn secondary" 
+                        style={{ padding: "4px 8px", fontSize: "11px", display: "flex", gap: "4px", alignItems: "center" }}
+                        title="Resmi Tahsilat Makbuzunu Yazdır"
+                        onClick={() => onOpenReceipt && onOpenReceipt(p)}
+                      >
+                        <Receipt size={13} color="var(--primary)" /> Makbuz
+                      </button>
+                      {s && (
+                        <button 
+                          className="btn secondary" 
+                          style={{ padding: "4px 8px", fontSize: "11px", display: "flex", gap: "4px", alignItems: "center" }}
+                          title="Matbu Senet Koçanı Yazdır"
+                          onClick={() => onOpenPromissory && onOpenPromissory(s)}
+                        >
+                          <FileText size={13} color="#7c3aed" /> Senet
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -767,14 +1589,14 @@ function PaymentTable({ payments, students, onSelect }) {
       </div>
 
       <div className="mobile-only-cards payments-mobile-list">
-        {list.map(p => {
-          const s = students.find(x => x.id === p.student_id);
+        {list.map((p) => {
+          const s = students.find((x) => x.id === p.student_id);
           return (
-            <div key={p.id} className="mobile-data-card payment-card" data-testid={`payment-card-${p.id}`} onClick={() => { if (onSelect && s) onSelect(s); }} style={{ cursor: onSelect ? "pointer" : "default" }} title={s ? `${s.student_name} detaylarını aç` : undefined}>
+            <div key={p.id} className="mobile-data-card payment-card" data-testid={`payment-card-${p.id}`}>
               <div className="payment-card-top">
-                <div className="person">
+                <div className="person" onClick={() => { if (onSelect && s) onSelect(s); }} style={{ cursor: "pointer" }}>
                   <div className="student-avatar small">
-                    {s?.student_name?.split(" ").map(x => x[0]).join("") || "?"}
+                    {s?.student_name?.split(" ").map((x) => x[0]).join("") || "?"}
                   </div>
                   <div>
                     <b>{s?.student_name || "—"}</b>
@@ -788,7 +1610,24 @@ function PaymentTable({ payments, students, onSelect }) {
                   <span className="method-tag">{p.method}</span>
                   <span className="card-note">{p.note || "Tahsilat kaydı"}</span>
                 </div>
-                <span className="status-pill success">İşlendi</span>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button 
+                    className="btn secondary" 
+                    style={{ padding: "3px 8px", fontSize: "11px" }}
+                    onClick={() => onOpenReceipt && onOpenReceipt(p)}
+                  >
+                    Makbuz
+                  </button>
+                  {s && (
+                    <button 
+                      className="btn secondary" 
+                      style={{ padding: "3px 8px", fontSize: "11px" }}
+                      onClick={() => onOpenPromissory && onOpenPromissory(s)}
+                    >
+                      Senet
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -798,39 +1637,317 @@ function PaymentTable({ payments, students, onSelect }) {
   );
 }
 
-function Classes({ me, classes, onOpen, students = [] }) {
+function EditClassModal({ cls, onClose, API, onSaved }) {
+  const [name, setName] = useState(cls?.name || "");
+  const [level, setLevel] = useState(cls?.level || "");
+  const [room, setRoom] = useState(cls?.room || "");
+  const [capacity, setCapacity] = useState(cls?.capacity || 20);
+  const [teacher, setTeacher] = useState(cls?.teacher || "");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { setErr("Sınıf adı boş bırakılamaz"); return; }
+    setSaving(true); setErr("");
+    try {
+      await axios.put(`${API}/classes/${cls.id}`, { name, level, room, capacity: Number(capacity), teacher });
+      if (onSaved) onSaved();
+      onClose();
+    } catch (e) {
+      setErr(e.response?.data?.detail || "Sınıf güncellenemedi.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: "480px" }}>
+        <div className="modal-head">
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <BookOpen size={18} color="#2563eb" />
+            <h2>Sınıf / Şube Düzenle: {cls?.name}</h2>
+          </div>
+          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {err && <div className="report-msg" style={{ background: "#fee2e2", color: "#dc2626", marginBottom: "12px" }}>{err}</div>}
+            <div className="form-group">
+              <label>Sınıf / Şube Adı:</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label>Seviye (Örn: 11. Sınıf, LGS Hazırlık):</label>
+              <input type="text" value={level} onChange={e => setLevel(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Derslik / Oda:</label>
+              <input type="text" value={room} onChange={e => setRoom(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Kontenjan / Kapasite:</label>
+              <input type="number" min="1" max="100" value={capacity} onChange={e => setCapacity(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Sorumlu Sınıf Öğretmeni:</label>
+              <input type="text" value={teacher} onChange={e => setTeacher(e.target.value)} />
+            </div>
+          </div>
+          <div className="modal-foot">
+            <button type="button" className="btn secondary" onClick={onClose}>Vazgeç</button>
+            <button type="submit" className="btn" disabled={saving}>
+              {saving ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Classes({ me, classes = [], onOpen, students = [], onSelect, onNavigate, reload, API }) {
+  const [selectedClass, setSelectedClass] = useState(classes[0] || null);
+  const [editingClass, setEditingClass] = useState(null);
+  const [classSearch, setClassSearch] = useState("");
+
+  const activeClass = selectedClass || classes[0];
+  const enrolledStudents = useMemo(() => {
+    if (!activeClass) return [];
+    return students.filter(s => (s.program === activeClass.name || s.student_class === activeClass.name));
+  }, [students, activeClass]);
+
+  const filteredClassStudents = useMemo(() => {
+    return enrolledStudents.filter(s => 
+      `${s.student_name} ${s.student_no} ${s.parent_name}`.toLowerCase().includes(classSearch.toLowerCase())
+    );
+  }, [enrolledStudents, classSearch]);
+
+  const handleDeleteClass = async (c) => {
+    if (!window.confirm(`"${c.name}" sınıfını silmek istediğinize emin misiniz?`)) return;
+    try {
+      await axios.delete(`${API}/classes/${c.id}`);
+      if (reload) reload();
+      if (selectedClass?.id === c.id) setSelectedClass(null);
+    } catch (err) {
+      alert("Sınıf silinirken hata: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
   return <>
-    <PageHead eyebrow="EĞİTİM · DERSLİKLER" title="Sınıflar">
-      {can(me,"class_create") && <Button testid="add-class-button" onClick={() => onOpen("class")}><Plus size={17} /> Sınıf oluştur</Button>}
+    <PageHead eyebrow="EĞİTİM · DERSLİKLER VE ŞUBE YÖNETİMİ" title="Sınıflar & Şubeler">
+      {can(me,"class_create") && <Button testid="add-class-button" onClick={() => onOpen("class")}><Plus size={17} /> Sınıf Oluştur</Button>}
     </PageHead>
-    <div className="class-grid">{classes.map(c => {
-      const enrolled = students.filter(s => s.program === c.name || s.student_class === c.name).length;
-      const pct = c.capacity > 0 ? Math.min(100, Math.round((enrolled / c.capacity) * 100)) : 0;
-      return (
-        <div className="class-card" key={c.id}>
-          <div className="class-top">
-            <div className="class-icon"><BookOpen size={20} /></div>
-            <span className="active-label">AKTİF</span>
+
+    {/* Sınıf Kartları Grid */}
+    <div className="class-grid">
+      {classes.map(c => {
+        const enrolled = students.filter(s => s.program === c.name || s.student_class === c.name).length;
+        const pct = c.capacity > 0 ? Math.min(100, Math.round((enrolled / c.capacity) * 100)) : 0;
+        const isSelected = activeClass?.id === c.id;
+        return (
+          <div 
+            className={`class-card ${isSelected ? "selected-card" : ""}`} 
+            key={c.id}
+            onClick={() => setSelectedClass(c)}
+            style={{
+              cursor: "pointer",
+              position: "relative",
+              border: isSelected ? "2px solid #2563eb" : "1px solid var(--line)",
+              boxShadow: isSelected ? "0 4px 14px rgba(37,99,235,0.18)" : "none",
+              transition: "all 0.2s ease"
+            }}
+          >
+            <div className="class-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div className="class-icon"><BookOpen size={20} /></div>
+                <span className="active-label">AKTİF</span>
+              </div>
+              <div style={{ display: "flex", gap: "4px" }} onClick={e => e.stopPropagation()}>
+                <button 
+                  className="icon-btn" 
+                  title="Sınıfı Düzenle"
+                  style={{ padding: "4px" }}
+                  onClick={() => setEditingClass(c)}
+                >
+                  <Edit size={14} color="#2563eb" />
+                </button>
+                <button 
+                  className="icon-btn" 
+                  title="Sınıfı Sil"
+                  style={{ padding: "4px" }}
+                  onClick={() => handleDeleteClass(c)}
+                >
+                  <Trash2 size={14} color="#ef4444" />
+                </button>
+              </div>
+            </div>
+
+            <h2 style={{ margin: "8px 0 4px 0" }}>{c.name}</h2>
+            <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>{c.level || "—"} · {c.room || "Derslik"}</p>
+            
+            <div className="class-meta" style={{ marginTop: "10px" }}>
+              <span><Users size={14} /> {c.capacity} kişilik ({enrolled} kayıtlı)</span>
+              <span>{c.teacher || "Öğretmen Atanmadı"}</span>
+            </div>
+
+            <div className="class-progress" style={{ marginTop: "10px" }}>
+              <div><span>Doluluk</span><b>%{pct}</b></div>
+              <div className="progress-track"><div style={{ width: `${pct}%` }} /></div>
+            </div>
+
+            <div style={{ marginTop: "12px", borderTop: "1px dashed var(--line)", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: isSelected ? "#2563eb" : "#64748b", fontWeight: "600" }}>
+              <span>{isSelected ? "● Şube Seçildi" : "Kadro ve Detayları Gör"}</span>
+              <ChevronRight size={13} />
+            </div>
           </div>
-          <h2>{c.name}</h2>
-          <p>{c.level} · {c.room}</p>
-          <div className="class-meta">
-            <span><Users size={15} /> {c.capacity} kişilik ({enrolled} kayıtlı)</span>
-            <span>{c.teacher}</span>
+        );
+      })}
+    </div>
+
+    {/* Seçili Sınıfın Detay & Öğrenci Yönetim Paneli */}
+    {activeClass && (
+      <div className="panel" style={{ marginTop: "24px", padding: "20px 24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", borderBottom: "1px solid var(--line)", paddingBottom: "16px", marginBottom: "16px" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "700" }}>{activeClass.name} Öğrenci Kadrosu & Şube Yönetimi</h2>
+              <span className="badge" style={{ background: "#dbeafe", color: "#1d4ed8", padding: "3px 8px", borderRadius: "12px", fontSize: "11px" }}>
+                {enrolledStudents.length} Kayıtlı Öğrenci
+              </span>
+            </div>
+            <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "13px" }}>
+              Seviye: <b>{activeClass.level || "—"}</b> · Derslik: <b>{activeClass.room || "—"}</b> · Kontenjan: <b>{activeClass.capacity}</b> · Sınıf Öğretmeni: <b>{activeClass.teacher || "—"}</b>
+            </p>
           </div>
-          <div className="class-progress">
-            <div><span>Dolu kapasite</span><b>%{pct}</b></div>
-            <div className="progress-track"><div style={{ width: `${pct}%` }} /></div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button className="btn small secondary" onClick={() => setEditingClass(activeClass)} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+              <Edit size={14} /> Sınıfı Düzenle
+            </button>
+            <button className="btn small secondary" onClick={() => onNavigate && onNavigate("attendance")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+              <UserCheck size={14} /> Yoklama Al
+            </button>
+            <button className="btn small secondary" onClick={() => onNavigate && onNavigate("schedules")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+              <Clock size={14} /> Ders Programı
+            </button>
+            <button className="btn small secondary" onClick={() => onNavigate && onNavigate("homework")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+              <BookOpen size={14} /> Ödev Ver
+            </button>
+            <button className="btn small" onClick={() => onOpen("student")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+              <Plus size={14} /> Yeni Öğrenci Ekle
+            </button>
           </div>
         </div>
-      );
-    })}</div>
+
+        {/* Öğrenci Arama ve Liste */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+          <div className="top-search" style={{ width: "280px", margin: 0 }}>
+            <Search size={15} />
+            <input 
+              placeholder="Bu sınıfta öğrenci ara..." 
+              value={classSearch} 
+              onChange={e => setClassSearch(e.target.value)} 
+            />
+          </div>
+          <span style={{ fontSize: "12px", color: "#64748b" }}>
+            Öğrenci satırına tıklayarak tam <b>Öğrenci Bilgi Sayfasını</b> açabilirsiniz.
+          </span>
+        </div>
+
+        {filteredClassStudents.length > 0 ? (
+          <div style={{ border: "1px solid var(--line)", borderRadius: "8px", overflow: "hidden" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Öğrenci Adı Soyadı</th>
+                  <th>Okulu</th>
+                  <th>Veli & İletişim</th>
+                  <th>Taksit / Bakiye</th>
+                  <th>Durum</th>
+                  <th style={{ textAlign: "right" }}>İşlem</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredClassStudents.map(s => {
+                  const rem = Math.max(0, (Number(s.total_fee) || 0) - (Number(s.paid_amount) || 0));
+                  return (
+                    <tr 
+                      key={s.id} 
+                      onClick={() => onSelect && onSelect(s)}
+                      style={{ cursor: "pointer", transition: "background 0.15s" }}
+                    >
+                      <td><b>#{s.student_no || "—"}</b></td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div className="student-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+                            {s.student_name?.split(" ").map(x=>x[0]).join("").slice(0,2)}
+                          </div>
+                          <b style={{ color: "#1e293b" }}>{s.student_name}</b>
+                        </div>
+                      </td>
+                      <td><span style={{ color: "#475569" }}>{s.school || "—"}</span></td>
+                      <td>
+                        <div>
+                          <span>{s.parent_name}</span>
+                          <span style={{ display: "block", fontSize: "11px", color: "#64748b" }}>{s.parent_phone}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <b style={{ color: rem > 0 ? "#ef4444" : "#16a34a" }}>
+                          {rem > 0 ? `${rem.toLocaleString("tr-TR")} TL Kalan` : "Ödendi ✓"}
+                        </b>
+                      </td>
+                      <td>
+                        <span className="status-pill success">{s.status || "Kayıtlı"}</span>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <button 
+                          className="btn small secondary" 
+                          onClick={(e) => { e.stopPropagation(); onSelect && onSelect(s); }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
+                        >
+                          Öğrenci Bilgi Sayfası <ChevronRight size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ padding: "30px", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed var(--line)" }}>
+            <Users size={28} color="#94a3b8" style={{ margin: "0 auto 6px auto" }} />
+            <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
+              {classSearch ? "Aramaya uygun öğrenci bulunamadı." : "Bu sınıfta henüz kayıtlı öğrenci yok."}
+            </p>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* MODAL: SINIFI DÜZENLE */}
+    {editingClass && (
+      <EditClassModal 
+        cls={editingClass} 
+        onClose={() => setEditingClass(null)} 
+        API={API}
+        onSaved={() => {
+          if (reload) reload();
+          setEditingClass(null);
+        }}
+      />
+    )}
   </>;
 }
 
 function Documents({ students, payments }) {
   const [student, setStudent] = useState(students[0]?.id || "");
   const [kind, setKind] = useState("contract");
+  const [showPromissory, setShowPromissory] = useState(false);
 
   useEffect(() => {
     if (!student && students.length > 0) {
@@ -865,9 +1982,10 @@ function Documents({ students, payments }) {
         <h2>Öğrenci seçin</h2>
         <p>Resmî MEB Öğrenci Kayıt Sözleşmesi otomatik doldurulur; boş kalan alanlar veli tarafından ıslak imzayla tamamlanabilir.</p>
         <select data-testid="document-student-select" value={student} onChange={e => setStudent(e.target.value)}>{students.map(x => <option key={x.id} value={x.id}>{x.student_name}</option>)}</select>
-        <div className="doc-actions">
+        <div className="doc-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <Button testid="print-contract-button" onClick={() => { setKind("contract"); setTimeout(() => window.print(), 60); }}><FileText size={17} /> Sözleşmeyi yazdır</Button>
           <Button testid="print-receipt-button" secondary onClick={() => { setKind("receipt"); setTimeout(() => window.print(), 60); }}><Receipt size={17} /> Makbuzu yazdır</Button>
+          <Button testid="print-promissory-button" secondary onClick={() => setShowPromissory(true)}><FileText size={17} color="#7c3aed" /> Matbu Senetleri Yazdır</Button>
         </div>
         <div className="doc-tips"><b>İpucu:</b> Yazıcı diyaloğunda "Hedef: PDF olarak kaydet" seçerseniz sözleşme direkt PDF çıkar.</div>
       </section>
@@ -1036,6 +2154,9 @@ function Documents({ students, payments }) {
         </section>
       )}
     </div>
+    {showPromissory && s && (
+      <PromissoryNoteModal student={s} onClose={() => setShowPromissory(false)} />
+    )}
   </>;
 }
 
@@ -1273,12 +2394,15 @@ function Reports({ me }) {
   </>;
 }
 
-function StudentDetailDrawer({ student, onClose, me }) {
+function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStudent, onOpenPayment, onNavigate }) {
+  const [activeTab, setActiveTab] = useState("genel"); // 'genel' | 'sinavlar' | 'yoklama' | 'muhasebe' | 'rehberlik'
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [contractUrl, setContractUrl] = useState("");
+  const [selectedKarne, setSelectedKarne] = useState(null);
+  const [showPromissoryModal, setShowPromissoryModal] = useState(false);
+  const [showHataKarnesiModal, setShowHataKarnesiModal] = useState(false);
   const fileRef = useRef();
 
   const refresh = () => {
@@ -1286,7 +2410,7 @@ function StudentDetailDrawer({ student, onClose, me }) {
     setLoading(true); setDetail(null);
     axios.get(`${API}/students/${student.id}/detail`).then(r => setDetail(r.data)).finally(() => setLoading(false));
   };
-  useEffect(() => { refresh(); setContractUrl(""); setUploadMsg(""); /* eslint-disable-next-line */ }, [student?.id]);
+  useEffect(() => { refresh(); setUploadMsg(""); /* eslint-disable-next-line */ }, [student?.id]);
   if (!student) return null;
 
   const s = detail?.student || student;
@@ -1294,6 +2418,18 @@ function StudentDetailDrawer({ student, onClose, me }) {
   const plan = detail?.installment_plan || [];
   const { extraSum, discount, effective } = computeEffective(s);
   const canEdit = can(me, "student_create");
+
+  // Öğrencinin katıldığı sınavlar
+  const studentExams = (data.exams || []).map(exam => {
+    const res = (exam.results || []).find(r => r.student_id === s.id);
+    return res ? { exam, ...res } : null;
+  }).filter(Boolean);
+
+  // Öğrencinin yoklama kayıtları
+  const studentAttendance = (data.attendanceToday || []).filter(a => a.student_id === s.id);
+
+  // Öğrencinin rehberlik kayıtları
+  const studentMentorship = (data.mentorship || []).filter(m => m.student_id === s.id);
 
   const uploadContract = async (file) => {
     if (!file) return;
@@ -1313,104 +2449,445 @@ function StudentDetailDrawer({ student, onClose, me }) {
     try {
       const r = await axios.get(`${API}/students/${s.id}/contract-file`, { responseType: "blob" });
       const url = URL.createObjectURL(r.data);
-      setContractUrl(url);
       window.open(url, "_blank");
     } catch (e) { setUploadMsg("Sözleşme açılamadı"); }
   };
 
-  return <div className="drawer-backdrop" onClick={onClose}><div className="drawer" onClick={e => e.stopPropagation()}>
-    <div className="drawer-head">
-      <div className="drawer-title">
-        <div className="student-avatar big">{s.student_name?.split(" ").map(x=>x[0]).join("").slice(0,2)}</div>
-        <div><div className="eyebrow">ÖĞRENCİ KAYDI</div><h2>{s.student_name}</h2><span className="muted-cell">{s.school || "—"} · {s.student_class || "—"} · {s.program || "—"}</span></div>
-      </div>
-      <button data-testid="drawer-close" className="icon-btn" onClick={onClose}><X size={18}/></button>
-    </div>
-    {loading && <div className="drawer-loading">Yükleniyor...</div>}
-    <div className="drawer-body">
-      <div className="mini-stats">
-        <div><span>Öğrenim ücreti</span><b>{money(s.total_fee)}</b></div>
-        <div><span>+ Ekstra</span><b className="green">{money(extraSum)}</b></div>
-        <div><span>− İndirim</span><b className="red">{money(discount)}</b></div>
-        <div><span>Net toplam</span><b data-testid="drawer-net-total">{money(effective)}</b></div>
-      </div>
-      <div className="mini-stats">
-        <div><span>Ödenen</span><b className="green">{money(s.paid_amount)}</b></div>
-        <div><span>Kalan</span><b className="red">{money(Math.max(0, effective - (s.paid_amount||0)))}</b></div>
-        <div><span>Taksit</span><b>{s.installment_count || 1}</b></div>
-        <div><span>İndirim türü</span><b style={{fontSize:11}}>{(DISCOUNT_TYPES.find(d => d.v === s.discount_type) || {}).label || "—"}</b></div>
-      </div>
-
-      {(extraSum > 0 || discount > 0) && <>
-        <h3 className="drawer-h3">Ekstra Ücretler & İndirim</h3>
-        <div className="drawer-grid">
-          {EXTRA_KEYS.filter(x => Number((s.extra_fees||{})[x.k] || 0) > 0).map(x => <div key={x.k}><span>{x.label}</span><b>{money((s.extra_fees||{})[x.k])}</b></div>)}
-          {discount > 0 && <div><span>İndirim ({(DISCOUNT_TYPES.find(d => d.v === s.discount_type) || {}).label || "—"})</span><b className="red">−{money(discount)}</b></div>}
-        </div>
-      </>}
-
-      <h3 className="drawer-h3">İmzalı Sözleşme</h3>
-      <div className="contract-upload-box">
-        {s.signed_contract_path ? <>
-          <div className="contract-file">
-            <FileText size={22} />
-            <div><b>{s.signed_contract_filename || "Sözleşme"}</b><span>{s.signed_contract_uploaded_at ? new Date(s.signed_contract_uploaded_at).toLocaleString("tr-TR") : ""}</span></div>
-            <Button testid="view-contract-button" secondary onClick={viewContract}><FileText size={15}/> Görüntüle</Button>
+  return (
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 9999 }}>
+      <div 
+        className="modal" 
+        onClick={e => e.stopPropagation()} 
+        style={{ width: "95vw", maxWidth: "980px", maxHeight: "92vh", display: "flex", flexDirection: "column", padding: 0, overflow: "hidden", borderRadius: "12px" }}
+      >
+        {/* Modal Başlığı & Hızlı Aksiyonlar */}
+        <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--line)", background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+            <div className="student-avatar big" style={{ width: 48, height: 48, fontSize: 17, background: "#2563eb", color: "#fff" }}>
+              {s.student_name?.split(" ").map(x=>x[0]).join("").slice(0,2)}
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "700" }}>{s.student_name}</h2>
+                <span className="status-pill success">{s.status || "Kayıtlı"}</span>
+                {s.student_no && <span className="badge" style={{ background: "#e2e8f0", fontSize: "11px" }}>#{s.student_no}</span>}
+              </div>
+              <span style={{ fontSize: "13px", color: "#64748b" }}>
+                {s.school || "İnegöl Anadolu Lisesi"} · <b>{s.student_class || s.program || "11-A Sayısal"}</b> · {s.department || "Sayısal"}
+              </span>
+            </div>
           </div>
-          {canEdit && <div className="contract-replace"><small>Yeni sürüm yüklemek için:</small><input data-testid="contract-file-input" ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => uploadContract(e.target.files?.[0])}/></div>}
-        </> : (canEdit ? <div className="contract-empty"><FileText size={28}/><div><b>Henüz imzalı sözleşme yüklenmedi</b><span>Veliyle imzaladığınız sözleşmeyi tarayıp arşivleyin (PDF/JPG/PNG · maks 10MB)</span></div><input data-testid="contract-file-input" ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => uploadContract(e.target.files?.[0])}/></div> : <div className="muted-cell">Henüz imzalı sözleşme yüklenmedi.</div>)}
-        {uploading && <div className="report-msg" style={{background:"#eff6ff",color:"#1d4ed8"}}>Yükleniyor...</div>}
-        {uploadMsg && <div className="report-msg" data-testid="contract-upload-msg">{uploadMsg}</div>}
+
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <button 
+              className="btn small secondary" 
+              onClick={() => setShowPromissoryModal(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#7c3aed", borderColor: "#7c3aed" }}
+              title="Öğrencinin tüm taksit senetlerini koçan halinde yazdır"
+            >
+              <FileText size={14} /> Matbu Senet
+            </button>
+            <button 
+              className="btn small secondary" 
+              onClick={() => setShowHataKarnesiModal(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#dc2626", borderColor: "#dc2626" }}
+              title="Öğrencinin kazanım analizli hata karnesini aç"
+            >
+              <TrendingDown size={14} /> Hata Karnesi
+            </button>
+            {canEdit && (
+              <button 
+                className="btn small" 
+                onClick={() => onEditStudent && onEditStudent(s)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "#2563eb", color: "#fff" }}
+              >
+                <Edit size={14} /> Öğrenciyi Düzenle
+              </button>
+            )}
+            {s.parent_phone && (
+              <button 
+                className="btn small" 
+                onClick={() => openWhatsApp(s.parent_phone, `Sayın Velimiz ${s.parent_name}, ${s.student_name} öğrencimizin Özel İnegöl Çözüm Kurs Merkezi bilgilendirme mesajıdır.`)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "#16a34a", color: "#fff" }}
+              >
+                <MessageCircle size={14} /> Veliye WhatsApp
+              </button>
+            )}
+            <button className="icon-btn" onClick={onClose}><X size={19} /></button>
+          </div>
+        </div>
+
+        {/* 5 Sekmeli Navigasyon Çubuğu */}
+        <div className="student-profile-tabs" style={{ display: "flex", borderBottom: "1px solid var(--line)", background: "#fff", padding: "0 24px" }}>
+          {[
+            { id: "genel", label: "Genel & Kimlik", icon: Users },
+            { id: "sinavlar", label: `Sınavlar & Karneler (${studentExams.length})`, icon: Award },
+            { id: "yoklama", label: "Devamsızlık & Yoklama", icon: CalendarCheck },
+            { id: "muhasebe", label: "Muhasebe & Taksitler", icon: Wallet },
+            { id: "rehberlik", label: "Rehberlik & Koçluk", icon: Target }
+          ].map(t => {
+            const Icon = t.icon;
+            const isActive = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                className="tab-btn"
+                style={{
+                  padding: "12px 16px",
+                  border: "none",
+                  background: "none",
+                  borderBottom: isActive ? "2px solid #2563eb" : "2px solid transparent",
+                  color: isActive ? "#2563eb" : "#64748b",
+                  fontWeight: isActive ? "700" : "500",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "13px"
+                }}
+                onClick={() => setActiveTab(t.id)}
+              >
+                <Icon size={15} /> {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Modal İçeriği */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+          {loading && <div style={{ padding: "30px", textAlign: "center", color: "#64748b" }}>Bilgiler yükleniyor...</div>}
+
+          {/* SEKME 1: GENEL & KİMLİK */}
+          {activeTab === "genel" && (
+            <div>
+              <div className="mini-stats" style={{ marginBottom: "16px" }}>
+                <div><span>Öğrenim Ücreti</span><b>{money(s.total_fee)}</b></div>
+                <div><span>+ Ekstra Ücretler</span><b className="green">+{money(extraSum)}</b></div>
+                <div><span>− İndirim</span><b className="red">−{money(discount)}</b></div>
+                <div><span>Net Toplam</span><b style={{ color: "#2563eb" }}>{money(effective)}</b></div>
+                <div><span>Kalan Borç</span><b className="red">{money(Math.max(0, effective - (s.paid_amount||0)))}</b></div>
+              </div>
+
+              <h3 className="drawer-h3">Öğrenci & Kayıt Detayları (Edesis)</h3>
+              <div className="drawer-grid" style={{ marginBottom: "16px" }}>
+                <div><span>Öğrenci No</span><b>{s.student_no ? `#${s.student_no}` : "—"}</b></div>
+                <div><span>T.C. Kimlik No</span><b>{s.student_tc || "—"}</b></div>
+                <div><span>Cinsiyet</span><b>{s.gender || "—"}</b></div>
+                <div><span>Doğum Tarihi</span><b>{s.birth_date ? new Date(s.birth_date).toLocaleDateString("tr-TR") : "—"}</b></div>
+                <div><span>Alanı / Bölümü</span><b>{s.department || "—"}</b></div>
+                <div><span>Kayıt Durumu</span><b className="status-pill success">{s.status || "Kayıtlı"}</b></div>
+                <div><span>Din Kültürü</span><b>{s.din_muaf ? "Muaf" : "Dahil"}</b></div>
+                <div><span>Yabancı Dil</span><b>{s.ing_muaf ? "Muaf" : "Dahil"}</b></div>
+                <div><span>Servis Kullanımı</span><b>{s.uses_service ? "Servis Kullanıyor" : "Kullanmıyor"}</b></div>
+                <div><span>Diploma / OBP Notu</span><b>{s.diploma_grade || "—"}</b></div>
+              </div>
+
+              {s.health_notes && (
+                <div style={{ margin: "10px 0 16px", padding: "10px 14px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}>
+                  <b style={{ color: "#475569" }}>Sağlık & Özel Not:</b> {s.health_notes}
+                </div>
+              )}
+
+              <h3 className="drawer-h3">Veli & Aile İletişim Bilgileri</h3>
+              <div className="drawer-grid" style={{ marginBottom: "16px" }}>
+                <div><span>Öğrenci Telefonu</span><b>{s.student_phone || "—"}</b></div>
+                <div><span>İkamet Adresi</span><b>{s.student_address || "—"}</b></div>
+                <div><span>Baba (Birincil Veli)</span><b>{s.parent_name || "—"}</b></div>
+                <div><span>Baba Telefonu</span><b>{s.parent_phone || "—"}</b></div>
+                <div><span>Baba Mesleği</span><b>{s.father_job || "—"}</b></div>
+                <div><span>Anne Adı</span><b>{s.mother_name || "—"}</b></div>
+                <div><span>Anne Telefonu</span><b>{s.mother_phone || "—"}</b></div>
+                <div><span>Anne Mesleği</span><b>{s.mother_job || "—"}</b></div>
+                <div><span>Vasi (Varsa)</span><b>{s.guardian_name || "—"}</b></div>
+              </div>
+
+              <h3 className="drawer-h3">İmzalı Kayıt Sözleşmesi Arşivi</h3>
+              <div className="contract-upload-box">
+                {s.signed_contract_path ? (
+                  <div className="contract-file">
+                    <FileText size={24} color="#2563eb" />
+                    <div>
+                      <b>{s.signed_contract_filename || "Resmi Sözleşme"}</b>
+                      <span>{s.signed_contract_uploaded_at ? new Date(s.signed_contract_uploaded_at).toLocaleString("tr-TR") : ""}</span>
+                    </div>
+                    <Button testid="view-contract-button" secondary onClick={viewContract}><FileText size={14}/> Sözleşmeyi Görüntüle</Button>
+                  </div>
+                ) : (
+                  <div className="contract-empty">
+                    <FileText size={26} color="#94a3b8" />
+                    <div>
+                      <b>Henüz taranmış ıslak imzalı sözleşme yüklenmedi</b>
+                      <span>Veliyle imzaladığınız sözleşmeyi tarayıp dijital arşivleyin (PDF/JPG · maks 10MB)</span>
+                    </div>
+                    {canEdit && (
+                      <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => uploadContract(e.target.files?.[0])} />
+                    )}
+                  </div>
+                )}
+                {uploading && <div className="report-msg" style={{ background: "#eff6ff", color: "#1d4ed8" }}>Yükleniyor...</div>}
+                {uploadMsg && <div className="report-msg">{uploadMsg}</div>}
+              </div>
+            </div>
+          )}
+
+          {/* SEKME 2: SINAVLAR, KARNELER & HATA ANALİZİ */}
+          {activeTab === "sinavlar" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                <h4 style={{ margin: 0, fontSize: "14px", fontWeight: "700" }}>Katıldığı Deneme Sınavları & Net Analizi</h4>
+                <span style={{ fontSize: "12px", color: "#64748b" }}>Toplam {studentExams.length} Sınav Sonucu Bulundu</span>
+              </div>
+
+              {studentExams.length > 0 ? (
+                <div style={{ border: "1px solid var(--line)", borderRadius: "8px", overflow: "hidden" }}>
+                  <table className="data-table" style={{ width: "100%", fontSize: "12px", margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Sınav Adı</th>
+                        <th>Kitapçık</th>
+                        <th>Türkçe</th>
+                        <th>Matematik</th>
+                        <th>Fen</th>
+                        <th>Sosyal</th>
+                        <th>Toplam Net</th>
+                        <th>Puan</th>
+                        <th>Sıralama</th>
+                        <th style={{ textAlign: "right" }}>Karne</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studentExams.map((ex, idx) => (
+                        <tr key={idx}>
+                          <td><b>{ex.exam?.title || "Kurumsal Deneme"}</b></td>
+                          <td><span className="badge" style={{ background: "#f1f5f9" }}>{ex.booklet || "A"}</span></td>
+                          <td>{ex.turkish_net}</td>
+                          <td>{ex.math_net}</td>
+                          <td>{ex.science_net}</td>
+                          <td>{ex.social_net}</td>
+                          <td><b style={{ color: "#2563eb" }}>{ex.total_net}</b></td>
+                          <td><b style={{ color: "#16a34a" }}>{ex.score}</b></td>
+                          <td><span className="badge" style={{ background: "#fef3c7", color: "#b45309" }}>#{ex.overall_rank || 1}</span></td>
+                          <td style={{ textAlign: "right" }}>
+                            <button 
+                              className="btn small" 
+                              onClick={() => setSelectedKarne({ ...ex, student_name: s.student_name, student_no: s.student_no, student_class: s.student_class })}
+                              style={{ padding: "4px 8px", fontSize: "11px", background: "#7c3aed", color: "#fff" }}
+                            >
+                              Karne Gör
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: "36px", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed var(--line)" }}>
+                  <Award size={32} color="#94a3b8" style={{ margin: "0 auto 8px auto" }} />
+                  <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
+                    Öğrenciye ait henüz bir sınav sonucu kaydı bulunamadı.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SEKME 3: DEVAMSIZLIK & YOKLAMA */}
+          {activeTab === "yoklama" && (
+            <div>
+              <div className="mini-stats" style={{ marginBottom: "16px" }}>
+                <div><span>Toplam Kayıt</span><b>{studentAttendance.length}</b></div>
+                <div><span>Geldiği Gün</span><b className="green">{studentAttendance.filter(a => a.status === "geldi").length}</b></div>
+                <div><span>Devamsızlık</span><b className="red">{studentAttendance.filter(a => a.status === "gelmedi").length}</b></div>
+                <div><span>İzinli / Geç</span><b style={{ color: "#b45309" }}>{studentAttendance.filter(a => ["izinli", "gec"].includes(a.status)).length}</b></div>
+              </div>
+
+              {studentAttendance.length > 0 ? (
+                <div style={{ border: "1px solid var(--line)", borderRadius: "8px", overflow: "hidden" }}>
+                  <table className="data-table" style={{ width: "100%", fontSize: "13px", margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Tarih</th>
+                        <th>Ders Saati</th>
+                        <th>Durum</th>
+                        <th>Açıklama / Not</th>
+                        <th style={{ textAlign: "right" }}>İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studentAttendance.map((a, idx) => (
+                        <tr key={idx}>
+                          <td><b>{new Date(a.date).toLocaleDateString("tr-TR")}</b></td>
+                          <td>{a.lesson_slot || "Tüm Gün"}</td>
+                          <td>
+                            <span className={`status-pill ${a.status === "geldi" ? "success" : a.status === "gelmedi" ? "danger" : "warning"}`}>
+                              {a.status === "geldi" ? "Geldi" : a.status === "gelmedi" ? "Gelmedi" : a.status}
+                            </span>
+                          </td>
+                          <td><span style={{ color: "#64748b" }}>{a.note || "—"}</span></td>
+                          <td style={{ textAlign: "right" }}>
+                            {s.parent_phone && a.status === "gelmedi" && (
+                              <button 
+                                className="btn small secondary" 
+                                onClick={() => openWhatsApp(s.parent_phone, `Sayın Velimiz, ${s.student_name} öğrencimiz ${new Date(a.date).toLocaleDateString("tr-TR")} tarihinde kurumumuza katılmamıştır.`)}
+                                style={{ fontSize: "11px", padding: "4px 8px" }}
+                              >
+                                Devamsızlık Bildir
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: "36px", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed var(--line)" }}>
+                  <CalendarCheck size={32} color="#94a3b8" style={{ margin: "0 auto 8px auto" }} />
+                  <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
+                    Öğrenciye ait güncel devamsızlık kaydı bulunmuyor.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SEKME 4: MUHASEBE & TAKSİTLER */}
+          {activeTab === "muhasebe" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <h4 style={{ margin: 0, fontSize: "14px", fontWeight: "700" }}>Taksit ve Ödeme Çizelgesi</h4>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button className="btn small" onClick={() => onOpenPayment && onOpenPayment()} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                    <Plus size={14} /> Tahsilat Ekle
+                  </button>
+                </div>
+              </div>
+
+              <div className="plan-table" style={{ marginBottom: "20px" }}>
+                <div className="plan-row plan-head">
+                  <span>#</span>
+                  <span>Vade Tarihi</span>
+                  <span>Taksit Tutarı</span>
+                  <span>Ödenen</span>
+                  <span>Kalan</span>
+                  <span>Durum</span>
+                </div>
+                {plan.map(p => (
+                  <div key={p.no} className={`plan-row plan-${p.status}`}>
+                    <span><b>#{p.no}</b></span>
+                    <span>{new Date(p.due_date).toLocaleDateString("tr-TR")}</span>
+                    <span><b>{money(p.amount)}</b></span>
+                    <span style={{ color: "#16a34a" }}>{money(p.paid)}</span>
+                    <span style={{ color: p.remaining > 0 ? "#dc2626" : "#64748b" }}>{money(p.remaining)}</span>
+                    <span>
+                      <span className={`status-pill ${p.status === "paid" ? "success" : p.status === "partial" ? "warning" : "danger"}`}>
+                        {p.status === "paid" ? "Ödendi" : p.status === "partial" ? "Kısmi" : "Bekliyor"}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+                {plan.length === 0 && <div style={{ padding: "14px", textAlign: "center", color: "#64748b" }}>Taksit planı oluşturulmamış.</div>}
+              </div>
+
+              <h4 style={{ margin: "0 0 10px 0", fontSize: "14px", fontWeight: "700" }}>Geçmiş Tahsilat Hareketleri</h4>
+              <div className="plan-table">
+                <div className="plan-row plan-head">
+                  <span>Tarih</span>
+                  <span>Yöntem</span>
+                  <span>Tutar</span>
+                  <span>Açıklama</span>
+                  <span>Kaydeden</span>
+                </div>
+                {payments.map(p => (
+                  <div key={p.id} className="plan-row">
+                    <span>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</span>
+                    <span><span className="method-tag">{p.method}</span></span>
+                    <span><b style={{ color: "#16a34a" }}>{money(p.amount)}</b></span>
+                    <span>{p.note || "—"}</span>
+                    <span>{p.created_by_name || "—"}</span>
+                  </div>
+                ))}
+                {payments.length === 0 && <div style={{ padding: "14px", textAlign: "center", color: "#64748b" }}>Henüz tahsilat kaydı yok.</div>}
+              </div>
+            </div>
+          )}
+
+          {/* SEKME 5: REHBERLİK & KOÇLUK */}
+          {activeTab === "rehberlik" && (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "16px" }}>
+                <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>HEDEF ÜNİVERSİTE / LİSE:</span>
+                  <b style={{ fontSize: "15px", color: "#1e293b" }}>Boğaziçi Üniversitesi / Galatasaray Lisesi</b>
+                </div>
+                <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>HEDEF BÖLÜM:</span>
+                  <b style={{ fontSize: "15px", color: "#2563eb" }}>Bilgisayar Mühendisliği / Sayısal Derece</b>
+                </div>
+              </div>
+
+              <h4 style={{ margin: "0 0 10px 0", fontSize: "14px", fontWeight: "700" }}>Koçluk ve Birebir Görüşme Kayıtları</h4>
+              {studentMentorship.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {studentMentorship.map((m, idx) => (
+                    <div key={idx} style={{ padding: "12px", border: "1px solid var(--line)", borderRadius: "8px", background: "#fff" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                        <b>Danışman / Mentor: {m.mentor_name}</b>
+                        <span style={{ fontSize: "12px", color: "#64748b" }}>{new Date(m.session_date).toLocaleDateString("tr-TR")}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "13px", color: "#334155" }}>{m.notes || "Görüşme tamamlandı."}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: "30px", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed var(--line)" }}>
+                  <Target size={28} color="#94a3b8" style={{ margin: "0 auto 6px auto" }} />
+                  <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
+                    Henüz koçluk görüşmesi girilmemiş. Rehberlik modülünden randevu oluşturabilirsiniz.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+
+        {/* Modal Alt Çubuğu */}
+        <div style={{ padding: "12px 24px", borderTop: "1px solid var(--line)", background: "#f8fafc", display: "flex", justifyContent: "flex-end" }}>
+          <button className="btn secondary" onClick={onClose}>Kapat</button>
+        </div>
       </div>
 
-      <h3 className="drawer-h3">Öğrenci & Kayıt Bilgileri (Edesis)</h3>
-      <div className="drawer-grid">
-        <div><span>Öğrenci No</span><b>{s.student_no ? `#${s.student_no}` : "—"}</b></div>
-        <div><span>T.C. Kimlik No</span><b>{s.student_tc || "—"}</b></div>
-        <div><span>Cinsiyet</span><b>{s.gender || "—"}</b></div>
-        <div><span>Doğum Tarihi</span><b>{s.birth_date ? new Date(s.birth_date).toLocaleDateString("tr-TR") : "—"}</b></div>
-        <div><span>Alanı / Bölümü</span><b>{s.department || "—"}</b></div>
-        <div><span>Kayıt Durumu</span><b className="status-pill success">{s.status || "Kayıtlı"}</b></div>
-        <div><span>Din Kültürü</span><b>{s.din_muaf ? "Muaf" : "Dahil"}</b></div>
-        <div><span>Yabancı Dil</span><b>{s.ing_muaf ? "Muaf" : "Dahil"}</b></div>
-        <div><span>Servis Kullanımı</span><b>{s.uses_service ? "Servis Kullanıyor" : "Kullanmıyor"}</b></div>
-        <div><span>Diploma / OBP Notu</span><b>{s.diploma_grade || "—"}</b></div>
-      </div>
-      {s.health_notes && (
-        <div style={{ margin: "10px 0 16px", padding: "10px 14px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}>
-          <b style={{ color: "#475569" }}>Sağlık & Rehberlik Notu:</b> {s.health_notes}
-        </div>
+      {/* KARNE MODALI POPUP */}
+      {selectedKarne && (
+        <OfficialEdesisKarneModal 
+          data={selectedKarne} 
+          onClose={() => setSelectedKarne(null)} 
+        />
       )}
 
-      <h3 className="drawer-h3">İletişim & Veli Bilgileri</h3>
-      <div className="drawer-grid">
-        <div><span>Öğrenci telefon</span><b>{s.student_phone || "—"}</b></div>
-        <div><span>Öğrenci Adresi</span><b>{s.student_address || "—"}</b></div>
-        <div><span>Baba (Veli)</span><b>{s.parent_name || "—"}</b></div>
-        <div><span>Baba telefon</span><b>{s.parent_phone || "—"}</b></div>
-        <div><span>Baba Meslek</span><b>{s.father_job || "—"}</b></div>
-        <div><span>Anne</span><b>{s.mother_name || "—"}</b></div>
-        <div><span>Anne telefon</span><b>{s.mother_phone || "—"}</b></div>
-        <div><span>Anne Meslek</span><b>{s.mother_job || "—"}</b></div>
-        <div><span>Vasi (Varsa)</span><b>{s.guardian_name || "—"}</b></div>
-      </div>
+      {/* MATBU SENET KOÇANI */}
+      {showPromissoryModal && (
+        <PromissoryNoteModal 
+          student={s} 
+          onClose={() => setShowPromissoryModal(false)} 
+        />
+      )}
 
-      <h3 className="drawer-h3">Taksit Planı</h3>
-      <div className="plan-table">
-        <div className="plan-row plan-head"><span>#</span><span>Vade</span><span>Tutar</span><span>Ödenen</span><span>Durum</span></div>
-        {plan.map(p => <div key={p.no} className={`plan-row plan-${p.status}`} data-testid={`installment-${p.no}`}><span>#{p.no}</span><span>{new Date(p.due_date).toLocaleDateString("tr-TR")}</span><span>{money(p.amount)}</span><span>{money(p.paid)}</span><span className={`status-pill ${p.status === "paid" ? "success" : p.status === "partial" ? "warning" : "danger"}`}>{p.status === "paid" ? "Ödendi" : p.status === "partial" ? "Kısmi" : "Bekliyor"}</span></div>)}
-        {plan.length === 0 && <div className="muted-cell" style={{padding:"14px",textAlign:"center"}}>Taksit planı yok</div>}
-      </div>
-
-      <h3 className="drawer-h3">Tahsilat Geçmişi</h3>
-      <div className="plan-table">
-        <div className="plan-row plan-head"><span>Tarih</span><span>Yöntem</span><span>Tutar</span><span>Açıklama</span><span>Kaydeden</span></div>
-        {payments.map(p => <div key={p.id} className="plan-row" data-testid={`payment-${p.id}`}><span>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</span><span><span className="method-tag">{p.method}</span></span><span><b>{money(p.amount)}</b></span><span className="muted-cell">{p.note || "—"}</span><span className="muted-cell">{p.created_by_name || "—"}</span></div>)}
-        {payments.length === 0 && <div className="muted-cell" style={{padding:"14px",textAlign:"center"}}>Henüz tahsilat kaydı yok</div>}
-      </div>
+      {/* KAZANIM HATA KARNESİ */}
+      {showHataKarnesiModal && (
+        <HataKarnesiModal 
+          student={s} 
+          onClose={() => setShowHataKarnesiModal(false)} 
+        />
+      )}
     </div>
-  </div></div>;
+  );
 }
+
+// Geriye dönük uyumluluk için alias
+const StudentDetailDrawer = StudentProfileModal;
 
 function AuditPage() {
   const [logs, setLogs] = useState([]);

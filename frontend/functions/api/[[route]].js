@@ -260,6 +260,21 @@ export async function onRequest(context) {
     if (path === "/auth/quick-login" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
       const role = body.role in ROLE_LABELS ? body.role : ROLE_ADMIN;
+      const password = String(body.password || "").trim();
+
+      const ADMIN_PASSWORDS = ["cozum2026", "admin4321", "admin", "inegol2026"];
+      const STAFF_PASSWORD = "4321";
+
+      if (role === ROLE_ADMIN) {
+        if (!password || !ADMIN_PASSWORDS.includes(password)) {
+          return json({ detail: "Hatalı yönetici parolası!" }, 401);
+        }
+      } else {
+        if (password !== STAFF_PASSWORD) {
+          return json({ detail: "Hatalı şifre! (Personel şifresi: 4321)" }, 401);
+        }
+      }
+
       const demoUsers = {
         [ROLE_ADMIN]: { email: "kayrasemihseymen@gmail.com", name: "Semih Seymen (Yönetici)" },
         [ROLE_ACCOUNTING]: { email: "info@inegolcozumkurs.com", name: "Muhasebe Sorumlusu" },
@@ -1162,6 +1177,66 @@ export async function onRequest(context) {
       return json({ id, ...c });
     }
 
+    const classItemMatch = path.match(/^\/classes\/([^\/]+)$/);
+    if (classItemMatch) {
+      const classId = classItemMatch[1];
+      if (request.method === "PUT" || request.method === "PATCH") {
+        const user = await getCurrentUser(request, db);
+        const c = await request.json();
+        await db
+          .prepare(
+            "UPDATE classes SET name = ?, level = ?, room = ?, capacity = ?, teacher = ? WHERE id = ?"
+          )
+          .bind(
+            c.name || "",
+            c.level || "",
+            c.room || "",
+            parseInt(c.capacity) || 20,
+            c.teacher || "",
+            classId
+          )
+          .run();
+        await logAction(db, user, "class.update", "class", classId, `${c.name} sınıfı güncellendi`);
+        const updated = await db.prepare("SELECT * FROM classes WHERE id = ?").bind(classId).first();
+        return json(updated);
+      }
+      if (request.method === "DELETE") {
+        const user = await getCurrentUser(request, db);
+        await db.prepare("DELETE FROM classes WHERE id = ?").bind(classId).run();
+        await logAction(db, user, "class.delete", "class", classId, `Sınıf silindi: ${classId}`);
+        return json({ ok: true });
+      }
+    }
+
+    // ---------------- OPTICAL (OMR & TEMPLATES) ----------------
+    if (path === "/optical/templates" && request.method === "GET") {
+      try {
+        const res = await db.prepare("SELECT * FROM optical_templates ORDER BY name ASC").all();
+        return json(res.results || []);
+      } catch {
+        // Fallback default templates if table not yet migrated
+        return json([
+          { id: "opt-lgs-90", name: "LGS 90 Soru Tek Oturum Standart Form", exam_type: "LGS", paper_size: "A4", question_count: 90, columns_count: 4 },
+          { id: "opt-tyt-120", name: "TYT 120 Soru Standart ÖSYM Formu", exam_type: "TYT", paper_size: "A4", question_count: 120, columns_count: 4 },
+          { id: "opt-ayt-160", name: "AYT 160 Soru 4 Branş Formu", exam_type: "AYT", paper_size: "A4", question_count: 160, columns_count: 4 },
+          { id: "opt-kds-60", name: "KDS / HBS 60 Soru Ara Sınıf Formu", exam_type: "KDS", paper_size: "A5", question_count: 60, columns_count: 3 }
+        ]);
+      }
+    }
+
+    if (path === "/optical/printer-profiles" && request.method === "GET") {
+      try {
+        const res = await db.prepare("SELECT * FROM optical_printer_profiles ORDER BY name ASC").all();
+        return json(res.results || []);
+      } catch {
+        return json([
+          { id: "p-def", name: "Varsayılan Yazıcı (Standart A4)", offset_x_mm: 0, offset_y_mm: 0, is_default: 1 },
+          { id: "p-epson", name: "Epson L8050 Yüksek Hızlı Fotoğraf/Optik", offset_x_mm: 1.2, offset_y_mm: -0.8, is_default: 0 },
+          { id: "p-hp", name: "HP LaserJet Pro Enterprise", offset_x_mm: -0.5, offset_y_mm: 1.0, is_default: 0 }
+        ]);
+      }
+    }
+
     // ---------------- REMINDERS ----------------
     if (path === "/reminders" && request.method === "GET") {
       const days = parseInt(url.searchParams.get("days")) || 7;
@@ -1486,6 +1561,32 @@ export async function onRequest(context) {
     }
 
     const scheduleIdMatch = path.match(/^\/schedules\/([^\/]+)$/);
+    if (scheduleIdMatch && request.method === "PUT") {
+      const user = await getCurrentUser(request, db);
+      const id = scheduleIdMatch[1];
+      const body = await request.json();
+      await db.prepare(`
+        UPDATE schedules SET
+          class_id = COALESCE(?, class_id),
+          day_of_week = COALESCE(?, day_of_week),
+          time_slot = COALESCE(?, time_slot),
+          subject = COALESCE(?, subject),
+          teacher_name = COALESCE(?, teacher_name),
+          room = COALESCE(?, room)
+        WHERE id = ?
+      `).bind(
+        body.class_id,
+        body.day_of_week ? Number(body.day_of_week) : null,
+        body.time_slot,
+        body.subject,
+        body.teacher_name,
+        body.room,
+        id
+      ).run();
+      await logAction(db, user, "schedule.update", "schedule", id, `${body.subject || "Ders"} güncellendi`);
+      return json({ ok: true });
+    }
+
     if (scheduleIdMatch && request.method === "DELETE") {
       const user = await getCurrentUser(request, db);
       const id = scheduleIdMatch[1];

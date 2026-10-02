@@ -270,3 +270,41 @@ CREATE TABLE IF NOT EXISTS data_alerts (
 INSERT OR IGNORE INTO academic_periods (id, tenant_id, name, is_active, start_date, end_date)
 VALUES (113, 6114, '2024-2025 Eğitim Öğretim Yılı (Aktif)', 1, '2024-09-09', '2025-06-20');
 
+-- ================= OPTICAL & OMR EXTENSIONS =================
+CREATE TABLE IF NOT EXISTS optical_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  exam_type TEXT NOT NULL,
+  paper_size TEXT DEFAULT 'A4',
+  columns_count INTEGER DEFAULT 4,
+  question_count INTEGER DEFAULT 90,
+  param_config TEXT DEFAULT '{}',
+  lesson_config TEXT DEFAULT '[]',
+  fmt_content TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS optical_printer_profiles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  offset_x_mm REAL DEFAULT 0,
+  offset_y_mm REAL DEFAULT 0,
+  is_default INTEGER DEFAULT 0,
+  scale_verified INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT ''
+);
+
+INSERT OR IGNORE INTO optical_templates (id, name, exam_type, paper_size, columns_count, question_count, created_at)
+VALUES 
+('opt-lgs-90', 'LGS 90 Soru Tek Oturum Standart Form', 'LGS', 'A4', 4, 90, datetime('now')),
+('opt-tyt-120', 'TYT 120 Soru Standart ÖSYM Formu', 'TYT', 'A4', 4, 120, datetime('now')),
+('opt-ayt-160', 'AYT 160 Soru 4 Branş Formu', 'AYT', 'A4', 4, 160, datetime('now')),
+('opt-kds-60', 'KDS / HBS 60 Soru Ara Sınıf Formu', 'KDS', 'A5', 3, 60, datetime('now'));
+
+INSERT OR IGNORE INTO optical_printer_profiles (id, name, offset_x_mm, offset_y_mm, is_default, scale_verified, created_at)
+VALUES
+('p-def', 'Varsayılan Yazıcı (Standart A4)', 0.0, 0.0, 1, 1, datetime('now')),
+('p-epson', 'Epson L8050 Yüksek Hızlı Fotoğraf/Optik', 1.2, -0.8, 0, 1, datetime('now')),
+('p-hp', 'HP LaserJet Pro Enterprise', -0.5, 1.0, 0, 1, datetime('now'));
+
+
