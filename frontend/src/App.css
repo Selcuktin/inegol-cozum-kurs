@@ -1611,7 +1611,7 @@ td[colspan] {
   display: grid;
   grid-template-columns: 110px repeat(7, minmax(130px, 1fr));
   gap: 8px;
-  min-width: 900px;
+  min-width: 1060px;
 }
 
 .timetable-header-cell {
@@ -4224,16 +4224,28 @@ td[colspan] {
   padding: 0;
 }
 
-/* Yazdırma Medya Sorguları */
+/* Yazdırma Medya Sorguları & Belge/Makbuz/Senet Baskı İzolasyonu */
 @media print {
   .no-print,
   .sidebar,
   .topbar,
+  .mobile-bottom-nav,
+  .pwa-banner,
   .edesis-subnav-bar,
   .edesis-head,
   .edesis-filter-toolbar,
   .official-karne-toolbar,
-  .modal-backdrop {
+  .page-head,
+  .document-tools,
+  .drawer-backdrop,
+  .doc-tips,
+  .modal-head,
+  .modal-foot,
+  .modal-footer,
+  .head-actions,
+  .btn,
+  .icon-btn,
+  nav {
     display: none !important;
   }
 
@@ -4244,19 +4256,88 @@ td[colspan] {
     padding: 0 !important;
   }
 
+  .content, .main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Modallar içinde yer alan resmi belgeleri (makbuz, senet, sözleşme) temiz yazdırmak için backdrop unbox */
+  .modal-backdrop {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    z-index: auto !important;
+  }
+
+  .modal,
   .modal.official-karne-dialog {
     position: static !important;
     width: 100% !important;
     max-width: 100% !important;
+    max-height: none !important;
     box-shadow: none !important;
     border: none !important;
-    margin: 0 !important;
+    border-radius: 0 !important;
     padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    animation: none !important;
+    background: transparent !important;
+  }
+
+  .modal-body {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  /* Kağıt Dokümanları İzolasyonu */
+  .paper-preview,
+  .receipt-sheet,
+  .promissory-note-sheet,
+  .edesis-actual-karne-doc {
+    box-shadow: none !important;
+    border: 1px solid #334155 !important;
+    background: #fff !important;
+    color: #000 !important;
+    margin: 0 auto !important;
+    max-width: 100% !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .receipt-sheet {
+    padding: 16px 20px !important;
+    margin: 0 auto !important;
+    border-radius: 4px !important;
+  }
+
+  .promissory-note-sheet {
+    page-break-after: always;
+    break-after: page;
+    margin-bottom: 20px !important;
+  }
+
+  .promissory-note-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
   }
 
   .edesis-actual-karne-doc {
     width: 100% !important;
     padding: 0 !important;
+    border: none !important;
+  }
+
+  @page {
+    size: auto;
+    margin: 10mm;
   }
 }
 
@@ -4784,4 +4865,233 @@ td[colspan] {
   color: #475569;
   border: 1px solid #e2e8f0;
 }
+
+/* ==========================================================================
+   EDESYS MUHASEBE V2 & RESPONSIVE FINANCIAL PORTAL SUITE
+   ========================================================================== */
+.muhasebe-v2-container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.muhasebe-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .muhasebe-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .muhasebe-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+}
+
+@media (max-width: 340px) {
+  .muhasebe-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.muhasebe-kpi-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.kpi-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  gap: 6px;
+}
+
+.kpi-value-text {
+  font-size: clamp(16px, 2.2vw, 22px);
+  font-weight: 800;
+  margin-top: 6px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-sub-text {
+  font-size: 11px;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.muhasebe-bank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .muhasebe-bank-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+}
+
+@media (max-width: 500px) {
+  .muhasebe-bank-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.bank-acc-card {
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.bank-acc-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.bank-card-val {
+  font-size: clamp(15px, 2vw, 18px);
+  font-weight: 800;
+  margin-top: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bank-card-flow {
+  font-size: 10px;
+  color: #475569;
+  margin-top: 4px;
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.muhasebe-tabs-scroll {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.muhasebe-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.muhasebe-tabs-scroll .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 12.5px;
+  padding: 7px 14px;
+}
+
+.monthly-trends-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+  margin-top: 10px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 8px;
+  scrollbar-width: thin;
+}
+
+.monthly-trend-pill {
+  flex: 0 0 54px;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  padding: 4px 2px;
+  min-width: 0;
+}
+
+@media (min-width: 800px) {
+  .monthly-trends-strip {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 4px;
+    overflow-x: visible;
+  }
+  .monthly-trend-pill {
+    flex: unset;
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+}
+
+.muhasebe-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .muhasebe-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aging-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .aging-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+}
+
+@media (max-width: 400px) {
+  .aging-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
 

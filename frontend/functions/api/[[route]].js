@@ -1130,7 +1130,7 @@ export async function onRequest(context) {
       const id = "exp_" + crypto.randomUUID().slice(0, 10);
       await db
         .prepare(
-          "INSERT INTO expenses (id, title, amount, expense_date, category, created_by, created_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+          "INSERT INTO expenses (id, title, amount, expense_date, category, account, created_by, created_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
         )
         .bind(
           id,
@@ -1138,12 +1138,13 @@ export async function onRequest(context) {
           Number(e.amount) || 0,
           e.expense_date || new Date().toISOString().slice(0, 10),
           e.category || "Genel",
+          e.account || "Nakit Ana Kasa",
           user?.user_id || "",
           user?.name || ""
         )
         .run();
 
-      await logAction(db, user, "expense.create", "expense", id, `${e.title} · ${e.amount} ₺`);
+      await logAction(db, user, "expense.create", "expense", id, `${e.title} · ${e.amount} ₺ (${e.account || "Nakit Ana Kasa"})`);
       return json({ id, ...e });
     }
 
@@ -1807,10 +1808,10 @@ export async function onRequest(context) {
 
       if (kind === "expenses" || kind === "all") {
         csv += "GİDERLER\n";
-        csv += "Tarih;Başlık;Kategori;Tutar;Kaydeden\n";
+        csv += "Tarih;Başlık;Kategori;Kasa/Hesap;Tutar;Kaydeden\n";
         const eRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all();
         for (const e of eRes.results || []) {
-          csv += `"${e.expense_date || ""}";"${e.title || ""}";"${e.category || ""}";${e.amount || 0};"${e.created_by_name || ""}"\n`;
+          csv += `"${e.expense_date || ""}";"${e.title || ""}";"${e.category || ""}";"${e.account || "Nakit Ana Kasa"}";${e.amount || 0};"${e.created_by_name || ""}"\n`;
         }
         csv += "\n";
       }

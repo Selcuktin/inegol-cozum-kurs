@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount REAL NOT NULL,
   expense_date TEXT NOT NULL,
   category TEXT DEFAULT 'Genel',
+  account TEXT DEFAULT 'Nakit Ana Kasa',
   created_by TEXT DEFAULT '',
   created_by_name TEXT DEFAULT '',
   created_at TEXT DEFAULT ''

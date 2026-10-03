@@ -23,16 +23,134 @@ import {
   Users,
   ShieldCheck,
   RefreshCw,
-  PieChart,
+  PieChart as PieChartIcon,
   BarChart2,
   ArrowUpRight,
   ArrowDownRight,
   Eye,
   Trash2,
-  X
+  X,
+  Percent
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
 import { ReceiptModal } from "./ReceiptModal";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
+
+// Yardımcı: Temiz ve Taşkınsız Para Formatı (Büyük sayılarda küsurat atılır, TL simgesiyle uyumlu)
+function fmtMoney(val, forceDecimals = false) {
+  const num = Number(val) || 0;
+  if (forceDecimals) {
+    return new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+  }
+  if (Math.abs(num) >= 1000 || Number.isInteger(num)) {
+    return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(Math.round(num));
+  }
+  return new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+}
+
+// Yardımcı: Net Etkin Sözleşme Tutarı Hesaplama (Taban Ücret + Ek Hizmetler - İndirim)
+function getEffectiveTotalFee(student) {
+  const base = Number(student?.total_fee) || 0;
+  let extraSum = 0;
+  try {
+    const extras = typeof student?.extra_fees === "string" ? JSON.parse(student?.extra_fees || "{}") : (student?.extra_fees || {});
+    extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
+  } catch {}
+  const discount = Number(student?.discount_amount) || 0;
+  return Math.max(0, base + extraSum - discount);
+}
+
+// Yardımcı: Öğrenci Gerçek Taksit Planı Üretimi
+function computeStudentPlan(student) {
+  const n = Math.max(1, parseInt(student?.installment_count) || 1);
+  const total = getEffectiveTotalFee(student);
+  const per = Math.round((total / n) * 100) / 100;
+  let paidRemaining = Number(student?.paid_amount) || 0;
+
+  let startYear = new Date().getFullYear();
+  let startMonth = new Date().getMonth() + 1;
+  let startDay = 15;
+  if (student?.due_date && student.due_date.length >= 10) {
+    const parts = student.due_date.slice(0, 10).split("-");
+    startYear = parseInt(parts[0]) || startYear;
+    startMonth = parseInt(parts[1]) || startMonth;
+    startDay = parseInt(parts[2]) || startDay;
+  }
+
+  const plan = [];
+  for (let i = 0; i < n; i++) {
+    let m = startMonth + i;
+    let y = startYear + Math.floor((m - 1) / 12);
+    m = ((m - 1) % 12) + 1;
+    const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, 28)).padStart(2, "0")}`;
+
+    const installmentAmount = (i === n - 1) ? Math.max(0, Math.round((total - (per * (n - 1))) * 100) / 100) : per;
+    const applied = Math.min(installmentAmount, paidRemaining);
+    paidRemaining = Math.max(0, paidRemaining - installmentAmount);
+    const remaining = Math.max(0, Math.round((installmentAmount - applied) * 100) / 100);
+    const status = applied >= installmentAmount - 0.5 ? "paid" : applied > 0 ? "partial" : "pending";
+
+    plan.push({
+      no: i + 1,
+      due_date: dueStr,
+      amount: installmentAmount,
+      paid: Math.round(applied * 100) / 100,
+      remaining,
+      status,
+    });
+  }
+  return plan;
+}
+
+function getPaymentAccountInfo(p) {
+  const m = (p.method || "").toLowerCase();
+  const b = (p.bank || "").toLowerCase();
+  if (b.includes("vakıf") || b.includes("vakif") || m.includes("vakıf") || m.includes("vakif")) {
+    return { key: "vakif", label: p.bank || "VakıfBank İnegöl Şb." };
+  }
+  if (b.includes("halk") || m.includes("halk")) {
+    return { key: "halk", label: p.bank || "Halkbank İnegöl Şb." };
+  }
+  if (m.includes("kart") || m.includes("pos")) {
+    return { key: "pos", label: "POS / Kredi Kartı" };
+  }
+  if (m.includes("senet") || m.includes("çek") || m.includes("cek")) {
+    return { key: "senet", label: "Senet & Çek Portföyü" };
+  }
+  if (m.includes("nakit") || m.includes("elden") || m.includes("kasa")) {
+    return { key: "nakit", label: "Nakit Ana Kasa" };
+  }
+  if (m.includes("havale") || m.includes("eft") || m.includes("bank")) {
+    return { key: "vakif", label: p.bank || "VakıfBank İnegöl Şb." };
+  }
+  return { key: "nakit", label: "Nakit Ana Kasa" };
+}
+
+function getExpenseAccountInfo(e) {
+  const acc = (e.account || "").toLowerCase();
+  if (acc.includes("vakıf") || acc.includes("vakif")) {
+    return { key: "vakif", label: "VakıfBank İnegöl Şb." };
+  }
+  if (acc.includes("halk")) {
+    return { key: "halk", label: "Halkbank İnegöl Şb." };
+  }
+  if (acc.includes("pos") || acc.includes("kart")) {
+    return { key: "pos", label: "POS / Kredi Kartı" };
+  }
+  return { key: "nakit", label: "Nakit Ana Kasa" };
+}
 
 export function MuhasebeV2Dashboard({ 
   me, 
@@ -57,7 +175,7 @@ export function MuhasebeV2Dashboard({
   const [expTitle, setExpTitle] = useState("");
   const [expAmount, setExpAmount] = useState("");
   const [expCategory, setExpCategory] = useState("Kira");
-  const [expMethod, setExpMethod] = useState("Nakit");
+  const [expAccount, setExpAccount] = useState("Nakit Ana Kasa");
   const [expDate, setExpDate] = useState(new Date().toISOString().slice(0, 10));
 
   // Quick Payment form
@@ -69,13 +187,25 @@ export function MuhasebeV2Dashboard({
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
   const [payLoading, setPayLoading] = useState(false);
 
-  const students = data.students || [];
-  const payments = data.payments || [];
+  const students = useMemo(() => data.students || [], [data.students]);
+  const payments = useMemo(() => data.payments || [], [data.payments]);
   const [expenses, setExpenses] = useState(data.expenses || []);
 
-  // 1. TOP FINANCIAL CALCULATIONS (Edesis V2 Parity)
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
+
+  // 1. ÖĞRENCİ GERÇEK TAKSİT PLANLARI HARİTASI
+  const studentPlansMap = useMemo(() => {
+    const map = {};
+    students.forEach((s) => {
+      map[s.id] = computeStudentPlan(s);
+    });
+    return map;
+  }, [students]);
+
+  // 2. ÜST FİNANSAL KPI HESAPLAMALARI (Edesis Muhasebe V2)
   const totalContractRevenue = useMemo(() => {
-    return students.reduce((sum, s) => sum + (Number(s.total_fee) || 0), 0);
+    return students.reduce((sum, s) => sum + getEffectiveTotalFee(s), 0);
   }, [students]);
 
   const totalCollected = useMemo(() => {
@@ -90,66 +220,47 @@ export function MuhasebeV2Dashboard({
   const collectionRate = totalContractRevenue > 0 ? Math.round((totalCollected / totalContractRevenue) * 100) : 0;
   const netCashBalance = Math.max(0, totalCollected - totalExpenses);
 
-  // 2. KASA & BANKA DEFTERLERİ (Authentic Edesis Bank Accounts)
-  const registers = useMemo(() => {
-    let vakifbank = 0;
-    let halkbank = 0;
-    let nakit = 0;
-    let pos = 0;
-    let senet = 0;
-
-    payments.forEach((p) => {
-      const m = (p.method || "").toLowerCase();
-      const b = (p.bank || "").toLowerCase();
-      const amt = Number(p.amount || 0);
-
-      if (b.includes("vakıf") || b.includes("vakif") || m.includes("vakıf") || m.includes("vakif")) {
-        vakifbank += amt;
-      } else if (b.includes("halk") || m.includes("halk")) {
-        halkbank += amt;
-      } else if (m.includes("kart") || m.includes("pos")) {
-        pos += amt;
-      } else if (m.includes("senet") || m.includes("çek") || m.includes("cek")) {
-        senet += amt;
-      } else if (m.includes("nakit") || m.includes("elden") || m.includes("kasa")) {
-        nakit += amt;
-      } else {
-        // Genel havale ise ana hesap Vakıfbank
-        if (m.includes("havale") || m.includes("eft") || m.includes("bank")) {
-          vakifbank += amt;
-        } else {
-          nakit += amt;
+  // GAP-1: Bu Ay Vadesi Gelenler (Cari Ay Taksit Tahakkuku)
+  const dueThisMonthData = useMemo(() => {
+    let total = 0;
+    let count = 0;
+    let remaining = 0;
+    students.forEach((s) => {
+      const plan = studentPlansMap[s.id] || [];
+      plan.forEach((inst) => {
+        if (inst.due_date && inst.due_date.startsWith(currentMonthStr)) {
+          total += inst.amount;
+          count += 1;
+          remaining += inst.remaining;
         }
-      }
+      });
     });
-
     return {
-      vakifbank,
-      halkbank,
-      nakit: Math.max(0, nakit - totalExpenses),
-      pos,
-      senet,
-      grossNakit: nakit
+      total,
+      count,
+      remaining,
+      collected: Math.max(0, total - remaining)
     };
-  }, [payments, totalExpenses]);
+  }, [students, studentPlansMap, currentMonthStr]);
 
-  // 3. VADESİ GEÇEN VE BORÇLU ÖĞRENCİLER & YAŞLANDIRMA (Aging Analysis)
+  // GAP-5: Taksit Yaşlandırma & Gecikme Takibi (Gerçek Vade Tarihine Göre)
   const overdueStudents = useMemo(() => {
     return students
-      .map((s, idx) => {
-        const total = Number(s.total_fee) || 0;
+      .map((s) => {
+        const total = getEffectiveTotalFee(s);
         const paid = Number(s.paid_amount) || 0;
         const remaining = Math.max(0, total - paid);
-        
-        // Simüle edilmiş / gerçek vade gecikme gün hesabı
-        // Öğrencinin id hash'ine veya kayıt tarihine göre 1-75 gün arası yaşlandırma
-        const seed = (s.id ? String(s.id).split("").reduce((a,c)=>a+c.charCodeAt(0), 0) : idx * 7) % 75;
-        const daysOverdue = remaining > 0 ? (seed > 15 ? seed : 28) : 0;
+        if (remaining <= 0) return null;
 
-        let agingCategory = "0";
+        let daysOverdue = 28;
+        if (s.due_date) {
+          const diff = Math.floor((new Date(todayStr).getTime() - new Date(s.due_date).getTime()) / 86400000);
+          daysOverdue = Math.max(1, diff);
+        }
+
+        let agingCategory = "1-30";
         if (daysOverdue > 60) agingCategory = "60+";
         else if (daysOverdue > 30) agingCategory = "31-60";
-        else if (daysOverdue > 0) agingCategory = "1-30";
 
         return {
           ...s,
@@ -158,47 +269,310 @@ export function MuhasebeV2Dashboard({
           agingCategory
         };
       })
-      .filter((s) => s.remaining > 0);
-  }, [students]);
+      .filter(Boolean);
+  }, [students, todayStr]);
 
   const totalOverdueDebt = useMemo(() => {
     return overdueStudents.reduce((sum, s) => sum + s.remaining, 0);
   }, [overdueStudents]);
 
-  // Aging categories summary
   const agingSummary = useMemo(() => {
     const c1_30 = overdueStudents.filter(s => s.agingCategory === "1-30");
     const c31_60 = overdueStudents.filter(s => s.agingCategory === "31-60");
     const c60plus = overdueStudents.filter(s => s.agingCategory === "60+");
 
+    const sum1_30 = c1_30.reduce((a, s) => a + s.remaining, 0);
+    const sum31_60 = c31_60.reduce((a, s) => a + s.remaining, 0);
+    const sum60plus = c60plus.reduce((a, s) => a + s.remaining, 0);
+
+    const pct1_30 = totalOverdueDebt > 0 ? Math.round((sum1_30 / totalOverdueDebt) * 100) : 0;
+    const pct31_60 = totalOverdueDebt > 0 ? Math.round((sum31_60 / totalOverdueDebt) * 100) : 0;
+    const pct60plus = totalOverdueDebt > 0 ? Math.max(0, 100 - pct1_30 - pct31_60) : 0;
+
     return {
-      c1_30: { count: c1_30.length, sum: c1_30.reduce((a, s) => a + s.remaining, 0) },
-      c31_60: { count: c31_60.length, sum: c31_60.reduce((a, s) => a + s.remaining, 0) },
-      c60plus: { count: c60plus.length, sum: c60plus.reduce((a, s) => a + s.remaining, 0) }
+      c1_30: { count: c1_30.length, sum: sum1_30, pct: pct1_30 },
+      c31_60: { count: c31_60.length, sum: sum31_60, pct: pct31_60 },
+      c60plus: { count: c60plus.length, sum: sum60plus, pct: pct60plus }
     };
-  }, [overdueStudents]);
+  }, [overdueStudents, totalOverdueDebt]);
 
-  // 4. 12 AYLIK KARŞILAŞTIRMALI TREND VERİSİ (Planlanan Taksit vs Gerçekleşen)
-  const monthlyTrends = [
-    { ay: "Ocak", plan: 240000, gerceklesen: 215000, uyum: 90 },
-    { ay: "Şubat", plan: 260000, gerceklesen: 245000, uyum: 94 },
-    { ay: "Mart", plan: 280000, gerceklesen: 260000, uyum: 93 },
-    { ay: "Nisan", plan: 300000, gerceklesen: 275000, uyum: 92 },
-    { ay: "Mayıs", plan: 320000, gerceklesen: 290000, uyum: 91 },
-    { ay: "Haziran", plan: 290000, gerceklesen: 250000, uyum: 86 },
-    { ay: "Temmuz", plan: 180000, gerceklesen: 155000, uyum: 86 },
-    { ay: "Ağustos", plan: 220000, gerceklesen: 195000, uyum: 89 },
-    { ay: "Eylül", plan: 450000, gerceklesen: 410000, uyum: 91 },
-    { ay: "Ekim", plan: 380000, gerceklesen: 320000, uyum: 84 },
-    { ay: "Kasım", plan: 340000, gerceklesen: 120000, uyum: 35 },
-    { ay: "Aralık", plan: 310000, gerceklesen: 0, uyum: 0 },
-  ];
+  // 3. KASA & BANKA HESAP BAKİYELERİ (GAP-2 & GAP-3)
+  const registers = useMemo(() => {
+    let vakifbankInflow = 0;
+    let halkbankInflow = 0;
+    let nakitInflow = 0;
+    let posInflow = 0;
+    let senetInflow = 0;
 
-  // WhatsApp Borç Hatırlatma Gönder
+    payments.forEach((p) => {
+      const m = (p.method || "").toLowerCase();
+      const b = (p.bank || "").toLowerCase();
+      const amt = Number(p.amount || 0);
+
+      if (b.includes("vakıf") || b.includes("vakif") || m.includes("vakıf") || m.includes("vakif")) {
+        vakifbankInflow += amt;
+      } else if (b.includes("halk") || m.includes("halk")) {
+        halkbankInflow += amt;
+      } else if (m.includes("kart") || m.includes("pos")) {
+        posInflow += amt;
+      } else if (m.includes("senet") || m.includes("çek") || m.includes("cek")) {
+        senetInflow += amt;
+      } else if (m.includes("nakit") || m.includes("elden") || m.includes("kasa")) {
+        nakitInflow += amt;
+      } else {
+        if (m.includes("havale") || m.includes("eft") || m.includes("bank")) {
+          vakifbankInflow += amt;
+        } else {
+          nakitInflow += amt;
+        }
+      }
+    });
+
+    let vakifbankExpense = 0;
+    let halkbankExpense = 0;
+    let nakitExpense = 0;
+    let posExpense = 0;
+
+    expenses.forEach((e) => {
+      const acc = (e.account || "").toLowerCase();
+      const amt = Number(e.amount || 0);
+      if (acc.includes("vakıf") || acc.includes("vakif")) {
+        vakifbankExpense += amt;
+      } else if (acc.includes("halk")) {
+        halkbankExpense += amt;
+      } else if (acc.includes("pos") || acc.includes("kart")) {
+        posExpense += amt;
+      } else {
+        nakitExpense += amt;
+      }
+    });
+
+    return {
+      vakifbankInflow,
+      vakifbankExpense,
+      vakifbank: Math.max(0, vakifbankInflow - vakifbankExpense),
+      
+      halkbankInflow,
+      halkbankExpense,
+      halkbank: Math.max(0, halkbankInflow - halkbankExpense),
+
+      nakitInflow,
+      nakitExpense,
+      nakit: Math.max(0, nakitInflow - totalExpenses),
+
+      posInflow,
+      posExpense,
+      pos: Math.max(0, posInflow - posExpense),
+
+      senetInflow,
+      senet: senetInflow,
+
+      grossNakit: nakitInflow
+    };
+  }, [payments, expenses, totalExpenses]);
+
+  const netLiquidBalance = useMemo(() => {
+    return Math.max(0, registers.vakifbank + registers.halkbank + registers.pos + registers.nakit);
+  }, [registers]);
+
+  // 4. 12 AYLIK DİNAMİK GELİR & TAHSİLAT TREND GRAFİĞİ (GAP-4)
+  const monthlyTrends = useMemo(() => {
+    const MONTH_NAMES = [
+      "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+    ];
+    const currentYear = new Date().getFullYear();
+
+    return MONTH_NAMES.map((name, idx) => {
+      const monthNum = String(idx + 1).padStart(2, "0");
+      const monthPrefix = `${currentYear}-${monthNum}`;
+
+      let plan = 0;
+      students.forEach((s) => {
+        const studentPlan = studentPlansMap[s.id] || [];
+        studentPlan.forEach((inst) => {
+          if (inst.due_date && inst.due_date.startsWith(monthPrefix)) {
+            plan += inst.amount;
+          }
+        });
+      });
+
+      let gerceklesen = 0;
+      payments.forEach((p) => {
+        if (p.payment_date && p.payment_date.startsWith(monthPrefix)) {
+          gerceklesen += Number(p.amount || 0);
+        }
+      });
+
+      const uyum = plan > 0 ? Math.min(100, Math.round((gerceklesen / plan) * 100)) : (gerceklesen > 0 ? 100 : 0);
+
+      return {
+        ay: name,
+        ayKod: monthPrefix,
+        plan: Math.round(plan),
+        gerceklesen: Math.round(gerceklesen),
+        uyum
+      };
+    });
+  }, [students, studentPlansMap, payments]);
+
+  // 5. GELİR KATEGORİLERİ & TAHSİLAT YÖNTEMLERİ DAĞILIMI (GAP-6)
+  const incomeCategoryData = useMemo(() => {
+    let sozlesme = 0;
+    let kitap = 0;
+    let dijital = 0;
+    let dnm = 0;
+    let ozelDers = 0;
+
+    students.forEach((s) => {
+      const base = Math.max(0, (Number(s.total_fee) || 0) - (Number(s.discount_amount) || 0));
+      sozlesme += base;
+
+      let extras = {};
+      try {
+        extras = typeof s.extra_fees === "string" ? JSON.parse(s.extra_fees || "{}") : (s.extra_fees || {});
+      } catch {}
+      kitap += Number(extras.kaynak || 0);
+      dijital += Number(extras.dijital || 0);
+      dnm += Number(extras.dnm || 0);
+      ozelDers += Number(extras.ozel_ders || 0) + Number(extras.kutuphane || 0);
+    });
+
+    const total = sozlesme + kitap + dijital + dnm + ozelDers || 1;
+    return [
+      { name: "Sözleşmeler", value: sozlesme, color: "#2563eb", pct: Math.round((sozlesme / total) * 100) },
+      { name: "Yayın & Kitap", value: kitap, color: "#16a34a", pct: Math.round((kitap / total) * 100) },
+      { name: "Dijital Platform", value: dijital, color: "#ca8a04", pct: Math.round((dijital / total) * 100) },
+      { name: "Deneme Kulübü", value: dnm, color: "#9333ea", pct: Math.round((dnm / total) * 100) },
+      { name: "Etüt & Özel Ders", value: ozelDers, color: "#ea580c", pct: Math.round((ozelDers / total) * 100) },
+    ].filter(item => item.value > 0);
+  }, [students]);
+
+  const paymentMethodData = useMemo(() => {
+    const total = totalCollected || 1;
+    return [
+      { name: "Nakit Ana Kasa", value: registers.nakitInflow, color: "#ca8a04", pct: Math.round((registers.nakitInflow / total) * 100) },
+      { name: "POS / Kredi Kartı", value: registers.posInflow, color: "#db2777", pct: Math.round((registers.posInflow / total) * 100) },
+      { name: "VakıfBank Havale", value: registers.vakifbankInflow, color: "#16a34a", pct: Math.round((registers.vakifbankInflow / total) * 100) },
+      { name: "Halkbank Havale", value: registers.halkbankInflow, color: "#2563eb", pct: Math.round((registers.halkbankInflow / total) * 100) },
+      { name: "Senet / Bono", value: registers.senetInflow, color: "#7c3aed", pct: Math.round((registers.senetInflow / total) * 100) },
+    ].filter(item => item.value > 0);
+  }, [registers, totalCollected]);
+
+  // Filtered Payments List (Kasalar Tab & Tahsilatlar Tab)
+  const filteredPaymentsList = useMemo(() => {
+    let running = 0;
+    return payments
+      .filter((p) => {
+        const matchSearch = `${p.student_name || ""} ${p.method || ""} ${p.bank || ""} ${p.note || ""}`
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+        if (!matchSearch) return false;
+
+        const m = (p.method || "").toLowerCase();
+        const b = (p.bank || "").toLowerCase();
+        if (selectedRegisterFilter === "vakif") return m.includes("vakıf") || m.includes("vakif") || b.includes("vakıf") || b.includes("vakif") || m.includes("havale") || m.includes("eft");
+        if (selectedRegisterFilter === "halk") return m.includes("halk") || b.includes("halk");
+        if (selectedRegisterFilter === "nakit") return m.includes("nakit") || m.includes("elden");
+        if (selectedRegisterFilter === "pos") return m.includes("kart") || m.includes("pos");
+        if (selectedRegisterFilter === "senet") return m.includes("senet") || m.includes("çek");
+
+        return true;
+      })
+      .map((p) => {
+        running += Number(p.amount || 0);
+        return {
+          ...p,
+          runningBalance: running
+        };
+      });
+  }, [payments, searchQuery, selectedRegisterFilter]);
+
+  // Çift Yönlü Kasa & Banka Defteri (Tahsilatlar + Giderler)
+  const allLedgerItems = useMemo(() => {
+    const list = [];
+    payments.forEach((p) => {
+      const info = getPaymentAccountInfo(p);
+      list.push({
+        id: p.id,
+        isInflow: true,
+        type: "tahsilat",
+        date: p.payment_date || "2026-10-02",
+        accountKey: info.key,
+        accountLabel: info.label,
+        party: p.student_name || "Öğrenci Kaydı",
+        description: p.note || "Taksit Ödemesi",
+        amount: Number(p.amount || 0),
+        rawPayment: p,
+      });
+    });
+
+    expenses.forEach((e) => {
+      const info = getExpenseAccountInfo(e);
+      list.push({
+        id: e.id,
+        isInflow: false,
+        type: "gider",
+        date: e.expense_date || "2026-10-02",
+        accountKey: info.key,
+        accountLabel: info.label,
+        party: e.category ? `Gider: ${e.category}` : "Kurum Gideri",
+        description: e.title || "İşletme Gideri",
+        amount: Number(e.amount || 0),
+        rawExpense: e,
+      });
+    });
+
+    return list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [payments, expenses]);
+
+  const filteredLedgerList = useMemo(() => {
+    let running = 0;
+    return allLedgerItems
+      .filter((item) => {
+        const matchSearch = `${item.party || ""} ${item.accountLabel || ""} ${item.description || ""}`
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+        if (!matchSearch) return false;
+
+        if (selectedRegisterFilter !== "all" && item.accountKey !== selectedRegisterFilter) {
+          return false;
+        }
+        return true;
+      })
+      .map((item) => {
+        if (item.isInflow) {
+          running += item.amount;
+        } else {
+          running = Math.max(0, running - item.amount);
+        }
+        return {
+          ...item,
+          runningBalance: running,
+        };
+      });
+  }, [allLedgerItems, searchQuery, selectedRegisterFilter]);
+
+  // Filtered Overdue Students
+  const filteredOverdueList = useMemo(() => {
+    return overdueStudents.filter((s) => {
+      const matchSearch = `${s.student_name} ${s.student_no} ${s.parent_name} ${s.parent_phone}`
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      if (!matchSearch) return false;
+
+      if (agingFilter !== "all" && s.agingCategory !== agingFilter) return false;
+
+      return true;
+    });
+  }, [overdueStudents, searchQuery, agingFilter]);
+
+  // WhatsApp Borç Hatırlatma Gönder (GAP-5: öğrenci adı, vade tarihi, kalan borç, VakıfBank IBAN)
   const sendWhatsAppReminder = (student) => {
     const phone = (student.parent_phone || "").replace(/[^0-9]/g, "");
     let cleanPhone = phone.startsWith("0") ? "9" + phone : (phone.length === 10 ? "90" + phone : phone);
-    const msg = `Sayın ${student.parent_name || "Velimiz"},\nÖzel İnegöl Çözüm Kurs Merkezi olarak ${student.student_name} isimli öğrencimizin vadesi gelen ₺${student.remaining.toLocaleString("tr-TR")} tutarındaki taksit ödemesini hatırlatmak isteriz.\nÖdeme İşlemleri için:\nT.C. VAKIFLAR BANKASI İNEGÖL ŞUBESİ\nIBAN: TR04 0001 5001 5800 7354 4922 43 (Nevin Çakmak)\nİletişim: 0224 715 00 02`;
+    const dueDateStr = student.due_date ? ` (${new Date(student.due_date).toLocaleDateString("tr-TR")} vadeli)` : "";
+    const msg = `Sayın ${student.parent_name || "Velimiz"},\nÖzel İnegöl Çözüm Kurs Merkezi olarak ${student.student_name} isimli öğrencimizin${dueDateStr} vadesi gelen ₺${student.remaining.toLocaleString("tr-TR")} tutarındaki taksit ödemesini hatırlatmak isteriz.\nÖdeme İşlemleri için:\nT.C. VAKIFLAR BANKASI İNEGÖL ŞUBESİ\nIBAN: TR04 0001 5001 5800 7354 4922 43 (Nevin Çakmak)\nİletişim: 0224 715 00 02`;
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -213,28 +587,32 @@ export function MuhasebeV2Dashboard({
     alert(`Toplam ${overdueStudents.length} geciken taksit tespit edildi. İlk veli (${target.parent_name} - ${target.student_name}) için WhatsApp mesajı açıldı.`);
   };
 
-  // Hızlı Gider Kaydetme
+  // GAP-3: Gider Kaydetme (Kasa/Banka Seçimi Dahil)
   const handleSaveExpense = async (e) => {
     e.preventDefault();
     if (!expTitle || !expAmount) return;
     try {
+      const amt = parseFloat(expAmount);
       const res = await axios.post(`${API}/expenses`, {
         title: expTitle,
-        amount: parseFloat(expAmount),
+        amount: amt,
         category: expCategory,
+        account: expAccount,
         expense_date: expDate
       });
       const newExp = {
         id: res.data?.id || `exp-${Date.now()}`,
         title: expTitle,
-        amount: parseFloat(expAmount),
+        amount: amt,
         category: expCategory,
+        account: expAccount,
         expense_date: expDate
       };
       setExpenses([newExp, ...expenses]);
       setShowExpenseModal(false);
       setExpTitle("");
       setExpAmount("");
+      setExpAccount("Nakit Ana Kasa");
       alert("Kurum gideri başarıyla kaydedildi.");
       if (reload) reload();
     } catch (err) {
@@ -263,7 +641,6 @@ export function MuhasebeV2Dashboard({
       setShowQuickPaymentModal(false);
       const studentObj = students.find(s => s.id === payStudentId);
       
-      // Anında Makbuz Penceresini Aç
       setReceiptPayment({
         id: res.data?.id || `pmt-${Date.now()}`,
         student_id: payStudentId,
@@ -286,39 +663,6 @@ export function MuhasebeV2Dashboard({
     }
   };
 
-  // Filtered Payments List
-  const filteredPaymentsList = useMemo(() => {
-    return payments.filter((p) => {
-      const matchSearch = `${p.student_name || ""} ${p.method || ""} ${p.bank || ""} ${p.note || ""}`
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-      if (!matchSearch) return false;
-
-      const m = (p.method || "").toLowerCase();
-      if (selectedRegisterFilter === "vakif") return m.includes("vakıf") || m.includes("vakif") || (p.bank || "").toLowerCase().includes("vakıf");
-      if (selectedRegisterFilter === "halk") return m.includes("halk") || (p.bank || "").toLowerCase().includes("halk");
-      if (selectedRegisterFilter === "nakit") return m.includes("nakit") || m.includes("elden");
-      if (selectedRegisterFilter === "pos") return m.includes("kart") || m.includes("pos");
-      if (selectedRegisterFilter === "senet") return m.includes("senet") || m.includes("çek");
-
-      return true;
-    });
-  }, [payments, searchQuery, selectedRegisterFilter]);
-
-  // Filtered Overdue Students
-  const filteredOverdueList = useMemo(() => {
-    return overdueStudents.filter((s) => {
-      const matchSearch = `${s.student_name} ${s.student_no} ${s.parent_name} ${s.parent_phone}`
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-      if (!matchSearch) return false;
-
-      if (agingFilter !== "all" && s.agingCategory !== agingFilter) return false;
-
-      return true;
-    });
-  }, [overdueStudents, searchQuery, agingFilter]);
-
   return (
     <div className="muhasebe-v2-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       
@@ -332,7 +676,7 @@ export function MuhasebeV2Dashboard({
             Muhasebe & Finans Yönetim Portali
           </h1>
           <p style={{ color: "#64748b", margin: 0, fontSize: "13px" }}>
-            Kurum gelirleri, banka ve kasa hesapları, taksit yaşlandırma ve resmi makbuz/senet motoru.
+            Kurum gelirleri, kasa/banka çift yönlü defteri, taksit yaşlandırma ve resmi makbuz/senet motoru.
           </p>
         </div>
 
@@ -369,96 +713,101 @@ export function MuhasebeV2Dashboard({
         </div>
       </div>
 
-      {/* 2. 6'LI MASTER FİNANSAL KPI GÖSTERGE KARTLARI */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
+      {/* 2. MASTER FİNANSAL KPI GÖSTERGE KARTLARI (R1 Paritesi & Taşmayan Sayılar) */}
+      <div className="muhasebe-kpi-grid">
         
-        {/* Toplam Sözleşme Cirosu */}
-        <div className="stat-card" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "16px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#64748b", fontSize: "12px", fontWeight: "600" }}>
+        {/* Toplam Sözleşme / Kayıt Cirosu */}
+        <div className="muhasebe-kpi-card" style={{ background: "#fff" }}>
+          <div className="kpi-title-row" style={{ color: "#64748b" }}>
             <span>TOPLAM KAYIT CİROSU</span>
             <Building size={16} color="#3b82f6" />
           </div>
-          <div style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a", marginTop: "8px" }}>
-            ₺{totalContractRevenue.toLocaleString("tr-TR")}
+          <div className="kpi-value-text" style={{ color: "#0f172a" }} title={`₺${fmtMoney(totalContractRevenue)}`}>
+            ₺{fmtMoney(totalContractRevenue)}
           </div>
-          <div style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
+          <div className="kpi-sub-text" style={{ color: "#64748b" }}>
             {students.length} Kayıtlı Öğrenci Taahhüdü
           </div>
         </div>
 
         {/* Gerçekleşen Tahsilat */}
-        <div className="stat-card" style={{ background: "#fff", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "16px", boxShadow: "0 2px 6px rgba(22,163,74,0.06)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#166534", fontSize: "12px", fontWeight: "700" }}>
+        <div className="muhasebe-kpi-card" style={{ background: "#fff", borderColor: "#bbf7d0" }}>
+          <div className="kpi-title-row" style={{ color: "#166534" }}>
             <span>GERÇEKLEŞEN TAHSİLAT</span>
             <CheckCircle2 size={16} color="#16a34a" />
           </div>
-          <div style={{ fontSize: "20px", fontWeight: "800", color: "#16a34a", marginTop: "8px" }}>
-            ₺{totalCollected.toLocaleString("tr-TR")}
+          <div className="kpi-value-text" style={{ color: "#16a34a" }} title={`₺${fmtMoney(totalCollected)}`}>
+            ₺{fmtMoney(totalCollected)}
           </div>
-          <div style={{ fontSize: "11px", color: "#166534", fontWeight: "600", marginTop: "4px" }}>
+          <div className="kpi-sub-text" style={{ color: "#166534", fontWeight: "600" }}>
             Tahsilat Oranı: %{collectionRate}
           </div>
         </div>
 
-        {/* Kalan Toplam Alacak */}
-        <div className="stat-card" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "16px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#64748b", fontSize: "12px", fontWeight: "600" }}>
-            <span>KALAN TOPLAM ALACAK</span>
-            <Clock size={16} color="#eab308" />
+        {/* Bu Ay Vadesi Gelenler (GAP-1) */}
+        <div className="muhasebe-kpi-card" style={{ background: "#fff", borderColor: "#fed7aa" }}>
+          <div className="kpi-title-row" style={{ color: "#c2410c" }}>
+            <span>BU AY VADESİ GELENLER</span>
+            <Calendar size={16} color="#ea580c" />
           </div>
-          <div style={{ fontSize: "20px", fontWeight: "800", color: "#d97706", marginTop: "8px" }}>
-            ₺{totalRemaining.toLocaleString("tr-TR")}
+          <div className="kpi-value-text" style={{ color: "#ea580c" }} title={`₺${fmtMoney(dueThisMonthData.total)}`}>
+            ₺{fmtMoney(dueThisMonthData.total)}
           </div>
-          <div style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
-            Gelecek Vadeli Taksitler
+          <div className="kpi-sub-text" style={{ color: "#9a3412" }}>
+            {dueThisMonthData.count} Taksit (₺{fmtMoney(dueThisMonthData.collected)} Alındı)
           </div>
         </div>
 
         {/* Gecikmiş Taksitler (Kritik Takip) */}
-        <div className="stat-card" style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "12px", padding: "16px", boxShadow: "0 2px 6px rgba(239,68,68,0.08)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#991b1b", fontSize: "12px", fontWeight: "700" }}>
+        <div className="muhasebe-kpi-card" style={{ background: "#fef2f2", borderColor: "#fecaca" }}>
+          <div className="kpi-title-row" style={{ color: "#991b1b" }}>
             <span>GECİKMİŞ TAKSİTLER</span>
             <AlertTriangle size={16} color="#ef4444" />
           </div>
-          <div style={{ fontSize: "20px", fontWeight: "800", color: "#dc2626", marginTop: "8px" }}>
-            ₺{totalOverdueDebt.toLocaleString("tr-TR")}
+          <div className="kpi-value-text" style={{ color: "#dc2626" }} title={`₺${fmtMoney(totalOverdueDebt)}`}>
+            ₺{fmtMoney(totalOverdueDebt)}
           </div>
-          <div style={{ fontSize: "11px", color: "#b91c1c", fontWeight: "600", marginTop: "4px" }}>
+          <div className="kpi-sub-text" style={{ color: "#b91c1c", fontWeight: "600" }}>
             {overdueStudents.length} Öğrenci Vadesi Geçti
           </div>
         </div>
 
-        {/* Kurum Giderleri */}
-        <div className="stat-card" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "16px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#64748b", fontSize: "12px", fontWeight: "600" }}>
-            <span>TOPLAM GİDERLER</span>
-            <TrendingDown size={16} color="#ef4444" />
+        {/* Tahsilat Başarı Oranı (Bağımsız Gösterge Kartı) */}
+        <div className="muhasebe-kpi-card" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
+          <div className="kpi-title-row" style={{ color: "#15803d" }}>
+            <span>TAHSİLAT BAŞARI ORANI</span>
+            <Percent size={16} color="#16a34a" />
           </div>
-          <div style={{ fontSize: "20px", fontWeight: "800", color: "#475569", marginTop: "8px" }}>
-            ₺{totalExpenses.toLocaleString("tr-TR")}
+          <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "6px" }}>
+            <span style={{ fontSize: "clamp(18px, 2.5vw, 24px)", fontWeight: "800", color: "#166534" }}>
+              %{collectionRate}
+            </span>
+            <div style={{ flex: 1, background: "#dcfce7", height: "8px", borderRadius: "4px", overflow: "hidden" }}>
+              <div style={{ width: `${Math.min(100, collectionRate)}%`, background: "#16a34a", height: "100%", borderRadius: "4px" }} />
+            </div>
           </div>
-          <div style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
-            {expenses.length} Gider Kalemi
+          <div className="kpi-sub-text" style={{ color: "#15803d", fontWeight: "600" }}>
+            Kalan: ₺{fmtMoney(totalRemaining)}
           </div>
         </div>
 
-        {/* Net Kasa / Banka Varlığı */}
-        <div className="stat-card" style={{ background: "#f8fafc", border: "2px solid #2563eb", borderRadius: "12px", padding: "16px", boxShadow: "0 4px 10px rgba(37,99,235,0.1)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#1d4ed8", fontSize: "12px", fontWeight: "700" }}>
+        {/* Net Likit Mevcut */}
+        <div className="muhasebe-kpi-card" style={{ background: "#f8fafc", border: "2px solid #2563eb" }}>
+          <div className="kpi-title-row" style={{ color: "#1d4ed8" }}>
             <span>NET LİKİT MEVCUT</span>
             <Wallet size={16} color="#2563eb" />
           </div>
-          <div style={{ fontSize: "20px", fontWeight: "800", color: "#1d4ed8", marginTop: "8px" }}>
-            ₺{netCashBalance.toLocaleString("tr-TR")}
+          <div className="kpi-value-text" style={{ color: "#1d4ed8" }} title={`₺${fmtMoney(netLiquidBalance)}`}>
+            ₺{fmtMoney(netLiquidBalance)}
           </div>
-          <div style={{ fontSize: "11px", color: "#2563eb", fontWeight: "600", marginTop: "4px" }}>
-            Kasa + Banka Net Varlık
+          <div className="kpi-sub-text" style={{ color: "#2563eb", fontWeight: "600" }}>
+            Kasa, Banka ve POS Likit Portföyü
           </div>
         </div>
 
       </div>
 
-      {/* 3. KASA & BANKA PORTFÖY ŞERİDİ (Authentic Edesis Accounts) */}
+      {/* 3. KASA & BANKA PORTFÖY ŞERİDİ (5 Edesis Hesabı) */}
       <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "14px", padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <div style={{ fontWeight: "700", fontSize: "14px", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -469,18 +818,15 @@ export function MuhasebeV2Dashboard({
           </span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "10px" }}>
+        <div className="muhasebe-bank-grid">
           
           {/* VakıfBank */}
           <div 
+            className="bank-acc-card"
             onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("vakif"); }}
             style={{ 
               background: "#f0fdf4", 
-              border: "1px solid #bbf7d0", 
-              borderRadius: "10px", 
-              padding: "12px 14px", 
-              cursor: "pointer",
-              transition: "transform 0.15s ease"
+              border: "1px solid #bbf7d0"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -494,24 +840,25 @@ export function MuhasebeV2Dashboard({
               </div>
               <CreditCard size={16} color="#16a34a" />
             </div>
-            <div style={{ fontSize: "16px", fontWeight: "800", color: "#166534", marginTop: "6px" }}>
-              ₺{registers.vakifbank.toLocaleString("tr-TR")}
+            <div className="bank-card-val" style={{ color: "#166534" }} title={`₺${fmtMoney(registers.vakifbank)}`}>
+              ₺{fmtMoney(registers.vakifbank)}
             </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px", fontFamily: "monospace" }}>
+            <div className="bank-card-flow">
+              <span>G: ₺{fmtMoney(registers.vakifbankInflow)}</span>
+              <span>Ç: ₺{fmtMoney(registers.vakifbankExpense)}</span>
+            </div>
+            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", fontFamily: "monospace" }}>
               TR04 0001 ... 4922 43
             </div>
           </div>
 
           {/* Halkbank */}
           <div 
+            className="bank-acc-card"
             onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("halk"); }}
             style={{ 
               background: "#eff6ff", 
-              border: "1px solid #bfdbfe", 
-              borderRadius: "10px", 
-              padding: "12px 14px", 
-              cursor: "pointer",
-              transition: "transform 0.15s ease"
+              border: "1px solid #bfdbfe"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -525,24 +872,25 @@ export function MuhasebeV2Dashboard({
               </div>
               <Building size={16} color="#2563eb" />
             </div>
-            <div style={{ fontSize: "16px", fontWeight: "800", color: "#1d4ed8", marginTop: "6px" }}>
-              ₺{registers.halkbank.toLocaleString("tr-TR")}
+            <div className="bank-card-val" style={{ color: "#1d4ed8" }} title={`₺${fmtMoney(registers.halkbank)}`}>
+              ₺{fmtMoney(registers.halkbank)}
             </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px", fontFamily: "monospace" }}>
+            <div className="bank-card-flow">
+              <span>G: ₺{fmtMoney(registers.halkbankInflow)}</span>
+              <span>Ç: ₺{fmtMoney(registers.halkbankExpense)}</span>
+            </div>
+            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", fontFamily: "monospace" }}>
               TR87 0001 ... 1016 32
             </div>
           </div>
 
           {/* Nakit Ana Kasa */}
           <div 
+            className="bank-acc-card"
             onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("nakit"); }}
             style={{ 
               background: "#fefce8", 
-              border: "1px solid #fef08a", 
-              borderRadius: "10px", 
-              padding: "12px 14px", 
-              cursor: "pointer",
-              transition: "transform 0.15s ease"
+              border: "1px solid #fef08a"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -556,24 +904,25 @@ export function MuhasebeV2Dashboard({
               </div>
               <Wallet size={16} color="#ca8a04" />
             </div>
-            <div style={{ fontSize: "16px", fontWeight: "800", color: "#854d0e", marginTop: "6px" }}>
-              ₺{registers.nakit.toLocaleString("tr-TR")}
+            <div className="bank-card-val" style={{ color: "#854d0e" }} title={`₺${fmtMoney(registers.nakit)}`}>
+              ₺{fmtMoney(registers.nakit)}
             </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+            <div className="bank-card-flow">
+              <span>G: ₺{fmtMoney(registers.nakitInflow)}</span>
+              <span>Ç: ₺{fmtMoney(registers.nakitExpense)}</span>
+            </div>
+            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
               Ofis Elden Tahsilat Bakiyesi
             </div>
           </div>
 
           {/* POS / Kredi Kartı */}
           <div 
+            className="bank-acc-card"
             onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("pos"); }}
             style={{ 
               background: "#fdf2f8", 
-              border: "1px solid #fbcfe8", 
-              borderRadius: "10px", 
-              padding: "12px 14px", 
-              cursor: "pointer",
-              transition: "transform 0.15s ease"
+              border: "1px solid #fbcfe8"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -587,24 +936,25 @@ export function MuhasebeV2Dashboard({
               </div>
               <CreditCard size={16} color="#db2777" />
             </div>
-            <div style={{ fontSize: "16px", fontWeight: "800", color: "#9d174d", marginTop: "6px" }}>
-              ₺{registers.pos.toLocaleString("tr-TR")}
+            <div className="bank-card-val" style={{ color: "#9d174d" }} title={`₺${fmtMoney(registers.pos)}`}>
+              ₺{fmtMoney(registers.pos)}
             </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+            <div className="bank-card-flow">
+              <span>G: ₺{fmtMoney(registers.posInflow)}</span>
+              <span>Ç: ₺{fmtMoney(registers.posExpense)}</span>
+            </div>
+            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
               Sanal ve Fiziki POS Girişleri
             </div>
           </div>
 
           {/* Senet Portföyü */}
           <div 
+            className="bank-acc-card"
             onClick={() => { setActiveTab("senetler"); }}
             style={{ 
               background: "#f5f3ff", 
-              border: "1px solid #ddd6fe", 
-              borderRadius: "10px", 
-              padding: "12px 14px", 
-              cursor: "pointer",
-              transition: "transform 0.15s ease"
+              border: "1px solid #ddd6fe"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -618,10 +968,10 @@ export function MuhasebeV2Dashboard({
               </div>
               <FileText size={16} color="#7c3aed" />
             </div>
-            <div style={{ fontSize: "16px", fontWeight: "800", color: "#6d28d9", marginTop: "6px" }}>
-              ₺{registers.senet.toLocaleString("tr-TR")}
+            <div className="bank-card-val" style={{ color: "#6d28d9" }} title={`₺${fmtMoney(registers.senet)}`}>
+              ₺{fmtMoney(registers.senet)}
             </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
               Matbu Senetli Tahsilatlar
             </div>
           </div>
@@ -629,8 +979,8 @@ export function MuhasebeV2Dashboard({
         </div>
       </div>
 
-      {/* 4. MODÜL SEKMELERİ (EDESİS MUHASEBE V2 SEKME MENÜSÜ) */}
-      <div style={{ display: "flex", gap: "8px", borderBottom: "2px solid #e2e8f0", paddingBottom: "2px", flexWrap: "wrap" }}>
+      {/* 4. MODÜL SEKMELERİ (EDESİS MUHASEBE V2 MENÜSÜ & YATAY KAYDIRMA) */}
+      <div className="muhasebe-tabs-scroll">
         <button
           className={`btn ${activeTab === "dashboard" ? "" : "secondary"}`}
           onClick={() => setActiveTab("dashboard")}
@@ -677,19 +1027,19 @@ export function MuhasebeV2Dashboard({
 
       {/* 5. SEKME İÇERİKLERİ */}
 
-      {/* SEKME 1: DASHBOARD & GRAFİKLER */}
+      {/* SEKME 1: DASHBOARD & RECHARTS GRAFİKLERİ */}
       {activeTab === "dashboard" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           
-          {/* Yaşlandırma Özeti Çubuğu */}
-          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+          {/* Yaşlandırma Özeti Çubuğu (GAP-5: Gerçek Vade Tarihlerine Göre) */}
+          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#0f172a" }}>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
                   Taksit Yaşlandırma & Risk Analizi (Edesis Aging Report)
                 </h3>
                 <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "12px" }}>
-                  Vade süresi geçen toplam <b>₺{totalOverdueDebt.toLocaleString("tr-TR")}</b> tutarındaki taksitlerin gecikme dilimleri
+                  Vadesi geçen toplam <b>₺{fmtMoney(totalOverdueDebt)}</b> tutarındaki taksitlerin gerçek gecikme dilimleri
                 </p>
               </div>
               <button 
@@ -701,43 +1051,55 @@ export function MuhasebeV2Dashboard({
               </button>
             </div>
 
-            {/* Yaşlandırma İlerleme Çubuğu */}
+            {/* Yaşlandırma Dinamik İlerleme Çubuğu */}
             <div style={{ display: "flex", height: "14px", borderRadius: "7px", overflow: "hidden", background: "#f1f5f9", marginBottom: "12px" }}>
-              <div style={{ width: "35%", background: "#22c55e" }} title="Zamanında Ödenenler: %35" />
-              <div style={{ width: "25%", background: "#eab308" }} title="1-30 Gün Geciken: %25" />
-              <div style={{ width: "20%", background: "#f97316" }} title="31-60 Gün Geciken: %20" />
-              <div style={{ width: "20%", background: "#ef4444" }} title="60+ Gün Geciken: %20" />
+              <div 
+                style={{ width: `${Math.max(5, collectionRate)}%`, background: "#22c55e" }} 
+                title={`Zamanında Ödenenler: %${collectionRate}`} 
+              />
+              <div 
+                style={{ width: `${Math.max(2, agingSummary.c1_30.pct)}%`, background: "#eab308" }} 
+                title={`1-30 Gün Geciken: %${agingSummary.c1_30.pct}`} 
+              />
+              <div 
+                style={{ width: `${Math.max(2, agingSummary.c31_60.pct)}%`, background: "#f97316" }} 
+                title={`31-60 Gün Geciken: %${agingSummary.c31_60.pct}`} 
+              />
+              <div 
+                style={{ width: `${Math.max(2, agingSummary.c60plus.pct)}%`, background: "#ef4444" }} 
+                title={`60+ Gün Kritik: %${agingSummary.c60plus.pct}`} 
+              />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px", fontSize: "12px" }}>
+            <div className="aging-summary-grid">
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22c55e" }} />
-                <span><b>Zamanında:</b> %{collectionRate} (₺{totalCollected.toLocaleString("tr-TR")})</span>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
+                <span><b>Zamanında:</b> %{collectionRate} (₺{fmtMoney(totalCollected)})</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#eab308" }} />
-                <span><b>1 - 30 Gün:</b> {agingSummary.c1_30.count} Öğrenci (₺{agingSummary.c1_30.sum.toLocaleString("tr-TR")})</span>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#eab308", flexShrink: 0 }} />
+                <span><b>1 - 30 Gün:</b> {agingSummary.c1_30.count} Öğr. (₺{fmtMoney(agingSummary.c1_30.sum)})</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f97316" }} />
-                <span><b>31 - 60 Gün:</b> {agingSummary.c31_60.count} Öğrenci (₺{agingSummary.c31_60.sum.toLocaleString("tr-TR")})</span>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f97316", flexShrink: 0 }} />
+                <span><b>31 - 60 Gün:</b> {agingSummary.c31_60.count} Öğr. (₺{fmtMoney(agingSummary.c31_60.sum)})</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
-                <span><b>60+ Gün (Kritik):</b> {agingSummary.c60plus.count} Öğrenci (₺{agingSummary.c60plus.sum.toLocaleString("tr-TR")})</span>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444", flexShrink: 0 }} />
+                <span><b>60+ Gün:</b> {agingSummary.c60plus.count} Öğr. (₺{fmtMoney(agingSummary.c60plus.sum)})</span>
               </div>
             </div>
           </div>
 
-          {/* 12 Aylık Karşılaştırmalı Trend Çizelgesi */}
-          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          {/* GAP-4: 12 Aylık Karşılaştırmalı Trend Grafiği (Recharts Responsive BarChart) */}
+          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#0f172a" }}>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
                   12 Aylık Taksit & Tahsilat Karşılaştırma Grafiği (Edesis Trend Analizi)
                 </h3>
                 <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "12px" }}>
-                  Her ay için planlanan taksit tahakkuku vs kasaya giren nakit/banka tahsilatı
+                  Öğrencilerin taksit vadelerine göre planlanan tahakkuk vs gerçekleşen kasa/banka nakit akışı
                 </p>
               </div>
               <div style={{ display: "flex", gap: "12px", fontSize: "12px" }}>
@@ -750,113 +1112,271 @@ export function MuhasebeV2Dashboard({
               </div>
             </div>
 
-            {/* Yatay Çubuk Grafiği */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "8px", alignItems: "flex-end", height: "180px", paddingTop: "20px", borderBottom: "1px solid #e2e8f0" }}>
-              {monthlyTrends.map((m, idx) => {
-                const planHeight = Math.min(100, Math.round((m.plan / 500000) * 140));
-                const gercekHeight = Math.min(100, Math.round((m.gerceklesen / 500000) * 140));
-                return (
-                  <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" }}>
-                    <div style={{ display: "flex", gap: "3px", alignItems: "flex-end", width: "100%", justifyContent: "center" }}>
-                      <div 
-                        style={{ width: "10px", height: `${planHeight}px`, background: "#93c5fd", borderRadius: "3px 3px 0 0" }}
-                        title={`${m.ay} Planlanan: ₺${m.plan.toLocaleString("tr-TR")}`}
-                      />
-                      <div 
-                        style={{ width: "10px", height: `${gercekHeight}px`, background: m.gerceklesen > 0 ? "#16a34a" : "#e2e8f0", borderRadius: "3px 3px 0 0" }}
-                        title={`${m.ay} Gerçekleşen: ₺${m.gerceklesen.toLocaleString("tr-TR")} (%${m.uyum})`}
-                      />
-                    </div>
-                    <div style={{ fontSize: "10px", color: "#64748b", marginTop: "6px", fontWeight: "600" }}>
-                      {m.ay.slice(0, 3)}
-                    </div>
-                  </div>
-                );
-              })}
+            <div style={{ width: "100%", height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyTrends} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="ay" stroke="#64748b" fontSize={11} tickLine={false} />
+                  <YAxis 
+                    stroke="#64748b" 
+                    fontSize={11} 
+                    tickLine={false}
+                    tickFormatter={(val) => `₺${val >= 1000 ? `${Math.round(val/1000)}k` : val}`} 
+                  />
+                  <Tooltip 
+                    formatter={(val) => [`₺${fmtMoney(val)}`, ""]}
+                    contentStyle={{ borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "12px" }} />
+                  <Bar dataKey="plan" name="Planlanan Taksit Tahakkuku" fill="#93c5fd" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="gerceklesen" name="Gerçekleşen Tahsilat" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
+
+            {/* DOM Accessibility & Monthly Pill Legend (T1.6 Compliance & Responsive Strip) */}
+            <div className="monthly-trends-strip">
+              {monthlyTrends.map((m, idx) => (
+                <div key={idx} className="monthly-trend-pill">
+                  <b style={{ display: "block", color: m.gerceklesen > 0 ? "#166534" : "#64748b", fontSize: "11px" }}>
+                    {m.ay.slice(0, 3)}
+                  </b>
+                  <span style={{ fontSize: "9px", color: "#94a3b8" }}>
+                    {m.gerceklesen > 0 ? `₺${Math.round(m.gerceklesen/1000)}k` : "—"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* GAP-6: Gelir Kategorileri ve Tahsilat Yöntemleri Dağılım Panelleri */}
+          <div className="muhasebe-charts-grid">
+            
+            {/* Panel 1: Gelir Kategorileri Dağılımı */}
+            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
+                  Gelir Kategorileri Dağılımı
+                </h3>
+                <span style={{ fontSize: "11px", color: "#64748b" }}>Ciro Kalemleri</span>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                <div style={{ width: 170, height: 170, margin: "auto" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={incomeCategoryData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={75}
+                        paddingAngle={3}
+                      >
+                        {incomeCategoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(val) => `₺${fmtMoney(val)}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px", minWidth: 160 }}>
+                  {incomeCategoryData.map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.color }} />
+                        <span>{item.name}</span>
+                      </div>
+                      <b style={{ color: "#0f172a" }}>₺{fmtMoney(item.value)} (%{item.pct})</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Panel 2: Tahsilat Yöntemleri Dağılımı */}
+            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
+                  Tahsilat Yöntemleri Dağılımı
+                </h3>
+                <span style={{ fontSize: "11px", color: "#64748b" }}>Kasa & Banka Girişi</span>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                <div style={{ width: 170, height: 170, margin: "auto" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={paymentMethodData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={75}
+                        paddingAngle={3}
+                      >
+                        {paymentMethodData.map((entry, index) => (
+                          <Cell key={`cell-pm-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(val) => `₺${fmtMoney(val)}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px", minWidth: 160 }}>
+                  {paymentMethodData.map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.color }} />
+                        <span>{item.name}</span>
+                      </div>
+                      <b style={{ color: "#0f172a" }}>₺{fmtMoney(item.value)} (%{item.pct})</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
           </div>
 
         </div>
       )}
 
-      {/* SEKME 2: KASA & BANKA DEFTERİ */}
+      {/* SEKME 2: KASA & BANKA DEFTERİ (GAP-2: Tahsilat / Kasa Hareketleri & Bakiye) */}
       {activeTab === "kasalar" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           
           {/* Kasa Filtre Seçicisi */}
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <button 
-              className={`btn small ${selectedRegisterFilter === "all" ? "" : "secondary"}`}
-              onClick={() => setSelectedRegisterFilter("all")}
-            >
-              Tüm Hesaplar ({payments.length})
-            </button>
-            <button 
-              className={`btn small ${selectedRegisterFilter === "vakif" ? "" : "secondary"}`}
-              onClick={() => setSelectedRegisterFilter("vakif")}
-              style={{ color: "#166534" }}
-            >
-              VakıfBank (₺{registers.vakifbank.toLocaleString("tr-TR")})
-            </button>
-            <button 
-              className={`btn small ${selectedRegisterFilter === "halk" ? "" : "secondary"}`}
-              onClick={() => setSelectedRegisterFilter("halk")}
-              style={{ color: "#1d4ed8" }}
-            >
-              Halkbank (₺{registers.halkbank.toLocaleString("tr-TR")})
-            </button>
-            <button 
-              className={`btn small ${selectedRegisterFilter === "nakit" ? "" : "secondary"}`}
-              onClick={() => setSelectedRegisterFilter("nakit")}
-              style={{ color: "#854d0e" }}
-            >
-              Nakit Kasa (₺{registers.nakit.toLocaleString("tr-TR")})
-            </button>
-            <button 
-              className={`btn small ${selectedRegisterFilter === "pos" ? "" : "secondary"}`}
-              onClick={() => setSelectedRegisterFilter("pos")}
-              style={{ color: "#9d174d" }}
-            >
-              POS Kasası (₺{registers.pos.toLocaleString("tr-TR")})
-            </button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button 
+                className={`btn small ${selectedRegisterFilter === "all" ? "" : "secondary"}`}
+                onClick={() => setSelectedRegisterFilter("all")}
+              >
+                Tüm Hesaplar ({allLedgerItems.length})
+              </button>
+              <button 
+                className={`btn small ${selectedRegisterFilter === "vakif" ? "" : "secondary"}`}
+                onClick={() => setSelectedRegisterFilter("vakif")}
+                style={{ color: "#166534" }}
+              >
+                VakıfBank (Bakiye: ₺{fmtMoney(registers.vakifbank)})
+              </button>
+              <button 
+                className={`btn small ${selectedRegisterFilter === "halk" ? "" : "secondary"}`}
+                onClick={() => setSelectedRegisterFilter("halk")}
+                style={{ color: "#1d4ed8" }}
+              >
+                Halkbank (Bakiye: ₺{fmtMoney(registers.halkbank)})
+              </button>
+              <button 
+                className={`btn small ${selectedRegisterFilter === "nakit" ? "" : "secondary"}`}
+                onClick={() => setSelectedRegisterFilter("nakit")}
+                style={{ color: "#854d0e" }}
+              >
+                Nakit Kasa (Bakiye: ₺{fmtMoney(registers.nakit)})
+              </button>
+              <button 
+                className={`btn small ${selectedRegisterFilter === "pos" ? "" : "secondary"}`}
+                onClick={() => setSelectedRegisterFilter("pos")}
+                style={{ color: "#9d174d" }}
+              >
+                POS Kasası (₺{fmtMoney(registers.pos)})
+              </button>
+              <button 
+                className={`btn small ${selectedRegisterFilter === "senet" ? "" : "secondary"}`}
+                onClick={() => setSelectedRegisterFilter("senet")}
+                style={{ color: "#7c3aed" }}
+              >
+                Senet Portföyü (₺{fmtMoney(registers.senet)})
+              </button>
+            </div>
+
+            <div className="top-search" style={{ width: "240px", margin: 0 }}>
+              <Search size={14} />
+              <input 
+                placeholder="Defterde ara..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ fontSize: "12px" }}
+              />
+            </div>
           </div>
 
-          {/* Kasa Hareketleri Tablosu */}
-          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
+          {/* Kasa Hareketleri Tablosu (Çift Yönlü Defter & Responsive Yatay Kaydırma) */}
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "680px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
                   <th>Tarih</th>
                   <th>Hesap / Kasa</th>
-                  <th>Öğrenci / Müşteri</th>
+                  <th>Öğrenci / Alacaklı</th>
                   <th>Açıklama / Not</th>
-                  <th>Tahsilat Tutarı</th>
+                  <th style={{ textAlign: "right" }}>İşlem Tutarı</th>
+                  <th style={{ textAlign: "right" }}>Kasa Bakiyesi</th>
                   <th style={{ textAlign: "right" }}>İşlem</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredPaymentsList.map((p, idx) => (
-                  <tr key={p.id || idx}>
-                    <td><b style={{ color: "#475569" }}>{p.payment_date ? p.payment_date.slice(0, 10) : "2026-10-02"}</b></td>
-                    <td>
-                      <span className="badge" style={{ background: "#eff6ff", color: "#1d4ed8", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" }}>
-                        {p.bank || p.method || "Nakit Kasa"}
-                      </span>
-                    </td>
-                    <td><b style={{ color: "#0f172a" }}>{p.student_name || "Öğrenci Kaydı"}</b></td>
-                    <td><span style={{ color: "#64748b" }}>{p.note || "Taksit Ödemesi"}</span></td>
-                    <td><b style={{ color: "#16a34a", fontSize: "14px" }}>+₺{Number(p.amount || 0).toLocaleString("tr-TR")}</b></td>
-                    <td style={{ textAlign: "right" }}>
-                      <button 
-                        className="btn small secondary" 
-                        onClick={() => setReceiptPayment(p)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
-                      >
-                        <Receipt size={12} /> Makbuz Bas
-                      </button>
+                {filteredLedgerList.map((item, idx) => {
+                  const bakiye = item.runningBalance;
+                  return (
+                    <tr key={item.id || idx}>
+                      <td><b style={{ color: "#475569" }}>{item.date ? item.date.slice(0, 10) : "2026-10-02"}</b></td>
+                      <td>
+                        <span className="badge" style={{ 
+                          background: item.isInflow ? "#eff6ff" : "#fef2f2", 
+                          color: item.isInflow ? "#1d4ed8" : "#dc2626", 
+                          padding: "3px 8px", 
+                          borderRadius: "6px", 
+                          fontSize: "11px", 
+                          fontWeight: "600" 
+                        }}>
+                          {item.accountLabel}
+                        </span>
+                      </td>
+                      <td><b style={{ color: "#0f172a" }}>{item.party}</b></td>
+                      <td><span style={{ color: "#64748b" }}>{item.description}</span></td>
+                      <td style={{ textAlign: "right" }}>
+                        <b style={{ color: item.isInflow ? "#16a34a" : "#dc2626", fontSize: "14px" }}>
+                          {item.isInflow ? `+₺${fmtMoney(item.amount)}` : `-₺${fmtMoney(item.amount)}`}
+                        </b>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <b style={{ color: "#0f172a", fontFamily: "monospace" }}>₺{fmtMoney(bakiye)}</b>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {item.isInflow ? (
+                          <button 
+                            className="btn small secondary" 
+                            onClick={() => setReceiptPayment(item.rawPayment)}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
+                          >
+                            <Receipt size={12} color="#2563eb" /> Makbuz Bas
+                          </button>
+                        ) : (
+                          <span className="badge" style={{ background: "#fee2e2", color: "#b91c1c", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" }}>
+                            Gider Çıkışı
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredLedgerList.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                      Bu hesap için hareket kaydı bulunamadı.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -909,9 +1429,9 @@ export function MuhasebeV2Dashboard({
             </div>
           </div>
 
-          {/* Geciken Taksitler Tablosu */}
-          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
+          {/* Geciken Taksitler Tablosu (Responsive Yatay Kaydırma) */}
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "700px" }}>
               <thead>
                 <tr style={{ background: "#fef2f2" }}>
                   <th>Öğrenci Adı Soyadı</th>
@@ -946,7 +1466,7 @@ export function MuhasebeV2Dashboard({
                           color: s.agingCategory === "60+" ? "#991b1b" : s.agingCategory === "31-60" ? "#9a3412" : "#854d0e",
                           padding: "3px 8px", 
                           borderRadius: "12px", 
-                          fontSize: "11px",
+                          fontSize: "11px", 
                           fontWeight: "700"
                         }}
                       >
@@ -955,7 +1475,7 @@ export function MuhasebeV2Dashboard({
                     </td>
                     <td>
                       <b style={{ color: "#dc2626", fontSize: "14px" }}>
-                        ₺{s.remaining.toLocaleString("tr-TR")}
+                        ₺{fmtMoney(s.remaining)}
                       </b>
                     </td>
                     <td style={{ textAlign: "right" }}>
@@ -982,6 +1502,13 @@ export function MuhasebeV2Dashboard({
                     </td>
                   </tr>
                 ))}
+                {filteredOverdueList.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                      Geciken taksit ödemesi bulunamadı.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1008,8 +1535,9 @@ export function MuhasebeV2Dashboard({
             </div>
           </div>
 
-          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
+          {/* Tahsilatlar Tablosu (Responsive Yatay Kaydırma) */}
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "680px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
                   <th>Makbuz / İşlem No</th>
@@ -1039,12 +1567,12 @@ export function MuhasebeV2Dashboard({
                     <td>{p.payment_date ? p.payment_date.slice(0, 10) : "2026-10-02"}</td>
                     <td>
                       <b style={{ color: "#16a34a", fontSize: "14px" }}>
-                        ₺{Number(p.amount || 0).toLocaleString("tr-TR")}
+                        ₺{fmtMoney(p.amount)}
                       </b>
                     </td>
                     <td style={{ textAlign: "right" }}>
                       <button 
-                        className="btn small secondary"
+                        className="btn small secondary" 
                         onClick={() => setReceiptPayment(p)}
                         style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 10px" }}
                       >
@@ -1067,20 +1595,21 @@ export function MuhasebeV2Dashboard({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700" }}>Kurum Gider Defteri</h3>
-              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>Kira, personel maaşları, enerji ve operasyonel harcamalar</p>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>Kira, personel maaşları, enerji ve hesap bazlı gider çıkışları</p>
             </div>
             <button className="btn small" onClick={() => setShowExpenseModal(true)} style={{ background: "#ef4444", color: "#fff" }}>
               <Plus size={14} /> Yeni Gider Ekle
             </button>
           </div>
 
-          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "600px" }}>
               <thead>
                 <tr style={{ background: "#fef2f2" }}>
                   <th>Tarih</th>
                   <th>Gider Başlığı</th>
                   <th>Kategori</th>
+                  <th>Ödenen Hesap</th>
                   <th>Tutar</th>
                 </tr>
               </thead>
@@ -1090,12 +1619,13 @@ export function MuhasebeV2Dashboard({
                     <td>{e.expense_date ? e.expense_date.slice(0, 10) : "2026-10-02"}</td>
                     <td><b>{e.title}</b></td>
                     <td><span className="badge" style={{ background: "#f1f5f9", padding: "3px 8px", borderRadius: "6px", fontSize: "11px" }}>{e.category || "Genel"}</span></td>
-                    <td><b style={{ color: "#dc2626" }}>-₺{Number(e.amount || 0).toLocaleString("tr-TR")}</b></td>
+                    <td><span className="badge" style={{ background: "#eff6ff", color: "#1d4ed8", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" }}>{e.account || "Nakit Ana Kasa"}</span></td>
+                    <td><b style={{ color: "#dc2626" }}>-₺{fmtMoney(e.amount)}</b></td>
                   </tr>
                 ))}
                 {expenses.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                    <td colSpan={5} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
                       Henüz kaydedilmiş gider bulunmuyor.
                     </td>
                   </tr>
@@ -1117,14 +1647,14 @@ export function MuhasebeV2Dashboard({
             </p>
           </div>
 
-          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "640px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
                   <th>Öğrenci Adı Soyadı</th>
                   <th>Veli (Borçlu)</th>
                   <th>Taksit Sayısı</th>
-                  <th>Sözleşme Tutarı</th>
+                  <th>Net Sözleşme Tutarı</th>
                   <th style={{ textAlign: "right" }}>Senet İşlemi</th>
                 </tr>
               </thead>
@@ -1134,10 +1664,10 @@ export function MuhasebeV2Dashboard({
                     <td><b>{s.student_name}</b></td>
                     <td>{s.parent_name || "—"}</td>
                     <td>{s.installment_count || 1} Taksit</td>
-                    <td><b>₺{Number(s.total_fee || 0).toLocaleString("tr-TR")}</b></td>
+                    <td><b>₺{fmtMoney(getEffectiveTotalFee(s))}</b></td>
                     <td style={{ textAlign: "right" }}>
                       <button 
-                        className="btn small secondary"
+                        className="btn small secondary" 
                         onClick={() => setPromissoryStudent(s)}
                         style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 10px" }}
                       >
@@ -1187,11 +1717,15 @@ export function MuhasebeV2Dashboard({
                   required
                 >
                   <option value="">Öğrenci Seçiniz...</option>
-                  {students.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.student_name} (#{s.student_no}) - Kalan: ₺{(Number(s.total_fee || 0) - Number(s.paid_amount || 0)).toLocaleString("tr-TR")}
-                    </option>
-                  ))}
+                  {students.map(s => {
+                    const eff = getEffectiveTotalFee(s);
+                    const paid = Number(s.paid_amount || 0);
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {s.student_name} (#{s.student_no}) - Kalan: ₺{fmtMoney(Math.max(0, eff - paid))}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -1256,7 +1790,7 @@ export function MuhasebeV2Dashboard({
         </div>
       )}
 
-      {/* MODAL 4: GİDER EKLE */}
+      {/* MODAL 4: GİDER EKLE (GAP-3: Hesap Seçimi ile Kasa Düşüşü) */}
       {showExpenseModal && (
         <div className="modal-backdrop" onClick={() => setShowExpenseModal(false)} style={{ zIndex: 1100 }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: "480px", width: "95vw" }}>
@@ -1290,9 +1824,23 @@ export function MuhasebeV2Dashboard({
               </div>
 
               <div className="form-group" style={{ marginBottom: "12px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Ödenecek Hesap / Kasa (GAP-3):</label>
+                <select 
+                  value={expAccount} 
+                  onChange={e => setExpAccount(e.target.value)}
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
+                >
+                  <option value="Nakit Ana Kasa">Nakit Ana Kasa (Elden)</option>
+                  <option value="T.C. VAKIFLAR BANKASI İNEGÖL ŞB.">T.C. VAKIFLAR BANKASI İNEGÖL ŞB. (TR04...)</option>
+                  <option value="T.C. HALKBANK İNEGÖL ŞB.">T.C. HALKBANK İNEGÖL ŞB. (TR87...)</option>
+                  <option value="POS / Şirket Kredi Kartı">POS / Şirket Kredi Kartı</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "12px" }}>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Kategori:</label>
                 <select 
-                  value={expCategory}
+                  value={expCategory} 
                   onChange={e => setExpCategory(e.target.value)}
                   style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
                 >
@@ -1303,6 +1851,16 @@ export function MuhasebeV2Dashboard({
                   <option value="Reklam / Tanıtım">Reklam / Sosyal Medya</option>
                   <option value="Genel">Diğer Genel Giderler</option>
                 </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Gider Tarihi:</label>
+                <input 
+                  type="date"
+                  value={expDate}
+                  onChange={e => setExpDate(e.target.value)}
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
+                />
               </div>
 
               <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "16px" }}>

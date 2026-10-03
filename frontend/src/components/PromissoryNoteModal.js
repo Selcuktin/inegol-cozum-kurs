@@ -55,7 +55,13 @@ export function PromissoryNoteModal({ student, onClose }) {
   
   if (!student) return null;
 
-  const totalFee = Number(student.total_fee || 0);
+  let extraSum = 0;
+  try {
+    const extras = typeof student.extra_fees === "string" ? JSON.parse(student.extra_fees || "{}") : (student.extra_fees || {});
+    extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
+  } catch {}
+  const discount = Number(student.discount_amount) || 0;
+  const totalFee = Math.max(0, (Number(student.total_fee) || 0) + extraSum - discount);
   const paidAmount = Number(student.paid_amount || 0);
   const instCount = Math.max(1, parseInt(student.installment_count) || 1);
   const remaining = Math.max(0, totalFee - paidAmount);

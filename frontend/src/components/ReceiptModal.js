@@ -12,7 +12,13 @@ export function ReceiptModal({ payment, student, onClose }) {
     ? new Date(payment.payment_date).toLocaleDateString("tr-TR") 
     : new Date().toLocaleDateString("tr-TR");
 
-  const totalFee = Number(student?.total_fee || 0);
+  let extraSum = 0;
+  try {
+    const extras = typeof student?.extra_fees === "string" ? JSON.parse(student?.extra_fees || "{}") : (student?.extra_fees || {});
+    extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
+  } catch {}
+  const discount = Number(student?.discount_amount) || 0;
+  const totalFee = Math.max(0, (Number(student?.total_fee) || 0) + extraSum - discount);
   const paidAmount = Number(student?.paid_amount || amount);
   const remaining = Math.max(0, totalFee - paidAmount);
 
