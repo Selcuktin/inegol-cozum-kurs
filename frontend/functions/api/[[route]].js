@@ -569,7 +569,7 @@ export async function onRequest(context) {
         result: {
           donemId,
           totalStudents: students.length,
-          activeStudents: students.filter(s => s.status !== "Ayrildi").length,
+          activeStudents: students.filter(s => s.status === "Aktif" || (s.status !== "Ayrıldı" && s.status !== "Ayrildi" && s.status !== "Mezun" && s.status !== "Donduruldu")).length,
           totalClasses: classes.length,
           totalCapacity,
           capacityOccupancyRate: capacityRate,
@@ -963,6 +963,28 @@ export async function onRequest(context) {
       const payments = paymentsRes.results || [];
       const plan = computeInstallmentPlan(student, payments);
 
+      const examResultsRes = await db.prepare(`
+        SELECT r.*, e.title as exam_title, e.exam_type, e.exam_date, e.publisher
+        FROM exam_results r
+        JOIN exams e ON r.exam_id = e.id
+        WHERE r.student_id = ?
+        ORDER BY e.exam_date DESC
+      `).bind(studentId).all().catch(() => ({ results: [] }));
+
+      const attendanceRes = await db.prepare(`
+        SELECT a.*, c.name as class_name
+        FROM attendance a
+        LEFT JOIN classes c ON a.class_id = c.id
+        WHERE a.student_id = ?
+        ORDER BY a.date DESC
+      `).bind(studentId).all().catch(() => ({ results: [] }));
+
+      const mentorshipRes = await db.prepare(`
+        SELECT * FROM mentorship
+        WHERE student_id = ?
+        ORDER BY session_date DESC
+      `).bind(studentId).all().catch(() => ({ results: [] }));
+
       const hasContract = !!student.signed_contract_path;
       const studentDetail = {
         ...student,
@@ -974,6 +996,9 @@ export async function onRequest(context) {
         student: studentDetail,
         payments,
         installment_plan: plan,
+        exam_results: examResultsRes.results || [],
+        attendance: attendanceRes.results || [],
+        mentorship: mentorshipRes.results || [],
       });
     }
 
@@ -1047,12 +1072,15 @@ export async function onRequest(context) {
       if (request.method === "GET") {
         const student = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
         if (!student) return json({ detail: "Öğrenci bulunamadı" }, 404);
-        student.remaining = Math.max(0, (Number(student.total_fee) || 0) - (Number(student.paid_amount) || 0));
+        student.remaining = Math.max(0, getEffectiveTotalFee(student) - (Number(student.paid_amount) || 0));
         return json(student);
       }
       if (request.method === "PATCH") {
         const user = await getCurrentUser(request, db);
         const patch = await request.json();
+        const existing = await db.prepare("SELECT id FROM students WHERE id = ?").bind(studentId).first();
+        if (!existing) return json({ detail: "Öğrenci bulunamadı" }, 404);
+
         const allowed = [
           "student_name", "student_phone", "school", "student_class", "student_tc", "student_address",
           "parent_name", "parent_phone", "parent_tc", "parent_address",
@@ -1072,7 +1100,7 @@ export async function onRequest(context) {
             if (["din_muaf", "ing_muaf", "uses_service"].includes(key)) v = Number(v) ? 1 : 0;
             if (key === "diploma_grade" || key === "total_fee" || key === "discount_amount") v = Number(v) || 0;
             if (key === "installment_count") v = parseInt(v) || 1;
-            values.push(v);
+            values.push(v === undefined ? null : v);
           }
         }
         if (updates.length > 0) {
@@ -1081,7 +1109,24 @@ export async function onRequest(context) {
           await logAction(db, user, "student.update", "student", studentId, `Öğrenci güncellendi`);
         }
         const updated = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
+        if (updated) {
+          updated.remaining = Math.max(0, getEffectiveTotalFee(updated) - (Number(updated.paid_amount) || 0));
+        }
         return json(updated);
+      }
+      if (request.method === "DELETE") {
+        const user = await getCurrentUser(request, db);
+        if (user?.role !== ROLE_ADMIN) {
+          return json({ detail: "Sadece yöneticiler öğrenci silebilir" }, 403);
+        }
+        await db.prepare("DELETE FROM payments WHERE student_id = ?").bind(studentId).run();
+        await db.prepare("DELETE FROM attendance WHERE student_id = ?").bind(studentId).run();
+        await db.prepare("DELETE FROM exam_results WHERE student_id = ?").bind(studentId).run();
+        await db.prepare("DELETE FROM homework_submissions WHERE student_id = ?").bind(studentId).run();
+        await db.prepare("DELETE FROM mentorship WHERE student_id = ?").bind(studentId).run();
+        await db.prepare("DELETE FROM students WHERE id = ?").bind(studentId).run();
+        await logAction(db, user, "student.delete", "student", studentId, `Öğrenci ve ilişkili kayıtlar silindi`);
+        return json({ ok: true });
       }
     }
 
@@ -1114,13 +1159,25 @@ export async function onRequest(context) {
         .run();
 
       await db
-        .prepare("UPDATE students SET paid_amount = paid_amount + ? WHERE id = ?")
+        .prepare("UPDATE students SET paid_amount = COALESCE(paid_amount, 0) + ? WHERE id = ?")
         .bind(amount, p.student_id)
         .run();
 
       await logAction(db, user, "payment.create", "payment", id, `${student.student_name} · ${amount} ₺ · ${p.method}`);
 
       return json({ id, ...p, amount });
+    }
+
+    const paymentIdMatch = path.match(/^\/payments\/([^\/]+)$/);
+    if (paymentIdMatch && request.method === "DELETE") {
+      const user = await getCurrentUser(request, db);
+      const payId = paymentIdMatch[1];
+      const pay = await db.prepare("SELECT * FROM payments WHERE id = ?").bind(payId).first();
+      if (!pay) return json({ detail: "Tahsilat bulunamadı" }, 404);
+      await db.prepare("DELETE FROM payments WHERE id = ?").bind(payId).run();
+      await db.prepare("UPDATE students SET paid_amount = MAX(0, COALESCE(paid_amount, 0) - ?) WHERE id = ?").bind(pay.amount, pay.student_id).run();
+      await logAction(db, user, "payment.delete", "payment", payId, `${pay.amount} ₺ tahsilat silindi`);
+      return json({ ok: true });
     }
 
     // ---------------- EXPENSES ----------------
@@ -1146,6 +1203,15 @@ export async function onRequest(context) {
 
       await logAction(db, user, "expense.create", "expense", id, `${e.title} · ${e.amount} ₺ (${e.account || "Nakit Ana Kasa"})`);
       return json({ id, ...e });
+    }
+
+    const expenseIdMatch = path.match(/^\/expenses\/([^\/]+)$/);
+    if (expenseIdMatch && request.method === "DELETE") {
+      const user = await getCurrentUser(request, db);
+      const expId = expenseIdMatch[1];
+      await db.prepare("DELETE FROM expenses WHERE id = ?").bind(expId).run();
+      await logAction(db, user, "expense.delete", "expense", expId, "Gider kaydı silindi");
+      return json({ ok: true });
     }
 
     // ---------------- CLASSES ----------------
@@ -1576,12 +1642,12 @@ export async function onRequest(context) {
           room = COALESCE(?, room)
         WHERE id = ?
       `).bind(
-        body.class_id,
-        body.day_of_week ? Number(body.day_of_week) : null,
-        body.time_slot,
-        body.subject,
-        body.teacher_name,
-        body.room,
+        body.class_id !== undefined ? body.class_id : null,
+        body.day_of_week !== undefined && body.day_of_week !== null ? Number(body.day_of_week) : null,
+        body.time_slot !== undefined ? body.time_slot : null,
+        body.subject !== undefined ? body.subject : null,
+        body.teacher_name !== undefined ? body.teacher_name : null,
+        body.room !== undefined ? body.room : null,
         id
       ).run();
       await logAction(db, user, "schedule.update", "schedule", id, `${body.subject || "Ders"} güncellendi`);

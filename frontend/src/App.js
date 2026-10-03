@@ -2686,16 +2686,22 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
   const canEdit = can(me, "student_create");
 
   // Öğrencinin katıldığı sınavlar
-  const studentExams = (data.exams || []).map(exam => {
-    const res = (exam.results || []).find(r => r.student_id === s.id);
-    return res ? { exam, ...res } : null;
-  }).filter(Boolean);
+  const studentExams = (detail?.exam_results && detail.exam_results.length > 0)
+    ? detail.exam_results
+    : (data.exams || []).map(exam => {
+        const res = (exam.results || []).find(r => r.student_id === s.id);
+        return res ? { exam, ...res } : null;
+      }).filter(Boolean);
 
   // Öğrencinin yoklama kayıtları
-  const studentAttendance = (data.attendanceToday || []).filter(a => a.student_id === s.id);
+  const studentAttendance = (detail?.attendance && detail.attendance.length > 0)
+    ? detail.attendance
+    : (data.attendanceToday || []).filter(a => a.student_id === s.id);
 
   // Öğrencinin rehberlik kayıtları
-  const studentMentorship = (data.mentorship || []).filter(m => m.student_id === s.id);
+  const studentMentorship = (detail?.mentorship && detail.mentorship.length > 0)
+    ? detail.mentorship
+    : (data.mentorship || []).filter(m => m.student_id === s.id);
 
   const uploadContract = async (file) => {
     if (!file) return;
@@ -2932,7 +2938,7 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
                     <tbody>
                       {studentExams.map((ex, idx) => (
                         <tr key={idx}>
-                          <td><b>{ex.exam?.title || "Kurumsal Deneme"}</b></td>
+                          <td><b>{ex.exam?.title || ex.exam_title || "Kurumsal Deneme"}</b></td>
                           <td><span className="badge" style={{ background: "#f1f5f9" }}>{ex.booklet || "A"}</span></td>
                           <td>{ex.turkish_net}</td>
                           <td>{ex.math_net}</td>
@@ -3100,11 +3106,11 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "16px" }}>
                 <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
                   <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>HEDEF ÜNİVERSİTE / LİSE:</span>
-                  <b style={{ fontSize: "15px", color: "#1e293b" }}>Boğaziçi Üniversitesi / Galatasaray Lisesi</b>
+                  <b style={{ fontSize: "15px", color: "#1e293b" }}>{studentMentorship[0]?.target_uni || s.target_uni || "Boğaziçi Üniversitesi / Hedef Derece"}</b>
                 </div>
                 <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
                   <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>HEDEF BÖLÜM:</span>
-                  <b style={{ fontSize: "15px", color: "#2563eb" }}>Bilgisayar Mühendisliği / Sayısal Derece</b>
+                  <b style={{ fontSize: "15px", color: "#2563eb" }}>{studentMentorship[0]?.target_department || s.target_department || s.department || "Sayısal Bölüm"}</b>
                 </div>
               </div>
 
