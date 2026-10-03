@@ -62,6 +62,7 @@ import { ReceiptModal } from "./components/ReceiptModal";
 import { AbsenceLetterModal } from "./components/AbsenceLetterModal";
 import { HataKarnesiModal } from "./components/HataKarnesiModal";
 import { ClassDetailModal } from "./components/ClassDetailModal";
+import { MuhasebeV2Dashboard } from "./components/MuhasebeV2Dashboard";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -539,7 +540,7 @@ function MainApp({ me, onLogout }) {
     {
       title: "FİNANS & MUHASEBE",
       items: [
-        { id: "payments",   label: "Tahsilat & Kasa",    icon: Wallet,          perm: "page_payments" },
+        { id: "payments",   label: "Muhasebe V2 & Kasa", icon: Wallet,          perm: "page_payments" },
         { id: "reminders",  label: "Taksit Takibi",      icon: BellRing,        perm: "page_reminders" },
         { id: "documents",  label: "Sözleşme & Makbuz",  icon: FileText,        perm: "page_documents" },
         { id: "reports",    label: "Aylık Rapor",        icon: FileDown,        perm: "page_reports" },
@@ -670,7 +671,7 @@ function MainApp({ me, onLogout }) {
         {page === "homework" && <HomeworkPage me={me} API={API} classes={data.classes || []} students={data.students || []} />}
         {page === "mentorship" && <MentorshipPage me={me} API={API} students={data.students || []} />}
         {page === "students" && <Students me={me} allStudents={data.students || []} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
-        {page === "payments" && <Payments me={me} data={data} onOpen={guardedOpen} />}
+        {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} />}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
         {page === "reminders" && <Reminders />}
         {page === "documents" && <Documents students={data.students} payments={data.payments} />}

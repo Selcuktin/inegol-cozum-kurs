@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  Columns,
   Download,
   ExternalLink,
   FileSpreadsheet,
@@ -3723,10 +3724,9 @@ export function SchedulesPage({ me, API, classes }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSlotId, setEditingSlotId] = useState(null);
 
-  // Mobil Görünüm: Gün Seçimi (1: Pazartesi ... 7: Pazar, 0: Tüm Hafta)
-  // Varsayılan olarak bugünün gününü seç (Pazar = 7)
+  // Görünüm: Varsayılan olarak 7 Günlük Geniş Yatay Matris (Soldan Sağa: Pazartesi -> Pazar)
   const todayDay = new Date().getDay() === 0 ? 7 : new Date().getDay();
-  const [activeDayView, setActiveDayView] = useState(todayDay);
+  const [activeDayView, setActiveDayView] = useState(0); // 0: Tüm Hafta 7 Sütunlu Yatay Matris (Soldan Sağa)
   const [viewMode, setViewMode] = useState("auto"); // "auto" | "day" | "grid"
 
   // Slot form state
@@ -3953,30 +3953,51 @@ export function SchedulesPage({ me, API, classes }) {
         </div>
       </div>
 
-      {/* MOBİL & TABLET: GÜN SEÇİCİ ŞERİT (DAY PILLS) */}
-      <div className="schedule-day-tabs">
-        {DAYS.map((d) => {
-          const count = schedules.filter(s => s.day_of_week === d.id).length;
-          return (
-            <button
-              key={d.id}
-              type="button"
-              className={`schedule-day-pill ${activeDayView === d.id ? "active" : ""}`}
-              onClick={() => setActiveDayView(d.id)}
-            >
-              <span>{d.name}</span>
-              <span className="day-count-badge">{count}</span>
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          className={`schedule-day-pill all-week ${activeDayView === 0 ? "active" : ""}`}
-          onClick={() => setActiveDayView(0)}
-        >
-          <span>Tüm Hafta (Matris)</span>
-        </button>
+      {/* GÖRÜNÜM SEÇİCİ: 7 GÜNLÜK YATAY MATRİS (SOLDAN SAĞA) vs GÜNLÜK AKIŞ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px", background: "#f8fafc", padding: "10px 14px", borderRadius: "10px", border: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className={`btn small ${activeDayView === 0 ? "" : "secondary"}`}
+            style={{ fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "6px", background: activeDayView === 0 ? "#1d4ed8" : "#fff", color: activeDayView === 0 ? "#fff" : "inherit" }}
+            onClick={() => setActiveDayView(0)}
+          >
+            <Columns size={15} /> 📊 7 Günlük Haftalık Matris (Soldan Sağa)
+          </button>
+          <button
+            type="button"
+            className={`btn small ${activeDayView !== 0 ? "" : "secondary"}`}
+            style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px", background: activeDayView !== 0 ? "#1d4ed8" : "#fff", color: activeDayView !== 0 ? "#fff" : "inherit" }}
+            onClick={() => setActiveDayView(todayDay)}
+          >
+            <Calendar size={15} /> 📱 Günlük Akış (Dikey)
+          </button>
+        </div>
+
+        <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
+          <span>💡 Boş kutuya tıklayarak ders ekleyebilir, karta tıklayarak düzenleyebilirsiniz.</span>
+        </div>
       </div>
+
+      {/* MOBİL GÜN SEÇİCİ (Yalnızca Günlük Akış Modu Açıkken Görünür) */}
+      {activeDayView !== 0 && (
+        <div className="schedule-day-tabs" style={{ marginBottom: "16px" }}>
+          {DAYS.map((d) => {
+            const count = schedules.filter(s => s.day_of_week === d.id).length;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                className={`schedule-day-pill ${activeDayView === d.id ? "active" : ""}`}
+                onClick={() => setActiveDayView(d.id)}
+              >
+                <span>{d.name}</span>
+                <span className="day-count-badge">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* GÖRÜNÜM 1: GÜNLÜK AKIŞ (TEK GÜN SEÇİLDİĞİNDE MOBİLDE MÜKEMMEL PRATİKLİK) */}
       {activeDayView !== 0 ? (
