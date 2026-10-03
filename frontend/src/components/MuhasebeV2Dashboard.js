@@ -47,6 +47,8 @@ import {
 } from "recharts";
 import { ReceiptModal } from "./ReceiptModal";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
+import { GelirDetayModal } from "./GelirDetayModal";
+import edesisData from "../data/edesisAccountingData.json";
 
 // Yardımcı: Temiz ve Taşkınsız Para Formatı (Büyük sayılarda küsurat atılır, TL simgesiyle uyumlu)
 function fmtMoney(val, forceDecimals = false) {
@@ -170,6 +172,7 @@ export function MuhasebeV2Dashboard({
   const [promissoryStudent, setPromissoryStudent] = useState(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
+  const [gelirModalData, setGelirModalData] = useState(null);
 
   // New Expense form
   const [expTitle, setExpTitle] = useState("");
@@ -709,6 +712,14 @@ export function MuhasebeV2Dashboard({
           </button>
           <button 
             className="btn secondary" 
+            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: "GLR202600150" })}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderColor: "#3b82f6", color: "#2563eb", fontWeight: "600" }}
+            title="Edesis Resmi Gelir & Sözleşme Detay Sayfası"
+          >
+            <FileText size={16} /> 📄 Edesis Gelir Detay (GLR)
+          </button>
+          <button 
+            className="btn secondary" 
             onClick={() => window.print()}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
@@ -1031,6 +1042,13 @@ export function MuhasebeV2Dashboard({
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
           <FileText size={16} /> 📜 Matbu Senet (Bono) Süiti
+        </button>
+        <button
+          className={`btn ${activeTab === "gelirler" ? "" : "secondary"}`}
+          onClick={() => setActiveTab("gelirler")}
+          style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
+        >
+          <FileText size={16} /> 📑 Gelirler & Sözleşmeler ({edesisData.gelirler?.length || 127})
         </button>
       </div>
 
@@ -1580,13 +1598,23 @@ export function MuhasebeV2Dashboard({
                       </b>
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <button 
-                        className="btn small secondary" 
-                        onClick={() => setReceiptPayment(p)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 10px" }}
-                      >
-                        <Receipt size={13} color="#2563eb" /> Resmi Makbuz Yazdır
-                      </button>
+                      <div style={{ display: "inline-flex", gap: "6px", justifyContent: "flex-end" }}>
+                        <button 
+                          className="btn small secondary" 
+                          onClick={() => setGelirModalData({ isOpen: true, student: { student_name: p.student_name, id: p.student_id } })}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px", color: "#2563eb", borderColor: "#bfdbfe" }}
+                          title="Edesis Gelir & Taksit Detayını Aç"
+                        >
+                          <FileText size={12} /> Gelir Detay
+                        </button>
+                        <button 
+                          className="btn small secondary" 
+                          onClick={() => setReceiptPayment(p)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 10px" }}
+                        >
+                          <Receipt size={13} color="#2563eb" /> Resmi Makbuz Yazdır
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1691,6 +1719,131 @@ export function MuhasebeV2Dashboard({
         </div>
       )}
 
+      {/* SEKME 7: EDESİS GELİRLER & SÖZLEŞMELER */}
+      {activeTab === "gelirler" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#0f172a" }}>Edesis Gelir & Sözleşme Yönetimi</h3>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>
+                Toplam {edesisData.gelirler?.length || 127} gelir ve {edesisData.sozlesmeler?.length || 119} sözleşme kaydı. Detay ve taksit dökümü için satıra tıklayınız.
+              </p>
+            </div>
+            <div className="top-search" style={{ width: "300px", margin: 0 }}>
+              <Search size={14} />
+              <input 
+                placeholder="Gelir kodu, öğrenci adı veya sözleşme no..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ fontSize: "12px" }}
+              />
+            </div>
+          </div>
+
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "900px" }}>
+              <thead>
+                <tr style={{ background: "#f8fafc" }}>
+                  <th>Gelir Kodu</th>
+                  <th>Öğrenci / Müşteri</th>
+                  <th>Sözleşme No</th>
+                  <th>Sınıf / Şube</th>
+                  <th>Tarih & Vade</th>
+                  <th style={{ textAlign: "right" }}>Brüt Tutar</th>
+                  <th style={{ textAlign: "right" }}>Tahsilat</th>
+                  <th style={{ textAlign: "right" }}>Kalan</th>
+                  <th style={{ textAlign: "center" }}>Durum</th>
+                  <th style={{ textAlign: "right" }}>İşlemler</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(edesisData.gelirler || [])
+                  .filter(g => {
+                    const q = searchQuery.toLowerCase();
+                    return !q || 
+                      (g.gelirKodu && g.gelirKodu.toLowerCase().includes(q)) ||
+                      (g.ogrenciAdiSoyadi && g.ogrenciAdiSoyadi.toLowerCase().includes(q)) ||
+                      (g.musteriUnvan && g.musteriUnvan.toLowerCase().includes(q)) ||
+                      (g.sozlesmeNo && g.sozlesmeNo.toLowerCase().includes(q));
+                  })
+                  .map((g, idx) => {
+                    const stName = g.ogrenciAdiSoyadi || g.musteriUnvan || "Öğrenci";
+                    const isFullyPaid = g.tamTahsilEdildiMi || (g.kalanAlacak <= 0);
+
+                    return (
+                      <tr key={g.id || idx}>
+                        <td>
+                          <b 
+                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo })}
+                            style={{ color: "#2563eb", cursor: "pointer", fontFamily: "monospace" }}
+                          >
+                            {g.gelirKodu}
+                          </b>
+                        </td>
+                        <td>
+                          <b 
+                            style={{ color: "#0f172a", cursor: "pointer" }}
+                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo })}
+                          >
+                            {stName}
+                          </b>
+                        </td>
+                        <td>
+                          <span className="badge" style={{ background: "#f1f5f9", color: "#334155" }}>
+                            {g.sozlesmeNo || "—"}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="badge" style={{ background: "#e0e7ff", color: "#3730a3", fontWeight: 600 }}>
+                            {g.sinifAdi || g.gradeAdi || "Genel"}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: "12px", color: "#64748b" }}>
+                          <div>{g.gelirTarihi ? g.gelirTarihi.slice(0, 10) : "-"}</div>
+                          {g.vadeTarihi && <div style={{ fontSize: "11px", color: "#94a3b8" }}>Vade: {g.vadeTarihi.slice(0, 10)}</div>}
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <b>₺{fmtMoney(g.brutTutar)}</b>
+                        </td>
+                        <td style={{ textAlign: "right", color: "#16a34a", fontWeight: "600" }}>
+                          ₺{fmtMoney(g.toplamTahsilat)}
+                        </td>
+                        <td style={{ textAlign: "right", color: isFullyPaid ? "#64748b" : "#dc2626", fontWeight: "700" }}>
+                          ₺{fmtMoney(g.kalanAlacak)}
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <span 
+                            className="badge" 
+                            style={{ 
+                              background: isFullyPaid ? "#dcfce7" : "#fef3c7", 
+                              color: isFullyPaid ? "#166534" : "#92400e", 
+                              padding: "3px 8px", 
+                              borderRadius: "6px", 
+                              fontSize: "11px", 
+                              fontWeight: "600" 
+                            }}
+                          >
+                            {isFullyPaid ? "Tam Ödendi" : `${g.taksitSayisi || 10} Taksit`}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <button
+                            className="btn small"
+                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo })}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 10px", background: "#2563eb", color: "#fff" }}
+                          >
+                            <FileText size={12} /> Detay & Taksit Planı
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: RESMİ TAHSİLAT MAKBUZU */}
       {receiptPayment && (
         <ReceiptModal 
@@ -1705,6 +1858,18 @@ export function MuhasebeV2Dashboard({
         <PromissoryNoteModal 
           student={promissoryStudent}
           onClose={() => setPromissoryStudent(null)}
+        />
+      )}
+
+      {/* MODAL 2.5: EDESİS GELİR DETAY SÜİTİ */}
+      {gelirModalData && (
+        <GelirDetayModal
+          isOpen={true}
+          onClose={() => setGelirModalData(null)}
+          gelirKodu={gelirModalData.gelirKodu}
+          sozlesmeNo={gelirModalData.sozlesmeNo}
+          student={gelirModalData.student}
+          onRecordPayment={() => reload && reload()}
         />
       )}
 

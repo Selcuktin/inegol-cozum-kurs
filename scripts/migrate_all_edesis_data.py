@@ -68,8 +68,8 @@ def main():
             }
         else:
             s = student_map[norm_name]
-            s["total_fee"] = max(s["total_fee"], float(g.get("brutTutar") or 0))
-            s["paid_amount"] = max(s["paid_amount"], float(g.get("toplamTahsilat") or 0))
+            s["total_fee"] += float(g.get("brutTutar") or 0)
+            s["paid_amount"] += float(g.get("toplamTahsilat") or 0)
             if not s["class_name"] and g.get("sinifAdi"):
                 s["class_name"] = g.get("sinifAdi")
 
@@ -104,6 +104,23 @@ def main():
                 s["class_name"] = sz.get("sinifAdi")
             if not s["sozlesme_no"] and sz.get("sozlesmeNo"):
                 s["sozlesme_no"] = sz.get("sozlesmeNo")
+
+    # 2.5 Enrich from taksitler (real phone, email, and class names)
+    for t in data.get("taksitler", []):
+        t_name = (t.get("ogrenciAdiSoyadi") or t.get("musteriUnvan") or "").strip()
+        if not t_name:
+            continue
+        norm_t = " ".join(t_name.upper().split())
+        if norm_t in student_map:
+            s = student_map[norm_t]
+            phone = t.get("musteriTelefon") or t.get("veliTelefon")
+            if phone and phone != "0":
+                s["phone"] = phone
+                s["parent_phone"] = phone
+            if t.get("sinifAdi") and not s["class_name"]:
+                s["class_name"] = t.get("sinifAdi")
+            if t.get("musteriId") and not s.get("student_tc"):
+                s["tc"] = str(t.get("musteriId"))
 
     print(f"Total compiled unique students: {len(student_map)}")
 
@@ -230,6 +247,33 @@ def main():
         f.write("\n".join(sql))
 
     print(f"Successfully generated clean SQL: {SQL_PATH} ({os.path.getsize(SQL_PATH)} bytes)")
+
+    # 4. Generate client JSON bundle for immediate frontend parity
+    client_json_dir = r"C:\Users\aslan\Desktop\cozum\frontend\src\data"
+    os.makedirs(client_json_dir, exist_ok=True)
+    client_json_path = os.path.join(client_json_dir, "edesisAccountingData.json")
+
+    client_payload = {
+        "summary": {
+            "totalRevenue": sum(s["total_fee"] for s in student_map.values()),
+            "totalCollected": sum(s["paid_amount"] for s in student_map.values()),
+            "totalRemaining": sum(s["total_fee"] for s in student_map.values()) - sum(s["paid_amount"] for s in student_map.values()),
+            "sozlesmelerCount": len(sozlesmeler),
+            "gelirlerCount": len(gelirler),
+            "taksitlerCount": len(data.get("taksitler", [])),
+            "tahsilatlarCount": len(payments_list),
+            "studentsCount": len(student_map),
+        },
+        "gelirler": gelirler,
+        "sozlesmeler": sozlesmeler,
+        "taksitler": data.get("taksitler", []),
+        "tahsilatlar": tahsilatlar,
+    }
+
+    with open(client_json_path, "w", encoding="utf-8") as f:
+        json.dump(client_payload, f, ensure_ascii=False, indent=2)
+
+    print(f"Successfully generated client JSON bundle: {client_json_path} ({os.path.getsize(client_json_path)} bytes)")
 
 if __name__ == "__main__":
     main()

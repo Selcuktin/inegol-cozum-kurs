@@ -63,6 +63,7 @@ import { AbsenceLetterModal } from "./components/AbsenceLetterModal";
 import { HataKarnesiModal } from "./components/HataKarnesiModal";
 import { ClassDetailModal } from "./components/ClassDetailModal";
 import { MuhasebeV2Dashboard } from "./components/MuhasebeV2Dashboard";
+import { GelirDetayModal } from "./components/GelirDetayModal";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -502,6 +503,7 @@ function MainApp({ me, onLogout }) {
   const [selected, setSelected] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [gelirModalData, setGelirModalData] = useState(null);
   const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
   useEffect(() => { load(); }, []);
   const filtered = useMemo(() => (data.students || []).filter(s => `${s.student_name} ${s.parent_name} ${s.student_phone}`.toLowerCase().includes(search.toLowerCase())), [data.students, search]);
@@ -702,6 +704,16 @@ function MainApp({ me, onLogout }) {
       onOpenPayment={() => guardedOpen("payment")}
       onNavigate={setPage}
     />
+    {gelirModalData && (
+      <GelirDetayModal
+        isOpen={true}
+        onClose={() => setGelirModalData(null)}
+        gelirKodu={gelirModalData.gelirKodu}
+        sozlesmeNo={gelirModalData.sozlesmeNo}
+        student={gelirModalData.student}
+        onRecordPayment={() => load()}
+      />
+    )}
   </div>;
 }
 
@@ -2656,6 +2668,7 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
   const [selectedKarne, setSelectedKarne] = useState(null);
   const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [showHataKarnesiModal, setShowHataKarnesiModal] = useState(false);
+  const [showGelirModal, setShowGelirModal] = useState(false);
   const fileRef = useRef();
 
   const refresh = () => {
@@ -2732,6 +2745,14 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
           </div>
 
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <button 
+              className="btn small secondary" 
+              onClick={() => setShowGelirModal(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#2563eb", borderColor: "#3b82f6" }}
+              title="Edesis Resmi Gelir ve Taksit Detay Sayfası"
+            >
+              <FileText size={14} /> 📄 Gelir Detay (GLR)
+            </button>
             <button 
               className="btn small secondary" 
               onClick={() => setShowPromissoryModal(true)}
@@ -3011,6 +3032,13 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <h4 style={{ margin: 0, fontSize: "14px", fontWeight: "700" }}>Taksit ve Ödeme Çizelgesi</h4>
                 <div style={{ display: "flex", gap: "8px" }}>
+                  <button 
+                    className="btn small secondary" 
+                    onClick={() => setShowGelirModal(true)} 
+                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#2563eb", borderColor: "#93c5fd" }}
+                  >
+                    <FileText size={14} /> 📄 Edesis Gelir Detayı (GLR)
+                  </button>
                   <button className="btn small" onClick={() => onOpenPayment && onOpenPayment()} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
                     <Plus size={14} /> Tahsilat Ekle
                   </button>
@@ -3133,6 +3161,16 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
         <HataKarnesiModal 
           student={s} 
           onClose={() => setShowHataKarnesiModal(false)} 
+        />
+      )}
+
+      {/* EDESİS GELİR DETAY SÜİTİ */}
+      {showGelirModal && (
+        <GelirDetayModal
+          isOpen={true}
+          onClose={() => setShowGelirModal(false)}
+          student={s}
+          onRecordPayment={() => refresh()}
         />
       )}
     </div>
