@@ -160,9 +160,16 @@ export function MuhasebeV2Dashboard({
   onOpen, 
   onSelectStudent, 
   API, 
-  reload 
+  reload,
+  activeTab: propActiveTab,
+  onTabChange
 }) {
-  const [activeTab, setActiveTab] = useState("dashboard"); // 'dashboard' | 'kasalar' | 'gecikenler' | 'tahsilatlar' | 'giderler' | 'senetler'
+  const [internalTab, setInternalTab] = useState("dashboard");
+  const activeTab = propActiveTab !== undefined ? propActiveTab : internalTab;
+  const setActiveTab = (tab) => {
+    setInternalTab(tab);
+    if (onTabChange) onTabChange(tab);
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRegisterFilter, setSelectedRegisterFilter] = useState("all");
   const [agingFilter, setAgingFilter] = useState("all"); // 'all' | '1-30' | '31-60' | '60+'

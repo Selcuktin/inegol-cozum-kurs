@@ -5094,4 +5094,208 @@ td[colspan] {
   border-radius: 12px;
 }
 
+/* ========================================================= */
+/* EDESIS TREE SIDEBAR & COLLAPSIBLE ACCORDION STYLES        */
+/* ========================================================= */
+
+.nav-tree-parent {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #334155;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  text-align: left;
+}
+
+.nav-tree-parent:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.nav-tree-parent.active-parent {
+  color: #2563eb;
+  background: #eff6ff;
+  font-weight: 700;
+}
+
+.nav-tree-parent.active-parent::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3.5px;
+  background: #2563eb;
+  border-radius: 0 4px 4px 0;
+}
+
+.nav-tree-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-tree-chevron {
+  transition: transform 0.2s ease;
+  color: #94a3b8;
+}
+
+.nav-tree-chevron.open {
+  transform: rotate(180deg);
+  color: #2563eb;
+}
+
+.nav-tree-sublist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+
+.nav-subitem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px 7px 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #475569;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  text-align: left;
+}
+
+.nav-subitem:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.nav-subitem.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.nav-subitem.active::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #2563eb;
+}
+
+.nav-sub-accordion {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px 6px 26px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #334155;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.nav-sub-accordion:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.nav-sub-accordion.active {
+  color: #2563eb;
+}
+
+.nav-nested-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 10px;
+}
+
+.nav-nested-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 28px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  text-align: left;
+}
+
+.nav-nested-item:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.nav-nested-item.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.nav-nested-item.active::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #2563eb;
+}
+
+.edesis-testbench-btn {
+  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+  transition: all 0.2s;
+}
+
+.edesis-testbench-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+}
+
 

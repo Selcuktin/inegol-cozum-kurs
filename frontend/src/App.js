@@ -44,11 +44,18 @@ import {
   PieChart,
   Layers,
   MessageCircle,
-  Sun
+  Sun,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Folder,
+  CreditCard,
+  Building
 } from "lucide-react";
 import {
   openWhatsApp,
   OfficialEdesisKarneModal,
+  EdesisOptikModal,
   ExamsPage,
   AttendancePage,
   SchedulesPage,
@@ -64,6 +71,8 @@ import { HataKarnesiModal } from "./components/HataKarnesiModal";
 import { ClassDetailModal } from "./components/ClassDetailModal";
 import { MuhasebeV2Dashboard } from "./components/MuhasebeV2Dashboard";
 import { GelirDetayModal } from "./components/GelirDetayModal";
+import { EtutAppointmentModal } from "./components/EtutAppointmentModal";
+import { EdesisTestBenchModal } from "./components/EdesisTestBenchModal";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -504,55 +513,174 @@ function MainApp({ me, onLogout }) {
   const [editingStudent, setEditingStudent] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [gelirModalData, setGelirModalData] = useState(null);
+
+  // Edesis Tree Navigation & Testbench States
+  const [accountingTab, setAccountingTab] = useState("dashboard");
+  const [showTestBench, setShowTestBench] = useState(false);
+  const [showGlobalOptikModal, setShowGlobalOptikModal] = useState(false);
+  const [showGlobalKarne, setShowGlobalKarne] = useState(null);
+  const [showGlobalHataKarnesi, setShowGlobalHataKarnesi] = useState(false);
+  const [showGlobalPromissory, setShowGlobalPromissory] = useState(false);
+  const [showGlobalAbsenceLetter, setShowGlobalAbsenceLetter] = useState(false);
+  const [showGlobalEtut, setShowGlobalEtut] = useState(false);
+
+  const [expandedTree, setExpandedTree] = useState({
+    olcme: true,
+    muhasebe: true,
+    gelir: true,
+    kasa: true,
+    gider: false
+  });
+  const toggleTree = (key) => setExpandedTree((prev) => ({ ...prev, [key]: !prev[key] }));
+
   const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
   useEffect(() => { load(); }, []);
   const filtered = useMemo(() => (data.students || []).filter(s => `${s.student_name} ${s.parent_name} ${s.student_phone}`.toLowerCase().includes(search.toLowerCase())), [data.students, search]);
   const totalCollected = data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
   const totalExpected = (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
   const totalExpenses = data.summary?.expenses || (data.expenses || []).reduce((a, e) => a + (e.amount || 0), 0);
+
   const navCategories = [
     {
       title: "KURUMSAL",
       items: [
-        { id: "dashboard",  label: "Genel Bakış",        icon: LayoutDashboard, perm: "page_dashboard" },
+        { id: "dashboard", label: "Genel Bakış", icon: LayoutDashboard, perm: "page_dashboard" }
       ]
     },
     {
       title: "ÖĞRENCİ İŞLERİ",
       items: [
-        { id: "students",   label: "Öğrenci Listesi",    icon: Users,           perm: "page_students" },
-        { id: "classes",    label: "Sınıf & Şubeler",    icon: BookOpen,        perm: "page_classes" },
+        { id: "students", label: "Öğrenci Listesi", icon: Users, perm: "page_students" },
+        { id: "classes", label: "Sınıf & Şubeler", icon: BookOpen, perm: "page_classes" }
       ]
     },
     {
       title: "ÖLÇME & DEĞERLENDİRME",
       items: [
-        { id: "exams",      label: "Deneme Sınavları & Karne", icon: Award,     perm: "page_exams" },
+        {
+          id: "exams",
+          label: "Deneme Sınavları & Karne",
+          icon: Award,
+          perm: "page_exams",
+          isTree: true,
+          treeKey: "olcme",
+          subItems: [
+            {
+              id: "exams_list",
+              label: "Deneme Sınavları Listesi",
+              icon: Award,
+              activeCheck: () => page === "exams" && !showGlobalOptikModal && !showGlobalHataKarnesi,
+              onClick: () => { setPage("exams"); setMobileOpen(false); }
+            },
+            {
+              id: "optik_omr",
+              label: "Optik Okuma & Şablonlar (OMR)",
+              icon: Sparkles,
+              onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); }
+            },
+            {
+              id: "hata_karnesi",
+              label: "Kazanım & Hata Karneleri",
+              icon: Target,
+              onClick: () => { setShowGlobalHataKarnesi(true); setMobileOpen(false); }
+            },
+            {
+              id: "kalibrasyon",
+              label: "Milimetrik Kalibrasyon & Baskı",
+              icon: Printer,
+              onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); }
+            }
+          ]
+        }
       ]
     },
     {
       title: "EĞİTİM & AKADEMİK",
       items: [
-        { id: "schedules",  label: "Ders Programı",      icon: Calendar,        perm: "page_schedules" },
-        { id: "attendance", label: "Günlük Yoklama",     icon: CalendarCheck,   perm: "page_attendance" },
-        { id: "homework",   label: "Ödev Takip",         icon: CheckSquare,     perm: "page_homework" },
-        { id: "mentorship", label: "Rehberlik & Koçluk", icon: Target,          perm: "page_mentorship" },
+        { id: "schedules", label: "Ders Programı", icon: Calendar, perm: "page_schedules" },
+        { id: "attendance", label: "Günlük Yoklama", icon: CalendarCheck, perm: "page_attendance" },
+        { id: "homework", label: "Ödev Takip", icon: CheckSquare, perm: "page_homework" },
+        { id: "mentorship", label: "Rehberlik & Koçluk", icon: Target, perm: "page_mentorship" }
       ]
     },
     {
       title: "FİNANS & MUHASEBE",
       items: [
-        { id: "payments",   label: "Muhasebe V2 & Kasa", icon: Wallet,          perm: "page_payments" },
-        { id: "reminders",  label: "Taksit Takibi",      icon: BellRing,        perm: "page_reminders" },
-        { id: "documents",  label: "Sözleşme & Makbuz",  icon: FileText,        perm: "page_documents" },
-        { id: "reports",    label: "Aylık Rapor",        icon: FileDown,        perm: "page_reports" },
+        {
+          id: "payments",
+          label: "Muhasebe V2",
+          icon: Wallet,
+          perm: "page_payments",
+          isTree: true,
+          treeKey: "muhasebe",
+          subItems: [
+            {
+              id: "p_dash",
+              label: "Kontrol Paneli",
+              icon: LayoutDashboard,
+              activeCheck: () => page === "payments" && accountingTab === "dashboard",
+              onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); }
+            },
+            {
+              id: "p_gelir",
+              label: "Gelir Yönetimi",
+              isAccordion: true,
+              subKey: "gelir",
+              icon: Folder,
+              children: [
+                { id: "g_list", label: "Gelir Listesi", activeCheck: () => page === "payments" && accountingTab === "gelirler", onClick: () => { setPage("payments"); setAccountingTab("gelirler"); setMobileOpen(false); } },
+                { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { setPage("documents"); setMobileOpen(false); } },
+                { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "payments" && accountingTab === "gecikenler", onClick: () => { setPage("payments"); setAccountingTab("gecikenler"); setMobileOpen(false); } },
+                { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "payments" && accountingTab === "tahsilatlar", onClick: () => { setPage("payments"); setAccountingTab("tahsilatlar"); setMobileOpen(false); } },
+                { id: "g_senet", label: "Fatura Planı / Senetler", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setPage("payments"); setAccountingTab("senetler"); setMobileOpen(false); } },
+                { id: "g_cust", label: "Müşteriler / Veliler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } },
+                { id: "g_glr", label: "📄 Gelir Detay (GLR)", onClick: () => { setGelirModalData({ isOpen: true, gelirKodu: "GLR202600150" }); setMobileOpen(false); } }
+              ]
+            },
+            {
+              id: "p_gider",
+              label: "Gider Yönetimi",
+              isAccordion: true,
+              subKey: "gider",
+              icon: TrendingDown,
+              children: [
+                { id: "gid_list", label: "Gider Listesi", activeCheck: () => page === "payments" && accountingTab === "giderler", onClick: () => { setPage("payments"); setAccountingTab("giderler"); setMobileOpen(false); } },
+                { id: "gid_add", label: "Yeni Gider Ekle", onClick: () => { guardedOpen("expense"); setMobileOpen(false); } }
+              ]
+            },
+            {
+              id: "p_kasa",
+              label: "Kasa ve Banka",
+              isAccordion: true,
+              subKey: "kasa",
+              icon: Building,
+              children: [
+                { id: "k_def", label: "Kasa Defteri", activeCheck: () => page === "payments" && accountingTab === "kasalar", onClick: () => { setPage("payments"); setAccountingTab("kasalar"); setMobileOpen(false); } },
+                { id: "k_gun", label: "Kasa Raporu Yazdır", onClick: () => { window.print(); setMobileOpen(false); } },
+                { id: "k_makbuz", label: "Tahsilat Makbuzu Kes", onClick: () => { guardedOpen("payment"); setMobileOpen(false); } },
+                { id: "k_senet", label: "Matbu Senet (Bono) Yazdır", onClick: () => { setShowGlobalPromissory(true); setMobileOpen(false); } },
+                { id: "k_bak", label: "Bakiyeler & Hesaplar", activeCheck: () => page === "payments" && accountingTab === "dashboard", onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); } }
+              ]
+            }
+          ]
+        },
+        { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
+        { id: "documents", label: "Sözleşme & Makbuz", icon: FileText, perm: "page_documents" },
+        { id: "reports", label: "Aylık Rapor", icon: FileDown, perm: "page_reports" }
       ]
     },
     {
-      title: "SİSTEM",
+      title: "GELİŞTİRİCİ & TEST",
       items: [
-        { id: "users",      label: "Kullanıcılar",       icon: UserCog,         perm: "page_users" },
-        { id: "audit",      label: "Denetim Kaydı",      icon: History,         perm: "page_audit" },
+        {
+          id: "testbench",
+          label: "🧪 Edesis Test Vitrini",
+          icon: Sparkles,
+          perm: "page_dashboard",
+          customAction: () => setShowTestBench(true)
+        },
+        { id: "users", label: "Kullanıcılar", icon: UserCog, perm: "page_users" },
+        { id: "audit", label: "Denetim Kaydı", icon: History, perm: "page_audit" }
       ]
     }
   ];
@@ -588,18 +716,112 @@ function MainApp({ me, onLogout }) {
           return (
             <div key={ci} className="sidebar-group">
               <div className="sidebar-category-title">{cat.title}</div>
-              {visibleItems.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  data-testid={`nav-${id}`}
-                  className={page === id ? "nav-item active" : "nav-item"}
-                  onClick={() => { setPage(id); setMobileOpen(false); }}
-                >
-                  <Icon size={18} />
-                  <span>{label}</span>
-                  {id === "payments" && <i className="nav-dot" />}
-                </button>
-              ))}
+              {visibleItems.map((item) => {
+                if (item.isTree) {
+                  const isTreeOpen = !!expandedTree[item.treeKey];
+                  const isParentActive = page === item.id;
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.id} className="nav-tree-block">
+                      <button
+                        type="button"
+                        data-testid={`nav-tree-${item.id}`}
+                        className={`nav-tree-parent ${isParentActive ? "active-parent" : ""}`}
+                        onClick={() => toggleTree(item.treeKey)}
+                      >
+                        <div className="nav-tree-left">
+                          <Icon size={17} />
+                          <span>{item.label}</span>
+                        </div>
+                        <ChevronDown size={14} className={`nav-tree-chevron ${isTreeOpen ? "open" : ""}`} />
+                      </button>
+
+                      {isTreeOpen && (
+                        <div className="nav-tree-sublist">
+                          {item.subItems.map((sub) => {
+                            if (sub.isAccordion) {
+                              const isSubOpen = !!expandedTree[sub.subKey];
+                              const SubIcon = sub.icon || Folder;
+                              return (
+                                <div key={sub.id} className="nav-sub-accordion-block">
+                                  <button
+                                    type="button"
+                                    className={`nav-sub-accordion ${isSubOpen ? "active" : ""}`}
+                                    onClick={() => toggleTree(sub.subKey)}
+                                  >
+                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                      <SubIcon size={14} color="#64748b" />
+                                      <span>{sub.label}</span>
+                                    </div>
+                                    <ChevronDown size={12} className={`nav-tree-chevron ${isSubOpen ? "open" : ""}`} />
+                                  </button>
+
+                                  {isSubOpen && (
+                                    <div className="nav-nested-list">
+                                      {sub.children.map((nested) => {
+                                        const isNestedActive = nested.activeCheck ? nested.activeCheck() : false;
+                                        return (
+                                          <button
+                                            key={nested.id}
+                                            type="button"
+                                            className={`nav-nested-item ${isNestedActive ? "active" : ""}`}
+                                            onClick={nested.onClick}
+                                          >
+                                            <span>{nested.label}</span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            const isSubActive = sub.activeCheck ? sub.activeCheck() : page === sub.id;
+                            const SubIcon = sub.icon;
+                            return (
+                              <button
+                                key={sub.id}
+                                type="button"
+                                className={`nav-subitem ${isSubActive ? "active" : ""}`}
+                                onClick={sub.onClick}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  {SubIcon && <SubIcon size={14} />}
+                                  <span>{sub.label}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Normal Flat Item
+                const Icon = item.icon;
+                const isItemActive = page === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    data-testid={`nav-${item.id}`}
+                    className={isItemActive ? "nav-item active" : "nav-item"}
+                    onClick={() => {
+                      if (item.customAction) {
+                        item.customAction();
+                      } else {
+                        setPage(item.id);
+                      }
+                      setMobileOpen(false);
+                    }}
+                  >
+                    <Icon size={18} />
+                    <span>{item.label}</span>
+                    {item.id === "payments" && <i className="nav-dot" />}
+                  </button>
+                );
+              })}
             </div>
           );
         })}
@@ -617,33 +839,43 @@ function MainApp({ me, onLogout }) {
       <PwaBanner />
       <header className="topbar">
         <button className="mobile-menu" data-testid="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} /></button>
-        <div style={{ position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <button
             type="button"
-            className="edesis-quick-actions-btn"
-            onClick={() => setQuickOpen(!quickOpen)}
-            title="Hızlı İşlemler Menüsü"
+            className="edesis-testbench-btn"
+            onClick={() => setShowTestBench(true)}
+            title="Tüm Edesis popuplarını ve sayfalarını tek tıkla test edin"
           >
-            <Zap size={14} />
-            <span>Hızlı İşlemler</span>
+            <Sparkles size={14} />
+            <span>🧪 Edesis Test Vitrini</span>
           </button>
-          {quickOpen && (
-            <div className="edesis-quick-dropdown" onClick={() => setQuickOpen(false)}>
-              <div className="quick-dropdown-header">HIZLI İŞLEMLER</div>
-              <div className="quick-dropdown-grid">
-                <div className="quick-col">
-                  <div className="quick-col-title">MUHASEBE</div>
-                  <button type="button" onClick={() => setPage("documents")}><FileText size={14} style={{ color: "#2563eb" }} /> Yeni Sözleşme <ChevronRight size={12} /></button>
-                  <button type="button" onClick={() => guardedOpen("payment")}><CircleDollarSign size={14} style={{ color: "#8b5cf6" }} /> Tahsilat Al <ChevronRight size={12} /></button>
-                  <button type="button" onClick={() => guardedOpen("expense")}><TrendingDown size={14} style={{ color: "#ef4444" }} /> Hızlı Gider <ChevronRight size={12} /></button>
-                </div>
-                <div className="quick-col">
-                  <div className="quick-col-title">SINAV & ANALİZ</div>
-                  <button type="button" onClick={() => setPage("exams")}><GraduationCap size={14} style={{ color: "#8b5cf6" }} /> Yeni Sınav / Deneme <ChevronRight size={12} /></button>
-                  <button type="button" onClick={() => setPage("exams")}><Target size={14} style={{ color: "#0d9488" }} /> Sınav Karnesi <ChevronRight size={12} /></button>
-                  <button type="button" onClick={() => setPage("attendance")}><UserCheck size={14} style={{ color: "#16a34a" }} /> Günlük Yoklama <ChevronRight size={12} /></button>
-                </div>
-                <div className="quick-col">
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              className="edesis-quick-actions-btn"
+              onClick={() => setQuickOpen(!quickOpen)}
+              title="Hızlı İşlemler Menüsü"
+            >
+              <Zap size={14} />
+              <span>Hızlı İşlemler</span>
+            </button>
+            {quickOpen && (
+              <div className="edesis-quick-dropdown" onClick={() => setQuickOpen(false)}>
+                <div className="quick-dropdown-header">HIZLI İŞLEMLER</div>
+                <div className="quick-dropdown-grid">
+                  <div className="quick-col">
+                    <div className="quick-col-title">MUHASEBE</div>
+                    <button type="button" onClick={() => setPage("documents")}><FileText size={14} style={{ color: "#2563eb" }} /> Yeni Sözleşme <ChevronRight size={12} /></button>
+                    <button type="button" onClick={() => guardedOpen("payment")}><CircleDollarSign size={14} style={{ color: "#8b5cf6" }} /> Tahsilat Al <ChevronRight size={12} /></button>
+                    <button type="button" onClick={() => guardedOpen("expense")}><TrendingDown size={14} style={{ color: "#ef4444" }} /> Hızlı Gider <ChevronRight size={12} /></button>
+                  </div>
+                  <div className="quick-col">
+                    <div className="quick-col-title">SINAV & ANALİZ</div>
+                    <button type="button" onClick={() => setPage("exams")}><GraduationCap size={14} style={{ color: "#8b5cf6" }} /> Yeni Sınav / Deneme <ChevronRight size={12} /></button>
+                    <button type="button" onClick={() => setShowGlobalKarne({ student_name: data.students?.[0]?.student_name || "Öğrenci", student_class: "7-A", score: 445.5, total_net: 62.5, overall_rank: 2, class_rank: 1, booklet: "A", exam: data.exams?.[0] || { title: "Kurumsal Deneme" } })}><Target size={14} style={{ color: "#0d9488" }} /> Sınav Karnesi <ChevronRight size={12} /></button>
+                    <button type="button" onClick={() => setPage("attendance")}><UserCheck size={14} style={{ color: "#16a34a" }} /> Günlük Yoklama <ChevronRight size={12} /></button>
+                  </div>
+                  <div className="quick-col">
                   <div className="quick-col-title">KAYIT & SİSTEM</div>
                   <button type="button" onClick={() => guardedOpen("student")}><UserPlus size={14} style={{ color: "#d97706" }} /> Yeni Öğrenci Kaydı <ChevronRight size={12} /></button>
                   <button type="button" onClick={() => setPage("schedules")}><Clock size={14} style={{ color: "#2563eb" }} /> Ders Programı <ChevronRight size={12} /></button>
@@ -652,6 +884,7 @@ function MainApp({ me, onLogout }) {
               </div>
             </div>
           )}
+        </div>
         </div>
         <div className="top-search"><Search size={17} /><input data-testid="global-search-input" placeholder="Öğrenci, veli veya telefon ara..." value={search} onChange={e => { setSearch(e.target.value); if (can(me,"page_students")) setPage("students"); }} /></div>
         <div className="top-actions">
@@ -673,7 +906,7 @@ function MainApp({ me, onLogout }) {
         {page === "homework" && <HomeworkPage me={me} API={API} classes={data.classes || []} students={data.students || []} />}
         {page === "mentorship" && <MentorshipPage me={me} API={API} students={data.students || []} />}
         {page === "students" && <Students me={me} allStudents={data.students || []} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
-        {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} />}
+        {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} />}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
         {page === "reminders" && <Reminders />}
         {page === "documents" && <Documents students={data.students} payments={data.payments} />}
@@ -712,6 +945,71 @@ function MainApp({ me, onLogout }) {
         sozlesmeNo={gelirModalData.sozlesmeNo}
         student={gelirModalData.student}
         onRecordPayment={() => load()}
+      />
+    )}
+
+    {/* EDESIS TEST LABORATUVARI & MODAL VİTRİNİ */}
+    <EdesisTestBenchModal
+      isOpen={showTestBench}
+      onClose={() => setShowTestBench(false)}
+      data={data}
+      API={API}
+      onOpenGlobalModal={guardedOpen}
+      onNavigate={(p) => { setPage(p); setShowTestBench(false); }}
+    />
+
+    {/* GLOBAL OPTİK OKUYUCU SÜİTİ */}
+    {showGlobalOptikModal && (
+      <EdesisOptikModal
+        exam={data.exams?.[0] || { id: "exam-001", title: "Özdebir LGS / TYT Deneme Sınavı", booklet_types: "A,B" }}
+        onClose={() => setShowGlobalOptikModal(false)}
+        API={API}
+        students={data.students || []}
+        classes={data.classes || []}
+        onResultsUpdated={load}
+      />
+    )}
+
+    {/* GLOBAL RESMİ EDESİS KARNESİ */}
+    {showGlobalKarne && (
+      <OfficialEdesisKarneModal
+        data={showGlobalKarne}
+        onClose={() => setShowGlobalKarne(null)}
+      />
+    )}
+
+    {/* GLOBAL KAZANIM VE HATA KARNESİ */}
+    {showGlobalHataKarnesi && (
+      <HataKarnesiModal
+        student={data.students?.[0] || { student_name: "Örnek Öğrenci", student_class: "TYT-AYT" }}
+        onClose={() => setShowGlobalHataKarnesi(false)}
+      />
+    )}
+
+    {/* GLOBAL RESMİ MATBU SENET (BONO) SÜİTİ */}
+    {showGlobalPromissory && (
+      <PromissoryNoteModal
+        student={data.students?.[0] || { student_name: "Örnek Öğrenci", total_fee: 55000, installment_count: 10 }}
+        onClose={() => setShowGlobalPromissory(false)}
+      />
+    )}
+
+    {/* GLOBAL MEB DEVAMSIZLIK UYARI MEKTUBU */}
+    {showGlobalAbsenceLetter && (
+      <AbsenceLetterModal
+        student={data.students?.[0] || { student_name: "Örnek Öğrenci" }}
+        daysAbsent={10}
+        onClose={() => setShowGlobalAbsenceLetter(false)}
+      />
+    )}
+
+    {/* GLOBAL BİREBİR ETÜT & RANDEVU MODALI */}
+    {showGlobalEtut && (
+      <EtutAppointmentModal
+        API={API}
+        students={data.students || []}
+        classes={data.classes || []}
+        onClose={() => setShowGlobalEtut(false)}
       />
     )}
   </div>;
