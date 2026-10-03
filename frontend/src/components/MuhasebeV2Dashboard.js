@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import axios from "axios";
 import {
   Wallet,
@@ -191,6 +191,10 @@ export function MuhasebeV2Dashboard({
   const payments = useMemo(() => data.payments || [], [data.payments]);
   const [expenses, setExpenses] = useState(data.expenses || []);
 
+  useEffect(() => {
+    setExpenses(data.expenses || []);
+  }, [data.expenses]);
+
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
@@ -252,11 +256,10 @@ export function MuhasebeV2Dashboard({
         const remaining = Math.max(0, total - paid);
         if (remaining <= 0) return null;
 
-        let daysOverdue = 28;
-        if (s.due_date) {
-          const diff = Math.floor((new Date(todayStr).getTime() - new Date(s.due_date).getTime()) / 86400000);
-          daysOverdue = Math.max(1, diff);
-        }
+        if (!s.due_date) return null;
+        const diff = Math.floor((new Date(todayStr).getTime() - new Date(s.due_date).getTime()) / 86400000);
+        if (diff <= 0) return null; // Future or current installments are not overdue!
+        const daysOverdue = diff;
 
         let agingCategory = "1-30";
         if (daysOverdue > 60) agingCategory = "60+";
@@ -358,7 +361,7 @@ export function MuhasebeV2Dashboard({
 
       nakitInflow,
       nakitExpense,
-      nakit: Math.max(0, nakitInflow - totalExpenses),
+      nakit: Math.max(0, nakitInflow - nakitExpense),
 
       posInflow,
       posExpense,
@@ -369,7 +372,7 @@ export function MuhasebeV2Dashboard({
 
       grossNakit: nakitInflow
     };
-  }, [payments, expenses, totalExpenses]);
+  }, [payments, expenses]);
 
   const netLiquidBalance = useMemo(() => {
     return Math.max(0, registers.vakifbank + registers.halkbank + registers.pos + registers.nakit);
@@ -410,6 +413,7 @@ export function MuhasebeV2Dashboard({
         ay: name,
         ayKod: monthPrefix,
         plan: Math.round(plan),
+        planlanan: Math.round(plan),
         gerceklesen: Math.round(gerceklesen),
         uyum
       };
@@ -717,7 +721,7 @@ export function MuhasebeV2Dashboard({
       <div className="muhasebe-kpi-grid">
         
         {/* Toplam Sözleşme / Kayıt Cirosu */}
-        <div className="muhasebe-kpi-card" style={{ background: "#fff" }}>
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff" }}>
           <div className="kpi-title-row" style={{ color: "#64748b" }}>
             <span>TOPLAM KAYIT CİROSU</span>
             <Building size={16} color="#3b82f6" />
@@ -731,7 +735,7 @@ export function MuhasebeV2Dashboard({
         </div>
 
         {/* Gerçekleşen Tahsilat */}
-        <div className="muhasebe-kpi-card" style={{ background: "#fff", borderColor: "#bbf7d0" }}>
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#bbf7d0" }}>
           <div className="kpi-title-row" style={{ color: "#166534" }}>
             <span>GERÇEKLEŞEN TAHSİLAT</span>
             <CheckCircle2 size={16} color="#16a34a" />
@@ -745,7 +749,7 @@ export function MuhasebeV2Dashboard({
         </div>
 
         {/* Bu Ay Vadesi Gelenler (GAP-1) */}
-        <div className="muhasebe-kpi-card" style={{ background: "#fff", borderColor: "#fed7aa" }}>
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#fed7aa" }}>
           <div className="kpi-title-row" style={{ color: "#c2410c" }}>
             <span>BU AY VADESİ GELENLER</span>
             <Calendar size={16} color="#ea580c" />
@@ -759,7 +763,7 @@ export function MuhasebeV2Dashboard({
         </div>
 
         {/* Gecikmiş Taksitler (Kritik Takip) */}
-        <div className="muhasebe-kpi-card" style={{ background: "#fef2f2", borderColor: "#fecaca" }}>
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fef2f2", borderColor: "#fecaca" }}>
           <div className="kpi-title-row" style={{ color: "#991b1b" }}>
             <span>GECİKMİŞ TAKSİTLER</span>
             <AlertTriangle size={16} color="#ef4444" />
@@ -773,7 +777,7 @@ export function MuhasebeV2Dashboard({
         </div>
 
         {/* Tahsilat Başarı Oranı (Bağımsız Gösterge Kartı) */}
-        <div className="muhasebe-kpi-card" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
           <div className="kpi-title-row" style={{ color: "#15803d" }}>
             <span>TAHSİLAT BAŞARI ORANI</span>
             <Percent size={16} color="#16a34a" />
@@ -792,7 +796,7 @@ export function MuhasebeV2Dashboard({
         </div>
 
         {/* Net Likit Mevcut */}
-        <div className="muhasebe-kpi-card" style={{ background: "#f8fafc", border: "2px solid #2563eb" }}>
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#f8fafc", border: "2px solid #2563eb" }}>
           <div className="kpi-title-row" style={{ color: "#1d4ed8" }}>
             <span>NET LİKİT MEVCUT</span>
             <Wallet size={16} color="#2563eb" />
@@ -826,7 +830,8 @@ export function MuhasebeV2Dashboard({
             onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("vakif"); }}
             style={{ 
               background: "#f0fdf4", 
-              border: "1px solid #bbf7d0"
+              border: "1px solid #bbf7d0",
+              cursor: "pointer"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -858,7 +863,8 @@ export function MuhasebeV2Dashboard({
             onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("halk"); }}
             style={{ 
               background: "#eff6ff", 
-              border: "1px solid #bfdbfe"
+              border: "1px solid #bfdbfe",
+              cursor: "pointer"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -890,7 +896,8 @@ export function MuhasebeV2Dashboard({
             onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("nakit"); }}
             style={{ 
               background: "#fefce8", 
-              border: "1px solid #fef08a"
+              border: "1px solid #fef08a",
+              cursor: "pointer"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -922,7 +929,8 @@ export function MuhasebeV2Dashboard({
             onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("pos"); }}
             style={{ 
               background: "#fdf2f8", 
-              border: "1px solid #fbcfe8"
+              border: "1px solid #fbcfe8",
+              cursor: "pointer"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -954,7 +962,8 @@ export function MuhasebeV2Dashboard({
             onClick={() => { setActiveTab("senetler"); }}
             style={{ 
               background: "#f5f3ff", 
-              border: "1px solid #ddd6fe"
+              border: "1px solid #ddd6fe",
+              cursor: "pointer"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

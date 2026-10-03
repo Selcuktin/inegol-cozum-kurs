@@ -23,23 +23,27 @@ export function numberToTurkishWords(num) {
     return s;
   }
 
-  if (lira === 0) return "Sıfır Türk Lirası";
+  if (lira === 0 && kurus === 0) return "Sıfır Türk Lirası";
 
   let str = "";
-  let parts = [];
-  let temp = lira;
-  while (temp > 0) {
-    parts.push(temp % 1000);
-    temp = Math.floor(temp / 1000);
-  }
+  if (lira === 0) {
+    str = "Sıfır";
+  } else {
+    let parts = [];
+    let temp = lira;
+    while (temp > 0) {
+      parts.push(temp % 1000);
+      temp = Math.floor(temp / 1000);
+    }
 
-  for (let i = parts.length - 1; i >= 0; i--) {
-    let p = parts[i];
-    if (p === 0) continue;
-    if (i === 1 && p === 1) {
-      str += "Bin";
-    } else {
-      str += ucHane(p) + (basamaklar[i] || "");
+    for (let i = parts.length - 1; i >= 0; i--) {
+      let p = parts[i];
+      if (p === 0) continue;
+      if (i === 1 && p === 1) {
+        str += "Bin";
+      } else {
+        str += ucHane(p) + (basamaklar[i] || "");
+      }
     }
   }
 

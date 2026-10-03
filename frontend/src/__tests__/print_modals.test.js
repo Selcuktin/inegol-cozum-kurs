@@ -1,0 +1,339 @@
+import React from "react";
+import { ReceiptModal } from "../components/ReceiptModal";
+import { PromissoryNoteModal, numberToTurkishWords } from "../components/PromissoryNoteModal";
+import {
+  render,
+  cleanup,
+  fireEvent,
+  mockStudents,
+  mockPayments
+} from "./test_helpers";
+
+describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
+  let originalPrint;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    originalPrint = window.print;
+    window.print = jest.fn();
+  });
+
+  afterEach(async () => {
+    window.print = originalPrint;
+    await cleanup();
+  });
+
+  /* =====================================================================
+   * TIER 1: CORE RENDERING, MEB CODES & LEGAL PHRASING
+   * ===================================================================== */
+  describe("Tier 1: Core Rendering & Institutional Compliance", () => {
+    test("T1.1: ReceiptModal renders official institution header and MEB codes", async () => {
+      const { container } = await render(
+        <ReceiptModal
+          payment={mockPayments[0]}
+          student={mockStudents[0]}
+          onClose={jest.fn()}
+        />
+      );
+
+      expect(container.textContent).toContain("ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ");
+      expect(container.textContent).toContain("Kemalpaşa Mah. Ilıca Sk. No:31/33A İnegöl / BURSA");
+      expect(container.textContent).toContain("MEB Kurum Kodu: 627201");
+      expect(container.textContent).toContain("Vergi No: 2600673412");
+      expect(container.textContent).toContain("0224 715 00 02");
+    });
+
+    test("T1.2: ReceiptModal renders student, parent, and payment details accurately", async () => {
+      const { container } = await render(
+        <ReceiptModal
+          payment={mockPayments[0]}
+          student={mockStudents[0]}
+          onClose={jest.fn()}
+        />
+      );
+
+      expect(container.textContent).toContain("Ahmet Yılmaz");
+      expect(container.textContent).toContain("Mehmet Yılmaz");
+      expect(container.textContent).toContain("12-SAY-A");
+      expect(container.textContent).toContain("05321112233");
+      expect(container.textContent).toContain("Vakıfbank havalesi");
+    });
+
+    test("T1.3: ReceiptModal displays amount in numbers and Turkish words", async () => {
+      // pmt-1 has amount 10,000 -> "On Bin Türk Lirası"
+      const { container } = await render(
+        <ReceiptModal
+          payment={mockPayments[0]}
+          student={mockStudents[0]}
+          onClose={jest.fn()}
+        />
+      );
+
+      expect(container.textContent).toContain("₺10.000,00");
+      expect(container.textContent).toContain("#OnBin Türk Lirası#");
+    });
+
+    test("T1.4: ReceiptModal renders financial summary (Total Fee, Paid, Remaining)", async () => {
+      // student 0: total 60,000, paid 20,000, remaining 40,000
+      const { container } = await render(
+        <ReceiptModal
+          payment={mockPayments[0]}
+          student={mockStudents[0]}
+          onClose={jest.fn()}
+        />
+      );
+
+      expect(container.textContent).toContain("Toplam Kayıt Ücreti");
+      expect(container.textContent).toContain("60.000,00");
+      expect(container.textContent).toContain("Şimdiye Kadar Ödenen");
+      expect(container.textContent).toContain("20.000,00");
+      expect(container.textContent).toContain("Kalan Net Bakiye");
+      expect(container.textContent).toContain("40.000,00");
+    });
+
+    test("T1.5: ReceiptModal print button triggers window.print", async () => {
+      const { container } = await render(
+        <ReceiptModal
+          payment={mockPayments[0]}
+          student={mockStudents[0]}
+          onClose={jest.fn()}
+        />
+      );
+
+      const printBtn = Array.from(container.querySelectorAll("button"))
+        .find(b => b.textContent.includes("Makbuzu Yazdır"));
+      await fireEvent.click(printBtn);
+
+      expect(window.print).toHaveBeenCalledTimes(1);
+    });
+
+    test("T1.6: ReceiptModal close button invokes onClose callback", async () => {
+      const handleClose = jest.fn();
+      const { container } = await render(
+        <ReceiptModal
+          payment={mockPayments[0]}
+          student={mockStudents[0]}
+          onClose={handleClose}
+        />
+      );
+
+      const closeBtn = Array.from(container.querySelectorAll("button"))
+        .find(b => b.textContent.trim() === "Kapat");
+      await fireEvent.click(closeBtn);
+
+      expect(handleClose).toHaveBeenCalledTimes(1);
+    });
+
+    test("T1.7: PromissoryNoteModal renders TTK legal phrasing verbatim", async () => {
+      const { container } = await render(
+        <PromissoryNoteModal
+          student={mockStudents[0]}
+          onClose={jest.fn()}
+        />
+      );
+
+      expect(container.textContent).toContain("BONO (SENET)");
+      expect(container.textContent).toContain("İşbu emre muharrer senedimin vadesinde");
+      expect(container.textContent).toContain("ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ");
+      expect(container.textContent).toContain("kayıtsız şartsız ve nakden ödeyeceğimi");
+      expect(container.textContent).toContain("muacceliyet kesbedeceğini");
+      expect(container.textContent).toContain("İnegöl Mahkemeleri ve İcra Dairelerinin yetkili olduğunu");
+    });
+
+    test("T1.8: PromissoryNoteModal renders coupon koçan with all installments by default", async () => {
+      // student 0 has 6 installments
+      const { container } = await render(
+        <PromissoryNoteModal
+          student={mockStudents[0]}
+          onClose={jest.fn()}
+        />
+      );
+
+      const sheets = container.querySelectorAll(".promissory-note-sheet");
+      expect(sheets.length).toBe(6);
+      expect(container.textContent).toContain("SIRA NO: 1 / 6");
+      expect(container.textContent).toContain("SIRA NO: 6 / 6");
+    });
+  });
+
+  /* =====================================================================
+   * TIER 2: TURKISH WORDS CONVERTER & EDGE CASES
+   * ===================================================================== */
+  describe("Tier 2: Turkish Words Converter & Boundary Conditions", () => {
+    test("T2.1: numberToTurkishWords converts exact boundary amounts correctly", () => {
+      expect(numberToTurkishWords(0)).toBe("Sıfır Türk Lirası");
+      expect(numberToTurkishWords(1)).toBe("Bir Türk Lirası");
+      expect(numberToTurkishWords(1000)).toBe("Bin Türk Lirası");
+      expect(numberToTurkishWords(1001)).toBe("BinBir Türk Lirası");
+      expect(numberToTurkishWords(10000)).toBe("OnBin Türk Lirası");
+      expect(numberToTurkishWords(12500)).toBe("OnİkiBinBeşYüz Türk Lirası");
+      expect(numberToTurkishWords(100000)).toBe("YüzBin Türk Lirası");
+      expect(numberToTurkishWords(1000000)).toBe("BirMilyon Türk Lirası");
+    });
+
+    test("T2.2: numberToTurkishWords handles kuruş (cents) accurately", () => {
+      expect(numberToTurkishWords(50.25)).toBe("Elli Türk Lirası YirmiBeş Kuruş");
+      expect(numberToTurkishWords(750.50)).toBe("YediYüzElli Türk Lirası Elli Kuruş");
+      expect(numberToTurkishWords(1000.05)).toBe("Bin Türk Lirası Beş Kuruş");
+    });
+
+    test("T2.3: numberToTurkishWords handles null, undefined and NaN gracefully", () => {
+      expect(numberToTurkishWords(null)).toBe("Sıfır Türk Lirası");
+      expect(numberToTurkishWords(undefined)).toBe("Sıfır Türk Lirası");
+      expect(numberToTurkishWords(NaN)).toBe("Sıfır Türk Lirası");
+    });
+
+    test("T2.4: ReceiptModal returns null when payment prop is null", async () => {
+      const { container } = await render(
+        <ReceiptModal payment={null} student={mockStudents[0]} onClose={jest.fn()} />
+      );
+      expect(container.innerHTML).toBe("");
+    });
+
+    test("T2.5: PromissoryNoteModal returns null when student prop is null", async () => {
+      const { container } = await render(
+        <PromissoryNoteModal student={null} onClose={jest.fn()} />
+      );
+      expect(container.innerHTML).toBe("");
+    });
+
+    test("T2.6: handles uneven installment amount division with remainder on last installment", async () => {
+      // Fee 10,000 with 3 installments: 3333.33 + 3333.33 + 3333.34
+      const unevenStudent = {
+        ...mockStudents[0],
+        total_fee: 10000,
+        installment_count: 3
+      };
+
+      const { container } = await render(
+        <PromissoryNoteModal student={unevenStudent} onClose={jest.fn()} />
+      );
+
+      const sheets = container.querySelectorAll(".promissory-note-sheet");
+      expect(sheets.length).toBe(3);
+      expect(container.textContent).toContain("3.333,33");
+      expect(container.textContent).toContain("3.333,34");
+    });
+  });
+
+  /* =====================================================================
+   * TIER 3: PAIRWISE INTERACTIONS & DROPDOWN FILTERING
+   * ===================================================================== */
+  describe("Tier 3: Installment Selection & State Synchronization", () => {
+    test("T3.1: selecting individual installment in dropdown updates sheet view to single note", async () => {
+      const { container } = await render(
+        <PromissoryNoteModal student={mockStudents[0]} onClose={jest.fn()} />
+      );
+
+      // Select installment 2 (index 1)
+      const select = container.querySelector("select");
+      await fireEvent.change(select, { target: { value: "1" } });
+
+      const sheets = container.querySelectorAll(".promissory-note-sheet");
+      expect(sheets.length).toBe(1);
+      expect(container.textContent).toContain("SIRA NO: 2 / 6");
+      expect(container.textContent).not.toContain("SIRA NO: 1 / 6");
+    });
+
+    test("T3.2: switching dropdown back to -1 restores all coupon notes", async () => {
+      const { container } = await render(
+        <PromissoryNoteModal student={mockStudents[0]} onClose={jest.fn()} />
+      );
+
+      const select = container.querySelector("select");
+      await fireEvent.change(select, { target: { value: "2" } });
+      expect(container.querySelectorAll(".promissory-note-sheet").length).toBe(1);
+
+      await fireEvent.change(select, { target: { value: "-1" } });
+      expect(container.querySelectorAll(".promissory-note-sheet").length).toBe(6);
+    });
+
+    test("T3.3: PromissoryNoteModal print button invokes window.print", async () => {
+      const { container } = await render(
+        <PromissoryNoteModal student={mockStudents[0]} onClose={jest.fn()} />
+      );
+
+      const printBtn = Array.from(container.querySelectorAll("button"))
+        .find(b => b.textContent.includes("Senetleri Yazdır"));
+      await fireEvent.click(printBtn);
+
+      expect(window.print).toHaveBeenCalledTimes(1);
+    });
+
+    test("T3.4: debtor table renders parent or falls back to student info if parent missing", async () => {
+      const studentNoParent = {
+        ...mockStudents[0],
+        parent_name: "",
+        parent_tc: "",
+        parent_phone: "",
+        parent_address: ""
+      };
+
+      const { container } = await render(
+        <PromissoryNoteModal student={studentNoParent} onClose={jest.fn()} />
+      );
+
+      expect(container.textContent).toContain(studentNoParent.student_name);
+    });
+  });
+
+  /* =====================================================================
+   * TIER 4: REAL-WORLD APPLICATION SCENARIO (Scenario 4)
+   * ===================================================================== */
+  describe("Tier 4: Realistic Scenario - Official Document Suite & Print Lifecycle", () => {
+    test("T4: Full workflow - Generate official receipt, verify Turkish words, print, generate promissory note koçan, select installment", async () => {
+      // Step 1: Render Receipt for 25,000 TL Nakit payment (pmt-3, stu-2)
+      const { container, unmount } = await render(
+        <ReceiptModal
+          payment={mockPayments[2]}
+          student={mockStudents[1]}
+          onClose={jest.fn()}
+        />
+      );
+
+      // Verify header, MEB code, amount in words
+      expect(container.textContent).toContain("ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ");
+      expect(container.textContent).toContain("MEB Kurum Kodu: 627201");
+      expect(container.textContent).toContain("#YirmiBeşBin Türk Lirası#");
+      expect(container.textContent).toContain("₺25.000,00");
+
+      // Verify signers
+      expect(container.textContent).toContain("Nevin ÇAKMAK / Semih SEYMEN");
+
+      // Print receipt
+      const receiptPrintBtn = Array.from(container.querySelectorAll("button"))
+        .find(b => b.textContent.includes("Makbuzu Yazdır"));
+      await fireEvent.click(receiptPrintBtn);
+      expect(window.print).toHaveBeenCalledTimes(1);
+
+      await unmount();
+
+      // Step 2: Render Promissory Note for stu-1 (6 installments of 10,000 TL each)
+      const { container: noteContainer } = await render(
+        <PromissoryNoteModal
+          student={mockStudents[0]}
+          onClose={jest.fn()}
+        />
+      );
+
+      // Verify 6 coupon sheets rendered
+      expect(noteContainer.querySelectorAll(".promissory-note-sheet").length).toBe(6);
+      expect(noteContainer.textContent).toContain("SIRA NO: 1 / 6");
+      expect(noteContainer.textContent).toContain("SIRA NO: 6 / 6");
+      expect(noteContainer.textContent).toContain("İnegöl Mahkemeleri ve İcra Dairelerinin yetkili olduğunu");
+
+      // Print full coupon koçan
+      const notePrintBtn = Array.from(noteContainer.querySelectorAll("button"))
+        .find(b => b.textContent.includes("Senetleri Yazdır"));
+      await fireEvent.click(notePrintBtn);
+      expect(window.print).toHaveBeenCalledTimes(2);
+
+      // Step 3: Switch to single installment 4
+      const select = noteContainer.querySelector("select");
+      await fireEvent.change(select, { target: { value: "3" } });
+
+      expect(noteContainer.querySelectorAll(".promissory-note-sheet").length).toBe(1);
+      expect(noteContainer.textContent).toContain("SIRA NO: 4 / 6");
+    });
+  });
+});
