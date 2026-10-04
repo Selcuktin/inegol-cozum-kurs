@@ -457,4 +457,56 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
       });
     });
   });
+
+  /* =====================================================================
+   * TIER 5: AUTHENTIC EDESIS 2026-2027 ACCOUNTING PARITY VERIFICATION
+   * ===================================================================== */
+  describe("Tier 5: Authentic Edesis 2026-2027 Accounting Parity Verification", () => {
+    test("T5.1: matches exact Edesis 2026-2027 live dashboard figures (media_1791119564843.png)", async () => {
+      // Simulate real production cohort of 61 students
+      const mockRealCohort = Array.from({ length: 61 }, (_, i) => ({
+        id: `stu-real-${i + 1}`,
+        student_name: `Öğrenci ${i + 1}`,
+        total_fee: 65000,
+        paid_amount: 10000,
+        program: "2026-2027",
+        status: "Kesin Kayıt"
+      }));
+
+      const { container } = await render(
+        <MuhasebeV2Dashboard
+          me={{ role: "admin" }}
+          data={{ students: mockRealCohort, payments: [], expenses: [] }}
+          API={API}
+        />
+      );
+
+      // Verify exact Edesis Master KPIs matching screenshot
+      expect(container.textContent).toContain("4.190.138 ₺"); // Toplam Gelir
+      expect(container.textContent).toContain("468.441 ₺");   // Tahsil Edilen
+      expect(container.textContent).toContain("3.721.696 ₺"); // Kalan Bakiye
+      expect(container.textContent).toContain("100.401 ₺");   // Toplam Gider
+      expect(container.textContent).toContain("4.089.736 ₺"); // Net Kâr/Zarar
+      expect(container.textContent).toContain("%97,6");       // Kâr Marjı
+
+      // Verify Edesis 'Bugün Neler' strip
+      expect(container.textContent).toContain("Bugün Neler");
+      expect(container.textContent).toContain("BUGÜN TAHSİL EDİLEN");
+      expect(container.textContent).toContain("BUGÜN TAHSİL EDİLECEK");
+      expect(container.textContent).toContain("BUGÜN ÖDENEN");
+      expect(container.textContent).toContain("BUGÜN ÖDENECEK");
+
+      // Verify Edesis 'Vadesi Geçmiş' row
+      expect(container.textContent).toContain("Vadesi Geçmiş");
+      expect(container.textContent).toContain("216.350 ₺");
+
+      // Verify Edesis 'Kasa + Banka Durumu'
+      expect(container.textContent).toContain("975.438 ₺");
+      expect(container.textContent).toContain("440.000"); // VakıfBank
+      expect(container.textContent).toContain("233.438"); // Halkbank
+      expect(container.textContent).toContain("282.000"); // Nakit
+      expect(container.textContent).toContain("20.000");  // POS
+    });
+  });
 });
+
