@@ -124,12 +124,12 @@ export function PromissoryNoteModal({ student, onClose }) {
           </div>
         </div>
 
-        <div style={{ padding: "12px 20px", background: "var(--surface-alt)", borderBottom: "1px solid var(--border)", display: "flex", gap: "12px", alignItems: "center" }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)" }}>Yazdırılacak Senet:</span>
+        <div style={{ padding: "12px 20px", background: "var(--surface-alt)", borderBottom: "1px solid var(--border)", display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", whiteSpace: "nowrap" }}>Yazdırılacak Senet:</span>
           <select 
             value={selectedInstIndex} 
             onChange={(e) => setSelectedInstIndex(Number(e.target.value))}
-            style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "13px" }}
+            style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "13px", maxWidth: "100%", flex: "1 1 auto", minWidth: "220px" }}
           >
             <option value="-1">Tüm Senetleri Yazdır (Koçan - {instCount} Adet)</option>
             {installments.map((inst, idx) => (
@@ -138,7 +138,7 @@ export function PromissoryNoteModal({ student, onClose }) {
               </option>
             ))}
           </select>
-          <span style={{ marginLeft: "auto", fontSize: "13px", color: "var(--muted)" }}>
+          <span style={{ marginLeft: "auto", fontSize: "13px", color: "var(--muted)", whiteSpace: "nowrap" }}>
             Toplam: <b>{totalFee.toLocaleString("tr-TR")} TL</b>
           </span>
         </div>

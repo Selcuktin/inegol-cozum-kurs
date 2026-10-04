@@ -356,8 +356,8 @@ export function ClassDetailModal({
 
               {/* Öğrenci Tablosu */}
               {filteredStudents.length > 0 ? (
-                <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "10px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                  <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
+                <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "10px", overflowX: "auto", WebkitOverflowScrolling: "touch", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                  <table className="data-table" style={{ width: "100%", minWidth: "640px", margin: 0, fontSize: "13px" }}>
                     <thead>
                       <tr style={{ background: "#f8fafc", borderBottom: "1px solid var(--border)" }}>
                         <th style={{ width: "60px" }}>No</th>
@@ -564,13 +564,15 @@ export function ClassDetailModal({
 
               {/* A4 Baskı Kağıdı Görünümü */}
               <div 
-                className="print-sheet" 
+                className="print-sheet table-responsive" 
                 style={{ 
                   border: "2px solid #334155", 
                   padding: "24px", 
                   background: "#fff", 
                   color: "#000",
-                  fontFamily: "Arial, sans-serif" 
+                  fontFamily: "Arial, sans-serif",
+                  overflowX: "auto",
+                  WebkitOverflowScrolling: "touch"
                 }}
               >
                 {/* Resmi Başlık */}
@@ -593,7 +595,7 @@ export function ClassDetailModal({
                 </div>
 
                 {/* Yoklama Tablosu */}
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", textAlign: "left" }}>
+                <table style={{ width: "100%", minWidth: "720px", borderCollapse: "collapse", fontSize: "11px", textAlign: "left" }}>
                   <thead>
                     <tr style={{ background: "#f1f5f9" }}>
                       <th style={{ border: "1px solid #000", padding: "6px 4px", width: "30px", textAlign: "center" }}>S.No</th>
