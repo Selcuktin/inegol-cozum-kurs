@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import "@/App.css";
+import "./App.css";
 import axios from "axios";
 import {
   Award,
@@ -73,6 +73,7 @@ import { MuhasebeV2Dashboard } from "./components/MuhasebeV2Dashboard";
 import { GelirDetayModal } from "./components/GelirDetayModal";
 import { EtutAppointmentModal } from "./components/EtutAppointmentModal";
 import { EdesisTestBenchModal } from "./components/EdesisTestBenchModal";
+import { TeachersPage } from "./components/TeachersPage";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -119,6 +120,7 @@ const CAN = {
   page_mentorship: ["admin", "ogretmen"],
   page_payments:   ["admin", "muhasebe"],
   page_classes:    ["admin", "ogretmen"],
+  page_teachers:   ["admin", "muhasebe", "ogretmen"],
   page_documents:  ["admin", "muhasebe", "ogretmen"],
   page_users:      ["admin"],
   page_audit:      ["admin"],
@@ -476,7 +478,7 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
 
 function MainApp({ me, onLogout }) {
   const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] });
-  const validPages = ["dashboard", "students", "exams", "attendance", "schedules", "homework", "mentorship", "payments", "classes", "reminders", "documents", "reports", "users", "audit"];
+  const validPages = ["dashboard", "students", "classes", "teachers", "exams", "attendance", "schedules", "homework", "mentorship", "payments", "reminders", "documents", "reports", "users", "audit"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace(/^#/, "");
@@ -526,6 +528,7 @@ function MainApp({ me, onLogout }) {
 
   const [expandedTree, setExpandedTree] = useState({
     olcme: true,
+    teachers: true,
     muhasebe: true,
     gelir: true,
     kasa: true,
@@ -548,10 +551,47 @@ function MainApp({ me, onLogout }) {
       ]
     },
     {
-      title: "ÖĞRENCİ İŞLERİ",
+      title: "ÖĞRENCİ & KADRO",
       items: [
         { id: "students", label: "Öğrenci Listesi", icon: Users, perm: "page_students" },
-        { id: "classes", label: "Sınıf & Şubeler", icon: BookOpen, perm: "page_classes" }
+        { id: "classes", label: "Sınıf & Şubeler", icon: BookOpen, perm: "page_classes" },
+        {
+          id: "teachers",
+          label: "Öğretmenler & Kadro",
+          icon: GraduationCap,
+          perm: "page_teachers",
+          isTree: true,
+          treeKey: "teachers",
+          subItems: [
+            {
+              id: "teachers_list",
+              label: "Öğretmen Listesi & Kadro",
+              icon: Users,
+              activeCheck: () => page === "teachers",
+              onClick: () => { setPage("teachers"); setMobileOpen(false); }
+            },
+            {
+              id: "teachers_branches",
+              label: "Branşlar & Zümreler",
+              icon: Layers,
+              activeCheck: () => page === "teachers",
+              onClick: () => { setPage("teachers"); setMobileOpen(false); }
+            },
+            {
+              id: "teachers_schedule",
+              label: "Haftalık Ders Dağılımı",
+              icon: Calendar,
+              activeCheck: () => page === "schedules",
+              onClick: () => { setPage("schedules"); setMobileOpen(false); }
+            },
+            {
+              id: "teachers_etut",
+              label: "Birebir Etüt & Randevular",
+              icon: Target,
+              onClick: () => { setShowGlobalEtut(true); setMobileOpen(false); }
+            }
+          ]
+        }
       ]
     },
     {
@@ -908,6 +948,7 @@ function MainApp({ me, onLogout }) {
         {page === "students" && <Students me={me} allStudents={data.students || []} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
         {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} />}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
+        {page === "teachers" && <TeachersPage me={me} API={API} teachers={data.teachers || []} onReload={load} onNavigate={setPage} onOpenEtut={() => setShowGlobalEtut(true)} />}
         {page === "reminders" && <Reminders />}
         {page === "documents" && <Documents students={data.students} payments={data.payments} />}
         {page === "reports" && <Reports me={me} />}
@@ -1107,8 +1148,49 @@ function Stat({ icon: Icon, label, value, note, color, trend, onClick }) {
   ); 
 }
 
+export const CANCELLED_STUDENT_NAMES = [
+  "SERHAT SERBEST",
+  "EMİR PARILDAR",
+  "EMRİYE AYTAN",
+  "NEVRA KILINÇ"
+];
+
+export const ACTIVE_2026_CONTRACT_STUDENT_NAMES = [
+  "SEBİLE AKDEMİR",
+  "ELİFSU ÇAĞLAYAN",
+  "YAVUZ EMİR BALCI",
+  "MUSTAFA SİNİR",
+  "ZEYNEP MASAL ÇELİK",
+  "EBUBEKİR ASAF VERGİLİ"
+];
+
+export function getStudentCategory(s) {
+  if (s?.is_kesin_kayit) return "kesin";
+  const name = (s?.student_name || "").toUpperCase();
+  let prog = s?.program || "";
+  const fee = Number(s?.total_fee) || 0;
+
+  if (ACTIVE_2026_CONTRACT_STUDENT_NAMES.some((k) => name.includes(k))) {
+    prog = "2026-2027";
+  }
+
+  if (CANCELLED_STUDENT_NAMES.some((c) => name.includes(c)) || s?.status === "İptal / Ayrılan" || s?.enrollment_status === "İptal / Ayrılan") {
+    return "iptal";
+  }
+  if (prog === "2026-2027-YAZ" || s?.status === "Yaz Kursu" || s?.enrollment_status === "Yaz Kursu") {
+    return "yaz";
+  }
+  if (prog === "2025-2026" || s?.status === "Mezun / Geçmiş" || s?.enrollment_status === "Mezun / Geçmiş") {
+    return "mezun";
+  }
+  if (fee < 10) {
+    return "deneme";
+  }
+  return "kesin";
+}
+
 function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
-  const [activeSegment, setActiveSegment] = useState("active"); // "active" (default), "yaz", "mezun", "debtors", "paid", "all"
+  const [activeSegment, setActiveSegment] = useState("kesin"); // "kesin" (default: 61), "yaz", "mezun", "iptal", "debtors", "paid", "all"
   const [selectedPeriod, setSelectedPeriod] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedClass, setSelectedClass] = useState("all");
@@ -1118,24 +1200,24 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
 
   // Summary Metrics
   const stats = useMemo(() => {
-    let active = 0;
+    let kesin = 0;
     let yaz = 0;
     let mezun = 0;
+    let iptal = 0;
+    let deneme = 0;
     let debtors = 0;
     let paid = 0;
     let totalOutstanding = 0;
 
     students.forEach((s) => {
-      const isAktif = s.status === "Aktif" || s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık";
-      const isYaz = s.status === "Yaz Kursu" || s.program === "2026-2027-YAZ";
-      const isMezun = s.status === "Mezun / Geçmiş" || s.program === "2025-2026";
+      const cat = getStudentCategory(s);
+      if (cat === "kesin") kesin++;
+      else if (cat === "yaz") yaz++;
+      else if (cat === "mezun") mezun++;
+      else if (cat === "iptal") iptal++;
+      else if (cat === "deneme") deneme++;
+
       const rem = Number(s.remaining || 0);
-
-      if (isAktif) active++;
-      else if (isYaz) yaz++;
-      else if (isMezun) mezun++;
-      else active++;
-
       if (rem > 0) {
         debtors++;
         totalOutstanding += rem;
@@ -1145,9 +1227,12 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
     });
 
     return {
-      active,
+      kesin,
+      active: kesin, // backwards compatibility
       yaz,
       mezun,
+      iptal,
+      deneme,
       total: students.length,
       debtors,
       paid,
@@ -1167,30 +1252,31 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
   // Filtering Logic
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
-      const isAktif = s.status === "Aktif" || s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık";
-      const isYaz = s.status === "Yaz Kursu" || s.program === "2026-2027-YAZ";
-      const isMezun = s.status === "Mezun / Geçmiş" || s.program === "2025-2026";
+      const cat = getStudentCategory(s);
       const rem = Number(s.remaining || 0);
 
       // 1. Segment Pill Filter
-      if (activeSegment === "active" && !isAktif) return false;
-      if (activeSegment === "yaz" && !isYaz) return false;
-      if (activeSegment === "mezun" && !isMezun) return false;
+      if ((activeSegment === "kesin" || activeSegment === "active") && cat !== "kesin") return false;
+      if (activeSegment === "yaz" && cat !== "yaz") return false;
+      if (activeSegment === "mezun" && cat !== "mezun") return false;
+      if (activeSegment === "iptal" && cat !== "iptal") return false;
       if (activeSegment === "debtors" && rem <= 0) return false;
       if (activeSegment === "paid" && rem > 0) return false;
 
       // 2. Academic Period Filter Dropdown
       if (selectedPeriod !== "all") {
-        if (selectedPeriod === "2026-2027" && !(s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık")) return false;
-        if (selectedPeriod === "2026-2027-YAZ" && s.program !== "2026-2027-YAZ") return false;
-        if (selectedPeriod === "2025-2026" && s.program !== "2025-2026") return false;
+        if (selectedPeriod === "2026-2027" && cat !== "kesin" && cat !== "iptal" && cat !== "deneme") return false;
+        if (selectedPeriod === "2026-2027-YAZ" && cat !== "yaz") return false;
+        if (selectedPeriod === "2025-2026" && cat !== "mezun") return false;
       }
 
       // 3. Status Filter Dropdown
       if (selectedStatus !== "all") {
-        if (selectedStatus === "Aktif" && !isAktif) return false;
-        if (selectedStatus === "Yaz Kursu" && !isYaz) return false;
-        if (selectedStatus === "Mezun / Geçmiş" && !isMezun) return false;
+        if (selectedStatus === "Aktif" && cat !== "kesin") return false;
+        if (selectedStatus === "Kesin Kayıt" && cat !== "kesin") return false;
+        if (selectedStatus === "Yaz Kursu" && cat !== "yaz") return false;
+        if (selectedStatus === "Mezun / Geçmiş" && cat !== "mezun") return false;
+        if (selectedStatus === "İptal / Ayrılan" && cat !== "iptal") return false;
       }
 
       // 4. Class / Şube Filter Dropdown
@@ -1214,7 +1300,7 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
   }, [students, activeSegment, selectedPeriod, selectedStatus, selectedClass, selectedDebt, search]);
 
   const handleResetFilters = () => {
-    setActiveSegment("all");
+    setActiveSegment("kesin");
     setSelectedPeriod("all");
     setSelectedStatus("all");
     setSelectedClass("all");
@@ -1223,7 +1309,7 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
   };
 
   const hasActiveCustomFilters =
-    activeSegment !== "active" ||
+    (activeSegment !== "kesin" && activeSegment !== "active") ||
     selectedPeriod !== "all" ||
     selectedStatus !== "all" ||
     selectedClass !== "all" ||
@@ -1249,12 +1335,12 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", marginBottom: "16px" }}>
         <Stat
           icon={Users}
-          label="Aktif Öğrenciler"
-          value={stats.active}
-          note="2026-2027 Kesin Kayıt"
+          label="Kesin Kayıt Öğrenciler"
+          value={stats.kesin}
+          note="2026-2027 Edesis Onaylı"
           color="green"
           trend="Aktif Dönem"
-          onClick={() => { setActiveSegment("active"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
+          onClick={() => { setActiveSegment("kesin"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
         />
         <Stat
           icon={Sun}
@@ -1289,10 +1375,10 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
       <div className="student-segments-container">
         <div className="student-segment-strip">
           <button
-            className={`student-segment-pill ${activeSegment === "active" ? "active" : ""}`}
-            onClick={() => { setActiveSegment("active"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
+            className={`student-segment-pill ${(activeSegment === "kesin" || activeSegment === "active") ? "active" : ""}`}
+            onClick={() => { setActiveSegment("kesin"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
           >
-            🟢 Aktif Öğrenciler ({stats.active})
+            🟢 Kesin Kayıt ({stats.kesin})
           </button>
           <button
             className={`student-segment-pill ${activeSegment === "yaz" ? "active" : ""}`}
@@ -1305,6 +1391,12 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
             onClick={() => { setActiveSegment("mezun"); setSelectedPeriod("2025-2026"); }}
           >
             🎓 Mezunlar / Geçmiş ({stats.mezun})
+          </button>
+          <button
+            className={`student-segment-pill ${activeSegment === "iptal" ? "active" : ""}`}
+            onClick={() => { setActiveSegment("iptal"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
+          >
+            🚫 İptal / Ayrılan ({stats.iptal})
           </button>
           <button
             className={`student-segment-pill ${activeSegment === "debtors" ? "active" : ""}`}
@@ -1366,9 +1458,10 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
             }}
           >
             <option value="all">🏷️ Durum: Hepsi</option>
-            <option value="Aktif">Aktif / Kesin Kayıt</option>
-            <option value="Yaz Kursu">Yaz Kursu</option>
-            <option value="Mezun / Geçmiş">Mezun / Geçmiş</option>
+            <option value="Kesin Kayıt">Kesin Kayıt ({stats.kesin})</option>
+            <option value="Yaz Kursu">Yaz Kursu ({stats.yaz})</option>
+            <option value="Mezun / Geçmiş">Mezun / Geçmiş ({stats.mezun})</option>
+            <option value="İptal / Ayrılan">İptal / Ayrılan ({stats.iptal})</option>
           </select>
 
           {/* Sınıf / Şube Dropdown */}
@@ -1426,14 +1519,14 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
       </div>
 
       {/* Sonuç Sayısı ve Bilgi Çubuğu */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", padding: "0 4px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", padding: "0 4px", flexWrap: "wrap", gap: "8px" }}>
         <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--muted)" }}>
           Gösterilen: <strong style={{ color: "var(--foreground)" }}>{filteredStudents.length}</strong> öğrenci
           {filteredStudents.length !== stats.total && ` (Toplam ${stats.total} kayıt arasından filtrelendi)`}
         </span>
-        {activeSegment === "active" && (
+        {(activeSegment === "kesin" || activeSegment === "active") && (
           <span style={{ fontSize: "12px", background: "#dcfce7", color: "#15803d", padding: "3px 10px", borderRadius: "12px", fontWeight: "600" }}>
-            ✓ 2026-2027 Aktif Eğitim Öğretim Dönemi
+            ✓ Edesis Onaylı 2026-2027 Kesin Kayıt ({stats.kesin} Öğrenci)
           </span>
         )}
       </div>
@@ -1454,9 +1547,7 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
           </thead>
           <tbody>
             {filteredStudents.map((s) => {
-              const isAktif = s.status === "Aktif" || s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık";
-              const isYaz = s.status === "Yaz Kursu" || s.program === "2026-2027-YAZ";
-              const isMezun = s.status === "Mezun / Geçmiş" || s.program === "2025-2026";
+              const cat = getStudentCategory(s);
 
               return (
                 <tr key={s.id} data-testid={`student-row-${s.id}`} onClick={() => onSelect(s)}>
@@ -1483,10 +1574,11 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
                     </div>
                   </td>
                   <td>
-                    {isAktif && <span className="status-badge active-badge">🟢 Aktif Kayıt</span>}
-                    {isYaz && <span className="status-badge summer-badge">☀️ Yaz Kursu</span>}
-                    {isMezun && <span className="status-badge archive-badge">🎓 Mezun / Geçmiş</span>}
-                    {!isAktif && !isYaz && !isMezun && <span className="status-badge active-badge">🟢 Aktif Kayıt</span>}
+                    {cat === "kesin" && <span className="status-badge active-badge">🟢 Kesin Kayıt</span>}
+                    {cat === "yaz" && <span className="status-badge summer-badge">☀️ Yaz Kursu</span>}
+                    {cat === "mezun" && <span className="status-badge archive-badge">🎓 Mezun / Geçmiş</span>}
+                    {cat === "iptal" && <span className="status-badge" style={{ background: "#fee2e2", color: "#b91c1c", fontWeight: 600 }}>🚫 İptal</span>}
+                    {cat === "deneme" && <span className="status-badge" style={{ background: "#f1f5f9", color: "#64748b", fontWeight: 600 }}>📝 Deneme</span>}
                   </td>
                   <td>
                     <div className="cell-stack">

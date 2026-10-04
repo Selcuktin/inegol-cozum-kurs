@@ -107,6 +107,254 @@ function getEffectiveTotalFee(student) {
   return Math.max(0, base + extraSum - discount);
 }
 
+const CANCELLED_STUDENTS = [
+  "SERHAT SERBEST",
+  "EMİR PARILDAR",
+  "EMRİYE AYTAN",
+  "NEVRA KILINÇ"
+];
+
+const ACTIVE_2026_CONTRACT_STUDENTS = [
+  "SEBİLE AKDEMİR",
+  "ELİFSU ÇAĞLAYAN",
+  "YAVUZ EMİR BALCI",
+  "MUSTAFA SİNİR",
+  "ZEYNEP MASAL ÇELİK",
+  "EBUBEKİR ASAF VERGİLİ"
+];
+
+function enrichStudent(s) {
+  const name = (s.student_name || "").toUpperCase();
+  let prog = s.program || "";
+  const fee = Number(s.total_fee) || 0;
+
+  if (ACTIVE_2026_CONTRACT_STUDENTS.some((k) => name.includes(k))) {
+    prog = "2026-2027";
+  }
+
+  let status = "Kesin Kayıt";
+  let isKesin = false;
+
+  if (CANCELLED_STUDENTS.some((c) => name.includes(c))) {
+    status = "İptal / Ayrılan";
+  } else if (prog === "2026-2027-YAZ") {
+    status = "Yaz Kursu";
+  } else if (prog === "2025-2026") {
+    status = "Mezun / Geçmiş";
+  } else if (fee < 10) {
+    status = "Geçmiş / Deneme";
+  } else {
+    status = "Kesin Kayıt";
+    isKesin = true;
+  }
+
+  return {
+    ...s,
+    program: prog,
+    status: status,
+    enrollment_status: status,
+    is_kesin_kayit: isKesin,
+    remaining: Math.max(0, getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0)),
+  };
+}
+
+const DEFAULT_TEACHERS = [
+  {
+    id: "tch-001",
+    name: "Semih Seymen",
+    branch: "Fizik",
+    title: "Kurum Müdürü & Fizik Öğretmeni",
+    phone: "0533 222 33 44",
+    email: "semih.seymen@inegolcozumkurs.com",
+    classes: "12-Sayısal, TYT-AYT, Mezun VIP",
+    weekly_hours: 18,
+    status: "Aktif",
+    role: "admin",
+    notes: "VIP ve 12. Sınıf Fizik grupları sorumlusu"
+  },
+  {
+    id: "tch-002",
+    name: "Ayşe Kaya",
+    branch: "Matematik",
+    title: "Matematik Zümre Başkanı",
+    phone: "0535 777 88 99",
+    email: "ayse.kaya@inegolcozumkurs.com",
+    classes: "11-A, TYT-AYT, 12-Sayısal",
+    weekly_hours: 24,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "AYT Matematik ve Geometri ileri düzey denemeler"
+  },
+  {
+    id: "tch-003",
+    name: "Mehmet Çelik",
+    branch: "Geometri",
+    title: "LGS & Geometri Uzmanı",
+    phone: "0542 666 55 44",
+    email: "mehmet.celik@inegolcozumkurs.com",
+    classes: "8-A, 8-B, LGS Hazırlık",
+    weekly_hours: 20,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "LGS matematik ve analitik geometri soru çözümleri"
+  },
+  {
+    id: "tch-004",
+    name: "Zeynep Şahin",
+    branch: "Türkçe",
+    title: "Türk Dili ve Edebiyatı Zümre Başkanı",
+    phone: "0532 999 11 22",
+    email: "zeynep.sahin@inegolcozumkurs.com",
+    classes: "7-A, 8-A, 10-A, 11-A",
+    weekly_hours: 22,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "Paragraf taktikleri ve LGS sözel mantık"
+  },
+  {
+    id: "tch-005",
+    name: "Burak Demir",
+    branch: "Kimya",
+    title: "Kimya Eğitmeni",
+    phone: "0541 333 44 55",
+    email: "burak.demir@inegolcozumkurs.com",
+    classes: "11-A, 12-Sayısal, Mezun",
+    weekly_hours: 16,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "AYT organik kimya ve laboratuvar uygulamaları"
+  },
+  {
+    id: "tch-006",
+    name: "Elif Yılmaz",
+    branch: "Biyoloji",
+    title: "Biyoloji & Fen Bilimleri Eğitmeni",
+    phone: "0536 444 55 66",
+    email: "elif.yilmaz@inegolcozumkurs.com",
+    classes: "8-A, 11-A, 12-Sayısal",
+    weekly_hours: 18,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "Kalıtım, sistemler ve fen bilimleri LGS hazırlık"
+  },
+  {
+    id: "tch-007",
+    name: "Ahmet Yılmaz",
+    branch: "Tarih",
+    title: "Tarih & Sosyal Bilgiler Eğitmeni",
+    phone: "0538 555 66 77",
+    email: "ahmet.yilmaz@inegolcozumkurs.com",
+    classes: "8-A, TYT-AYT, İnkılap Tarihi",
+    weekly_hours: 14,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "LGS T.C. İnkılap Tarihi ve TYT Tarih kampı"
+  },
+  {
+    id: "tch-008",
+    name: "Merve Aydın",
+    branch: "İngilizce",
+    title: "Yabancı Dil Koordinatörü",
+    phone: "0539 666 77 88",
+    email: "merve.aydin@inegolcozumkurs.com",
+    classes: "Tüm İlkokul & Ortaokul, LGS İngilizce",
+    weekly_hours: 16,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "LGS İngilizce soru bankası yazarı ve speaking club"
+  },
+  {
+    id: "tch-009",
+    name: "Canan Öztürk",
+    branch: "Coğrafya",
+    title: "Coğrafya Eğitmeni",
+    phone: "0537 777 88 99",
+    email: "canan.ozturk@inegolcozumkurs.com",
+    classes: "TYT-AYT, 10-A, 11-A",
+    weekly_hours: 12,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "Harita bilgisi ve fiziki coğrafya soru kampları"
+  },
+  {
+    id: "tch-010",
+    name: "Hakan Polat",
+    branch: "Rehberlik & PDR",
+    title: "PDR & Öğrenci Koçluğu Koordinatörü",
+    phone: "0531 888 99 00",
+    email: "hakan.polat@inegolcozumkurs.com",
+    classes: "Tüm Kademeler",
+    weekly_hours: 20,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "Haftalık soru hedef takibi ve sınav kaygısı yönetimi"
+  },
+  {
+    id: "tch-011",
+    name: "Seda Yıldırım",
+    branch: "Sınıf Eğitmeni",
+    title: "İlkokul Kademe Koordinatörü",
+    phone: "0534 111 22 33",
+    email: "seda.yildirim@inegolcozumkurs.com",
+    classes: "1-A, 2-A, 3-A, 4-A",
+    weekly_hours: 22,
+    status: "Aktif",
+    role: "ogretmen",
+    notes: "İlkokul temel dersler ve ödev takibi"
+  },
+  {
+    id: "tch-012",
+    name: "Nevin Çakmak",
+    branch: "İdare",
+    title: "Kurucu Temsilcisi & İdari İşler",
+    phone: "0533 111 22 33",
+    email: "nevin.cakmak@inegolcozumkurs.com",
+    classes: "Tüm Kurum",
+    weekly_hours: 10,
+    status: "Aktif",
+    role: "admin",
+    notes: "Milli Eğitim Bakanlığı resmi yazışmalar ve kurumsal ilişkiler"
+  }
+];
+
+async function getTeachersList(db) {
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS teachers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        branch TEXT NOT NULL,
+        title TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
+        email TEXT DEFAULT '',
+        classes TEXT DEFAULT '',
+        weekly_hours INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'Aktif',
+        role TEXT DEFAULT 'ogretmen',
+        notes TEXT DEFAULT '',
+        created_at TEXT DEFAULT ''
+      )
+    `).run().catch(() => {});
+
+    const rows = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all();
+    if (rows && rows.results && rows.results.length > 0) {
+      return rows.results;
+    }
+
+    for (const t of DEFAULT_TEACHERS) {
+      await db.prepare(`
+        INSERT OR IGNORE INTO teachers (id, name, branch, title, phone, email, classes, weekly_hours, status, role, notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(t.id, t.name, t.branch, t.title, t.phone, t.email, t.classes, t.weekly_hours, t.status, t.role, t.notes).run().catch(() => {});
+    }
+
+    const seeded = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all().catch(() => null);
+    return seeded?.results?.length ? seeded.results : DEFAULT_TEACHERS;
+  } catch (err) {
+    return DEFAULT_TEACHERS;
+  }
+}
+
 function generateMonthlyPdf({ month, collected, expenses, net, monthPayments, monthExpenses, studentsCount }) {
   const cleanStr = (s) => String(s || "").replace(/[^\x20-\x7E]/g, "?").replace(/[()\\]/g, "");
   const formatMoney = (n) => `${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL`;
@@ -393,11 +641,9 @@ export async function onRequest(context) {
       const paymentsRes = await db.prepare("SELECT * FROM payments ORDER BY payment_date DESC").all();
       const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all();
       const classesRes = await db.prepare("SELECT * FROM classes ORDER BY name ASC").all();
+      const teachers = await getTeachersList(db);
 
-      const students = (studentsRes.results || []).map((s) => ({
-        ...s,
-        remaining: Math.max(0, getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0)),
-      }));
+      const students = (studentsRes.results || []).map(enrichStudent);
 
       const payments = paymentsRes.results || [];
       const expenses = expensesRes.results || [];
@@ -504,6 +750,7 @@ export async function onRequest(context) {
 
       return json({
         students,
+        teachers,
         payments,
         expenses,
         classes,
@@ -789,10 +1036,11 @@ export async function onRequest(context) {
       }
       query += " ORDER BY student_name ASC";
       const res = await db.prepare(query).bind(...params).all();
-      const students = (res.results || []).map((s) => ({
-        ...s,
-        remaining: Math.max(0, getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0)),
-      }));
+      let students = (res.results || []).map(enrichStudent);
+      const filter = url.searchParams.get("filter") || url.searchParams.get("status");
+      if (filter === "kesin" || filter === "Kesin Kayıt") {
+        students = students.filter((s) => s.is_kesin_kayit);
+      }
       if (path.includes("Ogrencies")) {
         return json({
           success: true,
@@ -1272,6 +1520,90 @@ export async function onRequest(context) {
         await db.prepare("DELETE FROM classes WHERE id = ?").bind(classId).run();
         await logAction(db, user, "class.delete", "class", classId, `Sınıf silindi: ${classId}`);
         return json({ ok: true });
+      }
+    }
+
+    // ---------------- TEACHERS ----------------
+    if ((path === "/teachers" || path.endsWith("/Ogretmens/GetAll") || path.endsWith("/Ogretmens/GetAllOgretmenWithBranslar")) && request.method === "GET") {
+      const teachers = await getTeachersList(db);
+      return json(teachers);
+    }
+
+    if (path === "/teachers" && request.method === "POST") {
+      const user = await getCurrentUser(request, db);
+      const t = await request.json();
+      if (!t.name || !t.branch) {
+        return json({ detail: "Öğretmen adı ve branşı zorunludur" }, 422);
+      }
+      const id = t.id || "tch_" + crypto.randomUUID().slice(0, 8);
+      await getTeachersList(db);
+      await db
+        .prepare(
+          "INSERT INTO teachers (id, name, branch, title, phone, email, classes, weekly_hours, status, role, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+        )
+        .bind(
+          id,
+          t.name || "",
+          t.branch || "",
+          t.title || "",
+          t.phone || "",
+          t.email || "",
+          t.classes || "",
+          parseInt(t.weekly_hours) || 0,
+          t.status || "Aktif",
+          t.role || "ogretmen",
+          t.notes || ""
+        )
+        .run();
+      await logAction(db, user, "teacher.create", "teacher", id, `${t.name} (${t.branch}) eğitmeni eklendi`);
+      const created = await db.prepare("SELECT * FROM teachers WHERE id = ?").bind(id).first();
+      return json(created || { id, ...t }, 201);
+    }
+
+    const teacherItemMatch = path.match(/^\/teachers\/([^\/]+)$/);
+    if (teacherItemMatch) {
+      const teacherId = teacherItemMatch[1];
+      if (request.method === "PUT" || request.method === "PATCH") {
+        const user = await getCurrentUser(request, db);
+        const t = await request.json();
+        await getTeachersList(db);
+        await db
+          .prepare(`
+            UPDATE teachers SET
+              name = COALESCE(?, name),
+              branch = COALESCE(?, branch),
+              title = COALESCE(?, title),
+              phone = COALESCE(?, phone),
+              email = COALESCE(?, email),
+              classes = COALESCE(?, classes),
+              weekly_hours = COALESCE(?, weekly_hours),
+              status = COALESCE(?, status),
+              notes = COALESCE(?, notes)
+            WHERE id = ?
+          `)
+          .bind(
+            t.name || null,
+            t.branch || null,
+            t.title || null,
+            t.phone || null,
+            t.email || null,
+            t.classes || null,
+            t.weekly_hours !== undefined ? parseInt(t.weekly_hours) : null,
+            t.status || null,
+            t.notes || null,
+            teacherId
+          )
+          .run();
+        await logAction(db, user, "teacher.update", "teacher", teacherId, `${t.name || teacherId} eğitmeni güncellendi`);
+        const updated = await db.prepare("SELECT * FROM teachers WHERE id = ?").bind(teacherId).first();
+        return json(updated || { id: teacherId, ...t });
+      }
+      if (request.method === "DELETE") {
+        const user = await getCurrentUser(request, db);
+        await getTeachersList(db);
+        await db.prepare("DELETE FROM teachers WHERE id = ?").bind(teacherId).run();
+        await logAction(db, user, "teacher.delete", "teacher", teacherId, `Eğitmen silindi: ${teacherId}`);
+        return json({ ok: true, id: teacherId });
       }
     }
 
