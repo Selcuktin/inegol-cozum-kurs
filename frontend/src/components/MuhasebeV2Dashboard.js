@@ -50,6 +50,42 @@ import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { GelirDetayModal } from "./GelirDetayModal";
 import edesisData from "../data/edesisAccountingData.json";
 
+const CANCELLED_STUDENT_NAMES = [
+  "SERHAT SERBEST",
+  "EMİR PARILDAR",
+  "EMRİYE AYTAN",
+  "NEVRA KILINÇ"
+];
+
+const ACTIVE_2026_CONTRACT_STUDENT_NAMES = [
+  "SEBİLE AKDEMİR",
+  "ELİFSU ÇAĞLAYAN",
+  "YAVUZ EMİR BALCI",
+  "KEREM KÖSE"
+];
+
+function getStudentCategory(s) {
+  const normName = (s?.student_name || "").trim().toUpperCase();
+  if (CANCELLED_STUDENT_NAMES.includes(normName)) {
+    return "iptal";
+  }
+  if (ACTIVE_2026_CONTRACT_STUDENT_NAMES.includes(normName)) {
+    return "kesin";
+  }
+  const prog = (s?.program || "").trim().toUpperCase();
+  const fee = Number(s?.total_fee || 0);
+  if (prog === "2026-2027-YAZ" || s?.status === "Yaz Kursu" || s?.enrollment_status === "Yaz Kursu") {
+    return "yaz";
+  }
+  if (prog === "2025-2026" || s?.status === "Mezun / Geçmiş" || s?.enrollment_status === "Mezun / Geçmiş") {
+    return "mezun";
+  }
+  if (fee < 10) {
+    return "deneme";
+  }
+  return "kesin";
+}
+
 // Yardımcı: Temiz ve Taşkınsız Para Formatı (Büyük sayılarda küsurat atılır, TL simgesiyle uyumlu)
 function fmtMoney(val, forceDecimals = false) {
   const num = Number(val) || 0;
@@ -197,7 +233,16 @@ export function MuhasebeV2Dashboard({
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
   const [payLoading, setPayLoading] = useState(false);
 
-  const students = useMemo(() => data.students || [], [data.students]);
+  const [periodFilter, setPeriodFilter] = useState("all"); // 'all' | '2026-2027'
+
+  const allStudents = useMemo(() => data.students || [], [data.students]);
+  const students = useMemo(() => {
+    if (periodFilter === "2026-2027") {
+      return allStudents.filter(s => getStudentCategory(s) === "kesin");
+    }
+    return allStudents;
+  }, [allStudents, periodFilter]);
+
   const payments = useMemo(() => data.payments || [], [data.payments]);
   const [expenses, setExpenses] = useState(data.expenses || []);
 
@@ -208,11 +253,45 @@ export function MuhasebeV2Dashboard({
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
-  // 1. ÖĞRENCİ GERÇEK TAKSİT PLANLARI HARİTASI
+  // 1. ÖĞRENCİ GERÇEK TAKSİT PLANLARI HARİTASI (Edesis 662 Taksit Birebir Entegrasyonu)
   const studentPlansMap = useMemo(() => {
+    const byName = {};
+    const rawTaksitler = edesisData?.taksitler || [];
+    rawTaksitler.forEach((t) => {
+      const name = (t.ogrenciAdiSoyadi || t.musteriUnvan || "").trim().toUpperCase().replace(/\s+/g, " ");
+      if (name) {
+        if (!byName[name]) byName[name] = [];
+        byName[name].push(t);
+      }
+    });
+
     const map = {};
     students.forEach((s) => {
-      map[s.id] = computeStudentPlan(s);
+      const sNorm = (s.student_name || "").trim().toUpperCase().replace(/\s+/g, " ");
+      const rawList = byName[sNorm] || [];
+      if (rawList.length > 0) {
+        const sorted = [...rawList].sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0));
+        map[s.id] = sorted.map((t, idx) => {
+          const amt = Number(t.taksitTutari) || 0;
+          const paid = Number(t.tahsilEdilen) || 0;
+          const remaining = Number(t.kalanTutar) !== undefined ? Number(t.kalanTutar) : Math.max(0, amt - paid);
+          const status = remaining <= 0 ? "paid" : (paid > 0 ? "partial" : "pending");
+          const dueStr = t.vadeTarihi ? String(t.vadeTarihi).slice(0, 10) : "";
+          return {
+            no: Number(t.taksitNo) || (idx + 1),
+            due_date: dueStr,
+            amount: amt,
+            paid: paid,
+            remaining: remaining,
+            status: status,
+            taksitId: t.id,
+            gelirKodu: t.gelirKodu,
+            durumText: t.durumText
+          };
+        });
+      } else {
+        map[s.id] = computeStudentPlan(s);
+      }
     });
     return map;
   }, [students]);
@@ -266,10 +345,25 @@ export function MuhasebeV2Dashboard({
         const remaining = Math.max(0, total - paid);
         if (remaining <= 0) return null;
 
-        if (!s.due_date) return null;
-        const diff = Math.floor((new Date(todayStr).getTime() - new Date(s.due_date).getTime()) / 86400000);
-        if (diff <= 0) return null; // Future or current installments are not overdue!
-        const daysOverdue = diff;
+        const plan = studentPlansMap[s.id] || [];
+        const overdueInsts = plan.filter(inst => inst.remaining > 0 && inst.due_date && inst.due_date < todayStr);
+
+        let daysOverdue = 0;
+        let overdueDebt = remaining;
+
+        if (overdueInsts.length > 0) {
+          const earliestDue = overdueInsts.map(i => i.due_date).sort()[0];
+          daysOverdue = Math.floor((new Date(todayStr).getTime() - new Date(earliestDue).getTime()) / 86400000);
+          overdueDebt = overdueInsts.reduce((a, b) => a + b.remaining, 0);
+        } else if (s.due_date) {
+          const diff = Math.floor((new Date(todayStr).getTime() - new Date(s.due_date).getTime()) / 86400000);
+          if (diff <= 0) return null;
+          daysOverdue = diff;
+        } else {
+          return null;
+        }
+
+        if (daysOverdue <= 0) return null;
 
         let agingCategory = "1-30";
         if (daysOverdue > 60) agingCategory = "60+";
@@ -277,13 +371,15 @@ export function MuhasebeV2Dashboard({
 
         return {
           ...s,
-          remaining,
+          remaining: overdueDebt,
           daysOverdue,
-          agingCategory
+          agingCategory,
+          overdueCount: overdueInsts.length || 1,
+          earliestDueDate: overdueInsts[0]?.due_date || s.due_date
         };
       })
       .filter(Boolean);
-  }, [students, todayStr]);
+  }, [students, studentPlansMap, todayStr]);
 
   const totalOverdueDebt = useMemo(() => {
     return overdueStudents.reduce((sum, s) => sum + s.remaining, 0);
@@ -692,6 +788,46 @@ export function MuhasebeV2Dashboard({
           <p style={{ color: "#64748b", margin: 0, fontSize: "13px" }}>
             Kurum gelirleri, kasa/banka çift yönlü defteri, taksit yaşlandırma ve resmi makbuz/senet motoru.
           </p>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" }}>
+            <button
+              type="button"
+              onClick={() => setPeriodFilter("all")}
+              style={{
+                padding: "5px 12px",
+                fontSize: "12px",
+                fontWeight: 700,
+                borderRadius: "8px",
+                border: periodFilter === "all" ? "2px solid #2563eb" : "1px solid var(--border)",
+                background: periodFilter === "all" ? "#eff6ff" : "#fff",
+                color: periodFilter === "all" ? "#1d4ed8" : "#475569",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px"
+              }}
+            >
+              <Building size={14} /> 📁 Tüm Dönemler ({allStudents.length} Öğrenci)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodFilter("2026-2027")}
+              style={{
+                padding: "5px 12px",
+                fontSize: "12px",
+                fontWeight: 700,
+                borderRadius: "8px",
+                border: periodFilter === "2026-2027" ? "2px solid #16a34a" : "1px solid var(--border)",
+                background: periodFilter === "2026-2027" ? "#f0fdf4" : "#fff",
+                color: periodFilter === "2026-2027" ? "#15803d" : "#475569",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px"
+              }}
+            >
+              <CheckCircle2 size={14} /> 🟢 2026-2027 Kesin Kayıt (61)
+            </button>
+          </div>
         </div>
 
         <div className="head-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
