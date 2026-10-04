@@ -547,6 +547,72 @@ function MainApp({ me, onLogout }) {
       ]
     },
     {
+      title: "FİNANS & MUHASEBE",
+      items: [
+        {
+          id: "payments",
+          label: "Muhasebe V2",
+          icon: Wallet,
+          perm: "page_payments",
+          isTree: true,
+          treeKey: "muhasebe",
+          subItems: [
+            {
+              id: "p_dash",
+              label: "Kontrol Paneli",
+              icon: LayoutDashboard,
+              activeCheck: () => page === "payments" && accountingTab === "dashboard",
+              onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); }
+            },
+            {
+              id: "p_gelir",
+              label: "Gelir Yönetimi",
+              isAccordion: true,
+              subKey: "gelir",
+              icon: Folder,
+              children: [
+                { id: "g_list", label: "Gelir Listesi", activeCheck: () => page === "payments" && accountingTab === "gelirler", onClick: () => { setPage("payments"); setAccountingTab("gelirler"); setMobileOpen(false); } },
+                { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { setPage("documents"); setMobileOpen(false); } },
+                { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "payments" && accountingTab === "gecikenler", onClick: () => { setPage("payments"); setAccountingTab("gecikenler"); setMobileOpen(false); } },
+                { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "payments" && accountingTab === "tahsilatlar", onClick: () => { setPage("payments"); setAccountingTab("tahsilatlar"); setMobileOpen(false); } },
+                { id: "g_senet", label: "Fatura Planı / Senetler", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setPage("payments"); setAccountingTab("senetler"); setMobileOpen(false); } },
+                { id: "g_cust", label: "Müşteriler / Veliler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } },
+                { id: "g_glr", label: "📄 Gelir Detay (GLR)", onClick: () => { setGelirModalData({ isOpen: true, gelirKodu: "GLR202600150" }); setMobileOpen(false); } }
+              ]
+            },
+            {
+              id: "p_gider",
+              label: "Gider Yönetimi",
+              isAccordion: true,
+              subKey: "gider",
+              icon: TrendingDown,
+              children: [
+                { id: "gid_list", label: "Gider Listesi", activeCheck: () => page === "payments" && accountingTab === "giderler", onClick: () => { setPage("payments"); setAccountingTab("giderler"); setMobileOpen(false); } },
+                { id: "gid_add", label: "Yeni Gider Ekle", onClick: () => { guardedOpen("expense"); setMobileOpen(false); } }
+              ]
+            },
+            {
+              id: "p_kasa",
+              label: "Kasa ve Banka",
+              isAccordion: true,
+              subKey: "kasa",
+              icon: Building,
+              children: [
+                { id: "k_def", label: "Kasa Defteri", activeCheck: () => page === "payments" && accountingTab === "kasalar", onClick: () => { setPage("payments"); setAccountingTab("kasalar"); setMobileOpen(false); } },
+                { id: "k_gun", label: "Kasa Raporu Yazdır", onClick: () => { window.print(); setMobileOpen(false); } },
+                { id: "k_makbuz", label: "Tahsilat Makbuzu Kes", onClick: () => { guardedOpen("payment"); setMobileOpen(false); } },
+                { id: "k_senet", label: "Matbu Senet (Bono) Yazdır", onClick: () => { setShowGlobalPromissory(true); setMobileOpen(false); } },
+                { id: "k_bak", label: "Bakiyeler & Hesaplar", activeCheck: () => page === "payments" && accountingTab === "dashboard", onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); } }
+              ]
+            }
+          ]
+        },
+        { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
+        { id: "documents", label: "Sözleşme & Makbuz", icon: FileText, perm: "page_documents" },
+        { id: "reports", label: "Aylık Rapor", icon: FileDown, perm: "page_reports" }
+      ]
+    },
+    {
       title: "ÖĞRENCİ & KADRO",
       items: [
         { id: "students", label: "Öğrenci Listesi", icon: Users, perm: "page_students" },
@@ -629,72 +695,6 @@ function MainApp({ me, onLogout }) {
       items: [
         { id: "schedules", label: "Ders Programı", icon: Calendar, perm: "page_schedules" },
         { id: "attendance", label: "Günlük Yoklama", icon: CalendarCheck, perm: "page_attendance" }
-      ]
-    },
-    {
-      title: "FİNANS & MUHASEBE",
-      items: [
-        {
-          id: "payments",
-          label: "Muhasebe V2",
-          icon: Wallet,
-          perm: "page_payments",
-          isTree: true,
-          treeKey: "muhasebe",
-          subItems: [
-            {
-              id: "p_dash",
-              label: "Kontrol Paneli",
-              icon: LayoutDashboard,
-              activeCheck: () => page === "payments" && accountingTab === "dashboard",
-              onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); }
-            },
-            {
-              id: "p_gelir",
-              label: "Gelir Yönetimi",
-              isAccordion: true,
-              subKey: "gelir",
-              icon: Folder,
-              children: [
-                { id: "g_list", label: "Gelir Listesi", activeCheck: () => page === "payments" && accountingTab === "gelirler", onClick: () => { setPage("payments"); setAccountingTab("gelirler"); setMobileOpen(false); } },
-                { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { setPage("documents"); setMobileOpen(false); } },
-                { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "payments" && accountingTab === "gecikenler", onClick: () => { setPage("payments"); setAccountingTab("gecikenler"); setMobileOpen(false); } },
-                { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "payments" && accountingTab === "tahsilatlar", onClick: () => { setPage("payments"); setAccountingTab("tahsilatlar"); setMobileOpen(false); } },
-                { id: "g_senet", label: "Fatura Planı / Senetler", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setPage("payments"); setAccountingTab("senetler"); setMobileOpen(false); } },
-                { id: "g_cust", label: "Müşteriler / Veliler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } },
-                { id: "g_glr", label: "📄 Gelir Detay (GLR)", onClick: () => { setGelirModalData({ isOpen: true, gelirKodu: "GLR202600150" }); setMobileOpen(false); } }
-              ]
-            },
-            {
-              id: "p_gider",
-              label: "Gider Yönetimi",
-              isAccordion: true,
-              subKey: "gider",
-              icon: TrendingDown,
-              children: [
-                { id: "gid_list", label: "Gider Listesi", activeCheck: () => page === "payments" && accountingTab === "giderler", onClick: () => { setPage("payments"); setAccountingTab("giderler"); setMobileOpen(false); } },
-                { id: "gid_add", label: "Yeni Gider Ekle", onClick: () => { guardedOpen("expense"); setMobileOpen(false); } }
-              ]
-            },
-            {
-              id: "p_kasa",
-              label: "Kasa ve Banka",
-              isAccordion: true,
-              subKey: "kasa",
-              icon: Building,
-              children: [
-                { id: "k_def", label: "Kasa Defteri", activeCheck: () => page === "payments" && accountingTab === "kasalar", onClick: () => { setPage("payments"); setAccountingTab("kasalar"); setMobileOpen(false); } },
-                { id: "k_gun", label: "Kasa Raporu Yazdır", onClick: () => { window.print(); setMobileOpen(false); } },
-                { id: "k_makbuz", label: "Tahsilat Makbuzu Kes", onClick: () => { guardedOpen("payment"); setMobileOpen(false); } },
-                { id: "k_senet", label: "Matbu Senet (Bono) Yazdır", onClick: () => { setShowGlobalPromissory(true); setMobileOpen(false); } },
-                { id: "k_bak", label: "Bakiyeler & Hesaplar", activeCheck: () => page === "payments" && accountingTab === "dashboard", onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); } }
-              ]
-            }
-          ]
-        },
-        { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
-        { id: "documents", label: "Sözleşme & Makbuz", icon: FileText, perm: "page_documents" },
-        { id: "reports", label: "Aylık Rapor", icon: FileDown, perm: "page_reports" }
       ]
     },
     {
