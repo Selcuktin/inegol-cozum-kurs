@@ -244,13 +244,13 @@ export function TeachersPage({ me, API, teachers = [], onReload, onNavigate, onO
         </div>
 
         <div style={{ background: "#fff", borderRadius: "10px", padding: "14px 16px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: "42px", height: "42px", borderRadius: "8px", background: "#fff7ed", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: "42px", height: "42px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Award size={22} />
           </div>
           <div>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Birebir Etüt Seansı</div>
-            <div style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a" }}>34 Seans / Hafta</div>
-            <div style={{ fontSize: "11px", color: "#ea580c" }}>Rehberlik & Soru Çözümü</div>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Aktif Şubeler & Sınıflar</div>
+            <div style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a" }}>18 Şube</div>
+            <div style={{ fontSize: "11px", color: "#16a34a" }}>2026-2027 Eğitim Dönemi</div>
           </div>
         </div>
       </div>
@@ -560,30 +560,7 @@ export function TeachersPage({ me, API, teachers = [], onReload, onNavigate, onO
                     }}
                   >
                     <Calendar size={13} />
-                    <span>Ders Programı</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onOpenEtut) onOpenEtut(t);
-                    }}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "8px 10px",
-                      borderRadius: "6px",
-                      background: "#eff6ff",
-                      color: "#2563eb",
-                      border: "1px solid #bfdbfe",
-                      fontWeight: "600",
-                      fontSize: "12px",
-                      cursor: "pointer",
-                    }}
-                    title="Birebir Etüt Randevusu Ver"
-                  >
-                    <BookOpen size={13} />
+                    <span>Haftalık Ders Programı</span>
                   </button>
                 </div>
               </div>

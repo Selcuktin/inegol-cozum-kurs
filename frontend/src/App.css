@@ -4245,6 +4245,8 @@ td[colspan] {
   .head-actions,
   .btn,
   .icon-btn,
+  .report-hero,
+  .monthly-report-preview-container > div:first-child,
   nav {
     display: none !important;
   }

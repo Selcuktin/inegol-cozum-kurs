@@ -29,7 +29,6 @@ import { AbsenceLetterModal } from "./AbsenceLetterModal";
 import { HataKarnesiModal } from "./HataKarnesiModal";
 import { ClassDetailModal } from "./ClassDetailModal";
 import { EdesisStudentModal } from "./EdesisStudentModal";
-import { EtutAppointmentModal } from "./EtutAppointmentModal";
 import { OfficialEdesisKarneModal, EdesisOptikModal } from "../EdesisModules";
 
 export function EdesisTestBenchModal({
@@ -243,17 +242,6 @@ export function EdesisTestBenchModal({
       contextInfo: `Öğrenci: ${sampleStudent.student_name} · Nevin Çakmak İmzalı`,
       actionLabel: "Resmi Mektubu Aç",
       action: () => setActiveTestModal("devamsizlik_mektubu")
-    },
-    {
-      id: "birebir_etut",
-      category: "academic",
-      title: "📅 Birebir Etüt & Soru Çözüm Randevu Sistemi",
-      tag: "Akademik Takip",
-      badgeColor: "#0891b2",
-      desc: "Öğretmen ve öğrenciler için branş bazlı etüt randevusu oluşturma, durum takibi ve randevu listesi.",
-      contextInfo: "Derslik & Öğretmen Randevu Matrisi",
-      actionLabel: "Randevu Portalini Aç",
-      action: () => setActiveTestModal("birebir_etut")
     }
   ];
 
@@ -623,15 +611,6 @@ export function EdesisTestBenchModal({
         <AbsenceLetterModal
           student={sampleStudent}
           daysAbsent={10}
-          onClose={() => setActiveTestModal(null)}
-        />
-      )}
-
-      {activeTestModal === "birebir_etut" && (
-        <EtutAppointmentModal
-          API={API}
-          students={data.students || []}
-          classes={data.classes || []}
           onClose={() => setActiveTestModal(null)}
         />
       )}

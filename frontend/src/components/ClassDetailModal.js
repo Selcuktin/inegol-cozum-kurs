@@ -283,13 +283,6 @@ export function ClassDetailModal({
                 >
                   <Clock size={14} /> Ders Programı
                 </button>
-                <button 
-                  className="btn small secondary"
-                  title="Bu sınıfa ödev tanımla"
-                  onClick={() => { onClose(); onNavigate("homework"); }}
-                >
-                  <BookOpen size={14} /> Ödev Ver
-                </button>
               </>
             )}
             {onOpenNewStudent && (

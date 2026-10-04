@@ -60,8 +60,6 @@ import {
   ExamsPage,
   AttendancePage,
   SchedulesPage,
-  HomeworkPage,
-  MentorshipPage,
   EdesisDashboardWidgets
 } from "./EdesisModules";
 import { EdesisStudentModal } from "./components/EdesisStudentModal";
@@ -72,9 +70,9 @@ import { HataKarnesiModal } from "./components/HataKarnesiModal";
 import { ClassDetailModal } from "./components/ClassDetailModal";
 import { MuhasebeV2Dashboard } from "./components/MuhasebeV2Dashboard";
 import { GelirDetayModal } from "./components/GelirDetayModal";
-import { EtutAppointmentModal } from "./components/EtutAppointmentModal";
 import { EdesisTestBenchModal } from "./components/EdesisTestBenchModal";
 import { TeachersPage } from "./components/TeachersPage";
+import { MonthlyReportPreview } from "./components/MonthlyReportPreview";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -117,8 +115,6 @@ const CAN = {
   page_exams:      ["admin", "muhasebe", "ogretmen"],
   page_attendance: ["admin", "ogretmen"],
   page_schedules:  ["admin", "muhasebe", "ogretmen"],
-  page_homework:   ["admin", "ogretmen"],
-  page_mentorship: ["admin", "ogretmen"],
   page_payments:   ["admin", "muhasebe"],
   page_classes:    ["admin", "ogretmen"],
   page_teachers:   ["admin", "muhasebe", "ogretmen"],
@@ -479,7 +475,7 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
 
 function MainApp({ me, onLogout }) {
   const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] });
-  const validPages = ["dashboard", "students", "classes", "teachers", "exams", "attendance", "schedules", "homework", "mentorship", "payments", "reminders", "documents", "reports", "users", "audit"];
+  const validPages = ["dashboard", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "reminders", "documents", "reports", "users", "audit"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace(/^#/, "");
@@ -525,7 +521,6 @@ function MainApp({ me, onLogout }) {
   const [showGlobalHataKarnesi, setShowGlobalHataKarnesi] = useState(false);
   const [showGlobalPromissory, setShowGlobalPromissory] = useState(false);
   const [showGlobalAbsenceLetter, setShowGlobalAbsenceLetter] = useState(false);
-  const [showGlobalEtut, setShowGlobalEtut] = useState(false);
 
   const [expandedTree, setExpandedTree] = useState({
     olcme: true,
@@ -584,12 +579,6 @@ function MainApp({ me, onLogout }) {
               icon: Calendar,
               activeCheck: () => page === "schedules",
               onClick: () => { setPage("schedules"); setMobileOpen(false); }
-            },
-            {
-              id: "teachers_etut",
-              label: "Birebir Etüt & Randevular",
-              icon: Target,
-              onClick: () => { setShowGlobalEtut(true); setMobileOpen(false); }
             }
           ]
         }
@@ -639,9 +628,7 @@ function MainApp({ me, onLogout }) {
       title: "EĞİTİM & AKADEMİK",
       items: [
         { id: "schedules", label: "Ders Programı", icon: Calendar, perm: "page_schedules" },
-        { id: "attendance", label: "Günlük Yoklama", icon: CalendarCheck, perm: "page_attendance" },
-        { id: "homework", label: "Ödev Takip", icon: CheckSquare, perm: "page_homework" },
-        { id: "mentorship", label: "Rehberlik & Koçluk", icon: Target, perm: "page_mentorship" }
+        { id: "attendance", label: "Günlük Yoklama", icon: CalendarCheck, perm: "page_attendance" }
       ]
     },
     {
@@ -944,8 +931,6 @@ function MainApp({ me, onLogout }) {
         {page === "exams" && <ExamsPage me={me} API={API} students={data.students || []} classes={data.classes || []} />}
         {page === "attendance" && <AttendancePage me={me} API={API} classes={data.classes || []} />}
         {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
-        {page === "homework" && <HomeworkPage me={me} API={API} classes={data.classes || []} students={data.students || []} />}
-        {page === "mentorship" && <MentorshipPage me={me} API={API} students={data.students || []} />}
         {page === "students" && (
           <Students
             me={me}
@@ -959,10 +944,10 @@ function MainApp({ me, onLogout }) {
         )}
         {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} />}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
-        {page === "teachers" && <TeachersPage me={me} API={API} teachers={data.teachers || []} onReload={load} onNavigate={setPage} onOpenEtut={() => setShowGlobalEtut(true)} />}
+        {page === "teachers" && <TeachersPage me={me} API={API} teachers={data.teachers || []} onReload={load} onNavigate={setPage} />}
         {page === "reminders" && <Reminders />}
         {page === "documents" && <Documents students={data.students} payments={data.payments} />}
-        {page === "reports" && <Reports me={me} />}
+        {page === "reports" && <Reports me={me} data={data} />}
         {page === "users" && <UsersPage me={me} />}
         {page === "audit" && <AuditPage />}
       </div>
@@ -1057,16 +1042,6 @@ function MainApp({ me, onLogout }) {
         student={data.students?.[0] || { student_name: "Örnek Öğrenci" }}
         daysAbsent={10}
         onClose={() => setShowGlobalAbsenceLetter(false)}
-      />
-    )}
-
-    {/* GLOBAL BİREBİR ETÜT & RANDEVU MODALI */}
-    {showGlobalEtut && (
-      <EtutAppointmentModal
-        API={API}
-        students={data.students || []}
-        classes={data.classes || []}
-        onClose={() => setShowGlobalEtut(false)}
       />
     )}
   </div>;
@@ -2509,9 +2484,6 @@ function Classes({ me, classes = [], onOpen, students = [], onSelect, onNavigate
             <button className="btn small secondary" onClick={() => onNavigate && onNavigate("schedules")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
               <Clock size={14} /> Ders Programı
             </button>
-            <button className="btn small secondary" onClick={() => onNavigate && onNavigate("homework")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-              <BookOpen size={14} /> Ödev Ver
-            </button>
             <button className="btn small" onClick={() => onOpen("student")} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "#2563eb" }}>
               <Plus size={14} /> Yeni Öğrenci Ekle
             </button>
@@ -3098,20 +3070,32 @@ function Reminders() {
   </>;
 }
 
-function Reports({ me }) {
+function Reports({ me, data = {} }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0,7));
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const generate = async () => {
     setLoading(true); setMsg("");
     try { await downloadBlob(`${API}/reports/monthly?month=${month}`, `inegol-cozum-rapor-${month}.pdf`); setMsg("Rapor indirildi."); }
-    catch (e) { setMsg(e.response?.data?.detail || "İndirilemedi"); }
+    catch (e) {
+      window.print();
+      setMsg("Yazdırma / PDF penceresi açıldı.");
+    }
     finally { setLoading(false); }
   };
   return <>
     <PageHead eyebrow="RAPOR · AYLIK MUHASEBE" title="Aylık Rapor PDF" />
     <div className="report-hero panel">
-      <div className="report-lead"><h2>Kurumsal aylık rapor</h2><p>Seçtiğiniz ay için toplam tahsilat, yöntem dağılımı, giderler ve net durum, kurumsal antetli tek PDF'de.</p><ul className="report-checks"><li>✓ İnegöl Çözüm Kurs logosu ve iletişim bilgileri</li><li>✓ Tahsilat kalemleri ve yöntem kırılımı</li><li>✓ Aylık giderler ve net kâr/zarar</li><li>✓ Toplam bekleyen alacak özeti</li></ul></div>
+      <div className="report-lead">
+        <h2>Kurumsal aylık rapor</h2>
+        <p>Seçtiğiniz ay için toplam tahsilat, yöntem dağılımı, giderler ve net durum, kurumsal antetli canlı önizleme ve PDF çıktısı ile hazır.</p>
+        <ul className="report-checks">
+          <li>✓ İnegöl Çözüm Kurs logosu ve iletişim bilgileri</li>
+          <li>✓ Tahsilat kalemleri ve yöntem kırılımı</li>
+          <li>✓ Aylık giderler ve net kâr/zarar</li>
+          <li>✓ Toplam bekleyen alacak özeti</li>
+        </ul>
+      </div>
       <div className="report-form">
         <label>Rapor ayı<input data-testid="report-month-input" type="month" value={month} onChange={e => setMonth(e.target.value)} /></label>
         <Button testid="download-report-button" onClick={generate}><Download size={17}/> {loading ? "Hazırlanıyor..." : "PDF olarak indir"}</Button>
@@ -3119,6 +3103,9 @@ function Reports({ me }) {
         {msg && <div data-testid="report-msg" className="report-msg">{msg}</div>}
       </div>
     </div>
+
+    {/* EKRANDA CANLI RAPOR ÖNİZLEMESİ */}
+    <MonthlyReportPreview month={month} data={data} onPrint={generate} />
   </>;
 }
 
@@ -3266,8 +3253,7 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
             { id: "genel", label: "Genel & Kimlik", icon: Users },
             { id: "sinavlar", label: `Sınavlar & Karneler (${studentExams.length})`, icon: Award },
             { id: "yoklama", label: "Devamsızlık & Yoklama", icon: CalendarCheck },
-            { id: "muhasebe", label: "Muhasebe & Taksitler", icon: Wallet },
-            { id: "rehberlik", label: "Rehberlik & Koçluk", icon: Target }
+            { id: "muhasebe", label: "Muhasebe & Taksitler", icon: Wallet }
           ].map(t => {
             const Icon = t.icon;
             const isActive = activeTab === t.id;
@@ -3562,45 +3548,6 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
               </div>
             </div>
           )}
-
-          {/* SEKME 5: REHBERLİK & KOÇLUK */}
-          {activeTab === "rehberlik" && (
-            <div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "16px" }}>
-                <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
-                  <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>HEDEF ÜNİVERSİTE / LİSE:</span>
-                  <b style={{ fontSize: "15px", color: "#1e293b" }}>{studentMentorship[0]?.target_uni || s.target_uni || "Boğaziçi Üniversitesi / Hedef Derece"}</b>
-                </div>
-                <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
-                  <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", display: "block" }}>HEDEF BÖLÜM:</span>
-                  <b style={{ fontSize: "15px", color: "#2563eb" }}>{studentMentorship[0]?.target_department || s.target_department || s.department || "Sayısal Bölüm"}</b>
-                </div>
-              </div>
-
-              <h4 style={{ margin: "0 0 10px 0", fontSize: "14px", fontWeight: "700" }}>Koçluk ve Birebir Görüşme Kayıtları</h4>
-              {studentMentorship.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {studentMentorship.map((m, idx) => (
-                    <div key={idx} style={{ padding: "12px", border: "1px solid var(--line)", borderRadius: "8px", background: "#fff" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                        <b>Danışman / Mentor: {m.mentor_name}</b>
-                        <span style={{ fontSize: "12px", color: "#64748b" }}>{new Date(m.session_date).toLocaleDateString("tr-TR")}</span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: "13px", color: "#334155" }}>{m.notes || "Görüşme tamamlandı."}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ padding: "30px", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed var(--line)" }}>
-                  <Target size={28} color="#94a3b8" style={{ margin: "0 auto 6px auto" }} />
-                  <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
-                    Henüz koçluk görüşmesi girilmemiş. Rehberlik modülünden randevu oluşturabilirsiniz.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
         </div>
 
         {/* Modal Alt Çubuğu */}
