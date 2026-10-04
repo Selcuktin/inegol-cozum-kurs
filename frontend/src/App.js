@@ -38,6 +38,7 @@ import {
   GraduationCap,
   UserCheck,
   UserPlus,
+  User,
   Clock,
   Edit,
   Trash2,
@@ -945,7 +946,17 @@ function MainApp({ me, onLogout }) {
         {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
         {page === "homework" && <HomeworkPage me={me} API={API} classes={data.classes || []} students={data.students || []} />}
         {page === "mentorship" && <MentorshipPage me={me} API={API} students={data.students || []} />}
-        {page === "students" && <Students me={me} allStudents={data.students || []} search={search} onSearch={setSearch} onOpen={guardedOpen} onSelect={setSelected} />}
+        {page === "students" && (
+          <Students
+            me={me}
+            allStudents={data.students || []}
+            search={search}
+            onSearch={setSearch}
+            onOpen={guardedOpen}
+            onSelect={(st) => setGelirModalData({ student: st, gelirKodu: st?.gelir_kodu, sozlesmeNo: st?.sozlesme_no })}
+            onOpenProfile={(st) => setSelected(st)}
+          />
+        )}
         {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} />}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
         {page === "teachers" && <TeachersPage me={me} API={API} teachers={data.teachers || []} onReload={load} onNavigate={setPage} onOpenEtut={() => setShowGlobalEtut(true)} />}
@@ -986,6 +997,11 @@ function MainApp({ me, onLogout }) {
         sozlesmeNo={gelirModalData.sozlesmeNo}
         student={gelirModalData.student}
         onRecordPayment={() => load()}
+        onOpenProfile={(st) => {
+          const target = st || gelirModalData.student;
+          setGelirModalData(null);
+          setSelected(target);
+        }}
       />
     )}
 
@@ -1189,7 +1205,7 @@ export function getStudentCategory(s) {
   return "kesin";
 }
 
-function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
+function Students({ me, allStudents, search, onSearch, onOpen, onSelect, onOpenProfile }) {
   const [activeSegment, setActiveSegment] = useState("kesin"); // "kesin" (default: 61), "yaz", "mezun", "iptal", "debtors", "paid", "all"
   const [selectedPeriod, setSelectedPeriod] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -1606,10 +1622,67 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect }) {
                       </span>
                     </div>
                   </td>
-                  <td>
-                    <button data-testid={`student-detail-${s.id}`} className="row-arrow" onClick={() => onSelect(s)}>
-                      <ChevronRight size={17} />
-                    </button>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          borderRadius: "6px",
+                          color: "#166534",
+                          background: "#f0fdf4",
+                          border: "1px solid #bbf7d0",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelect(s);
+                        }}
+                        title="Edesis Gelir & Taksit Detayını Aç"
+                      >
+                        <FileText size={13} /> Gelir Detay
+                      </button>
+                      {onOpenProfile && (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          style={{
+                            padding: "4px 7px",
+                            borderRadius: "6px",
+                            color: "#1d4ed8",
+                            background: "#eff6ff",
+                            border: "1px solid #bfdbfe",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center"
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenProfile(s);
+                          }}
+                          title="Öğrenci Akademik & Devamsızlık Profili"
+                        >
+                          <User size={13} />
+                        </button>
+                      )}
+                      <button
+                        data-testid={`student-detail-${s.id}`}
+                        className="row-arrow"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelect(s);
+                        }}
+                        title="Gelir Detay"
+                      >
+                        <ChevronRight size={17} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );

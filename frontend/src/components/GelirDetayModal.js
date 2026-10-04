@@ -61,7 +61,8 @@ export function GelirDetayModal({
   gelirKodu,
   sozlesmeNo,
   student,
-  onRecordPayment
+  onRecordPayment,
+  onOpenProfile
 }) {
   const [activeTabNotes, setActiveTabNotes] = useState("notes"); // 'notes' | 'activity'
   const [newNote, setNewNote] = useState("");
@@ -342,6 +343,16 @@ export function GelirDetayModal({
               >
                 <Printer size={15} /> Yazdır
               </button>
+              {onOpenProfile && (
+                <button
+                  onClick={() => onOpenProfile(student)}
+                  className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center gap-1.5 transition-colors"
+                  style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 600, border: "1px solid #bfdbfe", borderRadius: "8px", background: "#eff6ff", color: "#1d4ed8", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  title="Öğrencinin Akademik & Genel Bilgi Sayfası"
+                >
+                  <User size={15} /> Öğrenci Profili
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 ml-1"

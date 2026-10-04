@@ -41,43 +41,56 @@ describe("TeachersPage - Öğretmenler & Kadro Portali", () => {
 
   const mockTeachers = [
     {
-      id: "tch-001",
-      name: "Semih Seymen",
-      branch: "Fizik",
-      title: "Kurum Müdürü & Fizik Öğretmeni",
-      phone: "0533 222 33 44",
-      email: "semih.seymen@inegolcozumkurs.com",
-      classes: "12-Sayısal, TYT-AYT, Mezun VIP",
-      weekly_hours: 18,
+      id: "eds-tch-80973",
+      name: "Kamer Selçukarslan",
+      branch: "Rehberlik & Yöneticilik",
+      title: "Kurum Müdürü & Rehberlik (EDS No: 80973)",
+      phone: "0530 505 46 19",
+      email: "kamerselcukarslan96@gmail.com",
+      classes: "Tüm Kademeler & Rehberlik",
+      weekly_hours: 20,
       status: "Aktif",
       role: "admin",
-      notes: "VIP ve 12. Sınıf Fizik grupları sorumlusu"
+      notes: "Edesis Aktif Kadro. TC: 27145371796"
     },
     {
-      id: "tch-002",
-      name: "Ayşe Kaya",
-      branch: "Matematik",
-      title: "Matematik Zümre Başkanı",
-      phone: "0535 777 88 99",
-      email: "ayse.kaya@inegolcozumkurs.com",
-      classes: "11-A, TYT-AYT, 12-Sayısal",
+      id: "eds-tch-80974",
+      name: "Yeliz Arcan",
+      branch: "Eğitmen",
+      title: "Kurum Öğretmeni (EDS No: 80974)",
+      phone: "0543 563 21 45",
+      email: "arcan857@gmail.com",
+      classes: "Ortaokul & LGS Grupları",
       weekly_hours: 24,
       status: "Aktif",
       role: "ogretmen",
-      notes: "AYT Matematik ve Geometri ileri düzey denemeler"
+      notes: "Edesis Aktif Kadro. TC: 19558624156"
     },
     {
-      id: "tch-003",
-      name: "Mehmet Çelik",
-      branch: "Geometri",
-      title: "LGS & Geometri Uzmanı",
-      phone: "0542 666 55 44",
-      email: "mehmet.celik@inegolcozumkurs.com",
-      classes: "8-A, 8-B, LGS Hazırlık",
+      id: "eds-tch-80975",
+      name: "Zeyneb Yolcu",
+      branch: "Eğitmen",
+      title: "Kurum Öğretmeni (EDS No: 80975)",
+      phone: "0534 512 75 45",
+      email: "yolcuzeyneb@gmail.com",
+      classes: "İlkokul & Ara Sınıflar",
       weekly_hours: 20,
       status: "Aktif",
       role: "ogretmen",
-      notes: "LGS matematik ve analitik geometri soru çözümleri"
+      notes: "Edesis Aktif Kadro. TC: 24703453390"
+    },
+    {
+      id: "eds-tch-80976",
+      name: "Sinem Kartal",
+      branch: "Eğitmen",
+      title: "Kurum Öğretmeni (EDS No: 80976)",
+      phone: "0545 940 28 37",
+      email: "sinemkartal12@gmail.com",
+      classes: "Lise & YKS Grupları",
+      weekly_hours: 22,
+      status: "Aktif",
+      role: "ogretmen",
+      notes: "Edesis Aktif Kadro. TC: 20392596646"
     }
   ];
 
@@ -99,14 +112,14 @@ describe("TeachersPage - Öğretmenler & Kadro Portali", () => {
     expect(getByText("Haftalık Ders Yükü")).toBeTruthy();
 
     // Teacher names
-    expect(container.textContent).toContain("Semih Seymen");
-    expect(container.textContent).toContain("Ayşe Kaya");
-    expect(container.textContent).toContain("Mehmet Çelik");
+    expect(container.textContent).toContain("Kamer Selçukarslan");
+    expect(container.textContent).toContain("Yeliz Arcan");
+    expect(container.textContent).toContain("Zeyneb Yolcu");
+    expect(container.textContent).toContain("Sinem Kartal");
 
     // Branches
-    expect(container.textContent).toContain("Fizik");
-    expect(container.textContent).toContain("Matematik");
-    expect(container.textContent).toContain("Geometri");
+    expect(container.textContent).toContain("Rehberlik & Yöneticilik");
+    expect(container.textContent).toContain("Eğitmen");
   });
 
   test("filters teachers by search query", async () => {
@@ -123,10 +136,10 @@ describe("TeachersPage - Öğretmenler & Kadro Portali", () => {
 
     const searchInput = container.querySelector("input[placeholder*='ara']");
     expect(searchInput).toBeTruthy();
-    await fireEvent.change(searchInput, { target: { value: "Semih" } });
+    await fireEvent.change(searchInput, { target: { value: "Kamer" } });
 
-    expect(container.textContent).toContain("Semih Seymen");
-    expect(container.textContent).not.toContain("Ayşe Kaya");
+    expect(container.textContent).toContain("Kamer Selçukarslan");
+    expect(container.textContent).not.toContain("Yeliz Arcan");
   });
 
   test("opens modal for adding a new teacher", async () => {

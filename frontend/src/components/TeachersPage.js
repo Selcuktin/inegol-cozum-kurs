@@ -21,6 +21,9 @@ import {
 import { openWhatsApp } from "../EdesisModules";
 
 const BRANCH_COLORS = {
+  "Rehberlik & Yöneticilik": { bg: "#fdf2f8", text: "#be185d", border: "#fbcfe8" },
+  Eğitmen: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
+  İdare: { bg: "#f1f5f9", text: "#334155", border: "#cbd5e1" },
   Matematik: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
   Fizik: { bg: "#fdf4ff", text: "#a21caf", border: "#f5d0fe" },
   Geometri: { bg: "#ecfdf5", text: "#047857", border: "#a7f3d0" },
@@ -32,7 +35,6 @@ const BRANCH_COLORS = {
   Coğrafya: { bg: "#f5f3ff", text: "#6d28d9", border: "#ddd6fe" },
   "Rehberlik & PDR": { bg: "#fdf2f8", text: "#be185d", border: "#fbcfe8" },
   "Sınıf Eğitmeni": { bg: "#f0fdfa", text: "#0f766e", border: "#99f6e4" },
-  İdare: { bg: "#f1f5f9", text: "#334155", border: "#cbd5e1" },
 };
 
 export function TeachersPage({ me, API, teachers = [], onReload, onNavigate, onOpenEtut }) {
@@ -46,7 +48,7 @@ export function TeachersPage({ me, API, teachers = [], onReload, onNavigate, onO
 
   const [formData, setFormData] = useState({
     name: "",
-    branch: "Matematik",
+    branch: "Eğitmen",
     title: "",
     phone: "",
     email: "",

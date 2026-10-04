@@ -160,150 +160,59 @@ function enrichStudent(s) {
 
 const DEFAULT_TEACHERS = [
   {
-    id: "tch-001",
-    name: "Semih Seymen",
-    branch: "Fizik",
-    title: "Kurum Müdürü & Fizik Öğretmeni",
-    phone: "0533 222 33 44",
-    email: "semih.seymen@inegolcozumkurs.com",
-    classes: "12-Sayısal, TYT-AYT, Mezun VIP",
-    weekly_hours: 18,
-    status: "Aktif",
-    role: "admin",
-    notes: "VIP ve 12. Sınıf Fizik grupları sorumlusu"
-  },
-  {
-    id: "tch-002",
-    name: "Ayşe Kaya",
-    branch: "Matematik",
-    title: "Matematik Zümre Başkanı",
-    phone: "0535 777 88 99",
-    email: "ayse.kaya@inegolcozumkurs.com",
-    classes: "11-A, TYT-AYT, 12-Sayısal",
+    id: "eds-tch-80973",
+    name: "Kamer Selçukarslan",
+    branch: "Rehberlik & Yöneticilik",
+    title: "Kurum Müdürü / Öğretmen (EDS No: 80973)",
+    phone: "0530 505 46 19",
+    email: "kamerselcukarslan96@gmail.com",
+    classes: "Tüm Kademeler",
     weekly_hours: 24,
     status: "Aktif",
-    role: "ogretmen",
-    notes: "AYT Matematik ve Geometri ileri düzey denemeler"
+    role: "admin",
+    notes: "Edesis Sistem Yöneticisi & Rehberlik Koordinatörü. TC: 27145371796"
   },
   {
-    id: "tch-003",
-    name: "Mehmet Çelik",
-    branch: "Geometri",
-    title: "LGS & Geometri Uzmanı",
-    phone: "0542 666 55 44",
-    email: "mehmet.celik@inegolcozumkurs.com",
-    classes: "8-A, 8-B, LGS Hazırlık",
-    weekly_hours: 20,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "LGS matematik ve analitik geometri soru çözümleri"
-  },
-  {
-    id: "tch-004",
-    name: "Zeynep Şahin",
-    branch: "Türkçe",
-    title: "Türk Dili ve Edebiyatı Zümre Başkanı",
-    phone: "0532 999 11 22",
-    email: "zeynep.sahin@inegolcozumkurs.com",
-    classes: "7-A, 8-A, 10-A, 11-A",
+    id: "eds-tch-80974",
+    name: "Yeliz Arcan",
+    branch: "Eğitmen",
+    title: "Kurum Öğretmeni (EDS No: 80974)",
+    phone: "0543 563 21 45",
+    email: "arcan857@gmail.com",
+    classes: "Ortaokul & LGS Grupları",
     weekly_hours: 22,
     status: "Aktif",
     role: "ogretmen",
-    notes: "Paragraf taktikleri ve LGS sözel mantık"
+    notes: "Edesis Aktif Kadro. TC: 19558624156"
   },
   {
-    id: "tch-005",
-    name: "Burak Demir",
-    branch: "Kimya",
-    title: "Kimya Eğitmeni",
-    phone: "0541 333 44 55",
-    email: "burak.demir@inegolcozumkurs.com",
-    classes: "11-A, 12-Sayısal, Mezun",
-    weekly_hours: 16,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "AYT organik kimya ve laboratuvar uygulamaları"
-  },
-  {
-    id: "tch-006",
-    name: "Elif Yılmaz",
-    branch: "Biyoloji",
-    title: "Biyoloji & Fen Bilimleri Eğitmeni",
-    phone: "0536 444 55 66",
-    email: "elif.yilmaz@inegolcozumkurs.com",
-    classes: "8-A, 11-A, 12-Sayısal",
-    weekly_hours: 18,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "Kalıtım, sistemler ve fen bilimleri LGS hazırlık"
-  },
-  {
-    id: "tch-007",
-    name: "Ahmet Yılmaz",
-    branch: "Tarih",
-    title: "Tarih & Sosyal Bilgiler Eğitmeni",
-    phone: "0538 555 66 77",
-    email: "ahmet.yilmaz@inegolcozumkurs.com",
-    classes: "8-A, TYT-AYT, İnkılap Tarihi",
-    weekly_hours: 14,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "LGS T.C. İnkılap Tarihi ve TYT Tarih kampı"
-  },
-  {
-    id: "tch-008",
-    name: "Merve Aydın",
-    branch: "İngilizce",
-    title: "Yabancı Dil Koordinatörü",
-    phone: "0539 666 77 88",
-    email: "merve.aydin@inegolcozumkurs.com",
-    classes: "Tüm İlkokul & Ortaokul, LGS İngilizce",
-    weekly_hours: 16,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "LGS İngilizce soru bankası yazarı ve speaking club"
-  },
-  {
-    id: "tch-009",
-    name: "Canan Öztürk",
-    branch: "Coğrafya",
-    title: "Coğrafya Eğitmeni",
-    phone: "0537 777 88 99",
-    email: "canan.ozturk@inegolcozumkurs.com",
-    classes: "TYT-AYT, 10-A, 11-A",
-    weekly_hours: 12,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "Harita bilgisi ve fiziki coğrafya soru kampları"
-  },
-  {
-    id: "tch-010",
-    name: "Hakan Polat",
-    branch: "Rehberlik & PDR",
-    title: "PDR & Öğrenci Koçluğu Koordinatörü",
-    phone: "0531 888 99 00",
-    email: "hakan.polat@inegolcozumkurs.com",
-    classes: "Tüm Kademeler",
+    id: "eds-tch-80975",
+    name: "Zeyneb Yolcu",
+    branch: "Eğitmen",
+    title: "Kurum Öğretmeni (EDS No: 80975)",
+    phone: "0534 512 75 45",
+    email: "yolcuzeyneb@gmail.com",
+    classes: "İlkokul & Ara Sınıflar",
     weekly_hours: 20,
     status: "Aktif",
     role: "ogretmen",
-    notes: "Haftalık soru hedef takibi ve sınav kaygısı yönetimi"
+    notes: "Edesis Aktif Kadro. TC: 24703453390"
   },
   {
-    id: "tch-011",
-    name: "Seda Yıldırım",
-    branch: "Sınıf Eğitmeni",
-    title: "İlkokul Kademe Koordinatörü",
-    phone: "0534 111 22 33",
-    email: "seda.yildirim@inegolcozumkurs.com",
-    classes: "1-A, 2-A, 3-A, 4-A",
+    id: "eds-tch-80976",
+    name: "Sinem Kartal",
+    branch: "Eğitmen",
+    title: "Kurum Öğretmeni (EDS No: 80976)",
+    phone: "0545 940 28 37",
+    email: "sinemkartal12@gmail.com",
+    classes: "Lise & YKS Grupları",
     weekly_hours: 22,
     status: "Aktif",
     role: "ogretmen",
-    notes: "İlkokul temel dersler ve ödev takibi"
+    notes: "Edesis Aktif Kadro. TC: 20392596646"
   },
   {
-    id: "tch-012",
+    id: "eds-tch-idari-001",
     name: "Nevin Çakmak",
     branch: "İdare",
     title: "Kurucu Temsilcisi & İdari İşler",
@@ -313,7 +222,20 @@ const DEFAULT_TEACHERS = [
     weekly_hours: 10,
     status: "Aktif",
     role: "admin",
-    notes: "Milli Eğitim Bakanlığı resmi yazışmalar ve kurumsal ilişkiler"
+    notes: "Edesis Resmi Sözleşme Yetkilisi & MEB İdari Yazışmalar"
+  },
+  {
+    id: "eds-tch-idari-002",
+    name: "Osman Seymen",
+    branch: "İdare",
+    title: "Eğitim Koordinatörü & İdari Yönetici",
+    phone: "0532 222 33 44",
+    email: "osman.seymen@inegolcozumkurs.com",
+    classes: "Tüm Kurum",
+    weekly_hours: 12,
+    status: "Aktif",
+    role: "admin",
+    notes: "Edesis Sözleşme İmza Yetkilisi & Eğitim Koordinasyonu"
   }
 ];
 
@@ -338,12 +260,16 @@ async function getTeachersList(db) {
 
     const rows = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all();
     if (rows && rows.results && rows.results.length > 0) {
-      return rows.results;
+      const hasMock = rows.results.some(r => r.id === 'tch-001' && r.name.includes('Semih'));
+      if (!hasMock) {
+        return rows.results;
+      }
+      await db.prepare("DELETE FROM teachers").run().catch(() => {});
     }
 
     for (const t of DEFAULT_TEACHERS) {
       await db.prepare(`
-        INSERT OR IGNORE INTO teachers (id, name, branch, title, phone, email, classes, weekly_hours, status, role, notes, created_at)
+        INSERT OR REPLACE INTO teachers (id, name, branch, title, phone, email, classes, weekly_hours, status, role, notes, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).bind(t.id, t.name, t.branch, t.title, t.phone, t.email, t.classes, t.weekly_hours, t.status, t.role, t.notes).run().catch(() => {});
     }
