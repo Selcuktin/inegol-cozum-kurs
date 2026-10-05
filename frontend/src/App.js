@@ -73,6 +73,7 @@ import { GelirDetayModal } from "./components/GelirDetayModal";
 import { EdesisTestBenchModal } from "./components/EdesisTestBenchModal";
 import { TeachersPage } from "./components/TeachersPage";
 import { MonthlyReportPreview } from "./components/MonthlyReportPreview";
+import { KayitModulu } from "./components/KayitModulu";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -461,9 +462,9 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
         <CalendarCheck size={20} />
         <span>Yoklama</span>
       </button>
-      <button className={`nav-btn ${page === "students" ? "active" : ""}`} onClick={() => setPage("students")}>
+      <button className={`nav-btn ${page === "kayit" || page === "students" ? "active" : ""}`} onClick={() => setPage("kayit")}>
         <Users size={20} />
-        <span>Öğrenciler</span>
+        <span>Kayıt / Öğrenci</span>
       </button>
       <button className={`nav-btn ${page === "payments" ? "active" : ""}`} onClick={() => setPage("payments")}>
         <Wallet size={20} />
@@ -475,7 +476,7 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
 
 function MainApp({ me, onLogout }) {
   const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] });
-  const validPages = ["dashboard", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "reminders", "documents", "reports", "users", "audit"];
+  const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "reminders", "documents", "reports", "users", "audit"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace(/^#/, "");
@@ -513,7 +514,8 @@ function MainApp({ me, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [gelirModalData, setGelirModalData] = useState(null);
 
-  // Edesis Tree Navigation & Testbench States
+  // Edesis Tree Navigation & Module States
+  const [kayitTab, setKayitTab] = useState("kokpit");
   const [accountingTab, setAccountingTab] = useState("gelirler");
   const [showTestBench, setShowTestBench] = useState(false);
   const [showGlobalOptikModal, setShowGlobalOptikModal] = useState(false);
@@ -523,6 +525,9 @@ function MainApp({ me, onLogout }) {
   const [showGlobalAbsenceLetter, setShowGlobalAbsenceLetter] = useState(false);
 
   const [expandedTree, setExpandedTree] = useState({
+    kayit: true,
+    kayit_araclar: false,
+    kayit_bursluluk: false,
     olcme: true,
     teachers: true,
     muhasebe: true,
@@ -531,6 +536,7 @@ function MainApp({ me, onLogout }) {
     gider: false
   });
   const toggleTree = (key) => setExpandedTree((prev) => ({ ...prev, [key]: !prev[key] }));
+
 
   const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
   useEffect(() => { load(); }, []);
@@ -544,6 +550,120 @@ function MainApp({ me, onLogout }) {
       title: "KURUMSAL",
       items: [
         { id: "dashboard", label: "Genel Bakış", icon: LayoutDashboard, perm: "page_dashboard" }
+      ]
+    },
+    {
+      title: "KAYIT İŞLEMLERİ",
+      items: [
+        {
+          id: "kayit",
+          label: "Kayıt İşlemleri",
+          icon: Users,
+          perm: "page_students",
+          isTree: true,
+          treeKey: "kayit",
+          subItems: [
+            {
+              id: "k_kokpit",
+              label: "Kayıt Kokpiti",
+              icon: TrendingUp,
+              activeCheck: () => page === "kayit" && kayitTab === "kokpit",
+              onClick: () => { setPage("kayit"); setKayitTab("kokpit"); setMobileOpen(false); }
+            },
+            {
+              id: "k_ogrenciler",
+              label: "Öğrenciler",
+              icon: UserPlus,
+              activeCheck: () => page === "students",
+              onClick: () => { setPage("students"); setMobileOpen(false); }
+            },
+            {
+              id: "k_ogretmenler",
+              label: "Öğretmenler & Kadro",
+              icon: GraduationCap,
+              activeCheck: () => page === "teachers",
+              onClick: () => { setPage("teachers"); setMobileOpen(false); }
+            },
+            {
+              id: "k_siniflar",
+              label: "Sınıflar & Şubeler",
+              icon: BookOpen,
+              activeCheck: () => page === "classes",
+              onClick: () => { setPage("classes"); setMobileOpen(false); }
+            },
+            {
+              id: "k_raporlar",
+              label: "Kayıt Raporları",
+              icon: FileText,
+              activeCheck: () => page === "kayit" && kayitTab === "raporlar",
+              onClick: () => { setPage("kayit"); setKayitTab("raporlar"); setMobileOpen(false); }
+            },
+            {
+              id: "k_araclar",
+              label: "Araçlar ve Ayarlar",
+              isAccordion: true,
+              subKey: "kayit_araclar",
+              icon: Settings,
+              children: [
+                { id: "k_sifre", label: "Geçici Şifreler (SMS)", activeCheck: () => page === "kayit" && kayitTab === "sifreler", onClick: () => { setPage("kayit"); setKayitTab("sifreler"); setMobileOpen(false); } },
+                { id: "k_donem", label: "Dönem Geçiş Sihirbazı", activeCheck: () => page === "kayit" && kayitTab === "donem", onClick: () => { setPage("kayit"); setKayitTab("donem"); setMobileOpen(false); } },
+                { id: "k_ayar", label: "Kayıt Ayarları", activeCheck: () => page === "kayit" && kayitTab === "ayarlar", onClick: () => { setPage("kayit"); setKayitTab("ayarlar"); setMobileOpen(false); } }
+              ]
+            },
+            {
+              id: "k_bursluluk",
+              label: "Bursluluk ve STS Modülü",
+              isAccordion: true,
+              subKey: "kayit_bursluluk",
+              icon: Award,
+              children: [
+                { id: "k_aday", label: "Adaylar & Ön Kayıtlar", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } },
+                { id: "k_form", label: "Ön Kayıt Formları & Şubeler", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } },
+                { id: "k_seans", label: "Sınav Seansları & Salonları", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "ÖLÇME & DEĞERLENDİRME",
+      items: [
+        {
+          id: "exams",
+          label: "Deneme Sınavları & Karne",
+          icon: Award,
+          perm: "page_exams",
+          isTree: true,
+          treeKey: "olcme",
+          subItems: [
+            {
+              id: "exams_list",
+              label: "Deneme Sınavları Listesi",
+              icon: Award,
+              activeCheck: () => page === "exams" && !showGlobalOptikModal && !showGlobalHataKarnesi,
+              onClick: () => { setPage("exams"); setMobileOpen(false); }
+            },
+            {
+              id: "optik_omr",
+              label: "Optik Okuma & Şablonlar (OMR)",
+              icon: Sparkles,
+              onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); }
+            },
+            {
+              id: "hata_karnesi",
+              label: "Kazanım & Hata Karneleri",
+              icon: Target,
+              onClick: () => { setShowGlobalHataKarnesi(true); setMobileOpen(false); }
+            },
+            {
+              id: "kalibrasyon",
+              label: "Milimetrik Kalibrasyon & Baskı",
+              icon: Printer,
+              onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); }
+            }
+          ]
+        }
       ]
     },
     {
@@ -614,84 +734,6 @@ function MainApp({ me, onLogout }) {
       ]
     },
     {
-      title: "ÖĞRENCİ & KADRO",
-      items: [
-        { id: "students", label: "Öğrenci Listesi", icon: Users, perm: "page_students" },
-        { id: "classes", label: "Sınıf & Şubeler", icon: BookOpen, perm: "page_classes" },
-        {
-          id: "teachers",
-          label: "Öğretmenler & Kadro",
-          icon: GraduationCap,
-          perm: "page_teachers",
-          isTree: true,
-          treeKey: "teachers",
-          subItems: [
-            {
-              id: "teachers_list",
-              label: "Öğretmen Listesi & Kadro",
-              icon: Users,
-              activeCheck: () => page === "teachers",
-              onClick: () => { setPage("teachers"); setMobileOpen(false); }
-            },
-            {
-              id: "teachers_branches",
-              label: "Branşlar & Zümreler",
-              icon: Layers,
-              activeCheck: () => page === "teachers",
-              onClick: () => { setPage("teachers"); setMobileOpen(false); }
-            },
-            {
-              id: "teachers_schedule",
-              label: "Haftalık Ders Dağılımı",
-              icon: Calendar,
-              activeCheck: () => page === "schedules",
-              onClick: () => { setPage("schedules"); setMobileOpen(false); }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      title: "ÖLÇME & DEĞERLENDİRME",
-      items: [
-        {
-          id: "exams",
-          label: "Deneme Sınavları & Karne",
-          icon: Award,
-          perm: "page_exams",
-          isTree: true,
-          treeKey: "olcme",
-          subItems: [
-            {
-              id: "exams_list",
-              label: "Deneme Sınavları Listesi",
-              icon: Award,
-              activeCheck: () => page === "exams" && !showGlobalOptikModal && !showGlobalHataKarnesi,
-              onClick: () => { setPage("exams"); setMobileOpen(false); }
-            },
-            {
-              id: "optik_omr",
-              label: "Optik Okuma & Şablonlar (OMR)",
-              icon: Sparkles,
-              onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); }
-            },
-            {
-              id: "hata_karnesi",
-              label: "Kazanım & Hata Karneleri",
-              icon: Target,
-              onClick: () => { setShowGlobalHataKarnesi(true); setMobileOpen(false); }
-            },
-            {
-              id: "kalibrasyon",
-              label: "Milimetrik Kalibrasyon & Baskı",
-              icon: Printer,
-              onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); }
-            }
-          ]
-        }
-      ]
-    },
-    {
       title: "EĞİTİM & AKADEMİK",
       items: [
         { id: "schedules", label: "Ders Programı", icon: Calendar, perm: "page_schedules" },
@@ -699,7 +741,7 @@ function MainApp({ me, onLogout }) {
       ]
     },
     {
-      title: "GELİŞTİRİCİ & TEST",
+      title: "SİSTEM & YÖNETİM",
       items: [
         {
           id: "testbench",
@@ -708,11 +750,12 @@ function MainApp({ me, onLogout }) {
           perm: "page_dashboard",
           customAction: () => setShowTestBench(true)
         },
-        { id: "users", label: "Kullanıcılar", icon: UserCog, perm: "page_users" },
+        { id: "users", label: "Kullanıcılar & Roller", icon: UserCog, perm: "page_users" },
         { id: "audit", label: "Denetim Kaydı", icon: History, perm: "page_audit" }
       ]
     }
   ];
+
   const [quickOpen, setQuickOpen] = useState(false);
   const guardedOpen = (type) => setModal(type);
 
@@ -758,7 +801,10 @@ function MainApp({ me, onLogout }) {
                         className={`nav-tree-parent ${isParentActive ? "active-parent" : ""}`}
                         onClick={() => {
                           toggleTree(item.treeKey);
-                          if (item.id === "payments") {
+                          if (item.id === "kayit") {
+                            setPage("kayit");
+                            setKayitTab("kokpit");
+                          } else if (item.id === "payments") {
                             setPage("payments");
                             setAccountingTab("gelirler");
                           } else if (item.id === "exams") {
@@ -939,6 +985,18 @@ function MainApp({ me, onLogout }) {
       </header>
       <div className="content">
         {page === "dashboard" && <Dashboard me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} onNavigate={setPage} onSelect={setSelected} />}
+        {page === "kayit" && (
+          <KayitModulu
+            activeTab={kayitTab}
+            setActiveTab={setKayitTab}
+            students={data.students || []}
+            classes={data.classes || []}
+            teachers={data.teachers || []}
+            onOpenWizard={() => guardedOpen("student")}
+            onSelectStudent={setSelected}
+            onNavigate={setPage}
+          />
+        )}
         {page === "exams" && <ExamsPage me={me} API={API} students={data.students || []} classes={data.classes || []} />}
         {page === "attendance" && <AttendancePage me={me} API={API} classes={data.classes || []} />}
         {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
