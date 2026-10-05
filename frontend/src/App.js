@@ -501,6 +501,9 @@ function MainApp({ me, onLogout }) {
       if (h && validPages.includes(h)) {
         setPageState(h);
         localStorage.setItem("active_page", h);
+        if (h === "payments") {
+          setAccountingTab("dashboard");
+        }
       }
     };
     window.addEventListener("hashchange", onHashChange);
@@ -516,7 +519,7 @@ function MainApp({ me, onLogout }) {
 
   // Edesis Tree Navigation & Module States
   const [kayitTab, setKayitTab] = useState("kokpit");
-  const [accountingTab, setAccountingTab] = useState("gelirler");
+  const [accountingTab, setAccountingTab] = useState("dashboard");
   const [showTestBench, setShowTestBench] = useState(false);
   const [showGlobalOptikModal, setShowGlobalOptikModal] = useState(false);
   const [showGlobalKarne, setShowGlobalKarne] = useState(null);
@@ -806,7 +809,7 @@ function MainApp({ me, onLogout }) {
                             setKayitTab("kokpit");
                           } else if (item.id === "payments") {
                             setPage("payments");
-                            setAccountingTab("gelirler");
+                            setAccountingTab("dashboard");
                           } else if (item.id === "exams") {
                             setPage("exams");
                           } else if (item.id === "teachers") {

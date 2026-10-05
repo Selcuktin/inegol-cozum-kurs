@@ -268,6 +268,8 @@ def main():
         "sozlesmeler": sozlesmeler,
         "taksitler": data.get("taksitler", []),
         "tahsilatlar": tahsilatlar,
+        "dashboardDonemOzet": data.get("dashboardDonemOzet", {}),
+        "dashboardOperasyonelOzet": data.get("dashboardOperasyonelOzet", {}),
     }
 
     with open(client_json_path, "w", encoding="utf-8") as f:
