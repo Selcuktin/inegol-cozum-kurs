@@ -30,7 +30,8 @@ import {
   Eye,
   Trash2,
   X,
-  Percent
+  Percent,
+  Zap
 } from "lucide-react";
 import {
   ResponsiveContainer,
