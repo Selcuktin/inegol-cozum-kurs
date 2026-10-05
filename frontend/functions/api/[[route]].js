@@ -696,7 +696,7 @@ export async function onRequest(context) {
           taksitlerCount: 662,
           tahsilatlarCount: 156,
           studentsCount: 101,
-          activeKesinCount: 61,
+          activeKesinCount: 64,
           overdueInstallmentsCount: 71,
           overdueAmount: 651526.46
         },
@@ -721,7 +721,7 @@ export async function onRequest(context) {
         taksitlerCount: 662,
         tahsilatlarCount: 156,
         studentsCount: 101,
-        activeKesinCount: 61,
+        activeKesinCount: 64,
         overdueInstallmentsCount: 71,
         overdueAmount: 651526.46
       });

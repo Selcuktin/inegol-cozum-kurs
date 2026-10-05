@@ -50,6 +50,7 @@ import { ReceiptModal } from "./ReceiptModal";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { GelirDetayModal } from "./GelirDetayModal";
 import { EdesisMuhasebeDashboard } from "./EdesisMuhasebeDashboard";
+import EdesisGelirListesi from "./EdesisGelirListesi";
 import edesisData from "../data/edesisAccountingData.json";
 
 const CANCELLED_STUDENT_NAMES = [
@@ -984,7 +985,7 @@ export function MuhasebeV2Dashboard({
                 gap: "5px"
               }}
             >
-              <CheckCircle2 size={14} /> 🟢 2026-2027 Kesin Kayıt (61)
+              <CheckCircle2 size={14} /> 🟢 2026-2027 Kesin Kayıt (64)
             </button>
             <button
               type="button"
@@ -1579,292 +1580,18 @@ export function MuhasebeV2Dashboard({
 
       {/* SEKME 7: EDESİS GELİRLER & SÖZLEŞMELER */}
       {activeTab === "gelirler" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          
-          {/* ÜST BAŞLIK VE HIZLI EYLEMLER */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#fff", padding: "14px 18px", border: "1px solid var(--border)", borderRadius: "12px" }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
-                <FileText size={18} color="#2563eb" /> Edesis Gelir & Sözleşme Yönetimi
-              </h3>
-              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>
-                Toplam {edesisData.gelirler?.length || 127} gelir ve {edesisData.sozlesmeler?.length || 119} sözleşme kaydı. Detay, tahsilat ve taksit planı için satır üzerindeki işlem butonlarını kullanabilirsiniz.
-              </p>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <button
-                className="btn small"
-                style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700" }}
-                onClick={() => onOpen && onOpen("student")}
-                title="Yeni MEB Öğrenci Sözleşmesi Aç"
-              >
-                <Plus size={15} /> + Yeni Sözleşme / Gelir
-              </button>
-              <button
-                className="btn small secondary"
-                onClick={() => {
-                  const link = document.createElement("a");
-                  link.href = `${API}/export/students`;
-                  link.download = "edesis-gelir-listesi.csv";
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
-                }}
-                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-              >
-                <Download size={14} color="#15803d" /> Excel İndir
-              </button>
-              <button
-                className="btn small secondary"
-                onClick={() => reload && reload()}
-                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-              >
-                <RefreshCw size={14} /> Yenile
-              </button>
-            </div>
-          </div>
-
-          {/* FİLTRE VE ARAMA ÇUBUĞU (EDESİS PRIME-NG BAR) */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <button
-                className={`btn small ${statusQuickFilter === "all" ? "" : "secondary"}`}
-                onClick={() => setStatusQuickFilter("all")}
-                style={{ fontSize: "12px" }}
-              >
-                Tümü ({edesisData.gelirler?.length || 127})
-              </button>
-              <button
-                className={`btn small ${statusQuickFilter === "paid" ? "" : "secondary"}`}
-                onClick={() => setStatusQuickFilter("paid")}
-                style={{ fontSize: "12px", color: statusQuickFilter === "paid" ? "#fff" : "#166534", borderColor: "#bbf7d0", background: statusQuickFilter === "paid" ? "#16a34a" : "#f0fdf4" }}
-              >
-                🟢 Tam Tahsil Edildi
-              </button>
-              <button
-                className={`btn small ${statusQuickFilter === "unpaid" ? "" : "secondary"}`}
-                onClick={() => setStatusQuickFilter("unpaid")}
-                style={{ fontSize: "12px", color: statusQuickFilter === "unpaid" ? "#fff" : "#854d0e", borderColor: "#fef08a", background: statusQuickFilter === "unpaid" ? "#ca8a04" : "#fefce8" }}
-              >
-                🟡 Taksitli / Açık Kalan
-              </button>
-              <button
-                className={`btn small ${statusQuickFilter === "overdue" ? "" : "secondary"}`}
-                onClick={() => setStatusQuickFilter("overdue")}
-                style={{ fontSize: "12px", color: statusQuickFilter === "overdue" ? "#fff" : "#991b1b", borderColor: "#fecaca", background: statusQuickFilter === "overdue" ? "#dc2626" : "#fef2f2" }}
-              >
-                🔴 Vadesi Geçenler ({overdueStudents.length})
-              </button>
-            </div>
-
-            <div className="top-search" style={{ width: "280px", margin: 0 }}>
-              <Search size={14} />
-              <input 
-                placeholder="Öğrenci adı, sözleşme veya gelir no..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ fontSize: "12px" }}
-              />
-            </div>
-          </div>
-
-          {/* ANA VERİ TABLOSU: GELİR LİSTESİ */}
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "960px" }}>
-              <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                  <th>Gelir Kodu</th>
-                  <th>Öğrenci / Müşteri</th>
-                  <th>Sözleşme No</th>
-                  <th>Sınıf / Şube</th>
-                  <th>Tarih & Vade</th>
-                  <th style={{ textAlign: "right" }}>Brüt Tutar</th>
-                  <th style={{ textAlign: "right" }}>Tahsilat</th>
-                  <th style={{ textAlign: "right" }}>Kalan</th>
-                  <th style={{ textAlign: "center" }}>Durum</th>
-                  <th style={{ textAlign: "right" }}>Hızlı İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(edesisData.gelirler || [])
-                  .filter(g => {
-                    const q = searchQuery.toLowerCase();
-                    const matchesSearch = !q || 
-                      (g.gelirKodu && g.gelirKodu.toLowerCase().includes(q)) ||
-                      (g.ogrenciAdiSoyadi && g.ogrenciAdiSoyadi.toLowerCase().includes(q)) ||
-                      (g.musteriUnvan && g.musteriUnvan.toLowerCase().includes(q)) ||
-                      (g.sozlesmeNo && g.sozlesmeNo.toLowerCase().includes(q));
-
-                    if (!matchesSearch) return false;
-
-                    const isFullyPaid = g.tamTahsilEdildiMi || (g.kalanAlacak <= 0);
-                    const isOverdue = g.vadesiGectiMi || (g.kalanAlacak > 0 && g.vadeTarihi && g.vadeTarihi.slice(0, 10) < todayStr);
-
-                    if (statusQuickFilter === "paid") return isFullyPaid;
-                    if (statusQuickFilter === "unpaid") return !isFullyPaid;
-                    if (statusQuickFilter === "overdue") return isOverdue;
-
-                    return true;
-                  })
-                  .map((g, idx) => {
-                    const stName = g.ogrenciAdiSoyadi || g.musteriUnvan || "Öğrenci";
-                    const isFullyPaid = g.tamTahsilEdildiMi || (g.kalanAlacak <= 0);
-                    const isOverdue = g.vadesiGectiMi || (g.kalanAlacak > 0 && g.vadeTarihi && g.vadeTarihi.slice(0, 10) < todayStr);
-
-                    const matchedStudent = students.find(s => s.student_name === stName || s.student_name?.toLowerCase() === stName.toLowerCase());
-
-                    return (
-                      <tr key={g.id || idx}>
-                        <td>
-                          <b 
-                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo, student: matchedStudent })}
-                            style={{ color: "#2563eb", cursor: "pointer", fontFamily: "monospace" }}
-                            title="Gelir Detay Kartını Aç"
-                          >
-                            {g.gelirKodu}
-                          </b>
-                        </td>
-                        <td>
-                          <div 
-                            style={{ fontWeight: "700", color: "#0f172a", cursor: "pointer" }}
-                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo, student: matchedStudent })}
-                          >
-                            {stName}
-                          </div>
-                          {g.musteriUnvan && g.musteriUnvan !== stName && (
-                            <div style={{ fontSize: "11px", color: "#64748b" }}>Veli: {g.musteriUnvan}</div>
-                          )}
-                        </td>
-                        <td>
-                          <span className="badge" style={{ background: "#f1f5f9", color: "#334155" }}>
-                            {g.sozlesmeNo || "—"}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="badge" style={{ background: "#e0e7ff", color: "#3730a3", fontWeight: 600 }}>
-                            {g.sinifAdi || g.gradeAdi || "Genel"}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: "12px", color: "#64748b" }}>
-                          <div>{g.gelirTarihi ? g.gelirTarihi.slice(0, 10) : "-"}</div>
-                          {g.vadeTarihi && (
-                            <div style={{ fontSize: "11px", color: isOverdue ? "#dc2626" : "#94a3b8", fontWeight: isOverdue ? "700" : "400" }}>
-                              Vade: {g.vadeTarihi.slice(0, 10)}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ textAlign: "right" }}>
-                          <b>₺{fmtMoney(g.brutTutar)}</b>
-                        </td>
-                        <td style={{ textAlign: "right", color: "#16a34a", fontWeight: "600" }}>
-                          ₺{fmtMoney(g.toplamTahsilat)}
-                        </td>
-                        <td style={{ textAlign: "right", color: isFullyPaid ? "#64748b" : "#dc2626", fontWeight: "700" }}>
-                          ₺{fmtMoney(g.kalanAlacak)}
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          <span 
-                            className="badge" 
-                            style={{ 
-                              background: isFullyPaid ? "#dcfce7" : (isOverdue ? "#fee2e2" : "#fef3c7"), 
-                              color: isFullyPaid ? "#166534" : (isOverdue ? "#991b1b" : "#92400e"), 
-                              padding: "3px 8px", 
-                              borderRadius: "6px", 
-                              fontSize: "11px", 
-                              fontWeight: "700" 
-                            }}
-                          >
-                            {isFullyPaid ? "Tam Ödendi" : (isOverdue ? "Vadesi Geçti" : `${g.taksitSayisi || 10} Taksit`)}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: "right" }}>
-                          <div style={{ display: "flex", gap: "4px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                            <button
-                              className="btn small"
-                              onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo, student: matchedStudent })}
-                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px", background: "#2563eb", color: "#fff" }}
-                              title="Taksit Dökümü & Sözleşme Detayları"
-                            >
-                              <FileText size={12} /> Detay
-                            </button>
-                            {!isFullyPaid && (
-                              <button
-                                className="btn small"
-                                onClick={() => {
-                                  if (matchedStudent) setPayStudentId(matchedStudent.id);
-                                  setPayAmount(String(g.kalanAlacak > 0 ? (g.taksitSayisi ? Math.round(g.brutTutar / g.taksitSayisi) : g.kalanAlacak) : ""));
-                                  setShowQuickPaymentModal(true);
-                                }}
-                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px", background: "#16a34a", color: "#fff" }}
-                                title="Hızlı Taksit Tahsilatı Al"
-                              >
-                                <DollarSign size={12} /> Tahsilat
-                              </button>
-                            )}
-                            <button
-                              className="btn small secondary"
-                              onClick={() => {
-                                const dummyPayment = {
-                                  id: "MAK-" + (g.gelirKodu || "2026"),
-                                  student_id: matchedStudent?.id || "temp",
-                                  amount: g.toplamTahsilat || 0,
-                                  payment_date: g.gelirTarihi || new Date().toISOString(),
-                                  method: "Banka Havalesi / EFT",
-                                  bank: "T.C. VAKIFLAR BANKASI İNEGÖL ŞB."
-                                };
-                                setReceiptPayment(dummyPayment);
-                              }}
-                              style={{ padding: "4px 6px", fontSize: "11px" }}
-                              title="Makbuz Görüntüle & Yazdır"
-                            >
-                              <Printer size={12} />
-                            </button>
-                            <button
-                              className="btn small secondary"
-                              onClick={() => {
-                                const st = matchedStudent || {
-                                  id: "temp-" + idx,
-                                  student_name: stName,
-                                  student_class: g.sinifAdi || "11-A",
-                                  parent_name: g.musteriUnvan || stName + " Velisi",
-                                  parent_phone: "0532 000 00 00",
-                                  total_fee: g.brutTutar,
-                                  paid_amount: g.toplamTahsilat,
-                                  installment_count: g.taksitSayisi || 10
-                                };
-                                setPromissoryStudent(st);
-                              }}
-                              style={{ padding: "4px 6px", fontSize: "11px", color: "#7c3aed", borderColor: "#ddd6fe" }}
-                              title="Matbu Senet (Bono) Yazdır"
-                            >
-                              <Receipt size={12} />
-                            </button>
-                            {!isFullyPaid && (
-                              <button
-                                className="btn small secondary"
-                                onClick={() => {
-                                  const phone = matchedStudent?.parent_phone || matchedStudent?.student_phone || "05320000000";
-                                  const clean = phone.replace(/[^0-9]/g, "");
-                                  const targetPhone = clean.startsWith("0") ? "9" + clean : (clean.startsWith("90") ? clean : "90" + clean);
-                                  const msg = `Sayın Velimiz, Özel İnegöl Çözüm Kursu öğrencimiz ${stName} için ${g.gelirKodu} no'lu sözleşmede kalan taksit tutarı ₺${fmtMoney(g.kalanAlacak)}'dir. Bilgilerinize sunarız.`;
-                                  window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`, "_blank");
-                                }}
-                                style={{ padding: "4px 6px", fontSize: "11px", color: "#16a34a", borderColor: "#bbf7d0" }}
-                                title="WhatsApp Borç Bildirimi Gönder"
-                              >
-                                <MessageCircle size={12} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <EdesisGelirListesi
+          students={students}
+          onSelectStudent={onSelectStudent}
+          onOpenGelir={(g) =>
+            setGelirModalData({
+              isOpen: true,
+              gelirKodu: g.gelirKodu,
+              sozlesmeNo: g.sozlesmeNo,
+              student: students.find((s) => s.student_name === g.ogrenciAdiSoyadi)
+            })
+          }
+        />
       )}
 
       {/* SEKME 8: 20:00 OTOMATİK YEDEKLEME & GERİ YÜKLEME (1-CLICK SNAPSHOT & RESTORE) */}

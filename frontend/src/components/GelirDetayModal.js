@@ -71,6 +71,9 @@ export function GelirDetayModal({
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [quickPayInst, setQuickPayInst] = useState(null);
+  const [showClassificationModal, setShowClassificationModal] = useState(false);
+  const [customCategory, setCustomCategory] = useState(null);
+  const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(false);
 
   // 1. İlgili Gelir / Sözleşme ve Taksit Verilerini Bul
   const accountingInfo = useMemo(() => {
@@ -325,34 +328,31 @@ export function GelirDetayModal({
                 <ArrowLeft size={15} /> Geri
               </button>
               <button
+                type="button"
+                onClick={() => setShowClassificationModal(true)}
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
                 style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, border: "1px solid #cbd5e1", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                title="Gelir muhasebe kategorisini ve faturadaki sınıflandırmayı değiştir"
               >
                 <Settings size={15} /> Sınıflandırmayı Düzelt
               </button>
               <button
+                type="button"
+                onClick={() => setShowPaymentPlanModal(true)}
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
                 style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, border: "1px solid #cbd5e1", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                title="Taksit vadeleri ve tahsilat takvimini görüntüle"
               >
                 <Calendar size={15} /> Ödeme Planı
               </button>
               <button
+                type="button"
                 onClick={handlePrint}
                 className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1.5 shadow-sm transition-colors"
                 style={{ padding: "6px 14px", fontSize: "13px", fontWeight: 600, borderRadius: "8px", background: "#2563eb", color: "#fff", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
                 <Printer size={15} /> Yazdır
               </button>
-              {onOpenProfile && (
-                <button
-                  onClick={() => onOpenProfile(student)}
-                  className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center gap-1.5 transition-colors"
-                  style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 600, border: "1px solid #bfdbfe", borderRadius: "8px", background: "#eff6ff", color: "#1d4ed8", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
-                  title="Öğrencinin Akademik & Genel Bilgi Sayfası"
-                >
-                  <User size={15} /> Öğrenci Profili
-                </button>
-              )}
               <button
                 onClick={onClose}
                 className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 ml-1"
@@ -406,7 +406,7 @@ export function GelirDetayModal({
                   <div>
                     <span className="text-slate-400 block mb-0.5" style={{ color: "#94a3b8", display: "block", fontSize: "11px" }}>Kategori:</span>
                     <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-100" style={{ background: "#eff6ff", color: "#1d4ed8", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" }}>
-                      {kategori}
+                      {customCategory || kategori}
                     </span>
                   </div>
                   <div>
@@ -950,6 +950,225 @@ export function GelirDetayModal({
           onClose={() => setReceiptPayment(null)}
           payment={receiptPayment}
         />
+      )}
+
+      {/* SINIFLANDIRMAYI DÜZELT (GELİR KATEGORİSİ) MODALI */}
+      {showClassificationModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100050,
+            padding: "16px"
+          }}
+          onClick={() => setShowClassificationModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              maxWidth: "520px",
+              width: "100%",
+              padding: "24px",
+              boxShadow: "0 25px 50px rgba(0,0,0,0.25)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Settings size={20} color="#2563eb" />
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
+                  Gelir Sınıflandırmasını Düzelt
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowClassificationModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px", lineHeight: "1.5" }}>
+              Bu işlem faturanın ve muhasebe kaydının gelir türünü (Eğitim, Yayın, Yemek vb.) düzenler ve muhasebe gelir raporlarındaki sınıflandırmayı günceller.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
+              {[
+                { name: "Eğitim Ücreti", desc: "Öğrenci dönem kurs veya eğitim öğretim bedeli" },
+                { name: "Yayın ve Kitap Bedeli", desc: "Deneme sınavları, soru bankası ve ders fasikülleri" },
+                { name: "Yemek Hizmeti", desc: "Öğle yemeği ve ikindi beslenme bedeli" },
+                { name: "Servis ve Ulaşım Bedeli", desc: "Öğrenci servis taşımacılık hizmeti" },
+                { name: "Etüt ve Birebir Ders", desc: "Özel ders ve takviye etüt programı" },
+                { name: "Kayıt Yenileme Bedeli", desc: "Sonraki dönem erken kayıt sözleşmesi" }
+              ].map((cat) => (
+                <div
+                  key={cat.name}
+                  onClick={() => {
+                    setCustomCategory(cat.name);
+                    setShowClassificationModal(false);
+                  }}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: (customCategory || kategori) === cat.name ? "2px solid #2563eb" : "1px solid #e2e8f0",
+                    background: (customCategory || kategori) === cat.name ? "#eff6ff" : "#fff",
+                    cursor: "pointer",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    transition: "all 0.15s"
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: (customCategory || kategori) === cat.name ? "#1d4ed8" : "#1e293b" }}>
+                      {cat.name}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#64748b" }}>{cat.desc}</div>
+                  </div>
+                  {(customCategory || kategori) === cat.name && (
+                    <CheckCircle2 size={16} color="#2563eb" />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => setShowClassificationModal(false)}
+                style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, color: "#475569", cursor: "pointer" }}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ÖDEME PLANI ÇIKTISI MODALI */}
+      {showPaymentPlanModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100050,
+            padding: "16px"
+          }}
+          onClick={() => setShowPaymentPlanModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              maxWidth: "680px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: "24px",
+              boxShadow: "0 25px 50px rgba(0,0,0,0.25)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Calendar size={20} color="#2563eb" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
+                    Resmî Ödeme Planı · {stName}
+                  </h3>
+                  <div style={{ fontSize: "12px", color: "#64748b" }}>{szNo} · {gCode}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPaymentPlanModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: "10px 14px", borderRadius: "8px", fontSize: "12px", marginBottom: "16px" }}>
+              <span>Toplam: <b>{fmtTRY(brut)}</b></span>
+              <span>Tahsil Edilen: <b style={{ color: "#16a34a" }}>{fmtTRY(collected)}</b></span>
+              <span>Kalan Bakiye: <b style={{ color: "#b45309" }}>{fmtTRY(remaining)}</b></span>
+              <span>Taksit Adedi: <b>{taksitler.length}</b></span>
+            </div>
+
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
+              <thead>
+                <tr style={{ background: "#f1f5f9", color: "#475569", textAlign: "left" }}>
+                  <th style={{ padding: "8px 10px" }}>Taksit No</th>
+                  <th style={{ padding: "8px 10px" }}>Vade Tarihi</th>
+                  <th style={{ padding: "8px 10px", textAlign: "right" }}>Tutar</th>
+                  <th style={{ padding: "8px 10px", textAlign: "right" }}>Tahsil Edilen</th>
+                  <th style={{ padding: "8px 10px", textAlign: "right" }}>Kalan</th>
+                  <th style={{ padding: "8px 10px", textAlign: "center" }}>Durum</th>
+                </tr>
+              </thead>
+              <tbody>
+                {taksitler.map((t) => (
+                  <tr key={t.id || t.taksitNo} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "8px 10px", fontWeight: 600 }}>{t.taksitNo}. Taksit</td>
+                    <td style={{ padding: "8px 10px" }}>{fmtDate(t.vadeTarihi)}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600 }}>{fmtTRY(t.taksitTutari)}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "right", color: "#16a34a" }}>{fmtTRY(t.tahsilEdilen || 0)}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600 }}>{fmtTRY(t.kalanTutar)}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                      <span
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontSize: "10px",
+                          fontWeight: 600,
+                          background: t.durum === 1 ? "#dcfce7" : "#fef9c3",
+                          color: t.durum === 1 ? "#15803d" : "#854d0e"
+                        }}
+                      >
+                        {t.durum === 1 ? "Ödendi" : "Bekliyor"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{ padding: "8px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <Printer size={15} /> Yazdır
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPaymentPlanModal(false)}
+                style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, color: "#475569", cursor: "pointer" }}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

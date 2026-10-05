@@ -74,6 +74,9 @@ import { EdesisTestBenchModal } from "./components/EdesisTestBenchModal";
 import { TeachersPage } from "./components/TeachersPage";
 import { MonthlyReportPreview } from "./components/MonthlyReportPreview";
 import { KayitModulu } from "./components/KayitModulu";
+import EdesisSozlesmeler from "./components/EdesisSozlesmeler";
+import EdesisOgrenciListesi from "./components/EdesisOgrenciListesi";
+import EdesisGelirListesi from "./components/EdesisGelirListesi";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -476,7 +479,7 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
 
 function MainApp({ me, onLogout }) {
   const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] });
-  const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "reminders", "documents", "reports", "users", "audit"];
+  const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "gelir", "reminders", "documents", "reports", "users", "audit"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace(/^#/, "");
@@ -556,7 +559,73 @@ function MainApp({ me, onLogout }) {
       ]
     },
     {
-      title: "KAYIT İŞLEMLERİ",
+      title: "FİNANS & MUHASEBE",
+      items: [
+        {
+          id: "payments",
+          label: "Muhasebe V2",
+          icon: Wallet,
+          perm: "page_payments",
+          isTree: true,
+          treeKey: "muhasebe",
+          subItems: [
+            {
+              id: "p_dash",
+              label: "Kontrol Paneli",
+              icon: LayoutDashboard,
+              activeCheck: () => page === "payments" && accountingTab === "dashboard",
+              onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); }
+            },
+            {
+              id: "p_gelir",
+              label: "Gelir Yönetimi",
+              isAccordion: true,
+              subKey: "gelir",
+              icon: Folder,
+              children: [
+                { id: "g_list", label: "Gelir Listesi", activeCheck: () => page === "gelir" || (page === "payments" && accountingTab === "gelirler"), onClick: () => { setPage("gelir"); setAccountingTab("gelirler"); setMobileOpen(false); } },
+                { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { setPage("documents"); setMobileOpen(false); } },
+                { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "payments" && accountingTab === "gecikenler", onClick: () => { setPage("payments"); setAccountingTab("gecikenler"); setMobileOpen(false); } },
+                { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "payments" && accountingTab === "tahsilatlar", onClick: () => { setPage("payments"); setAccountingTab("tahsilatlar"); setMobileOpen(false); } },
+                { id: "g_senet", label: "Fatura Planı", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setPage("payments"); setAccountingTab("senetler"); setMobileOpen(false); } },
+                { id: "g_cust", label: "Müşteriler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } }
+              ]
+            },
+            {
+              id: "p_gider",
+              label: "Gider Yönetimi",
+              isAccordion: true,
+              subKey: "gider",
+              icon: TrendingDown,
+              children: [
+                { id: "gid_list", label: "Gider Listesi", activeCheck: () => page === "payments" && accountingTab === "giderler", onClick: () => { setPage("payments"); setAccountingTab("giderler"); setMobileOpen(false); } },
+                { id: "gid_add", label: "Yeni Gider Ekle", onClick: () => { guardedOpen("expense"); setMobileOpen(false); } }
+              ]
+            },
+            {
+              id: "p_kasa",
+              label: "Kasa ve Banka",
+              isAccordion: true,
+              subKey: "kasa",
+              icon: Building,
+              children: [
+                { id: "k_def", label: "Kasa Defteri", activeCheck: () => page === "payments" && accountingTab === "kasalar", onClick: () => { setPage("payments"); setAccountingTab("kasalar"); setMobileOpen(false); } },
+                { id: "k_gun", label: "Kasa Raporu Yazdır", onClick: () => { window.print(); setMobileOpen(false); } },
+                { id: "k_makbuz", label: "Tahsilat Makbuzu Kes", onClick: () => { guardedOpen("payment"); setMobileOpen(false); } },
+                { id: "k_senet", label: "Matbu Senet (Bono) Yazdır", onClick: () => { setShowGlobalPromissory(true); setMobileOpen(false); } },
+                { id: "k_bak", label: "Bakiyeler & Hesaplar", activeCheck: () => page === "payments" && accountingTab === "dashboard", onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); } },
+                { id: "k_backup", label: "💾 Otomatik Yedekleme (20:00)", activeCheck: () => page === "payments" && accountingTab === "backup", onClick: () => { setPage("payments"); setAccountingTab("backup"); setMobileOpen(false); } }
+              ]
+            }
+          ]
+        },
+        { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
+        { id: "documents", label: "Sözleşme & Makbuz", icon: FileText, perm: "page_documents" },
+        { id: "reports", label: "Aylık Rapor", icon: FileDown, perm: "page_reports" }
+      ]
+    },
+    {
+      title: "",
       items: [
         {
           id: "kayit",
@@ -630,7 +699,7 @@ function MainApp({ me, onLogout }) {
       ]
     },
     {
-      title: "ÖLÇME & DEĞERLENDİRME",
+      title: "",
       items: [
         {
           id: "exams",
@@ -667,73 +736,6 @@ function MainApp({ me, onLogout }) {
             }
           ]
         }
-      ]
-    },
-    {
-      title: "FİNANS & MUHASEBE",
-      items: [
-        {
-          id: "payments",
-          label: "Muhasebe V2",
-          icon: Wallet,
-          perm: "page_payments",
-          isTree: true,
-          treeKey: "muhasebe",
-          subItems: [
-            {
-              id: "p_dash",
-              label: "Kontrol Paneli",
-              icon: LayoutDashboard,
-              activeCheck: () => page === "payments" && accountingTab === "dashboard",
-              onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); }
-            },
-            {
-              id: "p_gelir",
-              label: "Gelir Yönetimi",
-              isAccordion: true,
-              subKey: "gelir",
-              icon: Folder,
-              children: [
-                { id: "g_list", label: "Gelir Listesi", activeCheck: () => page === "payments" && accountingTab === "gelirler", onClick: () => { setPage("payments"); setAccountingTab("gelirler"); setMobileOpen(false); } },
-                { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { setPage("documents"); setMobileOpen(false); } },
-                { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "payments" && accountingTab === "gecikenler", onClick: () => { setPage("payments"); setAccountingTab("gecikenler"); setMobileOpen(false); } },
-                { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "payments" && accountingTab === "tahsilatlar", onClick: () => { setPage("payments"); setAccountingTab("tahsilatlar"); setMobileOpen(false); } },
-                { id: "g_senet", label: "Fatura Planı / Senetler", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setPage("payments"); setAccountingTab("senetler"); setMobileOpen(false); } },
-                { id: "g_cust", label: "Müşteriler / Veliler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } },
-                { id: "g_backup", label: "💾 Otomatik Yedekleme (20:00)", activeCheck: () => page === "payments" && accountingTab === "backup", onClick: () => { setPage("payments"); setAccountingTab("backup"); setMobileOpen(false); } },
-                { id: "g_glr", label: "📄 Gelir Detay (GLR)", onClick: () => { setGelirModalData({ isOpen: true, gelirKodu: "GLR202600150" }); setMobileOpen(false); } }
-              ]
-            },
-            {
-              id: "p_gider",
-              label: "Gider Yönetimi",
-              isAccordion: true,
-              subKey: "gider",
-              icon: TrendingDown,
-              children: [
-                { id: "gid_list", label: "Gider Listesi", activeCheck: () => page === "payments" && accountingTab === "giderler", onClick: () => { setPage("payments"); setAccountingTab("giderler"); setMobileOpen(false); } },
-                { id: "gid_add", label: "Yeni Gider Ekle", onClick: () => { guardedOpen("expense"); setMobileOpen(false); } }
-              ]
-            },
-            {
-              id: "p_kasa",
-              label: "Kasa ve Banka",
-              isAccordion: true,
-              subKey: "kasa",
-              icon: Building,
-              children: [
-                { id: "k_def", label: "Kasa Defteri", activeCheck: () => page === "payments" && accountingTab === "kasalar", onClick: () => { setPage("payments"); setAccountingTab("kasalar"); setMobileOpen(false); } },
-                { id: "k_gun", label: "Kasa Raporu Yazdır", onClick: () => { window.print(); setMobileOpen(false); } },
-                { id: "k_makbuz", label: "Tahsilat Makbuzu Kes", onClick: () => { guardedOpen("payment"); setMobileOpen(false); } },
-                { id: "k_senet", label: "Matbu Senet (Bono) Yazdır", onClick: () => { setShowGlobalPromissory(true); setMobileOpen(false); } },
-                { id: "k_bak", label: "Bakiyeler & Hesaplar", activeCheck: () => page === "payments" && accountingTab === "dashboard", onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); } }
-              ]
-            }
-          ]
-        },
-        { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
-        { id: "documents", label: "Sözleşme & Makbuz", icon: FileText, perm: "page_documents" },
-        { id: "reports", label: "Aylık Rapor", icon: FileDown, perm: "page_reports" }
       ]
     },
     {
@@ -790,7 +792,7 @@ function MainApp({ me, onLogout }) {
           if (visibleItems.length === 0) return null;
           return (
             <div key={ci} className="sidebar-group">
-              <div className="sidebar-category-title">{cat.title}</div>
+              {cat.title ? <div className="sidebar-category-title">{cat.title}</div> : null}
               {visibleItems.map((item) => {
                 if (item.isTree) {
                   const isTreeOpen = !!expandedTree[item.treeKey];
@@ -928,15 +930,6 @@ function MainApp({ me, onLogout }) {
       <header className="topbar">
         <button className="mobile-menu" data-testid="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} /></button>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <button
-            type="button"
-            className="edesis-testbench-btn"
-            onClick={() => setShowTestBench(true)}
-            title="Tüm Edesis popuplarını ve sayfalarını tek tıkla test edin"
-          >
-            <Sparkles size={14} />
-            <span>🧪 Edesis Test Vitrini</span>
-          </button>
           <div style={{ position: "relative" }}>
             <button
               type="button"
@@ -986,7 +979,7 @@ function MainApp({ me, onLogout }) {
           </div>
         </div>
       </header>
-      <div className="content">
+      <div className={`content ${page === "students" || page === "documents" ? "content-fullwidth" : ""}`}>
         {page === "dashboard" && <Dashboard me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} onNavigate={setPage} onSelect={setSelected} />}
         {page === "kayit" && (
           <KayitModulu
@@ -1004,21 +997,63 @@ function MainApp({ me, onLogout }) {
         {page === "attendance" && <AttendancePage me={me} API={API} classes={data.classes || []} />}
         {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
         {page === "students" && (
-          <Students
-            me={me}
-            allStudents={data.students || []}
-            search={search}
-            onSearch={setSearch}
-            onOpen={guardedOpen}
-            onSelect={(st) => setGelirModalData({ student: st, gelirKodu: st?.gelir_kodu, sozlesmeNo: st?.sozlesme_no })}
-            onOpenProfile={(st) => setSelected(st)}
+          <EdesisOgrenciListesi
+            onSelectStudent={setSelected}
+            onOpenGelir={(st) =>
+              setGelirModalData({
+                isOpen: true,
+                student: st,
+                gelirKodu: st?.gelir_kodu,
+                sozlesmeNo: st?.sozlesme_no
+              })
+            }
+            onOpenContract={() => setPage("documents")}
+            onOpenKarne={(st) =>
+              setShowGlobalKarne({
+                student_name: st.student_name,
+                student_class: st.student_class,
+                score: 450,
+                total_net: 65,
+                overall_rank: 1,
+                class_rank: 1,
+                booklet: "A",
+                exam: { title: "Kurumsal Deneme" }
+              })
+            }
+            onNavigate={setPage}
           />
         )}
         {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} />}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
         {page === "teachers" && <TeachersPage me={me} API={API} teachers={data.teachers || []} onReload={load} onNavigate={setPage} />}
         {page === "reminders" && <Reminders />}
-        {page === "documents" && <Documents students={data.students} payments={data.payments} />}
+        {page === "gelir" && (
+          <EdesisGelirListesi
+            students={data.students}
+            onSelectStudent={setSelected}
+            onNavigate={setPage}
+            onOpenGelir={(g) =>
+              setGelirModalData({
+                isOpen: true,
+                gelirKodu: g.gelirKodu,
+                sozlesmeNo: g.sozlesmeNo
+              })
+            }
+          />
+        )}
+        {page === "documents" && (
+          <EdesisSozlesmeler
+            students={data.students}
+            payments={data.payments}
+            onOpenGelir={(szl) =>
+              setGelirModalData({
+                isOpen: true,
+                sozlesmeNo: szl.sozlesmeNo,
+                gelirKodu: "GLR202600150"
+              })
+            }
+          />
+        )}
         {page === "reports" && <Reports me={me} data={data} />}
         {page === "users" && <UsersPage me={me} />}
         {page === "audit" && <AuditPage />}
