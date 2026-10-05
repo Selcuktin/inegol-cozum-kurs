@@ -514,7 +514,7 @@ function MainApp({ me, onLogout }) {
   const [gelirModalData, setGelirModalData] = useState(null);
 
   // Edesis Tree Navigation & Testbench States
-  const [accountingTab, setAccountingTab] = useState("dashboard");
+  const [accountingTab, setAccountingTab] = useState("gelirler");
   const [showTestBench, setShowTestBench] = useState(false);
   const [showGlobalOptikModal, setShowGlobalOptikModal] = useState(false);
   const [showGlobalKarne, setShowGlobalKarne] = useState(null);
@@ -577,6 +577,7 @@ function MainApp({ me, onLogout }) {
                 { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "payments" && accountingTab === "tahsilatlar", onClick: () => { setPage("payments"); setAccountingTab("tahsilatlar"); setMobileOpen(false); } },
                 { id: "g_senet", label: "Fatura Planı / Senetler", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setPage("payments"); setAccountingTab("senetler"); setMobileOpen(false); } },
                 { id: "g_cust", label: "Müşteriler / Veliler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } },
+                { id: "g_backup", label: "💾 Otomatik Yedekleme (20:00)", activeCheck: () => page === "payments" && accountingTab === "backup", onClick: () => { setPage("payments"); setAccountingTab("backup"); setMobileOpen(false); } },
                 { id: "g_glr", label: "📄 Gelir Detay (GLR)", onClick: () => { setGelirModalData({ isOpen: true, gelirKodu: "GLR202600150" }); setMobileOpen(false); } }
               ]
             },
@@ -755,7 +756,17 @@ function MainApp({ me, onLogout }) {
                         type="button"
                         data-testid={`nav-tree-${item.id}`}
                         className={`nav-tree-parent ${isParentActive ? "active-parent" : ""}`}
-                        onClick={() => toggleTree(item.treeKey)}
+                        onClick={() => {
+                          toggleTree(item.treeKey);
+                          if (item.id === "payments") {
+                            setPage("payments");
+                            setAccountingTab("gelirler");
+                          } else if (item.id === "exams") {
+                            setPage("exams");
+                          } else if (item.id === "teachers") {
+                            setPage("teachers");
+                          }
+                        }}
                       >
                         <div className="nav-tree-left">
                           <Icon size={17} />

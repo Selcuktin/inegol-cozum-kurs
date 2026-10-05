@@ -1,0 +1,19 @@
+name: Daily Database Backup (20:00 TRT)
+
+on:
+  schedule:
+    # Runs at 17:00 UTC every day -> 20:00 (8:00 PM) Turkey Time
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Daily 20:00 Snapshot
+        run: |
+          echo "Triggering 20:00 TRT database backup snapshot..."
+          curl -s -f -X POST "https://inegol-cozum-kurs.pages.dev/api/backup" \
+            -H "Content-Type: application/json" \
+            -d '{"notes": "GitHub Actions 20:00 TRT Günlük Otomatik Snapshot"}' || true
+          echo "Triggered."

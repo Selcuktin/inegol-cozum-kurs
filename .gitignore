@@ -1,4 +1,5 @@
 # Dependencies
+node_modules/
 frontend/node_modules/
 backend/__pycache__/
 backend/*.pyc
@@ -6,6 +7,9 @@ backend/*.pyo
 
 # Build output
 frontend/build/
+
+# Scripts & temporary tools
+scripts/
 
 # Environment files (secrets!)
 frontend/.env
@@ -39,4 +43,5 @@ venv/
 # Wrangler
 .wrangler/
 .agents/
+
 

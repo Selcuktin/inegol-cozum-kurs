@@ -2187,6 +2187,196 @@ export async function onRequest(context) {
       });
     }
 
+    // ---------------- BACKUP & RESTORE (20:00 DAILY SNAPSHOT & 1-CLICK RESTORE) ----------------
+    const BACKUP_TABLES = [
+      "students",
+      "classes",
+      "teachers",
+      "payments",
+      "expenses",
+      "exams",
+      "exam_results",
+      "attendance",
+      "schedules",
+      "homework",
+      "mentorship",
+      "optical_templates",
+      "optical_printer_profiles",
+      "audit_logs"
+    ];
+
+    const ensureBackupTable = async () => {
+      await db.prepare(`
+        CREATE TABLE IF NOT EXISTS system_backups (
+          id TEXT PRIMARY KEY,
+          created_at TEXT NOT NULL,
+          backup_type TEXT NOT NULL,
+          snapshot_data TEXT NOT NULL,
+          table_counts TEXT NOT NULL,
+          created_by TEXT DEFAULT 'Sistem',
+          notes TEXT DEFAULT ''
+        )
+      `).run().catch(() => {});
+    };
+
+    if (path === "/backup" && request.method === "GET") {
+      await ensureBackupTable();
+
+      const dlId = url.searchParams.get("download");
+      if (dlId) {
+        const bRow = await db.prepare("SELECT * FROM system_backups WHERE id = ?").bind(dlId).first().catch(() => null);
+        if (!bRow) return json({ detail: "Yedek bulunamadı" }, 404);
+        return new Response(bRow.snapshot_data, {
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Content-Disposition": `attachment; filename="${bRow.id}.json"`,
+            ...CORS_HEADERS
+          }
+        });
+      }
+
+      // 20:00 TRT (UTC+3) idempotent scheduled check
+      try {
+        const now = new Date();
+        const trtDate = new Date(now.getTime() + 3 * 3600 * 1000);
+        const trtHour = trtDate.getUTCHours();
+        const trtDateStr = trtDate.toISOString().slice(0, 10);
+        if (trtHour >= 20 || now.getUTCHours() >= 17) {
+          const existing = await db.prepare("SELECT id FROM system_backups WHERE backup_type = 'scheduled_20_00' AND created_at LIKE ?").bind(trtDateStr + "%").first().catch(() => null);
+          if (!existing) {
+            const snap = { version: 1, created_at: new Date().toISOString(), tables: {} };
+            const counts = {};
+            for (const t of BACKUP_TABLES) {
+              try {
+                const res = await db.prepare("SELECT * FROM " + t).all();
+                snap.tables[t] = res.results || [];
+                counts[t] = (res.results || []).length;
+              } catch {
+                snap.tables[t] = [];
+                counts[t] = 0;
+              }
+            }
+            const bId = "backup_20_00_" + trtDateStr.replace(/-/g, "");
+            await db.prepare("INSERT OR REPLACE INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, datetime('now'), 'scheduled_20_00', ?, ?, 'Otomatik Zamanlayıcı (20:00 TRT)', ?)")
+              .bind(bId, JSON.stringify(snap), JSON.stringify(counts), `${trtDateStr} Saat 20:00 Günlük Otomatik Yedek`)
+              .run().catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.error("Scheduled backup check error:", err);
+      }
+
+      const res = await db.prepare("SELECT id, created_at, backup_type, table_counts, created_by, notes, length(snapshot_data) as size_bytes FROM system_backups ORDER BY created_at DESC LIMIT 50").all().catch(() => ({ results: [] }));
+      const now = new Date();
+      const trtDate = new Date(now.getTime() + 3 * 3600 * 1000);
+      const trtDateStr = trtDate.toISOString().slice(0, 10);
+      return json({
+        backups: (res.results || []).map(r => ({
+          ...r,
+          table_counts: typeof r.table_counts === "string" ? JSON.parse(r.table_counts || "{}") : (r.table_counts || {})
+        })),
+        schedule: "Her gün 20:00 (TRT)",
+        status: "active",
+        current_date_trt: trtDateStr
+      });
+    }
+
+    if (path === "/backup" && request.method === "POST") {
+      await ensureBackupTable();
+      const user = await getCurrentUser(request, db).catch(() => null);
+      const body = await request.json().catch(() => ({}));
+      const snap = { version: 1, created_at: new Date().toISOString(), tables: {} };
+      const counts = {};
+      for (const t of BACKUP_TABLES) {
+        try {
+          const res = await db.prepare("SELECT * FROM " + t).all();
+          snap.tables[t] = res.results || [];
+          counts[t] = (res.results || []).length;
+        } catch {
+          snap.tables[t] = [];
+          counts[t] = 0;
+        }
+      }
+      const bId = "backup_manual_" + Date.now();
+      const notes = body.notes || "Manuel Yönetici Snapshot Yedeği";
+      const createdBy = user?.name || "Yönetici";
+      await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, datetime('now'), 'manual', ?, ?, ?, ?)")
+        .bind(bId, JSON.stringify(snap), JSON.stringify(counts), createdBy, notes)
+        .run();
+      await logAction(db, user, "system.backup_create", "backup", bId, notes);
+      return json({ ok: true, backup_id: bId, counts });
+    }
+
+    if (path === "/backup/restore" && request.method === "POST") {
+      await ensureBackupTable();
+      const user = await getCurrentUser(request, db).catch(() => null);
+      const body = await request.json().catch(() => ({}));
+      const backupId = body.backup_id;
+      if (!backupId) return json({ detail: "backup_id belirtilmedi" }, 400);
+
+      const bRow = await db.prepare("SELECT * FROM system_backups WHERE id = ?").bind(backupId).first().catch(() => null);
+      if (!bRow) return json({ detail: "Yedek bulunamadı" }, 404);
+
+      let snap;
+      try {
+        snap = JSON.parse(bRow.snapshot_data);
+      } catch {
+        return json({ detail: "Yedek verisi çözülemedi" }, 400);
+      }
+
+      // 1. Önce mevcut durumu güvenlik için pre_restore olarak yedekle
+      const preSnap = { version: 1, created_at: new Date().toISOString(), tables: {} };
+      const preCounts = {};
+      for (const t of BACKUP_TABLES) {
+        try {
+          const res = await db.prepare("SELECT * FROM " + t).all();
+          preSnap.tables[t] = res.results || [];
+          preCounts[t] = (res.results || []).length;
+        } catch {
+          preSnap.tables[t] = [];
+          preCounts[t] = 0;
+        }
+      }
+      const preId = "backup_prerestore_" + Date.now();
+      await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, datetime('now'), 'pre_restore', ?, ?, 'Sistem Güvenlik', ?)")
+        .bind(preId, JSON.stringify(preSnap), JSON.stringify(preCounts), `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
+        .run().catch(() => {});
+
+      // 2. Tabloları temizle ve seçili snapshot'ı geri yükle
+      const restoredCounts = {};
+      for (const t of BACKUP_TABLES) {
+        const rows = snap.tables?.[t];
+        if (Array.isArray(rows)) {
+          try {
+            await db.prepare("DELETE FROM " + t).run();
+            let count = 0;
+            for (const row of rows) {
+              const keys = Object.keys(row);
+              if (keys.length > 0) {
+                const placeholders = keys.map(() => "?").join(", ");
+                const cols = keys.join(", ");
+                const values = keys.map(k => row[k]);
+                await db.prepare(`INSERT INTO ${t} (${cols}) VALUES (${placeholders})`).bind(...values).run();
+                count++;
+              }
+            }
+            restoredCounts[t] = count;
+          } catch (err) {
+            console.error(`Restore error on table ${t}:`, err);
+          }
+        }
+      }
+
+      await logAction(db, user, "system.backup_restore", "backup", backupId, `Veritabanı ${backupId} yedeğinden geri yüklendi`);
+      return json({
+        ok: true,
+        message: "Veritabanı başarıyla geri yüklendi.",
+        backup_id: backupId,
+        safety_backup_id: preId,
+        restored_counts: restoredCounts
+      });
+    }
+
     // ---------------- STATUS CHECK ----------------
     if (path === "/status" || path === "") {
       return json({ status: "ok", name: "İnegöl Çözüm Kurs Cloudflare Edge API", timestamp: new Date().toISOString() });

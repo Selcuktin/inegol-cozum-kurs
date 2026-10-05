@@ -200,7 +200,16 @@ export function MuhasebeV2Dashboard({
   activeTab: propActiveTab,
   onTabChange
 }) {
-  const [internalTab, setInternalTab] = useState("dashboard");
+  const [internalTab, setInternalTab] = useState("gelirler");
+  const [statusQuickFilter, setStatusQuickFilter] = useState("all"); // 'all' | 'paid' | 'unpaid' | 'overdue'
+
+  // Backup state
+  const [backups, setBackups] = useState([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [restoreModalBackup, setRestoreModalBackup] = useState(null);
+  const [restoring, setRestoring] = useState(false);
+  const [backupNote, setBackupNote] = useState("");
+  const [backupAlert, setBackupAlert] = useState("");
   const activeTab = propActiveTab !== undefined ? propActiveTab : internalTab;
   const setActiveTab = (tab) => {
     setInternalTab(tab);
@@ -216,6 +225,57 @@ export function MuhasebeV2Dashboard({
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
   const [gelirModalData, setGelirModalData] = useState(null);
+
+  const loadBackups = async () => {
+    setLoadingBackups(true);
+    try {
+      const res = await axios.get(`${API}/backup`);
+      setBackups(res.data?.backups || []);
+    } catch (err) {
+      console.error("Backups load error:", err);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "backup") {
+      loadBackups();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const handleTakeManualBackup = async () => {
+    try {
+      setLoadingBackups(true);
+      await axios.post(`${API}/backup`, { notes: backupNote || "Manuel Yönetici Snapshot Yedeği" });
+      setBackupNote("");
+      setBackupAlert("✓ Yeni veritabanı yedeği başarıyla oluşturuldu.");
+      await loadBackups();
+      setTimeout(() => setBackupAlert(""), 4000);
+    } catch (err) {
+      alert("Yedek alınırken hata oluştu: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!restoreModalBackup) return;
+    setRestoring(true);
+    try {
+      const res = await axios.post(`${API}/backup/restore`, { backup_id: restoreModalBackup.id });
+      setRestoreModalBackup(null);
+      setBackupAlert("✓ Veritabanı başarıyla geri yüklendi! Sayfa verileri güncelleniyor...");
+      if (reload) reload();
+      await loadBackups();
+      setTimeout(() => setBackupAlert(""), 5000);
+    } catch (err) {
+      alert("Geri yükleme hatası: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   // New Expense form
   const [expTitle, setExpTitle] = useState("");
@@ -986,408 +1046,85 @@ export function MuhasebeV2Dashboard({
         </div>
       </div>
 
-      {/* 2. MASTER FİNANSAL KPI GÖSTERGE KARTLARI (Edesis Birebir Parite) */}
-      <div className="muhasebe-kpi-grid">
+      {/* 2. EDESİS STANDART 4'LÜ KPI ÖZETİ (SADE & TEMİZ) */}
+      <div className="muhasebe-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginBottom: "4px" }}>
         
-        {/* 1. TOPLAM GELİR (TOPLAM KAYIT CİROSU) */}
-        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#bbf7d0" }}>
-          <div className="kpi-title-row" style={{ color: "#166534" }}>
-            <span style={{ fontWeight: "800", fontSize: "12px", letterSpacing: "0.5px" }}>TOPLAM GELİR</span>
-            <ArrowUpRight size={18} color="#16a34a" />
+        {/* 1. TOPLAM GELİR */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#bbf7d0", padding: "14px 18px", borderRadius: "10px" }}>
+          <div className="kpi-title-row" style={{ color: "#166534", marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: "800", fontSize: "11px", letterSpacing: "0.5px" }}>TOPLAM GELİR (CİRO)</span>
+            <ArrowUpRight size={16} color="#16a34a" />
           </div>
-          <div className="kpi-value-text" style={{ color: "#0f172a" }} title={`₺${fmtMoney(totalContractRevenue)}`}>
+          <div className="kpi-value-text" style={{ color: "#0f172a", fontSize: "22px", fontWeight: "800" }}>
             {fmtMoney(totalContractRevenue)} ₺
           </div>
-          <div className="kpi-sub-text" style={{ color: "#64748b" }}>
-            Kalan: {fmtMoney(totalRemaining)} ₺
-          </div>
-          <div style={{ display: "none" }}>
-            TOPLAM KAYIT CİROSU ₺{fmtMoney(totalContractRevenue)}
-            {students.length} Kayıtlı Öğrenci Taahhüdü
+          <div className="kpi-sub-text" style={{ color: "#15803d", fontSize: "11px", marginTop: "2px", fontWeight: "600" }}>
+            {students.length} Kayıtlı Öğrenci Sözleşmesi
           </div>
         </div>
 
-        {/* 2. TAHSİL EDİLEN (GERÇEKLEŞEN TAHSİLAT) */}
-        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#e9d5ff" }}>
-          <div className="kpi-title-row" style={{ color: "#7e22ce" }}>
-            <span style={{ fontWeight: "800", fontSize: "12px", letterSpacing: "0.5px" }}>TAHSİL EDİLEN</span>
-            <Wallet size={18} color="#9333ea" />
+        {/* 2. TOPLAM TAHSİLAT */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#e9d5ff", padding: "14px 18px", borderRadius: "10px" }}>
+          <div className="kpi-title-row" style={{ color: "#6b21a8", marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: "800", fontSize: "11px", letterSpacing: "0.5px" }}>TOPLAM TAHSİLAT</span>
+            <CheckCircle2 size={16} color="#9333ea" />
           </div>
-          <div className="kpi-value-text" style={{ color: "#7e22ce" }} title={`₺${fmtMoney(totalCollected)}`}>
+          <div className="kpi-value-text" style={{ color: "#6b21a8", fontSize: "22px", fontWeight: "800" }}>
             {fmtMoney(totalCollected)} ₺
           </div>
-          <div className="kpi-sub-text" style={{ color: "#166534", fontWeight: "600" }}>
-            Tahsilat Oranı: %{collectionRate}
-          </div>
-          <div style={{ display: "none" }}>
-            GERÇEKLEŞEN TAHSİLAT ₺{fmtMoney(totalCollected)}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px" }}>
+            <div style={{ flex: 1, background: "#f3e8ff", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{ width: `${Math.min(100, collectionRate)}%`, background: "#9333ea", height: "100%" }} />
+            </div>
+            <span style={{ fontSize: "11px", fontWeight: "700", color: "#6b21a8" }}>%{collectionRate}</span>
           </div>
         </div>
 
-        {/* 3. KALAN BAKİYE (BU AY VADESİ GELENLER & RİSK) */}
-        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#fef08a" }}>
-          <div className="kpi-title-row" style={{ color: "#a16207" }}>
-            <span style={{ fontWeight: "800", fontSize: "12px", letterSpacing: "0.5px" }}>KALAN BAKİYE</span>
-            <Clock size={18} color="#ca8a04" />
+        {/* 3. KALAN ALACAK */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#fef08a", padding: "14px 18px", borderRadius: "10px" }}>
+          <div className="kpi-title-row" style={{ color: "#854d0e", marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: "800", fontSize: "11px", letterSpacing: "0.5px" }}>KALAN ALACAK</span>
+            <Clock size={16} color="#ca8a04" />
           </div>
-          <div className="kpi-value-text" style={{ color: "#a16207" }} title={`₺${fmtMoney(totalRemaining)}`}>
+          <div className="kpi-value-text" style={{ color: "#854d0e", fontSize: "22px", fontWeight: "800" }}>
             {fmtMoney(totalRemaining)} ₺
           </div>
-          <div className="kpi-sub-text" style={{ color: "#9a3412" }}>
-            Kalan Alacak / Risk
-          </div>
-          <div style={{ display: "none" }}>
-            BU AY VADESİ GELENLER ₺{fmtMoney(dueThisMonthData.total)}
-            {dueThisMonthData.count} Taksit (₺{fmtMoney(dueThisMonthData.collected)} Alındı)
+          <div className="kpi-sub-text" style={{ color: "#a16207", fontSize: "11px", marginTop: "2px", fontWeight: "600" }}>
+            Açık Öğrenci Bakiyesi
           </div>
         </div>
 
-        {/* 4. TOPLAM GİDER */}
-        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#fecaca" }}>
-          <div className="kpi-title-row" style={{ color: "#b91c1c" }}>
-            <span style={{ fontWeight: "800", fontSize: "12px", letterSpacing: "0.5px" }}>TOPLAM GİDER</span>
-            <ArrowDownRight size={18} color="#ef4444" />
+        {/* 4. VADESİ GEÇMİŞ ALACAK */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#fecaca", padding: "14px 18px", borderRadius: "10px" }}>
+          <div className="kpi-title-row" style={{ color: "#b91c1c", marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: "800", fontSize: "11px", letterSpacing: "0.5px" }}>VADESİ GEÇMİŞ ALACAK</span>
+            <AlertTriangle size={16} color="#ef4444" />
           </div>
-          <div className="kpi-value-text" style={{ color: "#dc2626" }} title={`₺${fmtMoney(totalExpenses)}`}>
-            {fmtMoney(totalExpenses)} ₺
+          <div className="kpi-value-text" style={{ color: "#dc2626", fontSize: "22px", fontWeight: "800" }}>
+            {fmtMoney(totalOverdueDebt)} ₺
           </div>
-          <div className="kpi-sub-text" style={{ color: "#991b1b" }}>
-            Ödenen: {fmtMoney(totalExpenses)} ₺ | Kalan: 0 ₺
-          </div>
-        </div>
-
-        {/* 5. NET KÂR / ZARAR (NET LİKİT MEVCUT) */}
-        <div className="muhasebe-kpi-card stat-card" style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}>
-          <div className="kpi-title-row" style={{ color: "#1d4ed8" }}>
-            <span style={{ fontWeight: "800", fontSize: "12px", letterSpacing: "0.5px" }}>NET KÂR/ZARAR</span>
-            <CreditCard size={18} color="#2563eb" />
-          </div>
-          <div className="kpi-value-text" style={{ color: "#1d4ed8" }} title={`₺${fmtMoney(netCashBalance)}`}>
-            {fmtMoney(netCashBalance)} ₺
-          </div>
-          <div className="kpi-sub-text" style={{ color: "#2563eb", fontWeight: "600" }}>
-            Kasa, Banka ve POS Likit Portföyü: {fmtMoney(netLiquidBalance)} ₺
-          </div>
-          <div style={{ display: "none" }}>
-            NET LİKİT MEVCUT ₺{fmtMoney(netLiquidBalance)}
-          </div>
-        </div>
-
-        {/* 6. KÂR MARJI (TAHSİLAT BAŞARI ORANI) */}
-        <div className="muhasebe-kpi-card stat-card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-          <div className="kpi-title-row" style={{ color: "#475569" }}>
-            <span style={{ fontWeight: "800", fontSize: "12px", letterSpacing: "0.5px" }}>KÂR MARJI</span>
-            <Percent size={18} color="#334155" />
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "4px" }}>
-            <span style={{ fontSize: "clamp(20px, 2.5vw, 26px)", fontWeight: "800", color: "#0f172a" }}>
-              %{profitMarginFormatted}
-            </span>
-            <div style={{ flex: 1, background: "#e2e8f0", height: "8px", borderRadius: "4px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.min(100, isRealEdesisData ? 97.6 : collectionRate)}%`, background: "#16a34a", height: "100%", borderRadius: "4px" }} />
-            </div>
-          </div>
-          <div className="kpi-sub-text" style={{ color: "#64748b", fontWeight: "600" }}>
-            Kalan: ₺{fmtMoney(totalRemaining)}
-          </div>
-          <div style={{ display: "none" }}>
-            TAHSİLAT BAŞARI ORANI %{collectionRate}
-            GECİKMİŞ TAKSİTLER ₺{fmtMoney(totalOverdueDebt)} {overdueStudents.length} Öğrenci Vadesi Geçti
+          <div className="kpi-sub-text" style={{ color: "#b91c1c", fontSize: "11px", marginTop: "2px", fontWeight: "600" }}>
+            {overdueStudents.length} Öğrenci Vadesi Geçmiş
           </div>
         </div>
 
       </div>
 
-      {/* EDESİS CANLI GÖSTERGE: BUGÜN NELER */}
-      <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "14px 18px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
-          <div style={{ fontWeight: "800", fontSize: "14px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
-            <Calendar size={16} color="#2563eb" /> Bugün Neler
-          </div>
-          <span style={{ fontSize: "12px", color: "#64748b" }}>
-            {new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} · Günlük Operasyonel Durum
-          </span>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
-          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", padding: "12px 14px" }}>
-            <div style={{ fontSize: "20px", fontWeight: "800", color: "#16a34a" }}>0 ₺</div>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#166534", marginTop: "2px" }}>BUGÜN TAHSİL EDİLEN</div>
-          </div>
-          <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: "10px", padding: "12px 14px" }}>
-            <div style={{ fontSize: "20px", fontWeight: "800", color: "#9333ea" }}>0 ₺</div>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#6b21a8", marginTop: "2px" }}>BUGÜN TAHSİL EDİLECEK</div>
-          </div>
-          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "10px", padding: "12px 14px" }}>
-            <div style={{ fontSize: "20px", fontWeight: "800", color: "#2563eb" }}>0 ₺</div>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#1e40af", marginTop: "2px" }}>BUGÜN ÖDENEN</div>
-          </div>
-          <div style={{ background: "#fffbeb", border: "1px solid #fef3c7", borderRadius: "10px", padding: "12px 14px" }}>
-            <div style={{ fontSize: "20px", fontWeight: "800", color: "#d97706" }}>0 ₺</div>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#92400e", marginTop: "2px" }}>BUGÜN ÖDENECEK</div>
-          </div>
-        </div>
-      </div>
-
-      {/* EDESİS BUGÜN GERÇEKLEŞENLER VE YAPILACAKLAR */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "12px" }}>
-        
-        {/* Bugün Gerçekleşenler */}
-        <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "14px 18px", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
-          <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-            <CheckCircle2 size={15} color="#16a34a" /> Bugün Gerçekleşenler <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "500" }}>({new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} yapılan tahsilat ve ödemeler)</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#166534" }}>Tahsil Edilenler</div>
-              <div style={{ fontSize: "13px", fontWeight: "800", color: "#0f172a", margin: "4px 0" }}>0 İşlem · 0 ₺</div>
-              <div style={{ fontSize: "10px", color: "#94a3b8" }}>Seçili dönemde tahsilat yapılmadı</div>
-            </div>
-            <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#991b1b" }}>Ödenenler</div>
-              <div style={{ fontSize: "13px", fontWeight: "800", color: "#0f172a", margin: "4px 0" }}>0 İşlem · 0 ₺</div>
-              <div style={{ fontSize: "10px", color: "#94a3b8" }}>Seçili dönemde ödeme yapılmadı</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bugün Yapılacaklar */}
-        <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "14px 18px", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
-          <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-            <Clock size={15} color="#2563eb" /> Bugün Yapılacaklar <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "500" }}>({new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} vadesi gelen tahsilat ve giderler)</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#166534" }}>Tahsil Edilecek</div>
-              <div style={{ fontSize: "13px", fontWeight: "800", color: "#0f172a", margin: "4px 0" }}>0 ₺</div>
-              <div style={{ fontSize: "10px", color: "#94a3b8" }}>Seçili dönemde vadesi gelen tahsilat yok</div>
-            </div>
-            <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#991b1b" }}>Ödenecek Gider</div>
-              <div style={{ fontSize: "13px", fontWeight: "800", color: "#0f172a", margin: "4px 0" }}>0 ₺</div>
-              <div style={{ fontSize: "10px", color: "#94a3b8" }}>Seçili dönemde vadesi gelen gider yok</div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* EDESİS VADESİ GEÇMİŞ ALACAK ŞERİDİ */}
-      <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "10px", padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <span style={{ fontWeight: "800", color: "#991b1b", display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}>
-            <AlertTriangle size={16} color="#dc2626" /> Vadesi Geçmiş
-          </span>
-          <span style={{ background: "#fee2e2", color: "#dc2626", fontWeight: "800", fontSize: "13px", padding: "4px 10px", borderRadius: "6px" }}>
-            Alacak {isRealEdesisData ? (periodFilter === "2026-2027" ? "216.350 ₺" : "651.526 ₺") : `₺${fmtMoney(totalOverdueDebt)}`}
-          </span>
-          <span style={{ background: "#f1f5f9", color: "#475569", fontWeight: "700", fontSize: "13px", padding: "4px 10px", borderRadius: "6px" }}>
-            Gider 0 ₺
-          </span>
-          <span style={{ fontSize: "12px", color: "#b91c1c", fontWeight: "600" }}>
-            {isRealEdesisData ? (periodFilter === "2026-2027" ? "12 Öğrenci Vadesi Geçti" : "21 Öğrenci Vadesi Geçti") : `${overdueStudents.length} Öğrenci Vadesi Geçti`}
-          </span>
-        </div>
-        <button 
-          type="button"
-          onClick={() => setActiveTab("gecikenler")}
-          style={{ background: "#fff", border: "1px solid #dc2626", color: "#dc2626", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
-        >
-          Listeyi Göster <ChevronRight size={14} />
-        </button>
-      </div>
-
-      {/* 3. KASA & BANKA PORTFÖY ŞERİDİ (5 Edesis Hesabı) */}
-      <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "14px", padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <div style={{ fontWeight: "700", fontSize: "14px", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
-            <Building size={16} color="#2563eb" /> Resmi Kasa & Banka Hesap Defteri
-          </div>
-          <span style={{ fontSize: "12px", color: "#64748b" }}>
-            T.C. Millî Eğitim Bakanlığı Onaylı Kurum Hesapları
-          </span>
-        </div>
-
-        <div className="muhasebe-bank-grid">
-          
-          {/* VakıfBank */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("vakif"); }}
-            style={{ 
-              background: "#f0fdf4", 
-              border: "1px solid #bbf7d0",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#16a34a", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  ANA HESAP
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  VakıfBank İnegöl Şb.
-                </div>
-              </div>
-              <CreditCard size={16} color="#16a34a" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#166534" }} title={`₺${fmtMoney(registers.vakifbank)}`}>
-              ₺{fmtMoney(registers.vakifbank)}
-            </div>
-            <div className="bank-card-flow">
-              <span>G: ₺{fmtMoney(registers.vakifbankInflow)}</span>
-              <span>Ç: ₺{fmtMoney(registers.vakifbankExpense)}</span>
-            </div>
-            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", fontFamily: "monospace" }}>
-              TR04 0001 ... 4922 43
-            </div>
-          </div>
-
-          {/* Halkbank */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("halk"); }}
-            style={{ 
-              background: "#eff6ff", 
-              border: "1px solid #bfdbfe",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#2563eb", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  BANKA
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  Halkbank İnegöl Şb.
-                </div>
-              </div>
-              <Building size={16} color="#2563eb" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#1d4ed8" }} title={`₺${fmtMoney(registers.halkbank)}`}>
-              ₺{fmtMoney(registers.halkbank)}
-            </div>
-            <div className="bank-card-flow">
-              <span>G: ₺{fmtMoney(registers.halkbankInflow)}</span>
-              <span>Ç: ₺{fmtMoney(registers.halkbankExpense)}</span>
-            </div>
-            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", fontFamily: "monospace" }}>
-              TR87 0001 ... 1016 32
-            </div>
-          </div>
-
-          {/* Nakit Ana Kasa */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("nakit"); }}
-            style={{ 
-              background: "#fefce8", 
-              border: "1px solid #fef08a",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#ca8a04", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  NAKİT
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  Nakit Ana Kasa
-                </div>
-              </div>
-              <Wallet size={16} color="#ca8a04" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#854d0e" }} title={`₺${fmtMoney(registers.nakit)}`}>
-              ₺{fmtMoney(registers.nakit)}
-            </div>
-            <div className="bank-card-flow">
-              <span>G: ₺{fmtMoney(registers.nakitInflow)}</span>
-              <span>Ç: ₺{fmtMoney(registers.nakitExpense)}</span>
-            </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
-              Ofis Elden Tahsilat Bakiyesi
-            </div>
-          </div>
-
-          {/* POS / Kredi Kartı */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("pos"); }}
-            style={{ 
-              background: "#fdf2f8", 
-              border: "1px solid #fbcfe8",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#db2777", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  POS
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  POS / Kredi Kartı
-                </div>
-              </div>
-              <CreditCard size={16} color="#db2777" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#9d174d" }} title={`₺${fmtMoney(registers.pos)}`}>
-              ₺{fmtMoney(registers.pos)}
-            </div>
-            <div className="bank-card-flow">
-              <span>G: ₺{fmtMoney(registers.posInflow)}</span>
-              <span>Ç: ₺{fmtMoney(registers.posExpense)}</span>
-            </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
-              Sanal ve Fiziki POS Girişleri
-            </div>
-          </div>
-
-          {/* Senet Portföyü */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("senetler"); }}
-            style={{ 
-              background: "#f5f3ff", 
-              border: "1px solid #ddd6fe",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#7c3aed", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  SENET / BONO
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  Senet & Çek Portföyü
-                </div>
-              </div>
-              <FileText size={16} color="#7c3aed" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#6d28d9" }} title={`₺${fmtMoney(registers.senet)}`}>
-              ₺{fmtMoney(registers.senet)}
-            </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
-              Matbu Senetli Tahsilatlar
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* 4. MODÜL SEKMELERİ (EDESİS MUHASEBE V2 MENÜSÜ & YATAY KAYDIRMA) */}
-      <div className="muhasebe-tabs-scroll">
+      {/* 3. MODÜL SEKMELERİ (EDESİS MUHASEBE V2 MENÜSÜ & YATAY KAYDIRMA) */}
+      <div className="muhasebe-tabs-scroll" style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "6px", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
         <button
-          className={`btn ${activeTab === "dashboard" ? "" : "secondary"}`}
-          onClick={() => setActiveTab("dashboard")}
+          className={`btn ${activeTab === "gelirler" ? "" : "secondary"}`}
+          onClick={() => setActiveTab("gelirler")}
           style={{ fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <BarChart2 size={16} /> 📊 Muhasebe V2 Dashboard & Grafikler
+          <FileText size={16} /> 📑 Gelir Yönetimi (Gelir Listesi) ({edesisData.gelirler?.length || 127})
         </button>
         <button
           className={`btn ${activeTab === "gecikenler" ? "" : "secondary"}`}
           onClick={() => setActiveTab("gecikenler")}
           style={{ fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "6px", color: activeTab === "gecikenler" ? "#fff" : "#dc2626" }}
         >
-          <AlertTriangle size={16} /> ⚠️ Geciken Taksitler & Yaşlandırma ({overdueStudents.length})
+          <AlertTriangle size={16} /> ⚠️ Vadesi Geçenler ({overdueStudents.length})
         </button>
         <button
           className={`btn ${activeTab === "kasalar" ? "" : "secondary"}`}
@@ -1401,7 +1138,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("tahsilatlar")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <Receipt size={16} /> 🧾 Tahsilat Listesi & Makbuzlar ({payments.length})
+          <Receipt size={16} /> 🧾 Tahsilat Geçmişi ({payments.length})
         </button>
         <button
           className={`btn ${activeTab === "giderler" ? "" : "secondary"}`}
@@ -1415,19 +1152,25 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("senetler")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <FileText size={16} /> 📜 Matbu Senet (Bono) Süiti
+          <FileText size={16} /> 📜 Matbu Senet (Bono)
         </button>
         <button
-          className={`btn ${activeTab === "gelirler" ? "" : "secondary"}`}
-          onClick={() => setActiveTab("gelirler")}
+          className={`btn ${activeTab === "dashboard" ? "" : "secondary"}`}
+          onClick={() => setActiveTab("dashboard")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <FileText size={16} /> 📑 Gelirler & Sözleşmeler ({edesisData.gelirler?.length || 127})
+          <BarChart2 size={16} /> 📊 Analiz & Grafikler
+        </button>
+        <button
+          className={`btn ${activeTab === "backup" ? "" : "secondary"}`}
+          onClick={() => setActiveTab("backup")}
+          style={{ fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "6px", color: activeTab === "backup" ? "#fff" : "#16a34a", borderColor: "#16a34a", background: activeTab === "backup" ? "#16a34a" : "#f0fdf4" }}
+        >
+          <ShieldCheck size={16} /> 💾 Otomatik Yedekleme (20:00)
         </button>
       </div>
 
-      {/* 5. SEKME İÇERİKLERİ */}
-
+      {/* 4. SEKME İÇERİKLERİ */}
       {/* SEKME 1: DASHBOARD & RECHARTS GRAFİKLERİ */}
       {activeTab === "dashboard" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -2096,17 +1839,88 @@ export function MuhasebeV2Dashboard({
       {/* SEKME 7: EDESİS GELİRLER & SÖZLEŞMELER */}
       {activeTab === "gelirler" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          
+          {/* ÜST BAŞLIK VE HIZLI EYLEMLER */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#fff", padding: "14px 18px", border: "1px solid var(--border)", borderRadius: "12px" }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#0f172a" }}>Edesis Gelir & Sözleşme Yönetimi</h3>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
+                <FileText size={18} color="#2563eb" /> Edesis Gelir & Sözleşme Yönetimi
+              </h3>
               <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>
-                Toplam {edesisData.gelirler?.length || 127} gelir ve {edesisData.sozlesmeler?.length || 119} sözleşme kaydı. Detay ve taksit dökümü için satıra tıklayınız.
+                Toplam {edesisData.gelirler?.length || 127} gelir ve {edesisData.sozlesmeler?.length || 119} sözleşme kaydı. Detay, tahsilat ve taksit planı için satır üzerindeki işlem butonlarını kullanabilirsiniz.
               </p>
             </div>
-            <div className="top-search" style={{ width: "300px", margin: 0 }}>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                className="btn small"
+                style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700" }}
+                onClick={() => onOpen && onOpen("student")}
+                title="Yeni MEB Öğrenci Sözleşmesi Aç"
+              >
+                <Plus size={15} /> + Yeni Sözleşme / Gelir
+              </button>
+              <button
+                className="btn small secondary"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = `${API}/export/students`;
+                  link.download = "edesis-gelir-listesi.csv";
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <Download size={14} color="#15803d" /> Excel İndir
+              </button>
+              <button
+                className="btn small secondary"
+                onClick={() => reload && reload()}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <RefreshCw size={14} /> Yenile
+              </button>
+            </div>
+          </div>
+
+          {/* FİLTRE VE ARAMA ÇUBUĞU (EDESİS PRIME-NG BAR) */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              <button
+                className={`btn small ${statusQuickFilter === "all" ? "" : "secondary"}`}
+                onClick={() => setStatusQuickFilter("all")}
+                style={{ fontSize: "12px" }}
+              >
+                Tümü ({edesisData.gelirler?.length || 127})
+              </button>
+              <button
+                className={`btn small ${statusQuickFilter === "paid" ? "" : "secondary"}`}
+                onClick={() => setStatusQuickFilter("paid")}
+                style={{ fontSize: "12px", color: statusQuickFilter === "paid" ? "#fff" : "#166534", borderColor: "#bbf7d0", background: statusQuickFilter === "paid" ? "#16a34a" : "#f0fdf4" }}
+              >
+                🟢 Tam Tahsil Edildi
+              </button>
+              <button
+                className={`btn small ${statusQuickFilter === "unpaid" ? "" : "secondary"}`}
+                onClick={() => setStatusQuickFilter("unpaid")}
+                style={{ fontSize: "12px", color: statusQuickFilter === "unpaid" ? "#fff" : "#854d0e", borderColor: "#fef08a", background: statusQuickFilter === "unpaid" ? "#ca8a04" : "#fefce8" }}
+              >
+                🟡 Taksitli / Açık Kalan
+              </button>
+              <button
+                className={`btn small ${statusQuickFilter === "overdue" ? "" : "secondary"}`}
+                onClick={() => setStatusQuickFilter("overdue")}
+                style={{ fontSize: "12px", color: statusQuickFilter === "overdue" ? "#fff" : "#991b1b", borderColor: "#fecaca", background: statusQuickFilter === "overdue" ? "#dc2626" : "#fef2f2" }}
+              >
+                🔴 Vadesi Geçenler ({overdueStudents.length})
+              </button>
+            </div>
+
+            <div className="top-search" style={{ width: "280px", margin: 0 }}>
               <Search size={14} />
               <input 
-                placeholder="Gelir kodu, öğrenci adı veya sözleşme no..." 
+                placeholder="Öğrenci adı, sözleşme veya gelir no..." 
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{ fontSize: "12px" }}
@@ -2114,8 +1928,9 @@ export function MuhasebeV2Dashboard({
             </div>
           </div>
 
+          {/* ANA VERİ TABLOSU: GELİR LİSTESİ */}
           <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "900px" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "960px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
                   <th>Gelir Kodu</th>
@@ -2127,40 +1942,58 @@ export function MuhasebeV2Dashboard({
                   <th style={{ textAlign: "right" }}>Tahsilat</th>
                   <th style={{ textAlign: "right" }}>Kalan</th>
                   <th style={{ textAlign: "center" }}>Durum</th>
-                  <th style={{ textAlign: "right" }}>İşlemler</th>
+                  <th style={{ textAlign: "right" }}>Hızlı İşlemler</th>
                 </tr>
               </thead>
               <tbody>
                 {(edesisData.gelirler || [])
                   .filter(g => {
                     const q = searchQuery.toLowerCase();
-                    return !q || 
+                    const matchesSearch = !q || 
                       (g.gelirKodu && g.gelirKodu.toLowerCase().includes(q)) ||
                       (g.ogrenciAdiSoyadi && g.ogrenciAdiSoyadi.toLowerCase().includes(q)) ||
                       (g.musteriUnvan && g.musteriUnvan.toLowerCase().includes(q)) ||
                       (g.sozlesmeNo && g.sozlesmeNo.toLowerCase().includes(q));
+
+                    if (!matchesSearch) return false;
+
+                    const isFullyPaid = g.tamTahsilEdildiMi || (g.kalanAlacak <= 0);
+                    const isOverdue = g.vadesiGectiMi || (g.kalanAlacak > 0 && g.vadeTarihi && g.vadeTarihi.slice(0, 10) < todayStr);
+
+                    if (statusQuickFilter === "paid") return isFullyPaid;
+                    if (statusQuickFilter === "unpaid") return !isFullyPaid;
+                    if (statusQuickFilter === "overdue") return isOverdue;
+
+                    return true;
                   })
                   .map((g, idx) => {
                     const stName = g.ogrenciAdiSoyadi || g.musteriUnvan || "Öğrenci";
                     const isFullyPaid = g.tamTahsilEdildiMi || (g.kalanAlacak <= 0);
+                    const isOverdue = g.vadesiGectiMi || (g.kalanAlacak > 0 && g.vadeTarihi && g.vadeTarihi.slice(0, 10) < todayStr);
+
+                    const matchedStudent = students.find(s => s.student_name === stName || s.student_name?.toLowerCase() === stName.toLowerCase());
 
                     return (
                       <tr key={g.id || idx}>
                         <td>
                           <b 
-                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo })}
+                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo, student: matchedStudent })}
                             style={{ color: "#2563eb", cursor: "pointer", fontFamily: "monospace" }}
+                            title="Gelir Detay Kartını Aç"
                           >
                             {g.gelirKodu}
                           </b>
                         </td>
                         <td>
-                          <b 
-                            style={{ color: "#0f172a", cursor: "pointer" }}
-                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo })}
+                          <div 
+                            style={{ fontWeight: "700", color: "#0f172a", cursor: "pointer" }}
+                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo, student: matchedStudent })}
                           >
                             {stName}
-                          </b>
+                          </div>
+                          {g.musteriUnvan && g.musteriUnvan !== stName && (
+                            <div style={{ fontSize: "11px", color: "#64748b" }}>Veli: {g.musteriUnvan}</div>
+                          )}
                         </td>
                         <td>
                           <span className="badge" style={{ background: "#f1f5f9", color: "#334155" }}>
@@ -2174,7 +2007,11 @@ export function MuhasebeV2Dashboard({
                         </td>
                         <td style={{ fontSize: "12px", color: "#64748b" }}>
                           <div>{g.gelirTarihi ? g.gelirTarihi.slice(0, 10) : "-"}</div>
-                          {g.vadeTarihi && <div style={{ fontSize: "11px", color: "#94a3b8" }}>Vade: {g.vadeTarihi.slice(0, 10)}</div>}
+                          {g.vadeTarihi && (
+                            <div style={{ fontSize: "11px", color: isOverdue ? "#dc2626" : "#94a3b8", fontWeight: isOverdue ? "700" : "400" }}>
+                              Vade: {g.vadeTarihi.slice(0, 10)}
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: "right" }}>
                           <b>₺{fmtMoney(g.brutTutar)}</b>
@@ -2189,31 +2026,286 @@ export function MuhasebeV2Dashboard({
                           <span 
                             className="badge" 
                             style={{ 
-                              background: isFullyPaid ? "#dcfce7" : "#fef3c7", 
-                              color: isFullyPaid ? "#166534" : "#92400e", 
+                              background: isFullyPaid ? "#dcfce7" : (isOverdue ? "#fee2e2" : "#fef3c7"), 
+                              color: isFullyPaid ? "#166534" : (isOverdue ? "#991b1b" : "#92400e"), 
                               padding: "3px 8px", 
                               borderRadius: "6px", 
                               fontSize: "11px", 
-                              fontWeight: "600" 
+                              fontWeight: "700" 
                             }}
                           >
-                            {isFullyPaid ? "Tam Ödendi" : `${g.taksitSayisi || 10} Taksit`}
+                            {isFullyPaid ? "Tam Ödendi" : (isOverdue ? "Vadesi Geçti" : `${g.taksitSayisi || 10} Taksit`)}
                           </span>
                         </td>
                         <td style={{ textAlign: "right" }}>
-                          <button
-                            className="btn small"
-                            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo })}
-                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 10px", background: "#2563eb", color: "#fff" }}
-                          >
-                            <FileText size={12} /> Detay & Taksit Planı
-                          </button>
+                          <div style={{ display: "flex", gap: "4px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                            <button
+                              className="btn small"
+                              onClick={() => setGelirModalData({ isOpen: true, gelirKodu: g.gelirKodu, sozlesmeNo: g.sozlesmeNo, student: matchedStudent })}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px", background: "#2563eb", color: "#fff" }}
+                              title="Taksit Dökümü & Sözleşme Detayları"
+                            >
+                              <FileText size={12} /> Detay
+                            </button>
+                            {!isFullyPaid && (
+                              <button
+                                className="btn small"
+                                onClick={() => {
+                                  if (matchedStudent) setPayStudentId(matchedStudent.id);
+                                  setPayAmount(String(g.kalanAlacak > 0 ? (g.taksitSayisi ? Math.round(g.brutTutar / g.taksitSayisi) : g.kalanAlacak) : ""));
+                                  setShowQuickPaymentModal(true);
+                                }}
+                                style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px", background: "#16a34a", color: "#fff" }}
+                                title="Hızlı Taksit Tahsilatı Al"
+                              >
+                                <DollarSign size={12} /> Tahsilat
+                              </button>
+                            )}
+                            <button
+                              className="btn small secondary"
+                              onClick={() => {
+                                const dummyPayment = {
+                                  id: "MAK-" + (g.gelirKodu || "2026"),
+                                  student_id: matchedStudent?.id || "temp",
+                                  amount: g.toplamTahsilat || 0,
+                                  payment_date: g.gelirTarihi || new Date().toISOString(),
+                                  method: "Banka Havalesi / EFT",
+                                  bank: "T.C. VAKIFLAR BANKASI İNEGÖL ŞB."
+                                };
+                                setReceiptPayment(dummyPayment);
+                              }}
+                              style={{ padding: "4px 6px", fontSize: "11px" }}
+                              title="Makbuz Görüntüle & Yazdır"
+                            >
+                              <Printer size={12} />
+                            </button>
+                            <button
+                              className="btn small secondary"
+                              onClick={() => {
+                                const st = matchedStudent || {
+                                  id: "temp-" + idx,
+                                  student_name: stName,
+                                  student_class: g.sinifAdi || "11-A",
+                                  parent_name: g.musteriUnvan || stName + " Velisi",
+                                  parent_phone: "0532 000 00 00",
+                                  total_fee: g.brutTutar,
+                                  paid_amount: g.toplamTahsilat,
+                                  installment_count: g.taksitSayisi || 10
+                                };
+                                setPromissoryStudent(st);
+                              }}
+                              style={{ padding: "4px 6px", fontSize: "11px", color: "#7c3aed", borderColor: "#ddd6fe" }}
+                              title="Matbu Senet (Bono) Yazdır"
+                            >
+                              <Receipt size={12} />
+                            </button>
+                            {!isFullyPaid && (
+                              <button
+                                className="btn small secondary"
+                                onClick={() => {
+                                  const phone = matchedStudent?.parent_phone || matchedStudent?.student_phone || "05320000000";
+                                  const clean = phone.replace(/[^0-9]/g, "");
+                                  const targetPhone = clean.startsWith("0") ? "9" + clean : (clean.startsWith("90") ? clean : "90" + clean);
+                                  const msg = `Sayın Velimiz, Özel İnegöl Çözüm Kursu öğrencimiz ${stName} için ${g.gelirKodu} no'lu sözleşmede kalan taksit tutarı ₺${fmtMoney(g.kalanAlacak)}'dir. Bilgilerinize sunarız.`;
+                                  window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+                                }}
+                                style={{ padding: "4px 6px", fontSize: "11px", color: "#16a34a", borderColor: "#bbf7d0" }}
+                                title="WhatsApp Borç Bildirimi Gönder"
+                              >
+                                <MessageCircle size={12} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* SEKME 8: 20:00 OTOMATİK YEDEKLEME & GERİ YÜKLEME (1-CLICK SNAPSHOT & RESTORE) */}
+      {activeTab === "backup" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          
+          {/* Yedekleme Durum Kartı */}
+          <div style={{ background: "#fff", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+              <div>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#f0fdf4", color: "#166534", padding: "4px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "700", marginBottom: "6px" }}>
+                  <ShieldCheck size={14} color="#16a34a" /> 🟢 Otomatik Yedekleme: Her Akşam Saat 20:00 (TRT) Aktif
+                </div>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
+                  Veritabanı Snapshot & Otomatik Kurtarma Merkezi
+                </h3>
+                <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#64748b", maxWidth: "700px" }}>
+                  Sistemimiz her akşam saat 20:00'de tüm veritabanı tablolarının (öğrenciler, sözleşmeler, tahsilatlar, giderler, sınavlar, yoklama, ders programı) tam anlık görüntüsünü (snapshot) otomatik olarak kaydeder. İhtiyaç halinde tek tıkla herhangi bir yedeğe geri dönüş yapabilir veya yedeği bilgisayarınıza indirebilirsiniz.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  type="text"
+                  placeholder="Yedekleme açıklaması (opsiyonel)..."
+                  value={backupNote}
+                  onChange={(e) => setBackupNote(e.target.value)}
+                  style={{ fontSize: "12px", padding: "7px 10px", borderRadius: "8px", border: "1px solid var(--border)", width: "220px" }}
+                />
+                <button
+                  className="btn"
+                  onClick={handleTakeManualBackup}
+                  disabled={loadingBackups}
+                  style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700" }}
+                >
+                  <Plus size={15} /> {loadingBackups ? "Kaydediliyor..." : "📸 Şimdi Manuel Yedek Al"}
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={loadBackups}
+                  disabled={loadingBackups}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                >
+                  <RefreshCw size={14} /> Yenile
+                </button>
+              </div>
+            </div>
+
+            {backupAlert && (
+              <div style={{ marginTop: "12px", padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", color: "#166534", fontSize: "13px", fontWeight: "600" }}>
+                {backupAlert}
+              </div>
+            )}
+          </div>
+
+          {/* Yedek Listesi Tablosu */}
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
+              <thead>
+                <tr style={{ background: "#f8fafc" }}>
+                  <th>Yedek ID</th>
+                  <th>Kayıt Tarihi (TRT)</th>
+                  <th>Yedek Türü</th>
+                  <th>Kapsam (Tablo Kayıt Sayıları)</th>
+                  <th>Boyut</th>
+                  <th>Açıklama</th>
+                  <th style={{ textAlign: "right" }}>İşlemler</th>
+                </tr>
+              </thead>
+              <tbody>
+                {backups.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+                      {loadingBackups ? "Yedekler yükleniyor..." : "Henüz manuel veya otomatik yedek kaydı bulunmuyor. 'Şimdi Manuel Yedek Al' butonuna tıklayarak ilk yedeğinizi oluşturabilirsiniz."}
+                    </td>
+                  </tr>
+                ) : (
+                  backups.map((b) => {
+                    const isScheduled = b.backup_type === "scheduled_20_00";
+                    const isPreRestore = b.backup_type === "pre_restore";
+                    const counts = b.table_counts || {};
+
+                    return (
+                      <tr key={b.id}>
+                        <td>
+                          <b style={{ fontFamily: "monospace", color: "#2563eb" }}>{b.id}</b>
+                        </td>
+                        <td>
+                          {b.created_at ? new Date(b.created_at).toLocaleString("tr-TR") : "-"}
+                        </td>
+                        <td>
+                          <span
+                            className="badge"
+                            style={{
+                              background: isScheduled ? "#f0fdf4" : (isPreRestore ? "#fef3c7" : "#eff6ff"),
+                              color: isScheduled ? "#166534" : (isPreRestore ? "#854d0e" : "#1d4ed8"),
+                              fontWeight: "700",
+                              fontSize: "11px",
+                              padding: "3px 8px",
+                              borderRadius: "6px"
+                            }}
+                          >
+                            {isScheduled ? "🕒 20:00 Otomatik" : (isPreRestore ? "🛡️ Güvenlik Yedeği" : "👤 Manuel Snapshot")}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: "12px", color: "#475569" }}>
+                          <span title={JSON.stringify(counts)}>
+                            Öğr: <b>{counts.students ?? "-"}</b> · Tahsilat: <b>{counts.payments ?? "-"}</b> · Sınav: <b>{counts.exams ?? "-"}</b> · Yoklama: <b>{counts.attendance ?? "-"}</b>
+                          </span>
+                        </td>
+                        <td style={{ fontSize: "12px", color: "#64748b" }}>
+                          {b.size_bytes ? `${Math.round(b.size_bytes / 1024)} KB` : "—"}
+                        </td>
+                        <td style={{ fontSize: "12px", color: "#64748b" }}>
+                          {b.notes || (isScheduled ? "Günlük 20:00 Otomatik Snapshot" : "Snapshot Yedeği")}
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                            <a
+                              href={`${API}/backup?download=${b.id}`}
+                              className="btn small secondary"
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
+                              title="JSON Olarak Bilgisayara İndir"
+                            >
+                              <Download size={12} /> İndir
+                            </a>
+                            <button
+                              className="btn small"
+                              onClick={() => setRestoreModalBackup(b)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px", background: "#dc2626", borderColor: "#dc2626", color: "#fff", fontWeight: "700" }}
+                              title="Bu Yedeğe Geri Dön (Kurtar)"
+                            >
+                              <RefreshCw size={12} /> Geri Yükle
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* GERİ YÜKLEME (RESTORE) ONAY MODALI */}
+      {restoreModalBackup && (
+        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ background: "#fff", borderRadius: "14px", maxWidth: "500px", width: "100%", padding: "24px", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#dc2626", marginBottom: "12px" }}>
+              <AlertTriangle size={24} />
+              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800" }}>Veritabanı Geri Yükleme Onayı</h3>
+            </div>
+            
+            <p style={{ fontSize: "13px", color: "#334155", lineHeight: 1.5, margin: "0 0 14px" }}>
+              <b>{restoreModalBackup.id}</b> numaralı yedeğe geri dönmek üzeresiniz.
+            </p>
+
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "12px", fontSize: "12px", color: "#991b1b", marginBottom: "16px", lineHeight: 1.4 }}>
+              <b>⚠️ DİKKAT:</b> Veritabanındaki tüm tablolar (öğrenciler, tahsilatlar, sınavlar vb.) bu yedeğin alındığı ana geri dönecektir.
+              <br /><br />
+              <b>🛡️ Güvenlik Önlemi:</b> Mevcut verileriniz kaybolmasın diye sistem otomatik olarak anında bir <b>"Geri Yükleme Öncesi Kurtarma Noktası"</b> oluşturacaktır.
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                className="btn secondary"
+                onClick={() => setRestoreModalBackup(null)}
+                disabled={restoring}
+              >
+                Vazgeç
+              </button>
+              <button
+                className="btn"
+                onClick={handleConfirmRestore}
+                disabled={restoring}
+                style={{ background: "#dc2626", borderColor: "#dc2626", color: "#fff", fontWeight: "700" }}
+              >
+                {restoring ? "Geri Yükleniyor..." : "↺ Evet, Geri Yükle"}
+              </button>
+            </div>
           </div>
         </div>
       )}
