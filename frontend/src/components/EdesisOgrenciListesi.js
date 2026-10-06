@@ -151,8 +151,13 @@ export default function EdesisOgrenciListesi({
       studentName: student.student_name,
       studentPhone: student.student_phone,
       studentEmail: student.student_email,
-      parentName: student.parent_name,
-      parentPhone: student.parent_phone,
+      parentName: student.parent_name || "",
+      parentRelation: student.parent_relation || "Anne",
+      parentPhone: student.parent_phone || "",
+      parentTc: student.parent_tc || "",
+      secondaryParentName: student.secondary_parent_name || "",
+      secondaryParentRelation: student.secondary_parent_relation || "Baba",
+      secondaryParentPhone: student.secondary_parent_phone || "",
       address: student.address || ""
     });
     setOpenDropdownId(null);
@@ -181,7 +186,12 @@ export default function EdesisOgrenciListesi({
             student_phone: editFormData.studentPhone,
             student_email: editFormData.studentEmail,
             parent_name: editFormData.parentName,
+            parent_relation: editFormData.parentRelation,
             parent_phone: editFormData.parentPhone,
+            parent_tc: editFormData.parentTc,
+            secondary_parent_name: editFormData.secondaryParentName,
+            secondary_parent_relation: editFormData.secondaryParentRelation,
+            secondary_parent_phone: editFormData.secondaryParentPhone,
             address: editFormData.address
           };
         }
@@ -676,10 +686,29 @@ export default function EdesisOgrenciListesi({
                       {/* 9. Veli */}
                       <td style={{ padding: "5px 3px", width: "115px", whiteSpace: "nowrap" }}>
                         <div style={{ fontWeight: 600, fontSize: "10.5px", color: "#0f172a", display: "flex", alignItems: "center", gap: "3px" }}>
-                          <span>♀</span>
+                          {s.parent_relation === "Baba" ? (
+                            <span style={{ color: "#2563eb", fontWeight: 700 }} title="Baba">♂</span>
+                          ) : s.parent_relation === "Anne" ? (
+                            <span style={{ color: "#e11d48", fontWeight: 700 }} title="Anne">♀</span>
+                          ) : (
+                            <span style={{ color: "#64748b", fontWeight: 700 }} title={s.parent_relation || "Veli"}>👤</span>
+                          )}
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: "95px" }} title={s.parent_name}>{s.parent_name || "—"}</span>
                         </div>
-                        <div style={{ fontSize: "9px", color: "#64748b" }}>{s.parent_phone || "—"}</div>
+                        <div style={{ fontSize: "9px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <span>{s.parent_phone || "—"}</span>
+                          {s.parent_phone && (
+                            <a
+                              href={`https://wa.me/90${s.parent_phone.replace(/\D/g, "").replace(/^0/, "")}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="WhatsApp"
+                              style={{ color: "#16a34a", textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                            >
+                              <MessageCircle size={10} />
+                            </a>
+                          )}
+                        </div>
                       </td>
 
                       {/* 10. Kuruma Kayıt */}
@@ -710,18 +739,22 @@ export default function EdesisOgrenciListesi({
 
                       {/* 13. Sözleşme */}
                       <td style={{ padding: "5px 2px", width: "52px", textAlign: "center", whiteSpace: "nowrap" }}>
-                        <span
-                          style={{
-                            padding: "2px 5px",
-                            borderRadius: "4px",
-                            fontSize: "9px",
-                            fontWeight: 600,
-                            background: "#dcfce7",
-                            color: "#15803d"
-                          }}
-                        >
-                          Aktif
-                        </span>
+                        {s.has_contract ? (
+                          <span
+                            style={{
+                              padding: "2px 5px",
+                              borderRadius: "4px",
+                              fontSize: "9px",
+                              fontWeight: 600,
+                              background: "#dcfce7",
+                              color: "#15803d"
+                            }}
+                          >
+                            Aktif
+                          </span>
+                        ) : (
+                          <span style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 500 }}>—</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1001,10 +1034,52 @@ export default function EdesisOgrenciListesi({
                     />
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
+                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>VELİ YAKINLIK</label>
+                    <select
+                      value={editFormData.parentRelation || "Anne"}
+                      onChange={(e) => setEditFormData({ ...editFormData, parentRelation: e.target.value })}
+                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                    >
+                      <option value="Anne">Anne (♀)</option>
+                      <option value="Baba">Baba (♂)</option>
+                      <option value="Veli">Veli (👤)</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
                     <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>VELİ TELEFON</label>
                     <input
                       value={editFormData.parentPhone || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, parentPhone: e.target.value })}
+                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
+                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>2. VELİ ADI</label>
+                    <input
+                      value={editFormData.secondaryParentName || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, secondaryParentName: e.target.value })}
+                      placeholder="Varsa 2. veli adı"
+                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
+                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>2. VELİ YAKINLIK</label>
+                    <select
+                      value={editFormData.secondaryParentRelation || "Baba"}
+                      onChange={(e) => setEditFormData({ ...editFormData, secondaryParentRelation: e.target.value })}
+                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                    >
+                      <option value="Baba">Baba (♂)</option>
+                      <option value="Anne">Anne (♀)</option>
+                      <option value="Veli">Veli (👤)</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
+                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>2. VELİ TELEFON</label>
+                    <input
+                      value={editFormData.secondaryParentPhone || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, secondaryParentPhone: e.target.value })}
+                      placeholder="Varsa 2. veli telefonu"
                       style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
                     />
                   </div>

@@ -765,7 +765,16 @@ export default function EdesisSozlesmeDetay({
               <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>
                 {student?.parent_name || "SEYHAN KUŞTUL"}
               </span>
-              <span style={{ background: "#fce7f3", color: "#be185d", padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 700 }}>
+              <span
+                style={{
+                  background: student?.parent_relation === "Baba" ? "#dbeafe" : "#fce7f3",
+                  color: student?.parent_relation === "Baba" ? "#1d4ed8" : "#be185d",
+                  padding: "1px 6px",
+                  borderRadius: "4px",
+                  fontSize: "10px",
+                  fontWeight: 700
+                }}
+              >
                 {student?.parent_relation || "Anne"}
               </span>
             </div>
