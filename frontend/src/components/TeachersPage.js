@@ -19,6 +19,7 @@ import {
   UserCheck
 } from "lucide-react";
 import { openWhatsApp } from "../EdesisModules";
+import { trIncludes } from "../lib/utils";
 
 const BRANCH_COLORS = {
   "Rehberlik & Yöneticilik": { bg: "#fdf2f8", text: "#be185d", border: "#fbcfe8" },
@@ -74,9 +75,8 @@ export function TeachersPage({ me, API, teachers = [], onReload, onNavigate, onO
         return false;
       }
       if (search && search.trim()) {
-        const q = search.toLowerCase().trim();
-        const haystack = `${t.name} ${t.branch} ${t.title} ${t.phone} ${t.email} ${t.classes}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
+        const haystack = `${t.name} ${t.branch} ${t.title} ${t.phone} ${t.email} ${t.classes}`;
+        if (!trIncludes(haystack, search)) return false;
       }
       return true;
     });

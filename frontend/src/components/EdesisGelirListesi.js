@@ -27,6 +27,7 @@ import {
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
 import { GelirDetayModal } from "./GelirDetayModal";
+import { trIncludes } from "../lib/utils";
 
 // Para birimi formatlayıcı (₺55.000,00)
 export function fmtCurrency(val) {
@@ -134,14 +135,14 @@ export default function EdesisGelirListesi({
 
       // Arama kutusu
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
+        const q = searchQuery.trim();
         const match =
-          (g.gelirKodu && g.gelirKodu.toLowerCase().includes(q)) ||
-          (g.ogrenciAdiSoyadi && g.ogrenciAdiSoyadi.toLowerCase().includes(q)) ||
-          (g.musteriUnvan && g.musteriUnvan.toLowerCase().includes(q)) ||
-          (g.sozlesmeNo && g.sozlesmeNo.toLowerCase().includes(q)) ||
-          (g.sinifAdi && g.sinifAdi.toLowerCase().includes(q)) ||
-          (g.aciklama && g.aciklama.toLowerCase().includes(q));
+          trIncludes(g.gelirKodu, q) ||
+          trIncludes(g.ogrenciAdiSoyadi, q) ||
+          trIncludes(g.musteriUnvan, q) ||
+          trIncludes(g.sozlesmeNo, q) ||
+          trIncludes(g.sinifAdi, q) ||
+          trIncludes(g.aciklama, q);
         if (!match) return false;
       }
 

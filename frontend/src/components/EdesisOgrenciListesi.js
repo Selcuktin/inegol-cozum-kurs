@@ -26,6 +26,7 @@ import {
   Settings
 } from "lucide-react";
 import initialStudentsData from "../data/edesisStudentsData.json";
+import { trIncludes } from "../lib/utils";
 
 export default function EdesisOgrenciListesi({
   onSelectStudent,
@@ -39,7 +40,18 @@ export default function EdesisOgrenciListesi({
   const [statusFilter, setStatusFilter] = useState("Kesin Kayıt"); // default 1:1 with Edesis
   const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027
   const [classFilter, setClassFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("q")) return params.get("q");
+      const hash = window.location.hash || "";
+      if (hash.includes("?")) {
+        const hashParams = new URLSearchParams(hash.split("?")[1]);
+        if (hashParams.get("q")) return hashParams.get("q");
+      }
+    } catch (e) {}
+    return "";
+  });
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
   // Edit modal state
@@ -83,14 +95,20 @@ export default function EdesisOgrenciListesi({
       }
       // Search
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const name = (s.student_name || "").toLowerCase();
-        const tc = (s.student_tc || "").toLowerCase();
-        const no = (s.student_no || "").toLowerCase();
-        const phone = (s.student_phone || "").toLowerCase();
-        const parent = (s.parent_name || "").toLowerCase();
-        const cls = (s.student_class || "").toLowerCase();
-        if (!name.includes(q) && !tc.includes(q) && !no.includes(q) && !phone.includes(q) && !parent.includes(q) && !cls.includes(q)) {
+        const q = searchQuery.trim();
+        const match =
+          trIncludes(s.student_name, q) ||
+          trIncludes(s.student_tc, q) ||
+          trIncludes(s.student_no, q) ||
+          trIncludes(s.student_phone, q) ||
+          trIncludes(s.student_email, q) ||
+          trIncludes(s.parent_name, q) ||
+          trIncludes(s.parent_phone, q) ||
+          trIncludes(s.secondary_parent_name, q) ||
+          trIncludes(s.secondary_parent_phone, q) ||
+          trIncludes(s.student_class, q) ||
+          trIncludes(s.department, q);
+        if (!match) {
           return false;
         }
       }

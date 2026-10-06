@@ -47,6 +47,7 @@ import {
 import { AbsenceLetterModal } from "./components/AbsenceLetterModal";
 import { EtutAppointmentModal } from "./components/EtutAppointmentModal";
 import { HataKarnesiModal } from "./components/HataKarnesiModal";
+import { trIncludes, normalizeTr } from "./lib/utils";
 
 export function openWhatsApp(phone, message) {
   if (!phone) {
@@ -302,9 +303,8 @@ export function ExamsPage({ me, API, students, classes }) {
         if (!titleUpper.includes(classFilter)) return false;
       }
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = (x.title || "").toLowerCase().includes(q);
-        const matchPub = (x.publisher || "").toLowerCase().includes(q);
+        const matchTitle = trIncludes(x.title, searchQuery);
+        const matchPub = trIncludes(x.publisher, searchQuery);
         if (!matchTitle && !matchPub) return false;
       }
       return true;
@@ -315,12 +315,11 @@ export function ExamsPage({ me, API, students, classes }) {
   const filteredExamResults = useMemo(() => {
     if (!selectedExam || !selectedExam.results) return [];
     if (!examStudentSearch.trim()) return selectedExam.results;
-    const q = examStudentSearch.toLowerCase();
     return selectedExam.results.filter(
       (r) =>
-        (r.student_name || "").toLowerCase().includes(q) ||
-        (r.student_class || "").toLowerCase().includes(q) ||
-        (r.school_no || "").includes(q)
+        trIncludes(r.student_name, examStudentSearch) ||
+        trIncludes(r.student_class, examStudentSearch) ||
+        trIncludes(r.school_no, examStudentSearch)
     );
   }, [selectedExam, examStudentSearch]);
 
@@ -1667,12 +1666,11 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
 
   const filteredStudents = useMemo(() => {
     if (!search.trim()) return students;
-    const q = search.toLowerCase();
     return students.filter(
       (s) =>
-        s.student_name.toLowerCase().includes(q) ||
-        (s.student_class || "").toLowerCase().includes(q) ||
-        (s.school || "").toLowerCase().includes(q)
+        trIncludes(s.student_name, search) ||
+        trIncludes(s.student_class, search) ||
+        trIncludes(s.school, search)
     );
   }, [students, search]);
 
@@ -1682,7 +1680,7 @@ function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
     const list = [];
     exams.forEach((ex) => {
       const res = (ex.results || []).find(
-        (r) => String(r.student_id) === String(selectedStudent.id) || (r.student_name || "").toLowerCase() === (selectedStudent.student_name || "").toLowerCase()
+        (r) => String(r.student_id) === String(selectedStudent.id) || normalizeTr(r.student_name) === normalizeTr(selectedStudent.student_name)
       );
       if (res) {
         list.push({ ...res, exam: ex });
@@ -2431,7 +2429,7 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
       // Sistemdeki öğrenciyle eşleşme
       const matchedStudent = students.find(s => 
         (s.student_no && s.student_no.replace(/\D/g, "") === noRaw.replace(/\D/g, "")) ||
-        (s.student_name && s.student_name.toLowerCase().includes(nameRaw.toLowerCase()))
+        (s.student_name && trIncludes(s.student_name, nameRaw))
       );
 
       return {
@@ -4021,9 +4019,7 @@ export function SchedulesPage({ me, API, classes }) {
                 (s) =>
                   s.day_of_week === activeDayView &&
                   s.time_slot === slot &&
-                  (!selectedTeacher ||
-                    (s.teacher_name &&
-                      s.teacher_name.toLowerCase().includes(selectedTeacher.toLowerCase())))
+                  (!selectedTeacher || trIncludes(s.teacher_name, selectedTeacher))
               );
 
               return (
@@ -4102,9 +4098,7 @@ export function SchedulesPage({ me, API, classes }) {
                     (s) =>
                       s.day_of_week === day.id &&
                       s.time_slot === slot &&
-                      (!selectedTeacher ||
-                        (s.teacher_name &&
-                          s.teacher_name.toLowerCase().includes(selectedTeacher.toLowerCase())))
+                      (!selectedTeacher || trIncludes(s.teacher_name, selectedTeacher))
                   );
                   return (
                     <div 

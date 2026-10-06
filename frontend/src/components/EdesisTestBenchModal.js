@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { GelirDetayModal } from "./GelirDetayModal";
+import { trIncludes } from "../lib/utils";
 import { ReceiptModal } from "./ReceiptModal";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { AbsenceLetterModal } from "./AbsenceLetterModal";
@@ -249,9 +250,9 @@ export function EdesisTestBenchModal({
     const matchesCat = activeCategory === "all" || c.category === activeCategory;
     const matchesSearch =
       searchFilter === "" ||
-      c.title.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      c.desc.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      c.tag.toLowerCase().includes(searchFilter.toLowerCase());
+      trIncludes(c.title, searchFilter) ||
+      trIncludes(c.desc, searchFilter) ||
+      trIncludes(c.tag, searchFilter);
     return matchesCat && matchesSearch;
   });
 

@@ -27,6 +27,7 @@ import {
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
 import EdesisSozlesmeDetay from "./EdesisSozlesmeDetay";
+import { trIncludes } from "../lib/utils";
 
 // Format currency in Turkish Lira style: ₺81.000,04
 export function fmtCurrency(val) {
@@ -140,12 +141,14 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
 
       // Search query (Sözleşme no, müşteri, veli, sınıf vb.)
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const no = (c.sozlesmeNo || "").toLowerCase();
-        const oName = (c.ogrenciAdi || "").toLowerCase();
-        const mName = (c.musteriUnvan || "").toLowerCase();
-        const sinif = (c.sinifAdi || "").toLowerCase();
-        if (!no.includes(q) && !oName.includes(q) && !mName.includes(q) && !sinif.includes(q)) {
+        const q = searchQuery.trim();
+        const match =
+          trIncludes(c.sozlesmeNo, q) ||
+          trIncludes(c.ogrenciAdi, q) ||
+          trIncludes(c.musteriUnvan, q) ||
+          trIncludes(c.sinifAdi, q) ||
+          trIncludes(c.aciklama, q);
+        if (!match) {
           return false;
         }
       }

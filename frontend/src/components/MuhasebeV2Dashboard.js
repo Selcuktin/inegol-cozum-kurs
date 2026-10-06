@@ -55,6 +55,7 @@ import EdesisVadeTakvimi from "./EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./EdesisTahsilatListesi";
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
+import { trIncludes } from "../lib/utils";
 
 const CANCELLED_STUDENT_NAMES = [
   "SERHAT SERBEST",
@@ -863,9 +864,7 @@ export function MuhasebeV2Dashboard({
     let running = 0;
     return payments
       .filter((p) => {
-        const matchSearch = `${p.student_name || ""} ${p.method || ""} ${p.bank || ""} ${p.note || ""}`
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
+        const matchSearch = trIncludes(`${p.student_name || ""} ${p.method || ""} ${p.bank || ""} ${p.note || ""}`, searchQuery);
         if (!matchSearch) return false;
 
         const m = (p.method || "").toLowerCase();
@@ -939,9 +938,7 @@ export function MuhasebeV2Dashboard({
     let running = 0;
     return allLedgerItems
       .filter((item) => {
-        const matchSearch = `${item.party || ""} ${item.accountLabel || ""} ${item.description || ""}`
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
+        const matchSearch = trIncludes(`${item.party || ""} ${item.accountLabel || ""} ${item.description || ""}`, searchQuery);
         if (!matchSearch) return false;
 
         if (selectedRegisterFilter !== "all" && item.accountKey !== selectedRegisterFilter) {
@@ -965,9 +962,7 @@ export function MuhasebeV2Dashboard({
   // Filtered Overdue Students
   const filteredOverdueList = useMemo(() => {
     return overdueStudents.filter((s) => {
-      const matchSearch = `${s.student_name} ${s.student_no} ${s.parent_name} ${s.parent_phone}`
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
+      const matchSearch = trIncludes(`${s.student_name} ${s.student_no} ${s.parent_name} ${s.parent_phone}`, searchQuery);
       if (!matchSearch) return false;
 
       if (agingFilter !== "all" && s.agingCategory !== agingFilter) return false;

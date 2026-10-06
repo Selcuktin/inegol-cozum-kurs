@@ -79,6 +79,7 @@ import EdesisOgrenciListesi from "./components/EdesisOgrenciListesi";
 import EdesisGelirListesi from "./components/EdesisGelirListesi";
 import EdesisVadeTakvimi from "./components/EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./components/EdesisTahsilatListesi";
+import { trIncludes } from "./lib/utils";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -567,7 +568,7 @@ function MainApp({ me, onLogout }) {
 
   const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
   useEffect(() => { load(); }, []);
-  const filtered = useMemo(() => (data.students || []).filter(s => `${s.student_name} ${s.parent_name} ${s.student_phone}`.toLowerCase().includes(search.toLowerCase())), [data.students, search]);
+  const filtered = useMemo(() => (data.students || []).filter(s => trIncludes(`${s.student_name} ${s.parent_name} ${s.student_phone}`, search)), [data.students, search]);
   const totalCollected = data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
   const totalExpected = (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
   const totalExpenses = data.summary?.expenses || (data.expenses || []).reduce((a, e) => a + (e.amount || 0), 0);
@@ -1428,9 +1429,8 @@ function Students({ me, allStudents, search, onSearch, onOpen, onSelect, onOpenP
 
       // 6. Search Term
       if (search && search.trim()) {
-        const q = search.toLowerCase().trim();
-        const haystack = `${s.student_name} ${s.parent_name} ${s.student_phone} ${s.parent_phone} ${s.school} ${s.student_class} ${s.program}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
+        const haystack = `${s.student_name} ${s.parent_name} ${s.student_phone} ${s.parent_phone} ${s.school} ${s.student_class} ${s.program}`;
+        if (!trIncludes(haystack, search)) return false;
       }
 
       return true;
@@ -2366,11 +2366,10 @@ function Classes({ me, classes = [], onOpen, students = [], onSelect, onNavigate
 
       // Search term
       if (classSearch.trim()) {
-        const term = classSearch.toLowerCase();
-        const matches = (c.name || "").toLowerCase().includes(term) ||
-                        (c.level || "").toLowerCase().includes(term) ||
-                        (c.room || "").toLowerCase().includes(term) ||
-                        (c.teacher || "").toLowerCase().includes(term);
+        const matches = trIncludes(c.name, classSearch) ||
+                        trIncludes(c.level, classSearch) ||
+                        trIncludes(c.room, classSearch) ||
+                        trIncludes(c.teacher, classSearch);
         if (!matches) return false;
       }
 
@@ -2385,7 +2384,7 @@ function Classes({ me, classes = [], onOpen, students = [], onSelect, onNavigate
 
   const filteredClassStudents = useMemo(() => {
     return enrolledStudents.filter(s => 
-      `${s.student_name} ${s.student_no} ${s.parent_name} ${s.parent_phone} ${s.student_tc || ""}`.toLowerCase().includes(studentSearch.toLowerCase())
+      trIncludes(`${s.student_name} ${s.student_no} ${s.parent_name} ${s.parent_phone} ${s.student_tc || ""}`, studentSearch)
     );
   }, [enrolledStudents, studentSearch]);
 
