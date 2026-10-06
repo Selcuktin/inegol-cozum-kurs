@@ -1058,8 +1058,9 @@ export async function onRequest(context) {
         };
       }
       if (!s.student_name?.trim()) return json({ detail: "Öğrenci adı soyadı zorunludur" }, 422);
-      if (!s.parent_name?.trim()) return json({ detail: "Veli adı soyadı zorunludur" }, 422);
-      if (Number(s.total_fee) < 0) return json({ detail: "Öğrenim ücreti negatif olamaz" }, 422);
+      s.student_name = s.student_name.trim();
+      s.parent_name = (s.parent_name || s.mother_name || s.guardian_name || "").trim() || "Belirtilmedi";
+      if (s.total_fee !== undefined && Number(s.total_fee) < 0) return json({ detail: "Öğrenim ücreti negatif olamaz" }, 422);
       const id = s.id || "student-" + crypto.randomUUID().slice(0, 8);
 
       await db

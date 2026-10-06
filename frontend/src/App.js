@@ -3899,6 +3899,7 @@ function Modal({ type, selected, data, close, reload }) {
     try {
       if (type === "student") {
         const payload = {...form,
+          parent_name: form.parent_name?.trim() || form.mother_name?.trim() || form.guardian_name?.trim() || "Belirtilmedi",
           total_fee: Number(form.total_fee || 0),
           installment_count: Number(form.installment_count || 1),
           discount_amount: Number(form.discount_amount || 0),
@@ -3943,7 +3944,7 @@ function Modal({ type, selected, data, close, reload }) {
 
         <div className="form-section-title">Baba (Veli) Bilgileri</div>
         <div className="form-grid">
-          <label>Ad soyad<input data-testid="parent-name-input" required name="parent_name" onChange={change}/></label>
+          <label>Ad soyad<input data-testid="parent-name-input" name="parent_name" onChange={change}/></label>
           <label>T.C.<input data-testid="parent-tc-input" name="parent_tc" onChange={change}/></label>
           <label>Cep telefonu<input data-testid="parent-phone-input" name="parent_phone" onChange={change}/></label>
           <label>Mesleği<input data-testid="father-job-input" name="father_job" onChange={change}/></label>

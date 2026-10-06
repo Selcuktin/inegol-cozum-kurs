@@ -222,15 +222,19 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
       setActiveTab("genel");
       return setError("Öğrenci adı soyadı zorunludur.");
     }
-    if (!formData.parent_name.trim()) {
-      setActiveTab("veli");
-      return setError("Veli (baba veya anne) adı soyadı zorunludur.");
-    }
+
+    const resolvedParent =
+      formData.parent_name?.trim() ||
+      formData.mother_name?.trim() ||
+      formData.guardian_name?.trim() ||
+      "Belirtilmedi";
 
     setLoading(true);
     try {
       const payload = {
         ...formData,
+        student_name: formData.student_name.trim(),
+        parent_name: resolvedParent,
         total_fee: Number(formData.total_fee || 0),
         installment_count: Number(formData.installment_count || 1),
         discount_amount: Number(formData.discount_amount || 0),
@@ -317,7 +321,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-form">
+        <form onSubmit={handleSubmit} className="modal-form" noValidate>
           <div className="modal-form-body" style={{ minHeight: "420px" }}>
             {error && (
               <div className="modal-error" style={{ marginBottom: "14px" }}>
@@ -332,7 +336,6 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
                   <label>
                     Öğrenci Adı Soyadı *
                     <input
-                      required
                       name="student_name"
                       placeholder="Örn: Mehmet Ali Kaya"
                       value={formData.student_name}
@@ -701,10 +704,9 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
               <div className="tab-pane">
                 <div className="form-grid">
                   <label>
-                    Kurs Öğrenim Ücreti (₺) *
+                    Kurs Öğrenim Ücreti (₺)
                     <input
                       type="number"
-                      required
                       min="0"
                       name="total_fee"
                       value={formData.total_fee}
@@ -866,15 +868,15 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
               )}
             </div>
 
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <button type="button" className="btn secondary" onClick={onClose}>
                 Vazgeç
               </button>
 
-              {activeTab !== "muhasebe" ? (
+              {activeTab !== "muhasebe" && (
                 <button
                   type="button"
-                  className="btn"
+                  className="btn secondary"
                   onClick={() => {
                     const tabs = ["genel", "veli", "egitim", "muhasebe"];
                     const currIdx = tabs.indexOf(activeTab);
@@ -883,11 +885,11 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
                 >
                   Sonraki Adım <ChevronRight size={16} />
                 </button>
-              ) : (
-                <button type="submit" className="btn" disabled={loading} style={{ background: "#1d4ed8" }}>
-                  <Check size={16} /> {loading ? "Kaydediliyor..." : "Öğrenci Kaydını Tamamla"}
-                </button>
               )}
+
+              <button type="submit" className="btn" disabled={loading} style={{ background: "#1d4ed8", color: "#fff" }}>
+                <Check size={16} /> {loading ? "Kaydediliyor..." : (initialData ? "Değişiklikleri Kaydet" : "Öğrenciyi Kaydet")}
+              </button>
             </div>
           </div>
         </form>
