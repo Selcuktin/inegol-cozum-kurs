@@ -413,6 +413,9 @@ export function GelirDetayModal({
     <>
       <div 
         className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gelir-detay-title"
         style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1050, backgroundColor: "rgba(15, 23, 42, 0.75)" }}
       >
         <div 
@@ -444,7 +447,7 @@ export function GelirDetayModal({
                 <span className="font-semibold text-slate-700" style={{ color: "#334155", fontWeight: 600 }}>Gelir Detay</span>
               </div>
               <div className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <h1 className="text-xl font-bold text-slate-900 m-0" style={{ fontSize: "20px", fontWeight: 700, margin: 0, color: "#0f172a" }}>
+                <h1 id="gelir-detay-title" className="text-xl font-bold text-slate-900 m-0" style={{ fontSize: "20px", fontWeight: 700, margin: 0, color: "#0f172a" }}>
                   Gelir Detay <span className="text-slate-400 font-normal ml-1" style={{ color: "#94a3b8", fontWeight: 400 }}>{gCode}</span>
                 </h1>
               </div>
@@ -457,7 +460,7 @@ export function GelirDetayModal({
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
                 style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, border: "1px solid #cbd5e1", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
-                <ArrowLeft size={15} /> Geri
+                <ArrowLeft size={15} aria-hidden="true" /> Geri
               </button>
               <button
                 type="button"
@@ -466,7 +469,7 @@ export function GelirDetayModal({
                 style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, border: "1px solid #cbd5e1", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
                 title="Gelir muhasebe kategorisini ve faturadaki sınıflandırmayı değiştir"
               >
-                <Settings size={15} /> Sınıflandırmayı Düzelt
+                <Settings size={15} aria-hidden="true" /> Sınıflandırmayı Düzelt
               </button>
               <button
                 type="button"
@@ -475,7 +478,7 @@ export function GelirDetayModal({
                 style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, border: "1px solid #cbd5e1", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
                 title="Taksit vadeleri ve tahsilat takvimini görüntüle"
               >
-                <Calendar size={15} /> Ödeme Planı
+                <Calendar size={15} aria-hidden="true" /> Ödeme Planı
               </button>
               <button
                 type="button"
@@ -483,14 +486,15 @@ export function GelirDetayModal({
                 className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1.5 shadow-sm transition-colors"
                 style={{ padding: "6px 14px", fontSize: "13px", fontWeight: 600, borderRadius: "8px", background: "#2563eb", color: "#fff", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
-                <Printer size={15} /> Yazdır
+                <Printer size={15} aria-hidden="true" /> Yazdır
               </button>
               <button
                 onClick={onClose}
+                aria-label="Pencereyi kapat"
                 className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 ml-1"
                 style={{ border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8" }}
               >
-                <X size={20} />
+                <X size={20} aria-hidden="true" />
               </button>
             </div>
           </div>

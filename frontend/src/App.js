@@ -779,15 +779,18 @@ function MainApp({ me, onLogout }) {
   const guardedOpen = (type) => setModal(type);
 
   return <div className="app-shell">
+    <a href="#main-content" className="sr-only skip-link">Ana içeriğe atla</a>
     {mobileOpen && (
       <div
         className="sidebar-backdrop"
         onClick={() => setMobileOpen(false)}
         onTouchEnd={(e) => { e.preventDefault(); setMobileOpen(false); }}
         aria-label="Menüyü kapat"
+        role="button"
+        tabIndex="0"
       />
     )}
-    <aside className={mobileOpen ? "sidebar mobile-open" : "sidebar"}>
+    <aside className={mobileOpen ? "sidebar mobile-open" : "sidebar"} aria-label="Ana Menü Gezintisi">
       <div className="sidebar-brand-row">
         <Brand />
         <button
@@ -796,11 +799,11 @@ function MainApp({ me, onLogout }) {
           onClick={() => setMobileOpen(false)}
           aria-label="Menüyü kapat"
         >
-          <X size={20} />
+          <X size={20} aria-hidden="true" />
         </button>
       </div>
       <div className="side-caption">EDESİS ERP SİSTEMİ</div>
-      <nav>
+      <nav aria-label="Modül Gezintisi">
         {navCategories.map((cat, ci) => {
           const visibleItems = cat.items.filter(it => can(me, it.perm));
           if (visibleItems.length === 0) return null;
@@ -939,10 +942,10 @@ function MainApp({ me, onLogout }) {
         </div>
       </div>
     </aside>
-    <main className="main">
+    <div className="main">
       <PwaBanner />
-      <header className="topbar">
-        <button className="mobile-menu" data-testid="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} /></button>
+      <header className="topbar" role="banner">
+        <button className="mobile-menu" data-testid="mobile-menu" aria-label="Menüyü aç" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} aria-hidden="true" /></button>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{ position: "relative" }}>
             <button
@@ -950,50 +953,53 @@ function MainApp({ me, onLogout }) {
               className="edesis-quick-actions-btn"
               onClick={() => setQuickOpen(!quickOpen)}
               title="Hızlı İşlemler Menüsü"
+              aria-label="Hızlı işlemler menüsü"
+              aria-haspopup="true"
+              aria-expanded={quickOpen}
             >
-              <Zap size={14} />
+              <Zap size={14} aria-hidden="true" />
               <span>Hızlı İşlemler</span>
             </button>
             {quickOpen && (
-              <div className="edesis-quick-dropdown" onClick={() => setQuickOpen(false)}>
+              <div className="edesis-quick-dropdown" onClick={() => setQuickOpen(false)} role="menu">
                 <div className="quick-dropdown-header">HIZLI İŞLEMLER</div>
                 <div className="quick-dropdown-grid">
                   <div className="quick-col">
                     <div className="quick-col-title">MUHASEBE</div>
-                    <button type="button" onClick={() => setPage("documents")}><FileText size={14} style={{ color: "#2563eb" }} /> Yeni Sözleşme <ChevronRight size={12} /></button>
-                    <button type="button" onClick={() => guardedOpen("payment")}><CircleDollarSign size={14} style={{ color: "#8b5cf6" }} /> Tahsilat Al <ChevronRight size={12} /></button>
-                    <button type="button" onClick={() => guardedOpen("expense")}><TrendingDown size={14} style={{ color: "#ef4444" }} /> Hızlı Gider <ChevronRight size={12} /></button>
+                    <button type="button" role="menuitem" onClick={() => setPage("documents")}><FileText size={14} style={{ color: "#2563eb" }} aria-hidden="true" /> Yeni Sözleşme <ChevronRight size={12} aria-hidden="true" /></button>
+                    <button type="button" role="menuitem" onClick={() => guardedOpen("payment")}><CircleDollarSign size={14} style={{ color: "#8b5cf6" }} aria-hidden="true" /> Tahsilat Al <ChevronRight size={12} aria-hidden="true" /></button>
+                    <button type="button" role="menuitem" onClick={() => guardedOpen("expense")}><TrendingDown size={14} style={{ color: "#ef4444" }} aria-hidden="true" /> Hızlı Gider <ChevronRight size={12} aria-hidden="true" /></button>
                   </div>
                   <div className="quick-col">
                     <div className="quick-col-title">SINAV & ANALİZ</div>
-                    <button type="button" onClick={() => setPage("exams")}><GraduationCap size={14} style={{ color: "#8b5cf6" }} /> Yeni Sınav / Deneme <ChevronRight size={12} /></button>
-                    <button type="button" onClick={() => setShowGlobalKarne({ student_name: data.students?.[0]?.student_name || "Öğrenci", student_class: "7-A", score: 445.5, total_net: 62.5, overall_rank: 2, class_rank: 1, booklet: "A", exam: data.exams?.[0] || { title: "Kurumsal Deneme" } })}><Target size={14} style={{ color: "#0d9488" }} /> Sınav Karnesi <ChevronRight size={12} /></button>
-                    <button type="button" onClick={() => setPage("attendance")}><UserCheck size={14} style={{ color: "#16a34a" }} /> Günlük Yoklama <ChevronRight size={12} /></button>
+                    <button type="button" role="menuitem" onClick={() => setPage("exams")}><GraduationCap size={14} style={{ color: "#8b5cf6" }} aria-hidden="true" /> Yeni Sınav / Deneme <ChevronRight size={12} aria-hidden="true" /></button>
+                    <button type="button" role="menuitem" onClick={() => setShowGlobalKarne({ student_name: data.students?.[0]?.student_name || "Öğrenci", student_class: "7-A", score: 445.5, total_net: 62.5, overall_rank: 2, class_rank: 1, booklet: "A", exam: data.exams?.[0] || { title: "Kurumsal Deneme" } })}><Target size={14} style={{ color: "#0d9488" }} aria-hidden="true" /> Sınav Karnesi <ChevronRight size={12} aria-hidden="true" /></button>
+                    <button type="button" role="menuitem" onClick={() => setPage("attendance")}><UserCheck size={14} style={{ color: "#16a34a" }} aria-hidden="true" /> Günlük Yoklama <ChevronRight size={12} aria-hidden="true" /></button>
                   </div>
                   <div className="quick-col">
                   <div className="quick-col-title">KAYIT & SİSTEM</div>
-                  <button type="button" onClick={() => guardedOpen("student")}><UserPlus size={14} style={{ color: "#d97706" }} /> Yeni Öğrenci Kaydı <ChevronRight size={12} /></button>
-                  <button type="button" onClick={() => setPage("schedules")}><Clock size={14} style={{ color: "#2563eb" }} /> Ders Programı <ChevronRight size={12} /></button>
-                  <button type="button" onClick={() => setPage("classes")}><Users size={14} style={{ color: "#4f46e5" }} /> Sınıf & Kontenjan <ChevronRight size={12} /></button>
+                  <button type="button" role="menuitem" onClick={() => guardedOpen("student")}><UserPlus size={14} style={{ color: "#d97706" }} aria-hidden="true" /> Yeni Öğrenci Kaydı <ChevronRight size={12} aria-hidden="true" /></button>
+                  <button type="button" role="menuitem" onClick={() => setPage("schedules")}><Clock size={14} style={{ color: "#2563eb" }} aria-hidden="true" /> Ders Programı <ChevronRight size={12} aria-hidden="true" /></button>
+                  <button type="button" role="menuitem" onClick={() => setPage("classes")}><Users size={14} style={{ color: "#4f46e5" }} aria-hidden="true" /> Sınıf & Kontenjan <ChevronRight size={12} aria-hidden="true" /></button>
                 </div>
               </div>
             </div>
           )}
         </div>
         </div>
-        <div className="top-search"><Search size={17} /><input data-testid="global-search-input" placeholder="Öğrenci, veli veya telefon ara..." value={search} onChange={e => { setSearch(e.target.value); if (can(me,"page_students")) setPage("students"); }} /></div>
+        <div className="top-search"><Search size={17} aria-hidden="true" /><input data-testid="global-search-input" role="searchbox" aria-label="Genel arama: öğrenci, veli veya telefon ara" placeholder="Öğrenci, veli veya telefon ara..." value={search} onChange={e => { setSearch(e.target.value); if (can(me,"page_students")) setPage("students"); }} /></div>
         <div className="top-actions">
           <span className="today-label">{new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
-          <button data-testid="notifications-button" className="icon-btn"><Bell size={18} /><i /></button>
+          <button data-testid="notifications-button" className="icon-btn" aria-label="Bildirimler"><Bell size={18} aria-hidden="true" /><i aria-hidden="true" /></button>
           <div className="user-mini">
             {me?.picture ? <img className="avatar" src={me.picture} alt="" /> : <div className="avatar">{(me?.name || "İÇ").slice(0,2).toUpperCase()}</div>}
             <span data-testid="user-name">{me?.name || "Yönetici"}</span>
             <span data-testid="user-role-pill" className={`role-pill role-${me?.role}`}>{ROLE_LABEL[me?.role] || me?.role_label}</span>
-            <button data-testid="logout-button" className="icon-btn" title="Çıkış yap" onClick={onLogout}><LogOut size={16}/></button>
+            <button data-testid="logout-button" className="icon-btn" title="Çıkış yap" aria-label="Oturumu kapat ve güvenli çıkış yap" onClick={onLogout}><LogOut size={16} aria-hidden="true" /></button>
           </div>
         </div>
       </header>
-      <div className={`content ${page === "students" || page === "documents" ? "content-fullwidth" : ""}`}>
+      <main id="main-content" role="main" tabIndex="-1" className={`content ${page === "students" || page === "documents" ? "content-fullwidth" : ""}`}>
         {page === "dashboard" && <Dashboard me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} onNavigate={setPage} onSelect={setSelected} />}
         {page === "kayit" && (
           <KayitModulu
@@ -1098,8 +1104,8 @@ function MainApp({ me, onLogout }) {
         {page === "reports" && <Reports me={me} data={data} />}
         {page === "users" && <UsersPage me={me} />}
         {page === "audit" && <AuditPage />}
-      </div>
-    </main>
+      </main>
+    </div>
     <MobileBottomNav page={page} setPage={setPage} setModal={setModal} canPayment={can(me, "payment_create")} />
     <EdesisStudentModal
       isOpen={modal === "student" || editingStudent !== null}

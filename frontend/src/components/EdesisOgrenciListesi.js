@@ -406,9 +406,11 @@ export default function EdesisOgrenciListesi({
           {/* Right: Search & Action buttons */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ position: "relative", display: "flex", alignItems: "center", width: "240px" }}>
-              <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "10px" }} />
+              <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "10px" }} aria-hidden="true" />
               <input
-                type="text"
+                type="search"
+                role="searchbox"
+                aria-label="Öğrenci adı, TC, okul no veya veli bilgisi ile ara"
                 placeholder="Öğrenci adı, TC, no, veli..."
                 value={searchQuery}
                 onChange={(e) => {
@@ -428,6 +430,7 @@ export default function EdesisOgrenciListesi({
 
             <button
               type="button"
+              aria-label="Öğrenci listesini Excel formatında indir"
               onClick={handleExportCSV}
               style={{
                 display: "inline-flex",
@@ -460,28 +463,29 @@ export default function EdesisOgrenciListesi({
         }}
       >
         <div style={{ overflowX: "auto", minHeight: "360px" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "11px" }}>
+          <table aria-label="Öğrenci Kayıt Listesi" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "11px" }}>
             <thead>
               <tr style={{ background: "#fafafa", borderBottom: "2px solid #f1f5f9", color: "#64748b", fontSize: "10px", fontWeight: 700, textTransform: "uppercase" }}>
-                <th style={{ padding: "6px 2px", width: "26px", textAlign: "center" }}>
+                <th scope="col" style={{ padding: "6px 2px", width: "26px", textAlign: "center" }}>
                   <input
                     type="checkbox"
+                    aria-label="Tüm öğrencileri seç"
                     checked={selectedIds.size > 0 && selectedIds.size === paginatedStudents.length}
                     onChange={handleToggleSelectAll}
                   />
                 </th>
-                <th style={{ padding: "6px 2px", width: "70px", textAlign: "center" }}>İşlemler</th>
-                <th style={{ padding: "6px 3px", width: "135px" }}>Öğrenci ⇅</th>
-                <th style={{ padding: "6px 3px", width: "72px" }}>Şube ⇅</th>
-                <th style={{ padding: "6px 3px", width: "62px" }}>Bölüm ⇅</th>
-                <th style={{ padding: "6px 2px", width: "28px", textAlign: "center" }}>Öğrt.</th>
-                <th style={{ padding: "6px 2px", width: "24px", textAlign: "center" }}>Mobil</th>
-                <th style={{ padding: "6px 3px", width: "105px" }}>İletişim</th>
-                <th style={{ padding: "6px 3px", width: "115px" }}>Veli</th>
-                <th style={{ padding: "6px 2px", width: "66px" }}>Kuruma Kayıt ⇅</th>
-                <th style={{ padding: "6px 2px", width: "66px" }}>Dönem Kaydı ⇅</th>
-                <th style={{ padding: "6px 2px", width: "64px", textAlign: "center" }}>Durum ⇅</th>
-                <th style={{ padding: "6px 2px", width: "52px", textAlign: "center" }}>Sözleşme</th>
+                <th scope="col" style={{ padding: "6px 2px", width: "70px", textAlign: "center" }}>İşlemler</th>
+                <th scope="col" style={{ padding: "6px 3px", width: "135px" }}>Öğrenci ⇅</th>
+                <th scope="col" style={{ padding: "6px 3px", width: "72px" }}>Şube ⇅</th>
+                <th scope="col" style={{ padding: "6px 3px", width: "62px" }}>Bölüm ⇅</th>
+                <th scope="col" style={{ padding: "6px 2px", width: "28px", textAlign: "center" }}>Öğrt.</th>
+                <th scope="col" style={{ padding: "6px 2px", width: "24px", textAlign: "center" }}>Mobil</th>
+                <th scope="col" style={{ padding: "6px 3px", width: "105px" }}>İletişim</th>
+                <th scope="col" style={{ padding: "6px 3px", width: "115px" }}>Veli</th>
+                <th scope="col" style={{ padding: "6px 2px", width: "66px" }}>Kuruma Kayıt ⇅</th>
+                <th scope="col" style={{ padding: "6px 2px", width: "66px" }}>Dönem Kaydı ⇅</th>
+                <th scope="col" style={{ padding: "6px 2px", width: "64px", textAlign: "center" }}>Durum ⇅</th>
+                <th scope="col" style={{ padding: "6px 2px", width: "52px", textAlign: "center" }}>Sözleşme</th>
               </tr>
             </thead>
             <tbody>
@@ -521,6 +525,7 @@ export default function EdesisOgrenciListesi({
                       <td style={{ padding: "5px 2px", textAlign: "center", width: "26px" }}>
                         <input
                           type="checkbox"
+                          aria-label={`${s.student_name} öğrencisini seç`}
                           checked={isChecked}
                           onChange={() => handleToggleSelect(s.id)}
                         />
@@ -531,6 +536,9 @@ export default function EdesisOgrenciListesi({
                         <div style={{ position: "relative", display: "inline-block" }}>
                           <button
                             type="button"
+                            aria-label={`${s.student_name} için işlemler menüsünü aç`}
+                            aria-haspopup="true"
+                            aria-expanded={isMenuOpen}
                             onClick={(e) => {
                               e.stopPropagation();
                               setOpenDropdownId(isMenuOpen ? null : s.id);
@@ -550,14 +558,16 @@ export default function EdesisOgrenciListesi({
                               whiteSpace: "nowrap"
                             }}
                           >
-                            <Settings size={10} />
+                            <Settings size={10} aria-hidden="true" />
                             <span>İşlemler</span>
-                            <ChevronDown size={10} />
+                            <ChevronDown size={10} aria-hidden="true" />
                           </button>
 
                           {/* Dropdown Menu */}
                           {isMenuOpen && (
                             <div
+                              role="menu"
+                              aria-label={`${s.student_name} işlem seçenekleri`}
                               onClick={(e) => e.stopPropagation()}
                               style={{
                                 position: "absolute",
@@ -805,14 +815,18 @@ export default function EdesisOgrenciListesi({
           </div>
           <div style={{ display: "flex", gap: "4px" }}>
             <button
+              type="button"
+              aria-label="Önceki sayfaya git"
               disabled={currentPage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               style={{ padding: "4px 8px", border: "1px solid #cbd5e1", background: "#fff", borderRadius: "4px", cursor: currentPage <= 1 ? "not-allowed" : "pointer" }}
             >
               Önceki
             </button>
-            <span style={{ padding: "4px 8px", fontWeight: 700, color: "#2563eb" }}>{currentPage}</span>
+            <span style={{ padding: "4px 8px", fontWeight: 700, color: "#2563eb" }} aria-current="page">{currentPage}</span>
             <button
+              type="button"
+              aria-label="Sonraki sayfaya git"
               disabled={currentPage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               style={{ padding: "4px 8px", border: "1px solid #cbd5e1", background: "#fff", borderRadius: "4px", cursor: currentPage >= totalPages ? "not-allowed" : "pointer" }}

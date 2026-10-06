@@ -828,9 +828,12 @@ export default function EdesisGelirListesi({
                 size={14}
                 color="#94a3b8"
                 style={{ position: "absolute", left: "10px" }}
+                aria-hidden="true"
               />
               <input
-                type="text"
+                type="search"
+                role="searchbox"
+                aria-label="Gelir no, müşteri, veli, sözleşme veya sınıf ile ara"
                 placeholder="Gelir no, müşteri, veli, sözleşme, sınıf..."
                 value={searchQuery}
                 onChange={(e) => {
@@ -849,12 +852,18 @@ export default function EdesisGelirListesi({
                 }}
               />
               {searchQuery && (
-                <X
-                  size={14}
-                  color="#94a3b8"
-                  style={{ position: "absolute", right: "10px", cursor: "pointer" }}
+                <button
+                  type="button"
+                  aria-label="Aramayı temizle"
+                  style={{ position: "absolute", right: "10px", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                   onClick={() => setSearchQuery("")}
-                />
+                >
+                  <X
+                    size={14}
+                    color="#94a3b8"
+                    aria-hidden="true"
+                  />
+                </button>
               )}
             </div>
             {searchQuery && (
@@ -985,6 +994,7 @@ export default function EdesisGelirListesi({
       >
         <div style={{ overflowX: "auto", minHeight: "360px" }}>
           <table
+            aria-label="Gelir Listesi"
             style={{
               width: "100%",
               borderCollapse: "collapse",
@@ -1004,34 +1014,39 @@ export default function EdesisGelirListesi({
                   backgroundColor: "#fafafa"
                 }}
               >
-                <th style={{ padding: "12px 14px", width: "80px", textAlign: "center" }}>İşlemler</th>
+                <th scope="col" style={{ padding: "12px 14px", width: "80px", textAlign: "center" }}>İşlemler</th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("gelirKodu")}
                 >
                   Gelir Kodu {sortField === "gelirKodu" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("gelirTarihi")}
                 >
                   Tarih / Vade {sortField === "gelirTarihi" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("ogrenciAdiSoyadi")}
                 >
                   Müşteri / Öğrenci {sortField === "ogrenciAdiSoyadi" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("sozlesmeNo")}
                 >
                   Sözleşme No {sortField === "sozlesmeNo" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
-                <th style={{ padding: "12px 14px" }}>Kategori / Dönem</th>
+                <th scope="col" style={{ padding: "12px 14px" }}>Kategori / Dönem</th>
                 {/* 1:1 EDESİS media_1791234855262.png BRÜT TUTAR VE KALAN ÖNİZLEME */}
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("brutTutar")}
                 >
@@ -1039,13 +1054,15 @@ export default function EdesisGelirListesi({
                 </th>
                 {/* 1:1 EDESİS media_1791234855262.png TAHSİLAT KOLONU */}
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none", textAlign: "right" }}
                   onClick={() => handleSort("toplamTahsilat")}
                 >
                   Tahsilat {sortField === "toplamTahsilat" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
-                <th style={{ padding: "12px 14px" }}>Ödeme Türü</th>
+                <th scope="col" style={{ padding: "12px 14px" }}>Ödeme Türü</th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none", textAlign: "center" }}
                   onClick={() => handleSort("tamTahsilEdildiMi")}
                 >
@@ -1095,6 +1112,9 @@ export default function EdesisGelirListesi({
                         <div style={{ position: "relative", display: "inline-block" }}>
                           <button
                             type="button"
+                            aria-label={`${g.gelirKodu} ${stName} işlem menüsünü aç`}
+                            aria-haspopup="true"
+                            aria-expanded={isMenuOpen}
                             onClick={(e) => {
                               e.stopPropagation();
                               setOpenDropdownId(isMenuOpen ? null : g.gelirKodu);
@@ -1115,13 +1135,15 @@ export default function EdesisGelirListesi({
                             }}
                             title="İşlemler Menüsü"
                           >
-                            <Settings size={12} />
-                            <span>▾</span>
+                            <Settings size={12} aria-hidden="true" />
+                            <span aria-hidden="true">▾</span>
                           </button>
 
                           {/* Aksiyon Açılır Menüsü */}
                           {isMenuOpen && (
                             <div
+                              role="menu"
+                              aria-label={`${g.gelirKodu} işlem seçenekleri`}
                               onClick={(e) => e.stopPropagation()}
                               style={{
                                 position: "absolute",

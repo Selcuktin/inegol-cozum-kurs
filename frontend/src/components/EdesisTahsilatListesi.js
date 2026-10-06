@@ -620,9 +620,11 @@ export default function EdesisTahsilatListesi({
           {/* Hızlı Arama */}
           <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: "300px" }}>
             <div style={{ position: "relative", flex: 1, display: "flex", alignItems: "center" }}>
-              <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "10px" }} />
+              <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "10px" }} aria-hidden="true" />
               <input
-                type="text"
+                type="search"
+                role="searchbox"
+                aria-label="Ödeme kodu, müşteri, gelir no veya kasa ara"
                 placeholder="Ödeme kodu, müşteri, gelir no, kasa..."
                 value={searchQuery}
                 onChange={(e) => {
@@ -641,7 +643,14 @@ export default function EdesisTahsilatListesi({
                 }}
               />
               {searchQuery && (
-                <X size={14} color="#94a3b8" style={{ position: "absolute", right: "10px", cursor: "pointer" }} onClick={() => setSearchQuery("")} />
+                <button
+                  type="button"
+                  aria-label="Aramayı temizle"
+                  style={{ position: "absolute", right: "10px", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X size={14} color="#94a3b8" aria-hidden="true" />
+                </button>
               )}
             </div>
           </div>
@@ -660,6 +669,7 @@ export default function EdesisTahsilatListesi({
       >
         <div style={{ overflowX: "auto", minHeight: "360px" }}>
           <table
+            aria-label="Tahsilat Listesi"
             style={{
               width: "100%",
               borderCollapse: "collapse",
@@ -679,36 +689,40 @@ export default function EdesisTahsilatListesi({
                   backgroundColor: "#fafafa"
                 }}
               >
-                <th style={{ padding: "12px 14px", width: "70px", textAlign: "center" }}>İşlem</th>
+                <th scope="col" style={{ padding: "12px 14px", width: "70px", textAlign: "center" }}>İşlem</th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("odemeKodu")}
                 >
                   Tahsilat / İşlem No {sortField === "odemeKodu" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("tahsilatTarihi")}
                 >
                   Tarih & Saat {sortField === "tahsilatTarihi" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("musteriUnvan")}
                 >
                   Müşteri / Öğrenci {sortField === "musteriUnvan" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
-                <th style={{ padding: "12px 14px" }}>Gelir / Sözleşme No</th>
-                <th style={{ padding: "12px 14px" }}>Taksit</th>
-                <th style={{ padding: "12px 14px" }}>Kasa / Banka Hesabı</th>
+                <th scope="col" style={{ padding: "12px 14px" }}>Gelir / Sözleşme No</th>
+                <th scope="col" style={{ padding: "12px 14px" }}>Taksit</th>
+                <th scope="col" style={{ padding: "12px 14px" }}>Kasa / Banka Hesabı</th>
                 <th
+                  scope="col"
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none", textAlign: "right" }}
                   onClick={() => handleSort("tahsilatTutari")}
                 >
                   Tutar {sortField === "tahsilatTutari" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
-                <th style={{ padding: "12px 14px", textAlign: "center" }}>Durum</th>
-                <th style={{ padding: "12px 14px", textAlign: "center" }}>Resmi Makbuz</th>
+                <th scope="col" style={{ padding: "12px 14px", textAlign: "center" }}>Durum</th>
+                <th scope="col" style={{ padding: "12px 14px", textAlign: "center" }}>Resmi Makbuz</th>
               </tr>
             </thead>
             <tbody>

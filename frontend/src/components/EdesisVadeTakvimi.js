@@ -424,9 +424,11 @@ export default function EdesisVadeTakvimi({
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
           {/* Arama Input */}
           <div style={{ position: "relative", minWidth: "220px" }}>
-            <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+            <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} aria-hidden="true" />
             <input
-              type="text"
+              type="search"
+              role="searchbox"
+              aria-label="Taksit, müşteri veya açıklama ara"
               placeholder="Müşteri, açıklama..."
               value={searchQuery}
               onChange={(e) => {
@@ -441,6 +443,7 @@ export default function EdesisVadeTakvimi({
           <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#475569", cursor: "pointer", userSelect: "none" }}>
             <input
               type="checkbox"
+              aria-label="İptal edilen taksitleri göster"
               checked={showIptaller}
               onChange={(e) => setShowIptaller(e.target.checked)}
               style={{ cursor: "pointer" }}
@@ -590,18 +593,20 @@ export default function EdesisVadeTakvimi({
       {/* 6. GERÇEK EDESİS VERİ TABLOSU (media_1791241193046.png BİREBİR) */}
       <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "visible", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
         <div style={{ overflowX: "auto", minHeight: "360px" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", textAlign: "left" }}>
+          <table aria-label="Vade ve Taksit Takvimi" style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", textAlign: "left" }}>
             <thead>
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#475569", fontWeight: "700" }}>
-                <th style={{ padding: "10px 14px", width: "36px" }}>
+                <th scope="col" style={{ padding: "10px 14px", width: "36px" }}>
                   <input
                     type="checkbox"
+                    aria-label="Tüm taksitleri seç"
                     checked={selectedIds.size === currentRows.length && currentRows.length > 0}
                     onChange={toggleSelectAll}
                     style={{ cursor: "pointer" }}
                   />
                 </th>
                 <th
+                  scope="col"
                   onClick={() => {
                     setSortField("taksitNo");
                     setSortAsc(!sortAsc);
@@ -610,9 +615,10 @@ export default function EdesisVadeTakvimi({
                 >
                   TAKSİT NO {sortField === "taksitNo" ? (sortAsc ? "↑" : "↓") : "↑↓"}
                 </th>
-                <th style={{ padding: "10px 14px" }}>MÜŞTERİ</th>
-                <th style={{ padding: "10px 14px" }}>AÇIKLAMA</th>
+                <th scope="col" style={{ padding: "10px 14px" }}>MÜŞTERİ</th>
+                <th scope="col" style={{ padding: "10px 14px" }}>AÇIKLAMA</th>
                 <th
+                  scope="col"
                   onClick={() => {
                     setSortField("vadeTarihi");
                     setSortAsc(!sortAsc);
@@ -622,6 +628,7 @@ export default function EdesisVadeTakvimi({
                   VADE TARİHİ {sortField === "vadeTarihi" ? (sortAsc ? "↑" : "↓") : "↑↓"}
                 </th>
                 <th
+                  scope="col"
                   onClick={() => {
                     setSortField("taksitTutari");
                     setSortAsc(!sortAsc);
@@ -630,9 +637,9 @@ export default function EdesisVadeTakvimi({
                 >
                   TUTAR {sortField === "taksitTutari" ? (sortAsc ? "↑" : "↓") : "↑↓"}
                 </th>
-                <th style={{ padding: "10px 14px", textAlign: "center" }}>GECİKME</th>
-                <th style={{ padding: "10px 14px", textAlign: "center" }}>DURUM</th>
-                <th style={{ padding: "10px 14px", textAlign: "right" }}>İŞLEMLER</th>
+                <th scope="col" style={{ padding: "10px 14px", textAlign: "center" }}>GECİKME</th>
+                <th scope="col" style={{ padding: "10px 14px", textAlign: "center" }}>DURUM</th>
+                <th scope="col" style={{ padding: "10px 14px", textAlign: "right" }}>İŞLEMLER</th>
               </tr>
             </thead>
             <tbody>

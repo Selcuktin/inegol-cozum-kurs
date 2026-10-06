@@ -260,51 +260,59 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="student-modal-title">
       <div className="modal wide edesis-wizard-modal" onClick={(e) => e.stopPropagation()}>
         {/* Başlık ve Kapat Butonu */}
         <div className="modal-head">
           <div>
             <div className="eyebrow">EDESİS ÖĞRENCİ İŞLERİ · RESMİ KAYIT FORMU</div>
-            <h2>{initialData ? `Öğrenci Düzenleme: ${initialData.student_name}` : "Yeni Öğrenci ve Sözleşme Kaydı"}</h2>
+            <h2 id="student-modal-title">{initialData ? `Öğrenci Düzenleme: ${initialData.student_name}` : "Yeni Öğrenci ve Sözleşme Kaydı"}</h2>
           </div>
-          <button className="icon-btn" onClick={onClose} type="button">
-            <X size={19} />
+          <button className="icon-btn" onClick={onClose} type="button" aria-label="Pencereyi kapat">
+            <X size={19} aria-hidden="true" />
           </button>
         </div>
 
         {/* Edesis 4 Sekmeli Navigasyon Çubuğu */}
-        <div className="edesis-modal-tabs">
+        <div className="edesis-modal-tabs" role="tablist" aria-label="Kayıt formu sekmeleri">
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "genel"}
             className={`tab-btn ${activeTab === "genel" ? "active" : ""}`}
             onClick={() => setActiveTab("genel")}
           >
-            <User size={16} />
+            <User size={16} aria-hidden="true" />
             <span>1. Öğrenci Bilgileri</span>
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "veli"}
             className={`tab-btn ${activeTab === "veli" ? "active" : ""}`}
             onClick={() => setActiveTab("veli")}
           >
-            <Users size={16} />
+            <Users size={16} aria-hidden="true" />
             <span>2. Veli & Aile</span>
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "egitim"}
             className={`tab-btn ${activeTab === "egitim" ? "active" : ""}`}
             onClick={() => setActiveTab("egitim")}
           >
-            <GraduationCap size={16} />
+            <GraduationCap size={16} aria-hidden="true" />
             <span>3. Eğitim & Muafiyetler</span>
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "muhasebe"}
             className={`tab-btn ${activeTab === "muhasebe" ? "active" : ""}`}
             onClick={() => setActiveTab("muhasebe")}
           >
-            <CreditCard size={16} />
+            <CreditCard size={16} aria-hidden="true" />
             <span>4. Kayıt & Taksit Planı</span>
           </button>
         </div>
