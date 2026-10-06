@@ -106,12 +106,12 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
   // Distinct customer list for the customer filter dropdown
   const customerOptions = useMemo(() => {
     const set = new Set();
-    initialContracts.forEach((c) => {
+    contractsList.forEach((c) => {
       const name = (c.ogrenciAdi || c.musteriUnvan || "").trim();
       if (name) set.add(name);
     });
     return Array.from(set).sort();
-  }, [initialContracts]);
+  }, [contractsList]);
 
   // Filtered & Sorted contracts
   const filteredContracts = useMemo(() => {

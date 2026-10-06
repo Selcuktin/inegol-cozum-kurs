@@ -90,11 +90,11 @@ export default function EdesisTahsilatListesi({
   // Kasa / Banka seçenekleri
   const bankOptions = useMemo(() => {
     const set = new Set();
-    initialTahsilatlar.forEach((t) => {
+    tahsilatList.forEach((t) => {
       if (t.kasaBankaAdi) set.add(t.kasaBankaAdi);
     });
     return Array.from(set).sort();
-  }, [initialTahsilatlar]);
+  }, [tahsilatList]);
 
   // Filtreleme
   const filteredTahsilatlar = useMemo(() => {
