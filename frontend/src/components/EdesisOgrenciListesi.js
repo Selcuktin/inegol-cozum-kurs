@@ -684,7 +684,7 @@ export default function EdesisOgrenciListesi({
                       </td>
 
                       {/* 9. Veli */}
-                      <td style={{ padding: "5px 3px", width: "115px", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "5px 3px", width: "125px", whiteSpace: "nowrap" }}>
                         <div style={{ fontWeight: 600, fontSize: "10.5px", color: "#0f172a", display: "flex", alignItems: "center", gap: "3px" }}>
                           {s.parent_relation === "Baba" ? (
                             <span style={{ color: "#2563eb", fontWeight: 700 }} title="Baba">♂</span>
@@ -693,7 +693,23 @@ export default function EdesisOgrenciListesi({
                           ) : (
                             <span style={{ color: "#64748b", fontWeight: 700 }} title={s.parent_relation || "Veli"}>👤</span>
                           )}
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: "95px" }} title={s.parent_name}>{s.parent_name || "—"}</span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: "85px" }} title={s.parent_name}>{s.parent_name || "—"}</span>
+                          {s.extra_parent_count > 0 && (
+                            <span
+                              style={{
+                                marginLeft: "2px",
+                                padding: "0 4px",
+                                fontSize: "8.5px",
+                                fontWeight: 700,
+                                borderRadius: "8px",
+                                background: "#dbeafe",
+                                color: "#1d4ed8"
+                              }}
+                              title={`Diğer Veli: ${s.secondary_parent_name} (${s.secondary_parent_relation}) ${s.secondary_parent_phone}`}
+                            >
+                              +{s.extra_parent_count}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: "9px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
                           <span>{s.parent_phone || "—"}</span>
