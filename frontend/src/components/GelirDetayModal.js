@@ -27,6 +27,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import edesisData from "../data/edesisAccountingData.json";
+import AccountingService from "../lib/edesisAccountingService";
 import { ReceiptModal } from "./ReceiptModal";
 
 // Para birimi formatlayıcı (₺50.000,00)
@@ -74,6 +75,16 @@ export function GelirDetayModal({
   const [showClassificationModal, setShowClassificationModal] = useState(false);
   const [customCategory, setCustomCategory] = useState(null);
   const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(false);
+
+  // Hızlı Tahsilat Ekle (Kısmi Ödeme) ve Tahsilat Geçmişi State'leri
+  const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [customPayments, setCustomPayments] = useState([]);
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState("Banka Transferi");
+  const [payBank, setPayBank] = useState("T.C. VAKIFLAR BANKASI İNEGÖL ŞB.");
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [payNote, setPayNote] = useState("");
 
   // 1. İlgili Gelir / Sözleşme ve Taksit Verilerini Bul
   const accountingInfo = useMemo(() => {
@@ -174,6 +185,27 @@ export function GelirDetayModal({
     const remaining = Math.max(0, brut - collected);
     const progressPct = brut > 0 ? Math.min(100, Math.round((collected / brut) * 100)) : 0;
 
+    // Tahsilat Geçmişini Çek
+    const relatedTahsilatlar = allTahsilatlar.filter(th => 
+      (targetGelir?.id && th.muH_GelirV2Id === targetGelir.id) ||
+      (gCode && th.gelirKodu === gCode) ||
+      (szNo && (th.gelirAciklama?.includes(szNo) || th.aciklama?.includes(szNo))) ||
+      (stName && th.musteriUnvan && th.musteriUnvan.toUpperCase().includes(stName.toUpperCase()))
+    );
+
+    if (relatedTahsilatlar.length === 0 && collected > 0) {
+      relatedTahsilatlar.push({
+        id: `THS-${gCode}-01`,
+        odemeKodu: `ODM-${szNo}-01`,
+        tahsilatTutari: collected,
+        tahsilatTarihi: targetGelir?.gelirTarihi || "2026-10-01T10:00:00",
+        kasaBankaAdi: "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
+        aciklama: `1. taksit tahsilatı - ${stName}`,
+        taksitNo: 1,
+        durumText: "Aktif"
+      });
+    }
+
     // Sonraki vadesi gelen taksit
     const nextPending = taksitler.find(t => (t.kalanTutar || t.taksitTutari - (t.tahsilEdilen || 0)) > 0);
 
@@ -181,6 +213,7 @@ export function GelirDetayModal({
       targetGelir,
       targetSozlesme,
       taksitler,
+      relatedTahsilatlar,
       gCode,
       szNo,
       stName,
@@ -227,8 +260,39 @@ export function GelirDetayModal({
     vadeTarihi,
     sozlesmeTarihi,
     taksitSayisi,
-    taksitler
+    taksitler,
+    targetSozlesme
   } = accountingInfo;
+
+  // Dinamik / Anlık Tahsilat ve Kalan Hesaplamaları
+  const extraCollected = customPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+  const effectiveCollected = collected + extraCollected;
+  const effectiveRemaining = Math.max(0, brut - effectiveCollected);
+  const effectiveProgressPct = brut > 0 ? Math.min(100, Math.round((effectiveCollected / brut) * 100)) : 0;
+
+  // Yeni tahsilatları taksitlere yansıt
+  let pool = extraCollected;
+  const displayTaksitler = (taksitler || []).map(t => {
+    const origRem = t.kalanTutar !== undefined ? t.kalanTutar : Math.max(0, t.taksitTutari - (t.tahsilEdilen || 0));
+    if (origRem <= 0 || pool <= 0) return t;
+    const apply = Math.min(origRem, pool);
+    pool -= apply;
+    const newPaid = (t.tahsilEdilen || 0) + apply;
+    const newRem = origRem - apply;
+    return {
+      ...t,
+      tahsilEdilen: newPaid,
+      kalanTutar: newRem,
+      durum: newRem === 0 ? 1 : 0,
+      durumText: newRem === 0 ? "Tam Ödendi" : (apply > 0 ? "Kısmi Ödendi" : t.durumText),
+      sonTahsilatTarihi: new Date().toISOString()
+    };
+  });
+
+  const displayNextPending = displayTaksitler.find(t => (t.kalanTutar || t.taksitTutari - (t.tahsilEdilen || 0)) > 0);
+
+  // Tüm Tahsilat Geçmişi (Edesis + Yeni Eklenenler)
+  const allHistory = [...customPayments, ...(accountingInfo.relatedTahsilatlar || [])];
 
   const handlePrint = () => {
     window.print();
@@ -253,17 +317,85 @@ export function GelirDetayModal({
     setTimeout(() => setCopiedLink(false), 3000);
   };
 
-  const handleOpenReceipt = (taksit) => {
-    setReceiptPayment({
-      id: `rcp-${gCode}-${taksit.taksitNo}`,
+  // Hızlı Tahsilat Ekle Modalını Aç (Kısmi veya Tam Ödeme)
+  const handleOpenAddPayment = (prefillTaksit = null) => {
+    const defaultAmt = prefillTaksit 
+      ? (prefillTaksit.kalanTutar || prefillTaksit.taksitTutari) 
+      : (displayNextPending ? (displayNextPending.kalanTutar || displayNextPending.taksitTutari) : effectiveRemaining);
+    setPayAmount(defaultAmt ? String(defaultAmt) : "5000");
+    setPayDate(new Date().toISOString().slice(0, 10));
+    setPayMethod("Banka Transferi");
+    setPayBank("T.C. VAKIFLAR BANKASI İNEGÖL ŞB.");
+    const instNo = prefillTaksit?.taksitNo || displayNextPending?.taksitNo || 1;
+    setPayNote(`${szNo} nolu sözleşme ${instNo}. taksit tahsilatı`);
+    setShowAddPaymentModal(true);
+  };
+
+  // Tahsilatı Kaydet ve İsteğe Göre Makbuzu Aç
+  const handleSaveAddPayment = (andPrintReceipt = false) => {
+    const numAmt = Number(payAmount);
+    if (!numAmt || numAmt <= 0) {
+      alert("Lütfen geçerli bir tahsilat tutarı giriniz.");
+      return;
+    }
+    const newPay = {
+      id: `THS-${Date.now().toString().slice(-6)}`,
+      odemeKodu: `ODM2026${Date.now().toString().slice(-7)}`,
       student_id: student?.id || `stu-${gCode}`,
       student_name: stName,
       student_class: stClass,
-      amount: taksit.tahsilEdilen || taksit.taksitTutari,
-      method: "Banka Transferi",
-      bank: "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
-      payment_date: taksit.sonTahsilatTarihi ? taksit.sonTahsilatTarihi.slice(0, 10) : new Date().toISOString().slice(0, 10),
-      note: `${szNo} nolu sözleşme ${taksit.taksitNo}. taksit tahsilatı`,
+      parent_name: targetSozlesme?.veliAdi || student?.parent_name || stName,
+      parent_phone: stPhone,
+      amount: numAmt,
+      tahsilatTutari: numAmt,
+      method: payMethod,
+      bank: payBank,
+      kasaBankaAdi: payBank,
+      payment_date: payDate,
+      tahsilatTarihi: `${payDate}T${new Date().toTimeString().slice(0, 8)}`,
+      note: payNote || `${szNo} nolu sözleşme tahsilatı`,
+      aciklama: payNote || `${szNo} nolu sözleşme tahsilatı`,
+      taksitNo: displayNextPending?.taksitNo || 1,
+      durumText: "Aktif",
+      created_at: new Date().toISOString()
+    };
+
+    setCustomPayments(prev => [newPay, ...prev]);
+    if (onRecordPayment) onRecordPayment(newPay);
+
+    AccountingService.recordCollection({
+      gelirKodu: gCode,
+      sozlesmeNo: szNo,
+      amount: numAmt,
+      bank: payBank,
+      method: payMethod,
+      note: payNote || `${szNo} nolu sözleşme tahsilatı`,
+      studentName: stName
+    });
+
+    setShowAddPaymentModal(false);
+
+    if (andPrintReceipt) {
+      setReceiptPayment(newPay);
+    }
+  };
+
+  // Makbuz Modalını Aç (İlgili taksit veya geçmiş tahsilat satırı için)
+  const handleOpenReceipt = (item) => {
+    const amt = item.tahsilatTutari || item.tahsilEdilen || item.amount || item.taksitTutari || 5000;
+    const pDate = item.tahsilatTarihi ? item.tahsilatTarihi.slice(0, 10) : (item.payment_date || new Date().toISOString().slice(0, 10));
+    setReceiptPayment({
+      id: item.odemeKodu || item.id || `rcp-${gCode}-${item.taksitNo || 1}`,
+      student_id: student?.id || `stu-${gCode}`,
+      student_name: stName,
+      student_class: stClass,
+      parent_name: targetSozlesme?.veliAdi || student?.parent_name || stName,
+      parent_phone: stPhone,
+      amount: amt,
+      method: item.method || item.odemeYontemiText || "Banka Transferi",
+      bank: item.kasaBankaAdi || item.bank || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
+      payment_date: pDate,
+      note: item.aciklama || item.note || `${szNo} nolu sözleşme ${item.taksitNo ? item.taksitNo + '. taksit ' : ''}tahsilatı`,
       created_at: new Date().toISOString()
     });
   };
@@ -272,7 +404,7 @@ export function GelirDetayModal({
     const cleanPhone = (stPhone || "").replace(/\D/g, "");
     const targetPhone = cleanPhone.startsWith("90") ? cleanPhone : (cleanPhone.startsWith("0") ? "9" + cleanPhone : "90" + cleanPhone);
     const msg = encodeURIComponent(
-      `Sayın Velimiz,\n${stName} isimli öğrencimizin Özel İnegöl Çözüm Kurs Merkezi ${szNo} nolu sözleşmesine ait kalan borç tutarı ${fmtTRY(remaining)}'dir.\nBir sonraki taksit vadesi: ${nextPending ? fmtDate(nextPending.vadeTarihi) : vadeTarihi}.\nBilgilerinize sunarız.`
+      `Sayın Velimiz,\n${stName} isimli öğrencimizin Özel İnegöl Çözüm Kurs Merkezi ${szNo} nolu sözleşmesine ait kalan borç tutarı ${fmtTRY(effectiveRemaining)}'dir.\nBir sonraki taksit vadesi: ${displayNextPending ? fmtDate(displayNextPending.vadeTarihi) : vadeTarihi}.\nBilgilerinize sunarız.`
     );
     window.open(`https://api.whatsapp.com/send?phone=${targetPhone}&text=${msg}`, "_blank");
   };
@@ -573,7 +705,7 @@ export function GelirDetayModal({
                       </tr>
                     </thead>
                     <tbody>
-                      {taksitler.map((t, idx) => {
+                      {displayTaksitler.map((t, idx) => {
                         const isPaid = (t.kalanTutar === 0 || t.durum === 2 || t.durumText === "Tam Ödendi");
                         const isPartial = !isPaid && (t.tahsilEdilen > 0);
                         const isOverdue = !isPaid && (new Date(t.vadeTarihi) < new Date());
@@ -633,8 +765,8 @@ export function GelirDetayModal({
                               <div className="flex items-center justify-center gap-1" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "4px" }}>
                                 {!isPaid && (
                                   <button
-                                    onClick={() => handleOpenReceipt(t)}
-                                    title="Hızlı Tahsilat Yap"
+                                    onClick={() => handleOpenAddPayment(t)}
+                                    title="Hızlı Tahsilat Yap (Kısmi Ödeme & Makbuz)"
                                     className="p-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-colors"
                                     style={{ border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb", borderRadius: "4px", padding: "3px 6px", cursor: "pointer" }}
                                   >
@@ -643,7 +775,7 @@ export function GelirDetayModal({
                                 )}
                                 <button
                                   onClick={() => handleOpenReceipt(t)}
-                                  title="Makbuz & Yazdır"
+                                  title="Resmî Makbuz & Yazdır"
                                   className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                                   style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: "3px" }}
                                 >
@@ -731,7 +863,7 @@ export function GelirDetayModal({
                     Kalan Tahsil Edilecek
                   </span>
                   <span className="text-lg font-bold text-rose-600" style={{ fontSize: "18px", fontWeight: 800, color: "#e11d48" }}>
-                    {fmtTRY(remaining)}
+                    {fmtTRY(effectiveRemaining)}
                   </span>
                 </div>
 
@@ -739,19 +871,19 @@ export function GelirDetayModal({
                 <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden my-3 relative" style={{ width: "100%", height: "10px", background: "#f1f5f9", borderRadius: "9999px", margin: "10px 0" }}>
                   <div 
                     className="bg-amber-400 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${progressPct}%`, background: "#f59e0b", height: "100%", borderRadius: "9999px" }}
+                    style={{ width: `${effectiveProgressPct}%`, background: "#f59e0b", height: "100%", borderRadius: "9999px" }}
                   />
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-slate-600 mb-2" style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#475569" }}>
-                  <span>{fmtTRY(collected)} / {fmtTRY(brut)}</span>
-                  <span className="font-semibold text-slate-800">%{progressPct}</span>
+                  <span>{fmtTRY(effectiveCollected)} / {fmtTRY(brut)}</span>
+                  <span className="font-semibold text-slate-800">%{effectiveProgressPct}</span>
                 </div>
 
-                {nextPending && (
+                {displayNextPending && (
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs" style={{ borderTop: "1px solid #f1f5f9", paddingTop: "8px", display: "flex", justifyContent: "space-between", fontSize: "11px" }}>
-                    <span className="text-slate-500">Sonraki: {fmtDate(nextPending.vadeTarihi)}</span>
-                    <span className="font-bold text-slate-800">{fmtTRY(nextPending.taksitTutari)}</span>
+                    <span className="text-slate-500">Sonraki: {fmtDate(displayNextPending.vadeTarihi)}</span>
+                    <span className="font-bold text-slate-800">{fmtTRY(displayNextPending.kalanTutar || displayNextPending.taksitTutari)}</span>
                   </div>
                 )}
               </div>
@@ -768,18 +900,19 @@ export function GelirDetayModal({
 
                 <div className="flex flex-col gap-2">
                   <button
-                    onClick={() => handleOpenReceipt(taksitler[0] || { taksitNo: 1, taksitTutari: 5500 })}
+                    onClick={() => handleOpenAddPayment()}
                     className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-lg border border-slate-200 flex items-center gap-2.5 transition-colors"
                     style={{ width: "100%", padding: "8px 12px", fontSize: "12px", fontWeight: 600, border: "1px solid #e2e8f0", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                   >
-                    <Plus size={14} className="text-blue-600" /> Tahsilat Ekle
+                    <Plus size={14} className="text-blue-600" /> Tahsilat Ekle (Kısmi Ödeme)
                   </button>
 
                   <button
+                    onClick={() => setShowHistoryModal(true)}
                     className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-lg border border-slate-200 flex items-center gap-2.5 transition-colors"
                     style={{ width: "100%", padding: "8px 12px", fontSize: "12px", fontWeight: 600, border: "1px solid #e2e8f0", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                   >
-                    <History size={14} className="text-indigo-600" /> Tahsilat Geçmişi
+                    <History size={14} className="text-indigo-600" /> Tahsilat Geçmişi ({allHistory.length})
                   </button>
 
                   <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-100 text-xs" style={{ background: "#fffbeb", border: "1px solid #fef3c7", padding: "10px", borderRadius: "8px" }}>
@@ -949,6 +1082,17 @@ export function GelirDetayModal({
           isOpen={true}
           onClose={() => setReceiptPayment(null)}
           payment={receiptPayment}
+          student={{
+            id: student?.id || `stu-${gCode}`,
+            student_name: stName,
+            student_class: stClass,
+            student_tc: stTc,
+            student_phone: stPhone,
+            parent_name: targetSozlesme?.veliAdi || student?.parent_name || stName,
+            parent_phone: stPhone,
+            total_fee: brut,
+            paid_amount: effectiveCollected
+          }}
         />
       )}
 
@@ -1108,9 +1252,9 @@ export function GelirDetayModal({
 
             <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: "10px 14px", borderRadius: "8px", fontSize: "12px", marginBottom: "16px" }}>
               <span>Toplam: <b>{fmtTRY(brut)}</b></span>
-              <span>Tahsil Edilen: <b style={{ color: "#16a34a" }}>{fmtTRY(collected)}</b></span>
-              <span>Kalan Bakiye: <b style={{ color: "#b45309" }}>{fmtTRY(remaining)}</b></span>
-              <span>Taksit Adedi: <b>{taksitler.length}</b></span>
+              <span>Tahsil Edilen: <b style={{ color: "#16a34a" }}>{fmtTRY(effectiveCollected)}</b></span>
+              <span>Kalan Bakiye: <b style={{ color: "#b45309" }}>{fmtTRY(effectiveRemaining)}</b></span>
+              <span>Taksit Adedi: <b>{displayTaksitler.length}</b></span>
             </div>
 
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
@@ -1125,13 +1269,13 @@ export function GelirDetayModal({
                 </tr>
               </thead>
               <tbody>
-                {taksitler.map((t) => (
+                {displayTaksitler.map((t) => (
                   <tr key={t.id || t.taksitNo} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: "8px 10px", fontWeight: 600 }}>{t.taksitNo}. Taksit</td>
                     <td style={{ padding: "8px 10px" }}>{fmtDate(t.vadeTarihi)}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600 }}>{fmtTRY(t.taksitTutari)}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right", color: "#16a34a" }}>{fmtTRY(t.tahsilEdilen || 0)}</td>
-                    <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600 }}>{fmtTRY(t.kalanTutar)}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600 }}>{fmtTRY(t.kalanTutar !== undefined ? t.kalanTutar : (t.taksitTutari - (t.tahsilEdilen || 0)))}</td>
                     <td style={{ padding: "8px 10px", textAlign: "center" }}>
                       <span
                         style={{
@@ -1163,6 +1307,425 @@ export function GelirDetayModal({
                 type="button"
                 onClick={() => setShowPaymentPlanModal(false)}
                 style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, color: "#475569", cursor: "pointer" }}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HIZLI TAHSİLAT GİRİŞİ & KISMİ ÖDEME MODALI */}
+      {showAddPaymentModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100060,
+            padding: "16px"
+          }}
+          onClick={() => setShowAddPaymentModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#ffffff",
+              borderRadius: "14px",
+              maxWidth: "540px",
+              width: "100%",
+              maxHeight: "92vh",
+              overflowY: "auto",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)",
+              display: "flex",
+              flexDirection: "column"
+            }}
+          >
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#eff6ff", color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Plus size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
+                    Tahsilat Ekle & Makbuz Düzenle
+                  </h3>
+                  <div style={{ fontSize: "12px", color: "#64748b" }}>
+                    {stName} · {szNo}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddPaymentModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ padding: "20px" }}>
+              {/* Finansal Durum Şeridi */}
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Toplam Ücret</div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#1e293b" }}>{fmtTRY(brut)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "11px", color: "#166534", textTransform: "uppercase", fontWeight: 600 }}>Tahsil Edilen</div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#16a34a" }}>{fmtTRY(effectiveCollected)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "11px", color: "#b45309", textTransform: "uppercase", fontWeight: 600 }}>Kalan Bakiye</div>
+                  <div style={{ fontSize: "15px", fontWeight: 800, color: "#e11d48" }}>{fmtTRY(effectiveRemaining)}</div>
+                </div>
+              </div>
+
+              {/* Tutar Girişi (Büyük, Doğrudan Para Girme Alanı) */}
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: "#0f172a", marginBottom: "6px" }}>
+                  Tahsil Edilecek Tutar (TL) <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <span style={{ position: "absolute", left: "14px", fontSize: "18px", fontWeight: 700, color: "#2563eb" }}>₺</span>
+                  <input
+                    type="number"
+                    step="any"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    placeholder="0.00"
+                    autoFocus
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px 10px 32px",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      color: "#1e3a8a",
+                      border: "2px solid #3b82f6",
+                      borderRadius: "8px",
+                      outline: "none",
+                      boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.15)"
+                    }}
+                  />
+                </div>
+                
+                {/* Hızlı Tutar Seçim Hapları (Kısmi Ödeme Seçenekleri) */}
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
+                  {displayNextPending && (
+                    <button
+                      type="button"
+                      onClick={() => setPayAmount(String(displayNextPending.kalanTutar || displayNextPending.taksitTutari))}
+                      style={{ padding: "4px 8px", background: "#eff6ff", border: "1px solid #bfdbfe", color: "#2563eb", borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
+                    >
+                      {displayNextPending.taksitNo}. Taksit: {fmtTRY(displayNextPending.kalanTutar || displayNextPending.taksitTutari)}
+                    </button>
+                  )}
+                  {effectiveRemaining > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPayAmount(String(effectiveRemaining))}
+                      style={{ padding: "4px 8px", background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Kalanın Tümü: {fmtTRY(effectiveRemaining)}
+                    </button>
+                  )}
+                  {effectiveRemaining > 2000 && (
+                    <button
+                      type="button"
+                      onClick={() => setPayAmount(String(Math.round(effectiveRemaining / 2)))}
+                      style={{ padding: "4px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#475569", borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Yarısı (%50)
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPayAmount("5000")}
+                    style={{ padding: "4px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#475569", borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    ₺5.000
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPayAmount("10000")}
+                    style={{ padding: "4px 8px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#475569", borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    ₺10.000
+                  </button>
+                </div>
+                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "5px" }}>
+                  💡 Kısmi ödeme yapabilirsiniz; girilen tutar sıradaki taksitlerden düşülecek ve makbuza işlenecektir.
+                </div>
+              </div>
+
+              {/* Kasa / Banka Hesabı Seçimi */}
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                  Giriş Yapılacak Kasa / Banka Hesabı
+                </label>
+                <select
+                  value={payBank}
+                  onChange={(e) => setPayBank(e.target.value)}
+                  style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
+                >
+                  <option value="T.C. VAKIFLAR BANKASI İNEGÖL ŞB.">T.C. VAKIFLAR BANKASI İNEGÖL ŞB. (TR04...)</option>
+                  <option value="T.C. HALKBANK İNEGÖL ŞB.">T.C. HALKBANK İNEGÖL ŞB. (TR87...)</option>
+                  <option value="NEVİN ÇAKMAK BİREYSEL">NEVİN ÇAKMAK BİREYSEL (Nakit / EFT)</option>
+                  <option value="Nakit Ana Kasa">Nakit Ana Kasa</option>
+                  <option value="POS / Kredi Kartı Kasası">POS / Kredi Kartı Kasası</option>
+                  <option value="Senet / Portföy">Senet / Portföy</option>
+                </select>
+              </div>
+
+              {/* Ödeme Türü & Tarih */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                    Ödeme Yöntemi
+                  </label>
+                  <select
+                    value={payMethod}
+                    onChange={(e) => setPayMethod(e.target.value)}
+                    style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
+                  >
+                    <option value="Banka Transferi">Banka Transferi / EFT</option>
+                    <option value="Nakit">Nakit (Elden)</option>
+                    <option value="POS / Kredi Kartı">POS / Kredi Kartı</option>
+                    <option value="Senet">Senet / Bono</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                    Tahsilat Tarihi
+                  </label>
+                  <input
+                    type="date"
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
+                  />
+                </div>
+              </div>
+
+              {/* Açıklama / Makbuz Notu */}
+              <div style={{ marginBottom: "20px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                  Açıklama / Makbuz Notu
+                </label>
+                <input
+                  type="text"
+                  value={payNote}
+                  onChange={(e) => setPayNote(e.target.value)}
+                  placeholder="Açıklama..."
+                  style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
+                />
+              </div>
+
+              {/* Aksiyon Butonları */}
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddPaymentModal(false)}
+                  style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 600, color: "#475569", cursor: "pointer" }}
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveAddPayment(false)}
+                  style={{ padding: "8px 16px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "12px", fontWeight: 600, color: "#334155", cursor: "pointer" }}
+                >
+                  Sadece Kaydet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveAddPayment(true)}
+                  style={{ padding: "8px 18px", background: "#2563eb", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 700, color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                >
+                  <Printer size={15} /> Kaydet & Makbuz Bas
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAHSİLAT GEÇMİŞİ & MAKBUZ ARŞİVİ MODALI */}
+      {showHistoryModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100060,
+            padding: "16px"
+          }}
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#ffffff",
+              borderRadius: "14px",
+              maxWidth: "780px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)",
+              display: "flex",
+              flexDirection: "column"
+            }}
+          >
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#e0e7ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <History size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
+                    Tahsilat Geçmişi & Makbuz Arşivi
+                  </h3>
+                  <div style={{ fontSize: "12px", color: "#64748b" }}>
+                    {stName} · {szNo} ({gCode})
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => { setShowHistoryModal(false); handleOpenAddPayment(); }}
+                  style={{ padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                >
+                  <Plus size={13} /> + Yeni Tahsilat Ekle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div style={{ padding: "20px" }}>
+              {/* Özet Kartları */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "16px" }}>
+                <div style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "10.5px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Sözleşme Tutarı</div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#1e293b" }}>{fmtTRY(brut)}</div>
+                </div>
+                <div style={{ background: "#f0fdf4", padding: "10px 12px", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
+                  <div style={{ fontSize: "10.5px", color: "#166534", textTransform: "uppercase", fontWeight: 600 }}>Toplam Tahsilat</div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#16a34a" }}>{fmtTRY(effectiveCollected)}</div>
+                </div>
+                <div style={{ background: "#fff1f2", padding: "10px 12px", borderRadius: "8px", border: "1px solid #fecdd3" }}>
+                  <div style={{ fontSize: "10.5px", color: "#be123c", textTransform: "uppercase", fontWeight: 600 }}>Kalan Alacak</div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#e11d48" }}>{fmtTRY(effectiveRemaining)}</div>
+                </div>
+                <div style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "10.5px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>Tahsilat Adedi</div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>{allHistory.length} Kayıt</div>
+                </div>
+              </div>
+
+              {/* Tahsilat Tablosu */}
+              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", margin: 0 }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9", color: "#475569", textAlign: "left" }}>
+                      <th style={{ padding: "10px 12px" }}>Tarih</th>
+                      <th style={{ padding: "10px 12px" }}>Makbuz / İşlem No</th>
+                      <th style={{ padding: "10px 12px" }}>Hesap / Kasa</th>
+                      <th style={{ padding: "10px 12px" }}>Açıklama</th>
+                      <th style={{ padding: "10px 12px", textAlign: "right" }}>Tahsil Tutarı</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center" }}>İşlem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allHistory.map((item, idx) => {
+                      const tDate = item.tahsilatTarihi ? item.tahsilatTarihi.slice(0, 10) : (item.payment_date || "2026-10-01");
+                      const tAmt = Number(item.tahsilatTutari || item.amount || 0);
+                      const tCode = item.odemeKodu || item.id || `THS-${idx + 1}`;
+                      const tAccount = item.kasaBankaAdi || item.bank || item.method || "VakıfBank";
+                      const tNote = item.aciklama || item.note || `${szNo} nolu sözleşme tahsilatı`;
+
+                      return (
+                        <tr key={item.id || idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "9px 12px", whiteSpace: "nowrap", fontWeight: 600, color: "#334155" }}>
+                            {fmtDate(tDate)}
+                          </td>
+                          <td style={{ padding: "9px 12px", whiteSpace: "nowrap" }}>
+                            <span style={{ fontFamily: "monospace", fontSize: "11px", background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", color: "#475569" }}>
+                              {tCode}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 12px", whiteSpace: "nowrap" }}>
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#1e40af", background: "#eff6ff", padding: "2px 6px", borderRadius: "4px" }}>
+                              {tAccount}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 12px", color: "#64748b", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={tNote}>
+                            {tNote}
+                          </td>
+                          <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
+                            <b style={{ color: "#16a34a", fontSize: "13px" }}>
+                              +{fmtTRY(tAmt)}
+                            </b>
+                          </td>
+                          <td style={{ padding: "9px 12px", textAlign: "center", whiteSpace: "nowrap" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleOpenReceipt(item);
+                              }}
+                              style={{ padding: "3px 8px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "4px", fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                            >
+                              <Printer size={12} /> Makbuz Bas
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {allHistory.length === 0 && (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: "center", padding: "32px 16px", color: "#64748b" }}>
+                          <div style={{ marginBottom: "8px", fontSize: "13px" }}>Bu sözleşmeye ait kayıtlı tahsilat bulunmamaktadır.</div>
+                          <button
+                            type="button"
+                            onClick={() => { setShowHistoryModal(false); handleOpenAddPayment(); }}
+                            style={{ padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                          >
+                            + İlk Tahsilatı Ekle
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(false)}
+                style={{ padding: "6px 16px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, color: "#475569", cursor: "pointer" }}
               >
                 Kapat
               </button>

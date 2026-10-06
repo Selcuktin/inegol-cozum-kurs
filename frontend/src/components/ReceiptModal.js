@@ -1,12 +1,13 @@
-import React from "react";
-import { Printer, X, Receipt, CheckCircle2 } from "lucide-react";
+import React, { useState } from "react";
+import { Printer, X, Receipt, CheckCircle2, Edit3 } from "lucide-react";
 import { numberToTurkishWords } from "./PromissoryNoteModal";
 
 export function ReceiptModal({ payment, student, onClose }) {
+  const [editableAmount, setEditableAmount] = useState(() => Number(payment?.amount || 0));
   if (!payment) return null;
 
   const LOGO = "/assets/logo.jpeg";
-  const amount = Number(payment.amount || 0);
+  const amount = editableAmount;
   const amountWords = numberToTurkishWords(amount);
   const paymentDate = payment.payment_date 
     ? new Date(payment.payment_date).toLocaleDateString("tr-TR") 
@@ -19,7 +20,8 @@ export function ReceiptModal({ payment, student, onClose }) {
   } catch {}
   const discount = Number(student?.discount_amount) || 0;
   const totalFee = Math.max(0, (Number(student?.total_fee) || 0) + extraSum - discount);
-  const paidAmount = Number(student?.paid_amount || amount);
+  const basePaid = Number(student?.paid_amount || 0);
+  const paidAmount = basePaid > 0 ? (basePaid - Number(payment.amount || 0) + amount) : amount;
   const remaining = Math.max(0, totalFee - paidAmount);
 
   return (
@@ -45,6 +47,62 @@ export function ReceiptModal({ payment, student, onClose }) {
         </div>
 
         <div className="modal-body" style={{ overflowY: "auto", padding: "24px", background: "#f8fafc" }}>
+          {/* HIZLI TUTAR DÜZENLEME & KISMİ ÖDEME BARI (Ekranda görünür, yazdırmada gizlenir) */}
+          <div 
+            className="no-print" 
+            style={{ 
+              marginBottom: "16px", 
+              background: "#eff6ff", 
+              border: "1px solid #bfdbfe", 
+              borderRadius: "8px", 
+              padding: "10px 14px", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "space-between", 
+              flexWrap: "wrap", 
+              gap: "10px" 
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <Edit3 size={15} color="#2563eb" />
+              <span style={{ fontSize: "12px", fontWeight: "700", color: "#1e40af" }}>
+                Tahsilat Tutarı (Kısmi Ödeme):
+              </span>
+              <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                <span style={{ position: "absolute", left: "8px", fontWeight: "700", color: "#2563eb", fontSize: "13px" }}>₺</span>
+                <input 
+                  type="number"
+                  step="any"
+                  value={editableAmount || ""}
+                  onChange={(e) => setEditableAmount(Number(e.target.value) || 0)}
+                  placeholder="0.00"
+                  style={{ 
+                    width: "140px", 
+                    padding: "5px 8px 5px 22px", 
+                    fontSize: "14px", 
+                    fontWeight: "700", 
+                    border: "2px solid #3b82f6", 
+                    borderRadius: "6px", 
+                    color: "#1e3a8a", 
+                    background: "#ffffff" 
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>
+                (Kısmi ödemeler için tutarı doğrudan değiştirebilirsiniz)
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button 
+                type="button" 
+                onClick={() => setEditableAmount(Number(payment.amount || 0))} 
+                className="btn small secondary" 
+                style={{ fontSize: "11px", padding: "4px 8px" }}
+              >
+                İlk Tutar ({Number(payment.amount || 0).toLocaleString("tr-TR")} ₺)
+              </button>
+            </div>
+          </div>
           <div 
             className="receipt-sheet"
             style={{

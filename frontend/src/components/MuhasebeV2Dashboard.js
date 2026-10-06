@@ -51,7 +51,10 @@ import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { GelirDetayModal } from "./GelirDetayModal";
 import { EdesisMuhasebeDashboard } from "./EdesisMuhasebeDashboard";
 import EdesisGelirListesi from "./EdesisGelirListesi";
+import EdesisVadeTakvimi from "./EdesisVadeTakvimi";
+import EdesisTahsilatListesi from "./EdesisTahsilatListesi";
 import edesisData from "../data/edesisAccountingData.json";
+import AccountingService from "../lib/edesisAccountingService";
 
 const CANCELLED_STUDENT_NAMES = [
   "SERHAT SERBEST",
@@ -203,8 +206,14 @@ export function MuhasebeV2Dashboard({
   activeTab: propActiveTab,
   onTabChange
 }) {
-  const [internalTab, setInternalTab] = useState("gelirler");
+  const [internalTab, setInternalTab] = useState(propActiveTab || "dashboard");
   const [statusQuickFilter, setStatusQuickFilter] = useState("all"); // 'all' | 'paid' | 'unpaid' | 'overdue'
+
+  useEffect(() => {
+    if (propActiveTab !== undefined) {
+      setInternalTab(propActiveTab);
+    }
+  }, [propActiveTab]);
 
   // Backup state
   const [backups, setBackups] = useState([]);
@@ -297,6 +306,13 @@ export function MuhasebeV2Dashboard({
   const [payLoading, setPayLoading] = useState(false);
 
   const [periodFilter, setPeriodFilter] = useState("2026-2027"); // '2026-2027' (Edesis Standart) | 'all'
+  const [accountingVersion, setAccountingVersion] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => setAccountingVersion((v) => v + 1);
+    window.addEventListener("cozum_accounting_updated", handleUpdate);
+    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
+  }, []);
 
   const allStudents = useMemo(() => data.students || [], [data.students]);
   const students = useMemo(() => {
@@ -319,10 +335,31 @@ export function MuhasebeV2Dashboard({
   // Gerçek Edesis Üretim Verisi Ayrımı (Büyük kurum veri tabanı vs test mock)
   const isRealEdesisData = allStudents.length > 20;
 
+  // Ekstra eklenen gelirler ve tahsilatların canlı KPI katkısı (Taksit bölme ve gelir eklemeler anında yansısın)
+  const extraStats = useMemo(() => {
+    const allIncomes = AccountingService.getIncomes();
+    const customIncomes = allIncomes.filter(g => g.id > 1700000000000);
+    const relevantIncomes = periodFilter === "2026-2027"
+      ? customIncomes.filter(g => g.donemId === 113 || g.donemAdi === "2026-2027")
+      : customIncomes;
+
+    const extraGross = relevantIncomes.reduce((acc, g) => acc + (Number(g.brutTutar) || 0), 0);
+    const extraColl = relevantIncomes.reduce((acc, g) => acc + (Number(g.toplamTahsilat) || 0), 0);
+
+    const allCollections = AccountingService.getCollections();
+    const customCollections = allCollections.filter(c => c.id > 1700000000000);
+    const extraDirectColl = customCollections.reduce((acc, c) => acc + (Number(c.tahsilatTutari) || 0), 0);
+
+    return {
+      extraGross,
+      extraColl: Math.max(extraColl, extraDirectColl)
+    };
+  }, [accountingVersion, periodFilter]);
+
   // 1. ÖĞRENCİ GERÇEK TAKSİT PLANLARI HARİTASI (Edesis 662 Taksit Birebir Entegrasyonu)
   const studentPlansMap = useMemo(() => {
     const byName = {};
-    const rawTaksitler = edesisData?.taksitler || [];
+    const rawTaksitler = AccountingService.getInstallments() || [];
     rawTaksitler.forEach((t) => {
       const name = (t.ogrenciAdiSoyadi || t.musteriUnvan || "").trim().toUpperCase().replace(/\s+/g, " ");
       if (name) {
@@ -360,59 +397,52 @@ export function MuhasebeV2Dashboard({
       }
     });
     return map;
-  }, [students]);
+  }, [students, accountingVersion]);
 
-  // 2. ÜST FİNANSAL KPI HESAPLAMALARI (Edesis Muhasebe V2 Birebir Parite)
+  // 2. ÜST FİNANSAL KPI HESAPLAMALARI (Edesis Muhasebe V2 Birebir Parite + Canlı Senkronizasyon)
   const totalContractRevenue = useMemo(() => {
     if (isRealEdesisData) {
-      return periodFilter === "2026-2027" ? 4190138 : 5265917;
+      const baseRev = periodFilter === "2026-2027" ? 4190137.53 : 5265917;
+      return baseRev + extraStats.extraGross;
     }
     return students.reduce((sum, s) => sum + getEffectiveTotalFee(s), 0);
-  }, [students, isRealEdesisData, periodFilter]);
+  }, [students, isRealEdesisData, periodFilter, extraStats]);
 
   const totalCollected = useMemo(() => {
     if (isRealEdesisData) {
-      return periodFilter === "2026-2027" ? 468441 : 973340;
+      const baseColl = periodFilter === "2026-2027" ? 468441.18 : 973340;
+      return baseColl + extraStats.extraColl;
     }
     return payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  }, [payments, isRealEdesisData, periodFilter]);
+  }, [payments, isRealEdesisData, periodFilter, extraStats]);
 
   const totalExpenses = useMemo(() => {
     if (isRealEdesisData) {
-      return 100401;
+      return 100401.35;
     }
     return expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   }, [expenses, isRealEdesisData]);
 
   const totalRemaining = useMemo(() => {
-    if (isRealEdesisData) {
-      return periodFilter === "2026-2027" ? 3721696 : 4292577;
-    }
     return Math.max(0, totalContractRevenue - totalCollected);
-  }, [isRealEdesisData, periodFilter, totalContractRevenue, totalCollected]);
+  }, [totalContractRevenue, totalCollected]);
 
   const collectionRate = useMemo(() => {
-    if (isRealEdesisData) {
-      return periodFilter === "2026-2027" ? 11 : 18;
-    }
     return totalContractRevenue > 0 ? Math.round((totalCollected / totalContractRevenue) * 100) : 0;
-  }, [isRealEdesisData, periodFilter, totalContractRevenue, totalCollected]);
+  }, [totalContractRevenue, totalCollected]);
 
   const netCashBalance = useMemo(() => {
-    if (isRealEdesisData) {
-      return periodFilter === "2026-2027" ? 4089736 : 5165516;
-    }
     return Math.max(0, totalCollected - totalExpenses);
-  }, [isRealEdesisData, periodFilter, totalCollected, totalExpenses]);
+  }, [totalCollected, totalExpenses]);
 
   const profitMarginFormatted = useMemo(() => {
-    if (isRealEdesisData) {
+    if (isRealEdesisData && extraStats.extraGross === 0) {
       return periodFilter === "2026-2027" ? "97,6" : "98,1";
     }
     if (totalContractRevenue <= 0) return "0";
     const net = Math.max(0, totalCollected - totalExpenses);
     return String(Math.round((net / totalContractRevenue) * 100));
-  }, [isRealEdesisData, periodFilter, totalContractRevenue, totalCollected, totalExpenses]);
+  }, [isRealEdesisData, periodFilter, totalContractRevenue, totalCollected, totalExpenses, extraStats]);
 
   // GAP-1: Bu Ay Vadesi Gelenler (Cari Ay Taksit Tahakkuku)
   const dueThisMonthData = useMemo(() => {
@@ -648,6 +678,59 @@ export function MuhasebeV2Dashboard({
     ];
     const currentYear = new Date().getFullYear();
 
+    if (isRealEdesisData) {
+      const taksitlerByMonth = {};
+      const tahsilatlarByMonth = {};
+
+      const currentInstallments = AccountingService.getInstallments();
+      const currentCollections = AccountingService.getCollections();
+
+      currentInstallments.forEach((t) => {
+        const date = t.vadeTarihi || "";
+        if (date.startsWith("2026")) {
+          const m = parseInt(date.slice(5, 7), 10);
+          const amt = Number(t.toplamTutar || t.taksitTutari || 0);
+          taksitlerByMonth[m] = (taksitlerByMonth[m] || 0) + amt;
+        }
+      });
+
+      currentCollections.forEach((th) => {
+        const date = th.tahsilatTarihi || "";
+        if (date.startsWith("2026")) {
+          const m = parseInt(date.slice(5, 7), 10);
+          const amt = Number(th.tahsilatTutari || 0);
+          tahsilatlarByMonth[m] = (tahsilatlarByMonth[m] || 0) + amt;
+        }
+      });
+
+      (payments || []).forEach((p) => {
+        const date = p.payment_date || "";
+        if (date.startsWith("2026")) {
+          const m = parseInt(date.slice(5, 7), 10);
+          const amt = Number(p.amount || 0);
+          tahsilatlarByMonth[m] = (tahsilatlarByMonth[m] || 0) + amt;
+        }
+      });
+
+      return MONTH_NAMES.map((name, idx) => {
+        const m = idx + 1;
+        const monthNum = String(m).padStart(2, "0");
+        const monthPrefix = `2026-${monthNum}`;
+        const plan = taksitlerByMonth[m] || 0;
+        const gerceklesen = tahsilatlarByMonth[m] || 0;
+        const uyum = plan > 0 ? Math.min(100, Math.round((gerceklesen / plan) * 100)) : (gerceklesen > 0 ? 100 : 0);
+
+        return {
+          ay: name,
+          ayKod: monthPrefix,
+          plan: Math.round(plan),
+          planlanan: Math.round(plan),
+          gerceklesen: Math.round(gerceklesen),
+          uyum
+        };
+      });
+    }
+
     return MONTH_NAMES.map((name, idx) => {
       const monthNum = String(idx + 1).padStart(2, "0");
       const monthPrefix = `${currentYear}-${monthNum}`;
@@ -680,10 +763,30 @@ export function MuhasebeV2Dashboard({
         uyum
       };
     });
-  }, [students, studentPlansMap, payments]);
+  }, [students, studentPlansMap, payments, isRealEdesisData, accountingVersion]);
 
   // 5. GELİR KATEGORİLERİ & TAHSİLAT YÖNTEMLERİ DAĞILIMI (GAP-6)
   const incomeCategoryData = useMemo(() => {
+    const allIncomes = AccountingService.getIncomes();
+    if (isRealEdesisData && allIncomes?.length > 0) {
+      const catMap = {};
+      allIncomes.forEach((g) => {
+        const cat = g.gelirKategoriAdi || "Öğrenci Sözleşmesi";
+        const amt = Number(g.brutTutar || 0);
+        catMap[cat] = (catMap[cat] || 0) + amt;
+      });
+
+      const colors = ["#2563eb", "#16a34a", "#ca8a04", "#9333ea", "#ea580c"];
+      const total = Object.values(catMap).reduce((a, b) => a + b, 0) || 1;
+
+      return Object.entries(catMap).map(([name, val], idx) => ({
+        name,
+        value: Math.round(val),
+        color: colors[idx % colors.length],
+        pct: Math.round((val / total) * 100)
+      }));
+    }
+
     let sozlesme = 0;
     let kitap = 0;
     let dijital = 0;
@@ -712,9 +815,39 @@ export function MuhasebeV2Dashboard({
       { name: "Deneme Kulübü", value: dnm, color: "#9333ea", pct: Math.round((dnm / total) * 100) },
       { name: "Etüt & Özel Ders", value: ozelDers, color: "#ea580c", pct: Math.round((ozelDers / total) * 100) },
     ].filter(item => item.value > 0);
-  }, [students]);
+  }, [students, isRealEdesisData, accountingVersion]);
 
   const paymentMethodData = useMemo(() => {
+    const allCollections = AccountingService.getCollections();
+    if (isRealEdesisData && allCollections?.length > 0) {
+      const methodMap = {};
+      allCollections.forEach((th) => {
+        const rawKasa = th.kasaBankaAdi || "Diğer";
+        let name = rawKasa;
+        if (rawKasa.includes("BİREYSEL") || rawKasa.includes("BIREYSEL")) {
+          name = "Nevin Çakmak Bireysel (Nakit/EFT)";
+        } else if (rawKasa.includes("HALK")) {
+          name = "Halkbank Kurumsal";
+        } else if (rawKasa.includes("VAKIF")) {
+          name = "VakıfBank";
+        } else if (rawKasa.includes("KASA") || rawKasa.includes("NAKİT")) {
+          name = "Nakit Ana Kasa";
+        }
+        const amt = Number(th.tahsilatTutari || 0);
+        methodMap[name] = (methodMap[name] || 0) + amt;
+      });
+
+      const colors = ["#7c3aed", "#2563eb", "#16a34a", "#0284c7", "#f59e0b"];
+      const total = Object.values(methodMap).reduce((a, b) => a + b, 0) || 1;
+
+      return Object.entries(methodMap).map(([name, val], idx) => ({
+        name,
+        value: Math.round(val),
+        color: colors[idx % colors.length],
+        pct: Math.round((val / total) * 100)
+      }));
+    }
+
     const total = totalCollected || 1;
     return [
       { name: "Nakit Ana Kasa", value: registers.nakitInflow, color: "#ca8a04", pct: Math.round((registers.nakitInflow / total) * 100) },
@@ -723,7 +856,7 @@ export function MuhasebeV2Dashboard({
       { name: "Halkbank Havale", value: registers.halkbankInflow, color: "#2563eb", pct: Math.round((registers.halkbankInflow / total) * 100) },
       { name: "Senet / Bono", value: registers.senetInflow, color: "#7c3aed", pct: Math.round((registers.senetInflow / total) * 100) },
     ].filter(item => item.value > 0);
-  }, [registers, totalCollected]);
+  }, [registers, totalCollected, isRealEdesisData]);
 
   // Filtered Payments List (Kasalar Tab & Tahsilatlar Tab)
   const filteredPaymentsList = useMemo(() => {
@@ -754,11 +887,21 @@ export function MuhasebeV2Dashboard({
       });
   }, [payments, searchQuery, selectedRegisterFilter]);
 
+  const studentNameMap = useMemo(() => {
+    const map = new Map();
+    (allStudents || []).forEach((s) => {
+      if (s.id) map.set(String(s.id), s.student_name);
+      if (s.student_no) map.set(String(s.student_no), s.student_name);
+    });
+    return map;
+  }, [allStudents]);
+
   // Çift Yönlü Kasa & Banka Defteri (Tahsilatlar + Giderler)
   const allLedgerItems = useMemo(() => {
     const list = [];
     payments.forEach((p) => {
       const info = getPaymentAccountInfo(p);
+      const studentName = p.student_name || studentNameMap.get(String(p.student_id)) || "Öğrenci Kaydı";
       list.push({
         id: p.id,
         isInflow: true,
@@ -766,7 +909,7 @@ export function MuhasebeV2Dashboard({
         date: p.payment_date || "2026-10-02",
         accountKey: info.key,
         accountLabel: info.label,
-        party: p.student_name || "Öğrenci Kaydı",
+        party: studentName,
         description: p.note || "Taksit Ödemesi",
         amount: Number(p.amount || 0),
         rawPayment: p,
@@ -790,7 +933,7 @@ export function MuhasebeV2Dashboard({
     });
 
     return list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [payments, expenses]);
+  }, [payments, expenses, studentNameMap]);
 
   const filteredLedgerList = useMemo(() => {
     let running = 0;
@@ -1072,7 +1215,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("gecikenler")}
           style={{ fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "6px", color: activeTab === "gecikenler" ? "#fff" : "#dc2626" }}
         >
-          <AlertTriangle size={16} /> ⚠️ Vadesi Geçenler ({overdueStudents.length})
+          <Calendar size={16} /> 📅 Vade Takvimi ({edesisData.taksitler?.length || 662})
         </button>
         <button
           className={`btn ${activeTab === "kasalar" ? "" : "secondary"}`}
@@ -1086,7 +1229,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("tahsilatlar")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <Receipt size={16} /> 🧾 Tahsilat Geçmişi ({payments.length})
+          <Receipt size={16} /> 🧾 Tahsilat Listesi ({edesisData.tahsilatlar?.length || 159})
         </button>
         <button
           className={`btn ${activeTab === "giderler" ? "" : "secondary"}`}
@@ -1127,6 +1270,8 @@ export function MuhasebeV2Dashboard({
           incomeCategoryData={incomeCategoryData}
           paymentMethodData={paymentMethodData}
           totalCollected={totalCollected}
+          totalContractRevenue={totalContractRevenue}
+          totalRemaining={totalRemaining}
           collectionRate={collectionRate}
           totalOverdueDebt={totalOverdueDebt}
           overdueStudents={overdueStudents}
@@ -1196,59 +1341,65 @@ export function MuhasebeV2Dashboard({
             </div>
           </div>
 
-          {/* Kasa Hareketleri Tablosu (Çift Yönlü Defter & Responsive Yatay Kaydırma) */}
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "680px" }}>
+          {/* Kasa Hareketleri Tablosu (Çift Yönlü Defter & Tam Ekrana Sığan Tablo) */}
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", width: "100%", overflowX: "auto" }}>
+            <table className="data-table" style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", margin: 0, fontSize: "12.5px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
-                  <th>Tarih</th>
-                  <th>Hesap / Kasa</th>
-                  <th>Öğrenci / Alacaklı</th>
-                  <th>Açıklama / Not</th>
-                  <th style={{ textAlign: "right" }}>İşlem Tutarı</th>
-                  <th style={{ textAlign: "right" }}>Kasa Bakiyesi</th>
-                  <th style={{ textAlign: "right" }}>İşlem</th>
+                  <th style={{ width: "10%", padding: "10px 8px" }}>Tarih</th>
+                  <th style={{ width: "16%", padding: "10px 8px" }}>Hesap / Kasa</th>
+                  <th style={{ width: "18%", padding: "10px 8px" }}>Öğrenci / Alacaklı</th>
+                  <th style={{ width: "23%", padding: "10px 8px" }}>Açıklama / Not</th>
+                  <th style={{ width: "11%", padding: "10px 8px", textAlign: "right" }}>İşlem Tutarı</th>
+                  <th style={{ width: "11%", padding: "10px 8px", textAlign: "right" }}>Kasa Bakiyesi</th>
+                  <th style={{ width: "11%", padding: "10px 8px", textAlign: "center" }}>İşlem</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLedgerList.map((item, idx) => {
                   const bakiye = item.runningBalance;
                   return (
-                    <tr key={item.id || idx}>
-                      <td><b style={{ color: "#475569" }}>{item.date ? item.date.slice(0, 10) : "2026-10-02"}</b></td>
-                      <td>
+                    <tr key={item.id || idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>
+                        <b style={{ color: "#475569" }}>{item.date ? item.date.slice(0, 10) : "2026-10-02"}</b>
+                      </td>
+                      <td style={{ padding: "8px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.accountLabel}>
                         <span className="badge" style={{ 
                           background: item.isInflow ? "#eff6ff" : "#fef2f2", 
                           color: item.isInflow ? "#1d4ed8" : "#dc2626", 
-                          padding: "3px 8px", 
-                          borderRadius: "6px", 
+                          padding: "2px 6px", 
+                          borderRadius: "4px", 
                           fontSize: "11px", 
                           fontWeight: "600" 
                         }}>
                           {item.accountLabel}
                         </span>
                       </td>
-                      <td><b style={{ color: "#0f172a" }}>{item.party}</b></td>
-                      <td><span style={{ color: "#64748b" }}>{item.description}</span></td>
-                      <td style={{ textAlign: "right" }}>
-                        <b style={{ color: item.isInflow ? "#16a34a" : "#dc2626", fontSize: "14px" }}>
+                      <td style={{ padding: "8px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.party}>
+                        <b style={{ color: "#0f172a" }}>{item.party}</b>
+                      </td>
+                      <td style={{ padding: "8px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.description}>
+                        <span style={{ color: "#64748b" }}>{item.description}</span>
+                      </td>
+                      <td style={{ padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        <b style={{ color: item.isInflow ? "#16a34a" : "#dc2626", fontSize: "13px" }}>
                           {item.isInflow ? `+₺${fmtMoney(item.amount)}` : `-₺${fmtMoney(item.amount)}`}
                         </b>
                       </td>
-                      <td style={{ textAlign: "right" }}>
-                        <b style={{ color: "#0f172a", fontFamily: "monospace" }}>₺{fmtMoney(bakiye)}</b>
+                      <td style={{ padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        <b style={{ color: "#0f172a", fontFamily: "monospace", fontSize: "12px" }}>₺{fmtMoney(bakiye)}</b>
                       </td>
-                      <td style={{ textAlign: "right" }}>
+                      <td style={{ padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap" }}>
                         {item.isInflow ? (
                           <button 
                             className="btn small secondary" 
                             onClick={() => setReceiptPayment(item.rawPayment)}
-                            style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "11px", padding: "3px 6px", whiteSpace: "nowrap" }}
                           >
                             <Receipt size={12} color="#2563eb" /> Makbuz Bas
                           </button>
                         ) : (
-                          <span className="badge" style={{ background: "#fee2e2", color: "#b91c1c", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" }}>
+                          <span className="badge" style={{ background: "#fee2e2", color: "#b91c1c", padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "600" }}>
                             Gider Çıkışı
                           </span>
                         )}
@@ -1269,219 +1420,39 @@ export function MuhasebeV2Dashboard({
         </div>
       )}
 
-      {/* SEKME 3: GECİKEN TAKSİTLER & YAŞLANDIRMA (WHATSAPP HATIRLATMA) */}
+      {/* SEKME 3: EDESİS VADE TAKVİMİ (662 GERÇEK TAKSİT & YAŞLANDIRMA) */}
       {activeTab === "gecikenler" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button 
-                className={`btn small ${agingFilter === "all" ? "" : "secondary"}`}
-                onClick={() => setAgingFilter("all")}
-              >
-                Tüm Gecikenler ({overdueStudents.length})
-              </button>
-              <button 
-                className={`btn small ${agingFilter === "1-30" ? "" : "secondary"}`}
-                onClick={() => setAgingFilter("1-30")}
-                style={{ color: "#ca8a04" }}
-              >
-                1 - 30 Gün ({agingSummary.c1_30.count})
-              </button>
-              <button 
-                className={`btn small ${agingFilter === "31-60" ? "" : "secondary"}`}
-                onClick={() => setAgingFilter("31-60")}
-                style={{ color: "#ea580c" }}
-              >
-                31 - 60 Gün ({agingSummary.c31_60.count})
-              </button>
-              <button 
-                className={`btn small ${agingFilter === "60+" ? "" : "secondary"}`}
-                onClick={() => setAgingFilter("60+")}
-                style={{ color: "#dc2626" }}
-              >
-                60+ Gün Kritik ({agingSummary.c60plus.count})
-              </button>
-            </div>
-
-            <div className="top-search" style={{ width: "260px", margin: 0 }}>
-              <Search size={14} />
-              <input 
-                placeholder="Öğrenci veya veli ara..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ fontSize: "12px" }}
-              />
-            </div>
-          </div>
-
-          {/* Geciken Taksitler Tablosu (Responsive Yatay Kaydırma) */}
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "700px" }}>
-              <thead>
-                <tr style={{ background: "#fef2f2" }}>
-                  <th>Öğrenci Adı Soyadı</th>
-                  <th>Şube / Sınıf</th>
-                  <th>Veli & İletişim</th>
-                  <th>Gecikme Süresi</th>
-                  <th>Toplam Borç</th>
-                  <th style={{ textAlign: "right" }}>Veliye Hatırlatma</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOverdueList.map((s, idx) => (
-                  <tr key={s.id || idx}>
-                    <td>
-                      <b style={{ color: "#0f172a", cursor: "pointer" }} onClick={() => onSelectStudent && onSelectStudent(s)}>
-                        {s.student_name}
-                      </b>
-                      <div style={{ fontSize: "11px", color: "#64748b" }}>#{s.student_no || "—"}</div>
-                    </td>
-                    <td><span style={{ color: "#475569" }}>{s.student_class || s.program || "—"}</span></td>
-                    <td>
-                      <div>
-                        <b>{s.parent_name || "Veli"}</b>
-                        <div style={{ fontSize: "11px", color: "#64748b" }}>{s.parent_phone || "—"}</div>
-                      </div>
-                    </td>
-                    <td>
-                      <span 
-                        className="badge" 
-                        style={{ 
-                          background: s.agingCategory === "60+" ? "#fee2e2" : s.agingCategory === "31-60" ? "#ffedd5" : "#fef9c3",
-                          color: s.agingCategory === "60+" ? "#991b1b" : s.agingCategory === "31-60" ? "#9a3412" : "#854d0e",
-                          padding: "3px 8px", 
-                          borderRadius: "12px", 
-                          fontSize: "11px", 
-                          fontWeight: "700"
-                        }}
-                      >
-                        {s.daysOverdue} Gün Gecikmede
-                      </span>
-                    </td>
-                    <td>
-                      <b style={{ color: "#dc2626", fontSize: "14px" }}>
-                        ₺{fmtMoney(s.remaining)}
-                      </b>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: "6px" }}>
-                        <button 
-                          className="btn small"
-                          onClick={() => sendWhatsAppReminder(s)}
-                          style={{ background: "#22c55e", color: "#fff", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
-                        >
-                          <MessageCircle size={13} /> WhatsApp
-                        </button>
-                        <button 
-                          className="btn small secondary"
-                          onClick={() => {
-                            setPayStudentId(s.id);
-                            setPayAmount(String(s.remaining));
-                            setShowQuickPaymentModal(true);
-                          }}
-                          style={{ fontSize: "11px", padding: "4px 8px" }}
-                        >
-                          Tahsil Et
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredOverdueList.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
-                      Geciken taksit ödemesi bulunamadı.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
+        <EdesisVadeTakvimi
+          students={students}
+          onSelectStudent={onSelectStudent}
+          onOpenGelir={(g) =>
+            setGelirModalData({
+              isOpen: true,
+              gelirKodu: g.gelirKodu,
+              sozlesmeNo: g.sozlesmeNo,
+              student: students.find((s) => s.student_name === g.ogrenciAdiSoyadi)
+            })
+          }
+          onNavigate={(p) => {
+            if (p === "gelir" && onTabChange) onTabChange("gelirler");
+          }}
+        />
       )}
 
-      {/* SEKME 4: TAHSİLAT LİSTESİ & MAKBUZLAR */}
+      {/* SEKME 4: EDESİS TAHSİLAT LİSTESİ (159 GERÇEK TAHSİLAT & MAKBUZLAR) */}
       {activeTab === "tahsilatlar" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-            <div style={{ fontSize: "13px", color: "#64748b" }}>
-              Toplam <b>{payments.length}</b> adet gerçekleşen tahsilat kaydı
-            </div>
-            <div className="top-search" style={{ width: "280px", margin: 0 }}>
-              <Search size={14} />
-              <input 
-                placeholder="Tahsilat ara..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ fontSize: "12px" }}
-              />
-            </div>
-          </div>
-
-          {/* Tahsilatlar Tablosu (Responsive Yatay Kaydırma) */}
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "680px" }}>
-              <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                  <th>Makbuz / İşlem No</th>
-                  <th>Öğrenci Adı Soyadı</th>
-                  <th>Ödeme Yöntemi</th>
-                  <th>Tarih</th>
-                  <th>Tutar</th>
-                  <th style={{ textAlign: "right" }}>Makbuz İşlemi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPaymentsList.map((p, idx) => (
-                  <tr key={p.id || idx}>
-                    <td>
-                      <b style={{ color: "#2563eb", fontFamily: "monospace" }}>
-                        #{p.id ? String(p.id).slice(0, 8).toUpperCase() : `MKB-${idx+1}`}
-                      </b>
-                    </td>
-                    <td>
-                      <b style={{ color: "#0f172a" }}>{p.student_name || "Öğrenci"}</b>
-                    </td>
-                    <td>
-                      <span className="badge" style={{ background: "#f1f5f9", color: "#475569", padding: "3px 8px", borderRadius: "6px", fontSize: "11px" }}>
-                        {p.method || "Nakit"} {p.bank ? `· ${p.bank}` : ""}
-                      </span>
-                    </td>
-                    <td>{p.payment_date ? p.payment_date.slice(0, 10) : "2026-10-02"}</td>
-                    <td>
-                      <b style={{ color: "#16a34a", fontSize: "14px" }}>
-                        ₺{fmtMoney(p.amount)}
-                      </b>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: "6px", justifyContent: "flex-end" }}>
-                        <button 
-                          className="btn small secondary" 
-                          onClick={() => setGelirModalData({ isOpen: true, student: { student_name: p.student_name, id: p.student_id } })}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px", color: "#2563eb", borderColor: "#bfdbfe" }}
-                          title="Edesis Gelir & Taksit Detayını Aç"
-                        >
-                          <FileText size={12} /> Gelir Detay
-                        </button>
-                        <button 
-                          className="btn small secondary" 
-                          onClick={() => setReceiptPayment(p)}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 10px" }}
-                        >
-                          <Receipt size={13} color="#2563eb" /> Resmi Makbuz Yazdır
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
+        <EdesisTahsilatListesi
+          students={students}
+          onSelectStudent={onSelectStudent}
+          onOpenGelir={(g) =>
+            setGelirModalData({
+              isOpen: true,
+              gelirKodu: g.gelirKodu,
+              sozlesmeNo: g.sozlesmeNo,
+              student: students.find((s) => s.student_name === g.ogrenciAdiSoyadi)
+            })
+          }
+        />
       )}
 
       {/* SEKME 5: KURUM GİDERLERİ */}

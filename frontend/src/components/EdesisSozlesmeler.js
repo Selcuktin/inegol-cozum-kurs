@@ -25,6 +25,7 @@ import {
   Check
 } from "lucide-react";
 import edesisData from "../data/edesisAccountingData.json";
+import AccountingService from "../lib/edesisAccountingService";
 import EdesisSozlesmeDetay from "./EdesisSozlesmeDetay";
 
 // Format currency in Turkish Lira style: ₺81.000,04
@@ -49,22 +50,25 @@ export function fmtDate(isoStr) {
 }
 
 export default function EdesisSozlesmeler({ students = [], payments = [], onOpenGelir }) {
-  // All contracts from authentic Edesis dump (119 items total, 64 for 2026-2027)
-  const initialContracts = useMemo(() => {
-    return edesisData.sozlesmeler || [];
+  const [contractsList, setContractsList] = useState(() => AccountingService.getContracts());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setContractsList(AccountingService.getContracts());
+    };
+    window.addEventListener("cozum_accounting_updated", handleUpdate);
+    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
   }, []);
 
   const gelirMap = useMemo(() => {
     const map = {};
-    (edesisData.gelirler || []).forEach((g) => {
+    (AccountingService.getIncomes() || []).forEach((g) => {
       if (g.sozlesmeNo) {
         map[g.sozlesmeNo] = g;
       }
     });
     return map;
-  }, []);
-
-  const [contractsList, setContractsList] = useState(initialContracts);
+  }, [contractsList]);
   const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027 (Default 64 records), 40: 2025-2026, 142: 2026-2027-YAZ, -1: Tümü
   const [statusFilter, setStatusFilter] = useState("all"); // "all", "active", "draft", "canceled"
   const [customerFilter, setCustomerFilter] = useState("all");
@@ -915,7 +919,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
           overflow: "visible"
         }}
       >
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", minHeight: "360px" }}>
           <table
             style={{
               width: "100%",
@@ -987,8 +991,9 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
                   </td>
                 </tr>
               ) : (
-                paginatedContracts.map((c) => {
+                paginatedContracts.map((c, idx) => {
                   const isMenuOpen = openDropdownId === c.id;
+                  const openUpwards = (idx >= paginatedContracts.length - 2 && paginatedContracts.length > 3);
                   const isInstallment = c.taksitSayisi && c.taksitSayisi > 1;
 
                   return (
@@ -1041,13 +1046,12 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
                               style={{
                                 position: "absolute",
                                 left: "0",
-                                top: "100%",
-                                marginTop: "4px",
+                                ...(openUpwards ? { bottom: "100%", marginBottom: "4px" } : { top: "100%", marginTop: "4px" }),
                                 background: "#fff",
                                 border: "1px solid #e2e8f0",
                                 borderRadius: "8px",
-                                boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
-                                zIndex: 1000,
+                                boxShadow: openUpwards ? "0 -8px 25px rgba(0,0,0,0.12)" : "0 10px 25px rgba(0,0,0,0.12)",
+                                zIndex: 1050,
                                 minWidth: "190px",
                                 padding: "6px 0",
                                 textAlign: "left"

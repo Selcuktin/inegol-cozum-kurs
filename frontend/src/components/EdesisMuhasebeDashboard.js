@@ -88,6 +88,8 @@ export function EdesisMuhasebeDashboard({
   incomeCategoryData = [],
   paymentMethodData = [],
   totalCollected = 0,
+  totalContractRevenue = 0,
+  totalRemaining = 0,
   collectionRate = 0,
   totalOverdueDebt = 0,
   overdueStudents = [],
@@ -109,6 +111,12 @@ export function EdesisMuhasebeDashboard({
     netKar: 4089736.18,
     karMarji: 97.6
   };
+
+  const effToplamGelir = totalContractRevenue > 0 ? totalContractRevenue : donemOzet.toplamGelir;
+  const effToplamTahsilat = totalCollected > 0 ? totalCollected : donemOzet.toplamTahsilat;
+  const effKalanBakiye = totalRemaining > 0 ? totalRemaining : (effToplamGelir - effToplamTahsilat > 0 ? effToplamGelir - effToplamTahsilat : donemOzet.kalanBakiye);
+  const effNetKar = effToplamGelir - (donemOzet.toplamGider || 100401.35);
+  const effKarMarji = effToplamGelir > 0 ? ((effNetKar / effToplamGelir) * 100) : donemOzet.karMarji;
 
   const operasyonelOzet = edesisData.dashboardOperasyonelOzet || {
     periyotTahsilEdilen: 7500.0,
@@ -140,8 +148,154 @@ export function EdesisMuhasebeDashboard({
     setTimeout(() => setIsRefreshing(false), 600);
   };
 
-  const gerceklesenTahsilat = operasyonelOzet.gerceklesenTahsilatlar || [];
+    const gerceklesenTahsilat = operasyonelOzet.gerceklesenTahsilatlar || [];
   const vadesiGecmisList = operasyonelOzet.vadesiGecmisTahsilatlar || [];
+
+  const renderChartsSection = (title = "12 Aylık Taksit & Tahsilat Karşılaştırma Grafiği (Edesis Trend Analizi)") => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {/* 12 Aylık Trend Grafiği */}
+      <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <TrendingUp size={18} color="#2563eb" />
+              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
+                {title}
+              </h3>
+            </div>
+            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "12px" }}>
+              Öğrencilerin taksit vadelerine göre planlanan tahakkuk vs gerçekleşen kasa/banka nakit akışı
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "14px", fontSize: "12px" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ width: 12, height: 12, background: "#93c5fd", borderRadius: "3px" }} /> Planlanan Taksit
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ width: 12, height: 12, background: "#16a34a", borderRadius: "3px" }} /> Gerçekleşen Tahsilat
+            </span>
+          </div>
+        </div>
+
+        <div style={{ width: "100%", height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyTrends} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="ay" stroke="#64748b" fontSize={11} tickLine={false} />
+              <YAxis 
+                stroke="#64748b" 
+                fontSize={11} 
+                tickLine={false}
+                tickFormatter={(val) => `₺${val >= 1000 ? `${Math.round(val/1000)}k` : val}`} 
+              />
+              <Tooltip 
+                formatter={(val) => [`₺${fmtMoney(val)}`, ""]}
+                contentStyle={{ borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px" }}
+              />
+              <Legend wrapperStyle={{ fontSize: "12px" }} />
+              <Bar dataKey="plan" name="Planlanan Taksit Tahakkuku" fill="#93c5fd" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="gerceklesen" name="Gerçekleşen Tahsilat" fill="#16a34a" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Dağılım Panelleri */}
+      <div className="muhasebe-charts-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
+        {/* Panel 1: Gelir Kategorileri Dağılımı */}
+        <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
+              Gelir Kategorileri Dağılımı
+            </h3>
+            <span style={{ fontSize: "11px", color: "#64748b" }}>Ciro Kalemleri</span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+            <div style={{ width: 170, height: 170, margin: "auto" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={incomeCategoryData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={75}
+                    paddingAngle={3}
+                  >
+                    {incomeCategoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(val) => `₺${fmtMoney(val)}`} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px", minWidth: 160 }}>
+              {incomeCategoryData.map((item, idx) => (
+                <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.color }} />
+                    <span>{item.name}</span>
+                  </div>
+                  <b style={{ color: "#0f172a" }}>₺{fmtMoney(item.value)} (%{item.pct})</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Panel 2: Tahsilat Yöntemleri Dağılımı */}
+        <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
+              Tahsilat Yöntemleri Dağılımı
+            </h3>
+            <span style={{ fontSize: "11px", color: "#64748b" }}>Kasa & Banka Girişi</span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+            <div style={{ width: 170, height: 170, margin: "auto" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={paymentMethodData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={75}
+                    paddingAngle={3}
+                  >
+                    {paymentMethodData.map((entry, index) => (
+                      <Cell key={`cell-pm-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(val) => `₺${fmtMoney(val)}`} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px", minWidth: 160 }}>
+              {paymentMethodData.map((item, idx) => (
+                <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.color }} />
+                    <span>{item.name}</span>
+                  </div>
+                  <b style={{ color: "#0f172a" }}>₺{fmtMoney(item.value)} (%{item.pct})</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="edesis-dashboard-container" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -453,7 +607,7 @@ export function EdesisMuhasebeDashboard({
             </div>
             <div>
               <div style={{ fontSize: "17px", fontWeight: "800", color: "#0f172a" }}>
-                {fmtCurrency(donemOzet.toplamGelir)}
+                {fmtCurrency(effToplamGelir)}
               </div>
               <div style={{ fontSize: "10px", fontWeight: "700", color: "#94a3b8", letterSpacing: "0.5px", marginTop: "2px" }}>
                 TOPLAM GELİR
@@ -488,7 +642,7 @@ export function EdesisMuhasebeDashboard({
             </div>
             <div>
               <div style={{ fontSize: "17px", fontWeight: "800", color: "#0f172a" }}>
-                {fmtCurrency(donemOzet.toplamTahsilat)}
+                {fmtCurrency(effToplamTahsilat)}
               </div>
               <div style={{ fontSize: "10px", fontWeight: "700", color: "#94a3b8", letterSpacing: "0.5px", marginTop: "2px" }}>
                 TAHSİL EDİLEN
@@ -523,7 +677,7 @@ export function EdesisMuhasebeDashboard({
             </div>
             <div>
               <div style={{ fontSize: "17px", fontWeight: "800", color: "#0f172a" }}>
-                {fmtCurrency(donemOzet.kalanBakiye)}
+                {fmtCurrency(effKalanBakiye)}
               </div>
               <div style={{ fontSize: "10px", fontWeight: "700", color: "#94a3b8", letterSpacing: "0.5px", marginTop: "2px" }}>
                 KALAN BAKİYE
@@ -593,7 +747,7 @@ export function EdesisMuhasebeDashboard({
             </div>
             <div>
               <div style={{ fontSize: "17px", fontWeight: "800", color: "#0284c7" }}>
-                {fmtCurrency(donemOzet.netKar)}
+                {fmtCurrency(effNetKar)}
               </div>
               <div style={{ fontSize: "10px", fontWeight: "700", color: "#94a3b8", letterSpacing: "0.5px", marginTop: "2px" }}>
                 NET KAR/ZARAR
@@ -628,7 +782,7 @@ export function EdesisMuhasebeDashboard({
             </div>
             <div>
               <div style={{ fontSize: "17px", fontWeight: "800", color: "#16a34a" }}>
-                {fmtPercent(donemOzet.karMarji)}
+                {fmtPercent(effKarMarji)}
               </div>
               <div style={{ fontSize: "10px", fontWeight: "700", color: "#94a3b8", letterSpacing: "0.5px", marginTop: "2px" }}>
                 KAR MARJI
@@ -652,7 +806,7 @@ export function EdesisMuhasebeDashboard({
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
           <Zap size={16} color="#2563eb" />
           <h2 style={{ margin: 0, fontSize: "14px", fontWeight: "700", color: "#0f172a" }}>
-            Bugün Nabız
+            Bugün Neler Oldu · Bugün Nabız
           </h2>
         </div>
 
@@ -805,6 +959,9 @@ export function EdesisMuhasebeDashboard({
           </div>
         </div>
       </div>
+
+      {/* 4.1 BÖLÜM: FİNANSAL GÖSTERGELER & 12 AYLIK NAKİT AKIŞ GRAFİKLERİ */}
+      {renderChartsSection("Dönem Finansal Göstergeleri & 12 Aylık Trend Grafiği")}
 
       {/* 5. BÖLÜM: BUGÜN GERÇEKLEŞENLER (İKİ KOLON: TAHSİL EDİLENLER & ÖDENENLER) */}
       <div
@@ -1374,148 +1531,7 @@ export function EdesisMuhasebeDashboard({
       )}
 
       {/* 5. SEKME: FİNANSAL ANALİZ (GAP-4: 12 Aylık Trend & GAP-6: Gelir/Ödeme Dağılımları) */}
-      {activeSubTab === "analiz" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* 12 Aylık Trend Grafiği */}
-          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
-                  12 Aylık Taksit & Tahsilat Karşılaştırma Grafiği (Edesis Trend Analizi)
-                </h3>
-                <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "12px" }}>
-                  Öğrencilerin taksit vadelerine göre planlanan tahakkuk vs gerçekleşen kasa/banka nakit akışı
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: "12px", fontSize: "12px" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ width: 12, height: 12, background: "#93c5fd", borderRadius: "3px" }} /> Planlanan Taksit
-                </span>
-                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ width: 12, height: 12, background: "#16a34a", borderRadius: "3px" }} /> Gerçekleşen Tahsilat
-                </span>
-              </div>
-            </div>
-
-            <div style={{ width: "100%", height: 260 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyTrends} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="ay" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis 
-                    stroke="#64748b" 
-                    fontSize={11} 
-                    tickLine={false}
-                    tickFormatter={(val) => `₺${val >= 1000 ? `${Math.round(val/1000)}k` : val}`} 
-                  />
-                  <Tooltip 
-                    formatter={(val) => [`₺${fmtMoney(val)}`, ""]}
-                    contentStyle={{ borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px" }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: "12px" }} />
-                  <Bar dataKey="plan" name="Planlanan Taksit Tahakkuku" fill="#93c5fd" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="gerceklesen" name="Gerçekleşen Tahsilat" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Dağılım Panelleri */}
-          <div className="muhasebe-charts-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
-            {/* Panel 1: Gelir Kategorileri Dağılımı */}
-            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
-                  Gelir Kategorileri Dağılımı
-                </h3>
-                <span style={{ fontSize: "11px", color: "#64748b" }}>Ciro Kalemleri</span>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-                <div style={{ width: 170, height: 170, margin: "auto" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={incomeCategoryData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={45}
-                        outerRadius={75}
-                        paddingAngle={3}
-                      >
-                        {incomeCategoryData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(val) => `₺${fmtMoney(val)}`} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px", minWidth: 160 }}>
-                  {incomeCategoryData.map((item, idx) => (
-                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.color }} />
-                        <span>{item.name}</span>
-                      </div>
-                      <b style={{ color: "#0f172a" }}>₺{fmtMoney(item.value)} (%{item.pct})</b>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Panel 2: Tahsilat Yöntemleri Dağılımı */}
-            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "#0f172a" }}>
-                  Tahsilat Yöntemleri Dağılımı
-                </h3>
-                <span style={{ fontSize: "11px", color: "#64748b" }}>Kasa & Banka Girişi</span>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-                <div style={{ width: 170, height: 170, margin: "auto" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={paymentMethodData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={45}
-                        outerRadius={75}
-                        paddingAngle={3}
-                      >
-                        {paymentMethodData.map((entry, index) => (
-                          <Cell key={`cell-pm-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(val) => `₺${fmtMoney(val)}`} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px", minWidth: 160 }}>
-                  {paymentMethodData.map((item, idx) => (
-                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.color }} />
-                        <span>{item.name}</span>
-                      </div>
-                      <b style={{ color: "#0f172a" }}>₺{fmtMoney(item.value)} (%{item.pct})</b>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeSubTab === "analiz" && renderChartsSection("12 Aylık Taksit & Tahsilat Karşılaştırma Grafiği (Edesis Trend Analizi)")}
 
       {/* 6. SEKME: ÖZET */}
       {activeSubTab === "ozet" && (
@@ -1528,6 +1544,7 @@ export function EdesisMuhasebeDashboard({
               Edesis Muhasebe sistemiyle %100 canlı mutabakatlı finansal veriler. Toplam Ciro: <b>{fmtCurrency(donemOzet.toplamGelir)}</b>, Tahsil Edilen: <b>{fmtCurrency(donemOzet.toplamTahsilat)}</b>, Net Kar: <b>{fmtCurrency(donemOzet.netKar)}</b>.
             </p>
           </div>
+          {renderChartsSection("Dönem Finansal Özeti ve 12 Aylık Karşılaştırma")}
         </div>
       )}
 

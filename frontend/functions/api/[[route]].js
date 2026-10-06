@@ -564,7 +564,7 @@ export async function onRequest(context) {
     // ---------------- DASHBOARD ----------------
     if (path === "/dashboard" && request.method === "GET") {
       const studentsRes = await db.prepare("SELECT * FROM students ORDER BY student_name ASC").all();
-      const paymentsRes = await db.prepare("SELECT * FROM payments ORDER BY payment_date DESC").all();
+      const paymentsRes = await db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date DESC").all();
       const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all();
       const classesRes = await db.prepare("SELECT * FROM classes ORDER BY name ASC").all();
       const teachers = await getTeachersList(db);

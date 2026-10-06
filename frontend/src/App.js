@@ -77,6 +77,8 @@ import { KayitModulu } from "./components/KayitModulu";
 import EdesisSozlesmeler from "./components/EdesisSozlesmeler";
 import EdesisOgrenciListesi from "./components/EdesisOgrenciListesi";
 import EdesisGelirListesi from "./components/EdesisGelirListesi";
+import EdesisVadeTakvimi from "./components/EdesisVadeTakvimi";
+import EdesisTahsilatListesi from "./components/EdesisTahsilatListesi";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -379,6 +381,13 @@ function App() {
 
   useEffect(() => {
     if (hasSessionInUrl) return;
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const urlToken = sp.get("token");
+      if (urlToken) {
+        localStorage.setItem("session_token", urlToken);
+      }
+    }
     const token = localStorage.getItem("session_token");
     if (token) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -479,10 +488,11 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
 
 function MainApp({ me, onLogout }) {
   const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] });
-  const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "gelir", "reminders", "documents", "reports", "users", "audit"];
+  const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace(/^#/, "");
+      if (hash === "kasalar" || hash === "kasa") return "payments";
       if (hash && validPages.includes(hash)) return hash;
       const saved = localStorage.getItem("active_page");
       if (saved && validPages.includes(saved)) return saved;
@@ -501,12 +511,15 @@ function MainApp({ me, onLogout }) {
   useEffect(() => {
     const onHashChange = () => {
       const h = window.location.hash.replace(/^#/, "");
-      if (h && validPages.includes(h)) {
+      if (h === "kasalar" || h === "kasa") {
+        setPageState("payments");
+        setAccountingTab("kasalar");
+        localStorage.setItem("active_page", "payments");
+      } else if (h && validPages.includes(h)) {
         setPageState(h);
         localStorage.setItem("active_page", h);
-        if (h === "payments") {
-          setAccountingTab("dashboard");
-        }
+        if (h === "vade") setAccountingTab("gecikenler");
+        else if (h === "tahsilat") setAccountingTab("tahsilatlar");
       }
     };
     window.addEventListener("hashchange", onHashChange);
@@ -522,7 +535,15 @@ function MainApp({ me, onLogout }) {
 
   // Edesis Tree Navigation & Module States
   const [kayitTab, setKayitTab] = useState("kokpit");
-  const [accountingTab, setAccountingTab] = useState("dashboard");
+  const [accountingTab, setAccountingTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      const h = window.location.hash.replace(/^#/, "");
+      if (h === "vade") return "gecikenler";
+      if (h === "tahsilat") return "tahsilatlar";
+      if (h === "kasalar" || h === "kasa") return "kasalar";
+    }
+    return "dashboard";
+  });
   const [showTestBench, setShowTestBench] = useState(false);
   const [showGlobalOptikModal, setShowGlobalOptikModal] = useState(false);
   const [showGlobalKarne, setShowGlobalKarne] = useState(null);
@@ -559,7 +580,7 @@ function MainApp({ me, onLogout }) {
       ]
     },
     {
-      title: "FİNANS & MUHASEBE",
+      title: "",
       items: [
         {
           id: "payments",
@@ -585,9 +606,9 @@ function MainApp({ me, onLogout }) {
               children: [
                 { id: "g_list", label: "Gelir Listesi", activeCheck: () => page === "gelir" || (page === "payments" && accountingTab === "gelirler"), onClick: () => { setPage("gelir"); setAccountingTab("gelirler"); setMobileOpen(false); } },
                 { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { setPage("documents"); setMobileOpen(false); } },
-                { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "payments" && accountingTab === "gecikenler", onClick: () => { setPage("payments"); setAccountingTab("gecikenler"); setMobileOpen(false); } },
-                { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "payments" && accountingTab === "tahsilatlar", onClick: () => { setPage("payments"); setAccountingTab("tahsilatlar"); setMobileOpen(false); } },
-                { id: "g_senet", label: "Fatura Planı", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setPage("payments"); setAccountingTab("senetler"); setMobileOpen(false); } },
+                { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "vade" || (page === "payments" && accountingTab === "gecikenler"), onClick: () => { setPage("vade"); setMobileOpen(false); } },
+                { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "tahsilat" || (page === "payments" && accountingTab === "tahsilatlar"), onClick: () => { setPage("tahsilat"); setMobileOpen(false); } },
+                { id: "g_senet", label: "Fatura Planı", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setAccountingTab("senetler"); setPage("payments"); setMobileOpen(false); } },
                 { id: "g_cust", label: "Müşteriler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } }
               ]
             },
@@ -618,10 +639,7 @@ function MainApp({ me, onLogout }) {
               ]
             }
           ]
-        },
-        { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
-        { id: "documents", label: "Sözleşme & Makbuz", icon: FileText, perm: "page_documents" },
-        { id: "reports", label: "Aylık Rapor", icon: FileDown, perm: "page_reports" }
+        }
       ]
     },
     {
@@ -748,13 +766,8 @@ function MainApp({ me, onLogout }) {
     {
       title: "SİSTEM & YÖNETİM",
       items: [
-        {
-          id: "testbench",
-          label: "🧪 Edesis Test Vitrini",
-          icon: Sparkles,
-          perm: "page_dashboard",
-          customAction: () => setShowTestBench(true)
-        },
+        { id: "reports", label: "Aylık Muhasebe Raporu", icon: FileDown, perm: "page_reports" },
+        { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
         { id: "users", label: "Kullanıcılar & Roller", icon: UserCog, perm: "page_users" },
         { id: "audit", label: "Denetim Kaydı", icon: History, perm: "page_audit" }
       ]
@@ -1024,6 +1037,33 @@ function MainApp({ me, onLogout }) {
           />
         )}
         {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} />}
+        {page === "vade" && (
+          <EdesisVadeTakvimi
+            students={data.students}
+            onSelectStudent={setSelected}
+            onNavigate={setPage}
+            onOpenGelir={(g) =>
+              setGelirModalData({
+                isOpen: true,
+                gelirKodu: g.gelirKodu,
+                sozlesmeNo: g.sozlesmeNo
+              })
+            }
+          />
+        )}
+        {page === "tahsilat" && (
+          <EdesisTahsilatListesi
+            students={data.students}
+            onSelectStudent={setSelected}
+            onOpenGelir={(g) =>
+              setGelirModalData({
+                isOpen: true,
+                gelirKodu: g.gelirKodu,
+                sozlesmeNo: g.sozlesmeNo
+              })
+            }
+          />
+        )}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
         {page === "teachers" && <TeachersPage me={me} API={API} teachers={data.teachers || []} onReload={load} onNavigate={setPage} />}
         {page === "reminders" && <Reminders />}

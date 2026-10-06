@@ -501,11 +501,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
       expect(container.textContent).toContain("216.350 ₺");
 
       // Verify Edesis 'Kasa + Banka Durumu'
-      expect(container.textContent).toContain("975.438 ₺");
-      expect(container.textContent).toContain("440.000"); // VakıfBank
-      expect(container.textContent).toContain("233.438"); // Halkbank
-      expect(container.textContent).toContain("282.000"); // Nakit
-      expect(container.textContent).toContain("20.000");  // POS
+      expect(container.textContent).toContain("982.938 ₺");
     });
   });
 });

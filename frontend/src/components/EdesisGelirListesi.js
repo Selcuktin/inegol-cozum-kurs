@@ -25,6 +25,7 @@ import {
   Check
 } from "lucide-react";
 import edesisData from "../data/edesisAccountingData.json";
+import AccountingService from "../lib/edesisAccountingService";
 import { GelirDetayModal } from "./GelirDetayModal";
 
 // Para birimi formatlayıcı (₺55.000,00)
@@ -54,29 +55,16 @@ export default function EdesisGelirListesi({
   onOpenGelir,
   onNavigate
 }) {
-  // LocalStorage senkronizasyonu - kullanıcı pratik gelir eklediğinde veya sildiğinde kalıcı olsun
-  const [incomesList, setIncomesList] = useState(() => {
-    try {
-      const saved = localStorage.getItem("cozum_edesis_gelirler");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.warn("Gelir listesi localStorage hatası:", e);
-    }
-    return edesisData.gelirler || [];
-  });
+  // AccountingService senkronizasyonu - eklenen gelirler ve taksitler anında tüm sisteme ve grafiklere yansısın
+  const [incomesList, setIncomesList] = useState(() => AccountingService.getIncomes());
 
-  // Değişiklikleri localStorage'a kaydet
-  const saveIncomes = (newList) => {
-    setIncomesList(newList);
-    try {
-      localStorage.setItem("cozum_edesis_gelirler", JSON.stringify(newList));
-    } catch (e) {
-      console.warn("LocalStorage yazma hatası:", e);
-    }
-  };
+  useEffect(() => {
+    const handleUpdate = () => {
+      setIncomesList(AccountingService.getIncomes());
+    };
+    window.addEventListener("cozum_accounting_updated", handleUpdate);
+    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
+  }, []);
 
   // Filtreler
   const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027 (Aktif), 40: 2025-2026, all: Tümü
@@ -272,70 +260,21 @@ export default function EdesisGelirListesi({
 
   // PRATİK GELİR SİLME İŞLEMİ
   const handleDeleteIncome = (gelir) => {
-    const updated = incomesList.filter((item) => item.gelirKodu !== gelir.gelirKodu);
-    saveIncomes(updated);
+    const custom = JSON.parse(localStorage.getItem("cozum_custom_incomes_v1") || "[]");
+    const updated = custom.filter((item) => item.gelirKodu !== gelir.gelirKodu);
+    localStorage.setItem("cozum_custom_incomes_v1", JSON.stringify(updated));
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("cozum_accounting_updated"));
+    setIncomesList(AccountingService.getIncomes());
     setShowDeleteModal(null);
-    showToast(`🗑️ ${gelir.gelirKodu} numaralı gelir kaydı başarıyla silindi.`);
+    showToast(`🗑️ ${gelir.gelirKodu} numaralı gelir kaydı silindi.`);
   };
 
-  // PRATİK GELİR EKLEME İŞLEMİ
+  // PRATİK GELİR EKLEME İŞLEMİ (Taksit bölme & sözleşme senkronizasyonu ile)
   const handleAddNewIncome = (newIncomeData) => {
-    // Sonraki GLR kodunu türet
-    const maxNumber = incomesList.reduce((max, g) => {
-      const match = (g.gelirKodu || "").match(/GLR\d{4}(\d+)/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        return num > max ? num : max;
-      }
-      return max;
-    }, 152);
-
-    const nextCode = `GLR2026${String(maxNumber + 1).padStart(5, "0")}`;
-    const nextSzlCode = `SZL2026${String(maxNumber + 1).padStart(5, "0")}`;
-
-    const gross = Number(newIncomeData.brutTutar) || 0;
-    const vatRate = Number(newIncomeData.kdvOrani) || 10;
-    const net = Math.round((gross / (1 + vatRate / 100)) * 100) / 100;
-    const vat = Math.round((gross - net) * 100) / 100;
-    const installments = Number(newIncomeData.taksitSayisi) || 1;
-
-    const newRecord = {
-      id: Date.now(),
-      gelirKodu: nextCode,
-      aciklama: newIncomeData.aciklama || `Sözleşme: ${nextSzlCode}`,
-      netTutar: net,
-      kdvOrani: vatRate,
-      kdvTutari: vat,
-      brutTutar: gross,
-      gelirTarihi: newIncomeData.gelirTarihi ? new Date(newIncomeData.gelirTarihi).toISOString() : new Date().toISOString(),
-      vadeTarihi: newIncomeData.vadeTarihi ? new Date(newIncomeData.vadeTarihi).toISOString() : new Date(Date.now() + 30 * 86400000).toISOString(),
-      donemId: 113,
-      donemAdi: "2026-2027",
-      muH_GelirKategoriId: 87,
-      gelirKategoriAdi: newIncomeData.gelirKategoriAdi || "Öğrenci Sözleşmesi",
-      muH_MusteriId: 65000 + Math.floor(Math.random() * 1000),
-      musteriUnvan: (newIncomeData.veliAdi || newIncomeData.ogrenciAdi || "").toUpperCase(),
-      musteriTuru: 2,
-      toplamTahsilat: 0,
-      kalanAlacak: gross,
-      tamTahsilEdildiMi: false,
-      durum: 1,
-      durumText: "Enum_GelirDurumu_1",
-      taksitliMi: installments > 1,
-      taksitSayisi: installments,
-      kalanTaksitSayisi: installments,
-      vadesiGectiMi: false,
-      gecikmeGunSayisi: 0,
-      sozlesmeNo: nextSzlCode,
-      ogrenciAdiSoyadi: (newIncomeData.ogrenciAdi || "").toUpperCase(),
-      sinifAdi: newIncomeData.sinifAdi || "Genel",
-      gradeAdi: newIncomeData.sinifAdi ? newIncomeData.sinifAdi.split("-")[0] : "Genel"
-    };
-
-    const updated = [newRecord, ...incomesList];
-    saveIncomes(updated);
+    const res = AccountingService.addNewIncome(newIncomeData);
+    setIncomesList(AccountingService.getIncomes());
     setShowNewIncomeModal(false);
-    showToast(`✅ ${nextCode} numaralı yeni gelir kaydı başarıyla eklendi.`);
+    showToast(`✅ ${res.income.gelirKodu} numaralı yeni gelir ve ${res.installments.length} adet taksiti başarıyla eklendi.`);
   };
 
   // PRATİK HIZLI TAHSİLAT ALMA İŞLEMİ
@@ -343,24 +282,17 @@ export default function EdesisGelirListesi({
     const amt = Number(collectAmount) || 0;
     if (amt <= 0) return;
 
-    const updated = incomesList.map((g) => {
-      if (g.gelirKodu === gelir.gelirKodu) {
-        const newCollected = Math.min(Number(g.brutTutar) || 0, (Number(g.toplamTahsilat) || 0) + amt);
-        const newRemaining = Math.max(0, (Number(g.brutTutar) || 0) - newCollected);
-        const isPaid = newRemaining <= 0;
-        return {
-          ...g,
-          toplamTahsilat: newCollected,
-          kalanAlacak: newRemaining,
-          tamTahsilEdildiMi: isPaid,
-          vadesiGectiMi: isPaid ? false : g.vadesiGectiMi,
-          kalanTaksitSayisi: Math.max(0, (g.kalanTaksitSayisi || 1) - 1)
-        };
-      }
-      return g;
+    AccountingService.recordCollection({
+      gelirKodu: gelir.gelirKodu,
+      sozlesmeNo: gelir.sozlesmeNo,
+      amount: amt,
+      bank: "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
+      method: "Nakit",
+      note: "Hızlı Tahsilat",
+      studentName: gelir.ogrenciAdiSoyadi || gelir.musteriUnvan
     });
 
-    saveIncomes(updated);
+    setIncomesList(AccountingService.getIncomes());
     setShowQuickCollectModal(null);
     showToast(`💰 ${gelir.gelirKodu} için ${fmtCurrency(amt)} tutarında tahsilat başarıyla kaydedildi.`);
   };
@@ -1050,7 +982,7 @@ export default function EdesisGelirListesi({
           overflow: "visible"
         }}
       >
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", minHeight: "360px" }}>
           <table
             style={{
               width: "100%",
@@ -1129,8 +1061,9 @@ export default function EdesisGelirListesi({
                   </td>
                 </tr>
               ) : (
-                paginatedIncomes.map((g) => {
+                paginatedIncomes.map((g, idx) => {
                   const isMenuOpen = openDropdownId === g.gelirKodu;
+                  const openUpwards = (idx >= paginatedIncomes.length - 2 && paginatedIncomes.length > 3);
                   const isFullyPaid = g.tamTahsilEdildiMi || (Number(g.kalanAlacak) <= 0);
                   const isOverdue = g.vadesiGectiMi || (Number(g.kalanAlacak) > 0 && g.vadeTarihi && g.vadeTarihi.slice(0, 10) < todayStr);
                   const stName = g.ogrenciAdiSoyadi || g.musteriUnvan || "—";
@@ -1192,13 +1125,12 @@ export default function EdesisGelirListesi({
                               style={{
                                 position: "absolute",
                                 left: "0",
-                                top: "100%",
-                                marginTop: "4px",
+                                ...(openUpwards ? { bottom: "100%", marginBottom: "4px" } : { top: "100%", marginTop: "4px" }),
                                 background: "#fff",
                                 border: "1px solid #e2e8f0",
                                 borderRadius: "8px",
-                                boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
-                                zIndex: 1000,
+                                boxShadow: openUpwards ? "0 -8px 25px rgba(0,0,0,0.12)" : "0 10px 25px rgba(0,0,0,0.12)",
+                                zIndex: 1050,
                                 minWidth: "185px",
                                 padding: "6px 0",
                                 textAlign: "left"

@@ -431,7 +431,7 @@ export default function EdesisOgrenciListesi({
           overflow: "visible"
         }}
       >
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", minHeight: "360px" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "11px" }}>
             <thead>
               <tr style={{ background: "#fafafa", borderBottom: "2px solid #f1f5f9", color: "#64748b", fontSize: "10px", fontWeight: 700, textTransform: "uppercase" }}>
@@ -464,8 +464,9 @@ export default function EdesisOgrenciListesi({
                   </td>
                 </tr>
               ) : (
-                paginatedStudents.map((s) => {
+                paginatedStudents.map((s, idx) => {
                   const isMenuOpen = openDropdownId === s.id;
+                  const openUpwards = (idx >= paginatedStudents.length - 2 && paginatedStudents.length > 3);
                   const isChecked = selectedIds.has(s.id);
                   const initials = (s.student_name || "Ö")
                     .split(" ")
@@ -533,13 +534,12 @@ export default function EdesisOgrenciListesi({
                               style={{
                                 position: "absolute",
                                 left: "0",
-                                top: "100%",
-                                marginTop: "4px",
+                                ...(openUpwards ? { bottom: "100%", marginBottom: "4px" } : { top: "100%", marginTop: "4px" }),
                                 background: "#fff",
                                 border: "1px solid #e2e8f0",
                                 borderRadius: "8px",
-                                boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
-                                zIndex: 1000,
+                                boxShadow: openUpwards ? "0 -8px 25px rgba(0,0,0,0.12)" : "0 10px 25px rgba(0,0,0,0.12)",
+                                zIndex: 1050,
                                 minWidth: "160px",
                                 padding: "6px 0",
                                 textAlign: "left"
