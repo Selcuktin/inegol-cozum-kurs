@@ -84,13 +84,29 @@ import StudentService from "./lib/edesisStudentService";
 import AccountingService from "./lib/edesisAccountingService";
 
 // Client storage cache-busting & refresh across all devices
-const CLIENT_STORAGE_VERSION = "cozum_v2_20261007_sync_all_parents_and_taksits";
+const CLIENT_STORAGE_VERSION = "cozum_v2_20261007_force_refresh_all_devices";
 if (typeof window !== "undefined") {
   const currentVersion = localStorage.getItem("cozum_app_version");
   if (currentVersion !== CLIENT_STORAGE_VERSION) {
-    console.log("[App] Upgrading client storage to version:", CLIENT_STORAGE_VERSION);
-    localStorage.removeItem("cozum_custom_students_v1");
+    console.log("[App] Purging stale client cache and upgrading to:", CLIENT_STORAGE_VERSION);
+    const staleKeys = [
+      "cozum_custom_students_v1",
+      "cozum_income_overrides_v1",
+      "cozum_installment_overrides_v1",
+      "cozum_custom_incomes_v1",
+      "cozum_custom_installments_v1",
+      "cozum_custom_contracts_v1",
+      "cozum_custom_collections_v1"
+    ];
+    staleKeys.forEach((k) => localStorage.removeItem(k));
     localStorage.setItem("cozum_app_version", CLIENT_STORAGE_VERSION);
+
+    // Clear CacheStorage API (PWA / Service Worker caches)
+    if ("caches" in window) {
+      caches.keys().then((names) => {
+        names.forEach((name) => caches.delete(name));
+      }).catch(() => {});
+    }
   }
 }
 
