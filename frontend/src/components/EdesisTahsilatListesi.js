@@ -16,7 +16,8 @@ import {
   Settings,
   Eye,
   Trash2,
-  Calendar
+  Calendar,
+  Plus
 } from "lucide-react";
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
@@ -49,18 +50,25 @@ export function fmtDateTime(isoStr) {
 
 export default function EdesisTahsilatListesi({
   students = [],
+  payments = [],
+  API,
   onSelectStudent,
   onOpenGelir
 }) {
-  const [tahsilatList, setTahsilatList] = useState(() => AccountingService.getCollections());
+  const [tahsilatList, setTahsilatList] = useState(() => AccountingService.getCollections(payments));
+  const [showNewPaymentModal, setShowNewPaymentModal] = useState(false);
+
+  useEffect(() => {
+    setTahsilatList(AccountingService.getCollections(payments));
+  }, [payments]);
 
   useEffect(() => {
     const handleUpdate = () => {
-      setTahsilatList(AccountingService.getCollections());
+      setTahsilatList(AccountingService.getCollections(payments));
     };
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
-  }, []);
+  }, [payments]);
   const [bankFilter, setBankFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -653,6 +661,28 @@ export default function EdesisTahsilatListesi({
                 </button>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowNewPaymentModal(true)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "7px 14px",
+                background: "#16a34a",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                boxShadow: "0 1px 2px rgba(22, 163, 74, 0.2)"
+              }}
+            >
+              <Plus size={14} /> + Yeni Tahsilat Ekle
+            </button>
           </div>
         </div>
       </div>
@@ -986,6 +1016,245 @@ export default function EdesisTahsilatListesi({
           sozlesmeNo={selectedGelirDetail.sozlesmeNo}
           student={selectedGelirDetail.student}
         />
+      )}
+
+      {/* YENİ TAHSİLAT EKLE MODAL */}
+      {showNewPaymentModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 99999,
+            padding: "16px"
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowNewPaymentModal(false);
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              width: "100%",
+              maxWidth: "520px",
+              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+              overflow: "hidden"
+            }}
+          >
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "#f8fafc"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Receipt size={18} color="#16a34a" />
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#1e293b" }}>Yeni Tahsilat Kaydı Ekle</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewPaymentModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const stName = fd.get("studentName");
+                const stObj = (students || []).find((s) => s.student_name === stName || s.id === fd.get("studentId"));
+                const amt = Number(fd.get("amount")) || 0;
+                if (amt <= 0) {
+                  alert("Lütfen geçerli bir tahsilat tutarı giriniz.");
+                  return;
+                }
+                const newColl = AccountingService.recordCollection({
+                  gelirKodu: stObj?.gelir_kodu,
+                  sozlesmeNo: stObj?.sozlesme_no,
+                  amount: amt,
+                  bank: fd.get("bank") || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
+                  method: fd.get("method") || "Nakit",
+                  note: fd.get("note") || "Taksit Tahsilatı",
+                  studentName: stObj?.student_name || stName || "Öğrenci",
+                  studentId: stObj?.id,
+                  apiBaseUrl: API
+                });
+                setTahsilatList(AccountingService.getCollections(payments));
+                setShowNewPaymentModal(false);
+                showToast(`💰 ${newColl?.odemeKodu || ""} nolu ${fmtCurrency(amt)} tutarında tahsilat başarıyla kaydedildi.`);
+              }}
+              style={{ padding: "20px" }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                    Öğrenci Adı Soyadı *
+                  </label>
+                  <input
+                    list="student-options"
+                    name="studentName"
+                    required
+                    placeholder="Öğrenci adı seçin veya yazın..."
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      outline: "none"
+                    }}
+                  />
+                  <datalist id="student-options">
+                    {(students || []).map((s) => (
+                      <option key={s.id || s.student_name} value={s.student_name}>
+                        {s.student_class ? `(${s.student_class})` : ""} {s.parent_name ? `- Veli: ${s.parent_name}` : ""}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                      Tahsilat Tutarı (TL) *
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      name="amount"
+                      required
+                      placeholder="Örn: 5000"
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "6px",
+                        fontSize: "13px",
+                        outline: "none",
+                        fontWeight: 700,
+                        color: "#16a34a"
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                      Ödeme Yöntemi
+                    </label>
+                    <select
+                      name="method"
+                      defaultValue="Nakit"
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "6px",
+                        fontSize: "13px",
+                        outline: "none",
+                        background: "#fff"
+                      }}
+                    >
+                      <option value="Nakit">Nakit</option>
+                      <option value="Banka Havale / EFT">Banka Havale / EFT</option>
+                      <option value="Kredi Kartı">Kredi Kartı</option>
+                      <option value="Senet / Bono">Senet / Bono</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                    Hesap / Kasa
+                  </label>
+                  <select
+                    name="bank"
+                    defaultValue="T.C. VAKIFLAR BANKASI İNEGÖL ŞB."
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      outline: "none",
+                      background: "#fff"
+                    }}
+                  >
+                    <option value="T.C. VAKIFLAR BANKASI İNEGÖL ŞB.">T.C. VAKIFLAR BANKASI İNEGÖL ŞB.</option>
+                    <option value="T.C. ZİRAAT BANKASI İNEGÖL ŞB.">T.C. ZİRAAT BANKASI İNEGÖL ŞB.</option>
+                    <option value="T. GARANTİ BANKASI">T. GARANTİ BANKASI</option>
+                    <option value="Nakit Ana Kasa">Nakit Ana Kasa</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                    Açıklama / Not
+                  </label>
+                  <input
+                    name="note"
+                    defaultValue="Taksit Tahsilatı"
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      outline: "none"
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginTop: "20px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowNewPaymentModal(false)}
+                  style={{
+                    padding: "8px 16px",
+                    border: "1px solid #cbd5e1",
+                    background: "#fff",
+                    borderRadius: "6px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: "8px 18px",
+                    border: "none",
+                    background: "#16a34a",
+                    color: "#fff",
+                    borderRadius: "6px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    boxShadow: "0 1px 2px rgba(22, 163, 74, 0.2)"
+                  }}
+                >
+                  Tahsilatı Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

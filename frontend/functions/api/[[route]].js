@@ -21,6 +21,9 @@ function json(data, status = 200, extraHeaders = {}) {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0",
       ...CORS_HEADERS,
       ...extraHeaders,
     },

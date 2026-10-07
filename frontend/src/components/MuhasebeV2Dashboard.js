@@ -1042,8 +1042,18 @@ export function MuhasebeV2Dashboard({
         payment_date: payDate,
         note: payNote
       });
-      setShowQuickPaymentModal(false);
       const studentObj = students.find(s => s.id === payStudentId);
+      AccountingService.recordCollection({
+        studentId: payStudentId,
+        studentName: studentObj?.student_name,
+        amount: amt,
+        method: payMethod,
+        bank: payMethod === "Banka Havale / EFT" ? payBank : "Nakit Ana Kasa",
+        note: payNote,
+        gelirKodu: studentObj?.gelir_kodu,
+        sozlesmeNo: studentObj?.sozlesme_no
+      });
+      setShowQuickPaymentModal(false);
       
       setReceiptPayment({
         id: res.data?.id || `pmt-${Date.now()}`,
@@ -1438,6 +1448,8 @@ export function MuhasebeV2Dashboard({
       {activeTab === "tahsilatlar" && (
         <EdesisTahsilatListesi
           students={students}
+          payments={payments}
+          API={API}
           onSelectStudent={onSelectStudent}
           onOpenGelir={(g) =>
             setGelirModalData({

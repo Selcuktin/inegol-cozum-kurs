@@ -81,6 +81,18 @@ import EdesisVadeTakvimi from "./components/EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./components/EdesisTahsilatListesi";
 import { trIncludes } from "./lib/utils";
 import StudentService from "./lib/edesisStudentService";
+import AccountingService from "./lib/edesisAccountingService";
+
+// Client storage cache-busting & refresh across all devices
+const CLIENT_STORAGE_VERSION = "cozum_v2_20261007_refresh";
+if (typeof window !== "undefined") {
+  const currentVersion = localStorage.getItem("cozum_app_version");
+  if (currentVersion !== CLIENT_STORAGE_VERSION) {
+    console.log("[App] Upgrading client storage to version:", CLIENT_STORAGE_VERSION);
+    localStorage.removeItem("cozum_custom_students_v1");
+    localStorage.setItem("cozum_app_version", CLIENT_STORAGE_VERSION);
+  }
+}
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -1082,7 +1094,9 @@ function MainApp({ me, onLogout }) {
         )}
         {page === "tahsilat" && (
           <EdesisTahsilatListesi
-            students={data.students}
+            students={data.students || []}
+            payments={data.payments || []}
+            API={API}
             onSelectStudent={setSelected}
             onOpenGelir={(g) =>
               setGelirModalData({
@@ -3931,7 +3945,20 @@ function Modal({ type, selected, data, close, reload }) {
         EXTRA_KEYS.forEach(x => delete payload[`extra_${x.k}`]);
         await axios.post(`${API}/students`, payload);
       }
-      if (type === "payment") await axios.post(`${API}/payments`, {...form, student_id: form.student_id, amount: Number(form.amount)});
+      if (type === "payment") {
+        await axios.post(`${API}/payments`, {...form, student_id: form.student_id, amount: Number(form.amount)});
+        const st = (data.students || []).find(s => s.id === form.student_id);
+        AccountingService.recordCollection({
+          studentId: form.student_id,
+          studentName: st?.student_name || "Öğrenci",
+          amount: Number(form.amount),
+          method: form.method || "Nakit",
+          bank: form.bank || "Nakit Ana Kasa",
+          note: form.note || "Taksit Tahsilatı",
+          gelirKodu: st?.gelir_kodu,
+          sozlesmeNo: st?.sozlesme_no
+        });
+      }
       if (type === "expense") await axios.post(`${API}/expenses`, {...form, amount: Number(form.amount)});
       if (type === "class")   await axios.post(`${API}/classes`,  {...form, capacity: Number(form.capacity || 20)});
       await reload(); close();

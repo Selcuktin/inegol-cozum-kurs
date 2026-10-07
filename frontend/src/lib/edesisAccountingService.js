@@ -80,11 +80,52 @@ export const AccountingService = {
     });
   },
 
-  // 4. Get all collections (authentic base + custom collections)
-  getCollections() {
+  // 4. Get all collections (authentic base + custom collections + remote payments from D1)
+  getCollections(remotePayments = []) {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_COLLECTIONS, []);
     const base = edesisData.tahsilatlar || [];
-    return [...custom, ...base];
+
+    const map = new Map();
+
+    // 1. Base collections
+    base.forEach((c) => {
+      const key = c.odemeKodu || String(c.id);
+      map.set(key, c);
+    });
+
+    // 2. Remote payments from D1
+    (remotePayments || []).forEach((p) => {
+      if (p && (p.amount || p.tahsilatTutari)) {
+        const id = p.id || `pmt-${p.payment_date}-${p.amount}`;
+        const code = p.odemeKodu || p.code || (String(id).startsWith("THS") ? id : `THS-${String(id).slice(-6)}`);
+        const existing = map.get(code) || map.get(String(id));
+        map.set(code, {
+          ...(existing || {}),
+          id: p.id || existing?.id || Date.now(),
+          odemeKodu: code,
+          gelirKodu: p.gelir_kodu || existing?.gelirKodu || "GLR202600150",
+          gelirAciklama: p.note || existing?.gelirAciklama || "Taksit Tahsilatı",
+          musteriUnvan: p.student_name || existing?.musteriUnvan || "Öğrenci",
+          tahsilatTutari: Number(p.amount || p.tahsilatTutari || 0),
+          kasaBankaAdi: p.bank || existing?.kasaBankaAdi || (p.method === "Nakit" ? "Nakit Ana Kasa" : "T.C. VAKIFLAR BANKASI İNEGÖL ŞB."),
+          odemeYontemi: p.method || existing?.odemeYontemi || "Nakit",
+          tahsilatTarihi: p.payment_date || p.tahsilatTarihi || existing?.tahsilatTarihi || new Date().toISOString(),
+          aciklama: p.note || existing?.aciklama || "Tahsilat",
+          durum: 1,
+          durumText: "Tahsil Edildi"
+        });
+      }
+    });
+
+    // 3. Custom collections (local additions take precedence)
+    custom.forEach((c) => {
+      const key = c.odemeKodu || String(c.id);
+      map.set(key, { ...(map.get(key) || {}), ...c });
+    });
+
+    const result = Array.from(map.values());
+    result.sort((a, b) => (b.tahsilatTarihi || "").localeCompare(a.tahsilatTarihi || ""));
+    return result;
   },
 
   // 5. Add new income with automatic installment generation and contract creation
@@ -220,7 +261,7 @@ export const AccountingService = {
   },
 
   // 6. Record payment / collection and update debts
-  recordCollection({ gelirKodu, sozlesmeNo, amount, bank, method, note, studentName }) {
+  recordCollection({ gelirKodu, sozlesmeNo, amount, bank, method, note, studentName, studentId, apiBaseUrl }) {
     const amt = Number(amount) || 0;
     if (amt <= 0) return null;
 
@@ -298,8 +339,31 @@ export const AccountingService = {
     const customCollections = readStorage(STORAGE_KEYS.CUSTOM_COLLECTIONS, []);
     writeStorage(STORAGE_KEYS.CUSTOM_COLLECTIONS, [newCollection, ...customCollections]);
 
+    // Remote sync with Cloudflare D1
+    const baseUrl = apiBaseUrl || (typeof window !== "undefined" && window.__API_BASE__) || "/api";
+    if (studentId || studentName) {
+      try {
+        fetch(`${baseUrl}/payments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: studentId || "stu-" + Date.now(),
+            student_name: studentName,
+            amount: amt,
+            method: method || "Nakit",
+            bank: bank || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
+            payment_date: new Date().toISOString().slice(0, 10),
+            note: note || `Tahsilat (${nextThsCode})`
+          })
+        }).catch((e) => console.warn("[AccountingService] Remote payment post error:", e));
+      } catch (err) {
+        console.warn("[AccountingService] Remote fetch error:", err);
+      }
+    }
+
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
+      window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "collection", amount: amt } }));
     }
 
     return newCollection;

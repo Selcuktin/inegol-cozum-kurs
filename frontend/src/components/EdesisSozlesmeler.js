@@ -2316,27 +2316,17 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
                 const installments = Number(formData.get("installments")) || 10;
                 const sinif = formData.get("sinif") || "7-A";
 
-                const newNo = `SZL202600${Math.floor(150 + Math.random() * 850)}`;
-                const newEntry = {
-                  id: Date.now(),
-                  sozlesmeNo: newNo,
-                  sozlesmeTarihi: new Date().toISOString(),
-                  durum: 1,
-                  netTutar: Math.round(amount * 0.909),
-                  kdvTutari: Math.round(amount * 0.091),
-                  brutTutar: amount,
-                  donemId: 113,
-                  donemAdi: "2026-2027",
+                const res = AccountingService.addNewIncome({
                   ogrenciAdi: studentName,
-                  musteriUnvan: studentName,
+                  veliAdi: studentName,
                   sinifAdi: sinif,
-                  odemeTuruText: installments > 1 ? `Taksitli (${installments} Taksit)` : "Peşin",
+                  brutTutar: amount,
                   taksitSayisi: installments,
-                  sozlesmeUrl: null
-                };
+                  aciklama: `Sözleşme Kaydı`
+                });
 
-                setContractsList([newEntry, ...contractsList]);
-                showToast(`✅ ${newNo} numaralı yeni sözleşme kaydedildi.`);
+                setContractsList(AccountingService.getContracts());
+                showToast(`✅ ${res.contract?.sozlesmeNo || "Yeni"} numaralı yeni sözleşme kaydedildi.`);
                 setShowNewContractModal(false);
               }}
             >

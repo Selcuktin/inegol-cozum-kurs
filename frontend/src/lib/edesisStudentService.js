@@ -190,42 +190,81 @@ export const StudentService = {
     // 1. Add base students from edesisStudentsData.json
     base.forEach((s) => {
       if (s && (s.id || s.student_name) && !isDel(s)) {
-        const key = String(s.id || s.student_name.trim().toUpperCase());
-        map.set(key, s);
+        const idKey = s.id ? String(s.id) : "";
+        const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
+        if (idKey) map.set(idKey, s);
+        if (nameKey) map.set(nameKey, s);
       }
     });
 
     // 2. Add remote students from backend / D1
     (remoteStudents || []).forEach((s) => {
       if (s && (s.id || s.student_name) && !isDel(s)) {
-        const key = String(s.id || s.student_name.trim().toUpperCase());
-        const existing = map.get(key);
-        map.set(key, {
+        const idKey = s.id ? String(s.id) : "";
+        const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
+        const existing = (idKey && map.get(idKey)) || (nameKey && map.get(nameKey)) || null;
+
+        const isPlaceholder = (name) => !name || name.trim() === "Belirtilmedi" || name.trim().endsWith(" Velisi");
+        const parentName = isPlaceholder(s.parent_name) && existing?.parent_name && !isPlaceholder(existing.parent_name)
+          ? existing.parent_name
+          : (s.parent_name || existing?.parent_name || "Belirtilmedi");
+
+        const parentPhone = (!s.parent_phone || s.parent_phone === existing?.student_phone) && existing?.parent_phone
+          ? existing.parent_phone
+          : (s.parent_phone || existing?.parent_phone || "");
+
+        const merged = {
           ...(existing || {}),
           ...s,
+          parent_name: parentName,
+          parent_phone: parentPhone,
+          parent_relation: existing?.parent_relation || s.parent_relation || "Veli",
+          gender: existing?.gender || s.gender || "Erkek",
           donem_id: s.donem_id || existing?.donem_id || 113,
           donem_adi: s.donem_adi || existing?.donem_adi || "2026-2027",
           status: s.status === "Kayitli" || !s.status ? "Kesin Kayıt" : s.status
-        });
+        };
+
+        if (idKey) map.set(idKey, merged);
+        if (nameKey) map.set(nameKey, merged);
       }
     });
 
     // 3. Add custom students created locally
     custom.forEach((s) => {
       if (s && (s.id || s.student_name) && !isDel(s)) {
-        const key = String(s.id || s.student_name.trim().toUpperCase());
-        const existing = map.get(key);
-        map.set(key, {
+        const idKey = s.id ? String(s.id) : "";
+        const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
+        const existing = (idKey && map.get(idKey)) || (nameKey && map.get(nameKey)) || null;
+
+        const merged = {
           ...(existing || {}),
           ...s,
           donem_id: s.donem_id || existing?.donem_id || 113,
           donem_adi: s.donem_adi || existing?.donem_adi || "2026-2027",
           status: s.status === "Kayitli" || !s.status ? "Kesin Kayıt" : s.status
-        });
+        };
+
+        if (idKey) map.set(idKey, merged);
+        if (nameKey) map.set(nameKey, merged);
       }
     });
 
-    const all = Array.from(map.values()).filter((s) => !isDel(s));
+    // Dedup by student_name or id
+    const seenNames = new Set();
+    const all = [];
+    for (const s of map.values()) {
+      if (!isDel(s)) {
+        const norm = (s.student_name || "").trim().toUpperCase();
+        if (norm && !seenNames.has(norm)) {
+          seenNames.add(norm);
+          all.push(s);
+        } else if (!norm && s.id && !seenNames.has(s.id)) {
+          seenNames.add(s.id);
+          all.push(s);
+        }
+      }
+    }
     all.sort((a, b) => {
       const isNewA = String(a.id || "").startsWith("student-") || (a.created_at && a.created_at >= "2026-10-01");
       const isNewB = String(b.id || "").startsWith("student-") || (b.created_at && b.created_at >= "2026-10-01");
