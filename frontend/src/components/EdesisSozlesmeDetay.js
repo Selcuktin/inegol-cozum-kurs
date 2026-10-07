@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import studentsData from "../data/edesisStudentsData.json";
 import edesisAccountingData from "../data/edesisAccountingData.json";
+import AccountingService from "../lib/edesisAccountingService";
 
 export default function EdesisSozlesmeDetay({
   contract,
@@ -51,18 +52,53 @@ export default function EdesisSozlesmeDetay({
   // Find corresponding student in data
   const student = useMemo(() => {
     if (!contract) return null;
-    const name = (contract.ogrenciAdi || contract.musteriUnvan || "").toUpperCase();
-    return studentsData.find((s) => s.student_name && s.student_name.toUpperCase() === name) || studentsData[0];
+    const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
+    const name = norm(contract.ogrenciAdi || contract.musteriUnvan || "");
+    return studentsData.find((s) => norm(s.student_name) === name) || studentsData[0];
   }, [contract]);
 
   // Find installments for this contract
   const installments = useMemo(() => {
     if (!contract) return [];
-    const allTaksitler = edesisAccountingData.taksitler || [];
-    const matched = allTaksitler.filter(
-      (t) => t.sozlesmeNo === contract.sozlesmeNo || String(t.sozlesmeId) === String(contract.id)
-    );
-    if (matched.length > 0) return matched;
+    const allTaksitler = AccountingService.getInstallments() || [];
+    const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
+    const cSozlesme = (contract.sozlesmeNo || "").trim();
+    const cStudent = norm(contract.ogrenciAdi || contract.musteriUnvan || "");
+
+    const matched = allTaksitler.filter((t) => {
+      if (cSozlesme && t.sozlesmeNo && t.sozlesmeNo === cSozlesme) return true;
+      if (cSozlesme && t.gelirAciklama && t.gelirAciklama.includes(cSozlesme)) return true;
+      if (cStudent) {
+        const tStudent = norm(t.ogrenciAdiSoyadi || t.musteriUnvan || "");
+        if (tStudent === cStudent) return true;
+      }
+      return false;
+    });
+
+    if (matched.length > 0) {
+      return [...matched].sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0)).map((t, idx) => {
+        const amt = Number(t.taksitTutari) || 0;
+        const paid = Number(t.tahsilEdilen) || 0;
+        const rem = Number(t.kalanTutar) !== undefined ? Number(t.kalanTutar) : Math.max(0, amt - paid);
+        let dueStr = t.vadeTarihi ? String(t.vadeTarihi).slice(0, 10) : "";
+        if (dueStr.includes("-")) {
+          const parts = dueStr.split("-");
+          dueStr = `${parts[2]}.${parts[1]}.${parts[0]}`;
+        }
+        return {
+          id: t.id,
+          taksitNo: Number(t.taksitNo) || (idx + 1),
+          vadeTarihi: dueStr,
+          taksitTutari: amt,
+          tahsilEdilen: paid,
+          kalanTutar: rem,
+          durum: rem <= 0 ? 1 : 0,
+          durumText: rem <= 0 ? "Tahsil Edildi" : (paid > 0 ? "Kısmen Ödendi" : (t.durumText || "Vadesi Gelmedi")),
+          gelirKodu: t.gelirKodu,
+          sozlesmeNo: t.sozlesmeNo || cSozlesme
+        };
+      });
+    }
 
     // Fallback: Generate realistic 10 installments matching contract total
     const total = contract.brutTutar || 81000.04;
@@ -88,6 +124,10 @@ export default function EdesisSozlesmeDetay({
   }, [contract]);
 
   const [localInstallments, setLocalInstallments] = useState(installments);
+
+  React.useEffect(() => {
+    setLocalInstallments(installments);
+  }, [installments]);
 
   // Calculations
   const brutTutar = contract?.brutTutar || 81000.04;
@@ -131,6 +171,16 @@ export default function EdesisSozlesmeDetay({
     const { taksit, amount } = collectModal;
     const paidAmount = Number(amount) || taksit.taksitTutari;
 
+    AccountingService.recordCollection({
+      studentName: contract.ogrenciAdi || contract.musteriUnvan,
+      amount: paidAmount,
+      method: collectModal.method || "Nakit",
+      bank: collectModal.method === "Banka Havale / EFT" ? "T.C. VAKIFLAR BANKASI İNEGÖL ŞB." : "Nakit Ana Kasa",
+      note: `${contract.sozlesmeNo || ""} ${taksit.taksitNo}. Taksit Tahsilatı`,
+      gelirKodu: taksit.gelirKodu || contract.gelirKodu,
+      sozlesmeNo: contract.sozlesmeNo
+    });
+
     setLocalInstallments((prev) =>
       prev.map((t) =>
         t.taksitNo === taksit.taksitNo
@@ -146,7 +196,7 @@ export default function EdesisSozlesmeDetay({
           : t
       )
     );
-    showToast(`✅ ${taksit.taksitNo}. Taksit (${fmtTRY(paidAmount)}) tahsil edildi.`);
+    showToast(`✅ ${taksit.taksitNo}. Taksit (${fmtTRY(paidAmount)}) tahsil edildi ve kaydedildi.`);
     setCollectModal(null);
   };
 

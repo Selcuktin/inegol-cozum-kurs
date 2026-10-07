@@ -417,10 +417,21 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
                           {c.name} ({c.level || "Genel"})
                         </option>
                       ))}
+                      <option value="1-A">1-A (İlkokul)</option>
+                      <option value="2-A">2-A (İlkokul)</option>
+                      <option value="3-A">3-A (İlkokul)</option>
+                      <option value="4-A">4-A (İlkokul)</option>
+                      <option value="5-A">5-A (Ara Sınıf)</option>
+                      <option value="6-A">6-A (Ara Sınıf)</option>
+                      <option value="7-A">7-A (Ara Sınıf)</option>
+                      <option value="8-A LGS">8-A (LGS Hazırlık)</option>
+                      <option value="9-A">9-A (Ara Sınıf)</option>
+                      <option value="10-A">10-A (Ara Sınıf)</option>
+                      <option value="11-A Sayısal">11-A Sayısal</option>
+                      <option value="11-B Eşit Ağırlık">11-B Eşit Ağırlık</option>
                       <option value="12-A Sayısal">12-A Sayısal</option>
                       <option value="12-B Eşit Ağırlık">12-B Eşit Ağırlık</option>
-                      <option value="11-A Sayısal">11-A Sayısal</option>
-                      <option value="8-A LGS">8-A LGS Hazırlık</option>
+                      <option value="Mezun Sayısal">Mezun Sayısal</option>
                       <option value="Mezun EA">Mezun EA</option>
                     </select>
                   </label>
@@ -430,11 +441,14 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
                   <label>
                     Alanı / Bölümü
                     <select name="department" value={formData.department} onChange={handleChange}>
+                      <option value="ILKOKUL">İlkokul</option>
+                      <option value="ARA SINIF">Ara Sınıf</option>
+                      <option value="LGS">LGS (8. Sınıf)</option>
                       <option value="Sayısal">Sayısal (MF)</option>
                       <option value="Eşit Ağırlık">Eşit Ağırlık (TM)</option>
                       <option value="Sözel">Sözel (TS)</option>
                       <option value="Yabancı Dil">Yabancı Dil (DİL)</option>
-                      <option value="LGS">LGS (8. Sınıf)</option>
+                      <option value="TYT">TYT / YKS</option>
                     </select>
                   </label>
                   <label>
