@@ -84,7 +84,7 @@ import StudentService from "./lib/edesisStudentService";
 import AccountingService from "./lib/edesisAccountingService";
 
 // Client storage cache-busting & refresh across all devices
-const CLIENT_STORAGE_VERSION = "cozum_v2_20261007_refresh";
+const CLIENT_STORAGE_VERSION = "cozum_v2_20261007_sync_taksitler";
 if (typeof window !== "undefined") {
   const currentVersion = localStorage.getItem("cozum_app_version");
   if (currentVersion !== CLIENT_STORAGE_VERSION) {

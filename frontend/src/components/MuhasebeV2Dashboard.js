@@ -357,22 +357,35 @@ export function MuhasebeV2Dashboard({
     };
   }, [accountingVersion, periodFilter]);
 
-  // 1. ÖĞRENCİ GERÇEK TAKSİT PLANLARI HARİTASI (Edesis 662 Taksit Birebir Entegrasyonu)
+  // 1. ÖĞRENCİ GERÇEK TAKSİT PLANLARI HARİTASI (Edesis 664 Taksit Birebir Entegrasyonu)
   const studentPlansMap = useMemo(() => {
     const byName = {};
+    const bySozlesme = {};
     const rawTaksitler = AccountingService.getInstallments() || [];
+
+    const normalizeTr = (str) => (str || "")
+      .trim()
+      .replace(/i/g, "İ")
+      .replace(/ı/g, "I")
+      .toLocaleUpperCase("tr-TR")
+      .replace(/\s+/g, " ");
+
     rawTaksitler.forEach((t) => {
-      const name = (t.ogrenciAdiSoyadi || t.musteriUnvan || "").trim().toUpperCase().replace(/\s+/g, " ");
+      const name = normalizeTr(t.ogrenciAdiSoyadi || t.musteriUnvan);
       if (name) {
         if (!byName[name]) byName[name] = [];
         byName[name].push(t);
+      }
+      if (t.sozlesmeNo) {
+        if (!bySozlesme[t.sozlesmeNo]) bySozlesme[t.sozlesmeNo] = [];
+        bySozlesme[t.sozlesmeNo].push(t);
       }
     });
 
     const map = {};
     students.forEach((s) => {
-      const sNorm = (s.student_name || "").trim().toUpperCase().replace(/\s+/g, " ");
-      const rawList = byName[sNorm] || [];
+      const sNorm = normalizeTr(s.student_name);
+      const rawList = byName[sNorm] || (s.sozlesme_no ? bySozlesme[s.sozlesme_no] : null) || [];
       if (rawList.length > 0) {
         const sorted = [...rawList].sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0));
         map[s.id] = sorted.map((t, idx) => {

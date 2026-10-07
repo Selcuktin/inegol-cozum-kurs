@@ -33,7 +33,7 @@
     "ing_muaf": 0,
     "address": "İSAÖREN MAH. İSAÖREN SOK. NO:83 İnegöl/Bursa",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -69,9 +69,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 55000.0,
-    "paid_amount": 5500.0,
-    "remaining": 49500.0
+    "total_fee": 55000,
+    "paid_amount": 5500,
+    "remaining": 49500
   },
   {
     "id": "8142196",
@@ -106,9 +106,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8142194",
@@ -143,9 +143,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8142193",
@@ -180,9 +180,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8142192",
@@ -217,9 +217,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8133392",
@@ -255,7 +255,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -292,7 +292,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.6,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.6
   },
   {
@@ -329,7 +329,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 50000.5,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 50000.5
   },
   {
@@ -365,9 +365,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8133382",
@@ -402,9 +402,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 45000.0,
-    "paid_amount": 0.0,
-    "remaining": 45000.0
+    "total_fee": 45000,
+    "paid_amount": 0,
+    "remaining": 45000
   },
   {
     "id": "8133379",
@@ -439,9 +439,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8133359",
@@ -477,7 +477,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -514,7 +514,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.6,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.6
   },
   {
@@ -551,7 +551,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 50000.5,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 50000.5
   },
   {
@@ -588,7 +588,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -625,7 +625,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.6,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.6
   },
   {
@@ -661,9 +661,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8133339",
@@ -699,7 +699,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 50000.5,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 50000.5
   },
   {
@@ -735,9 +735,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 45000.0,
-    "paid_amount": 0.0,
-    "remaining": 45000.0
+    "total_fee": 45000,
+    "paid_amount": 0,
+    "remaining": 45000
   },
   {
     "id": "8133336",
@@ -772,9 +772,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8133335",
@@ -809,9 +809,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8133333",
@@ -846,9 +846,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 45000.0,
-    "paid_amount": 0.0,
-    "remaining": 45000.0
+    "total_fee": 45000,
+    "paid_amount": 0,
+    "remaining": 45000
   },
   {
     "id": "8133330",
@@ -883,9 +883,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8129781",
@@ -920,9 +920,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8129780",
@@ -957,9 +957,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8129774",
@@ -994,9 +994,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8129773",
@@ -1031,9 +1031,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8118066",
@@ -1069,7 +1069,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 81000.04,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 81000.04
   },
   {
@@ -1106,7 +1106,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 48000.26,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 48000.26
   },
   {
@@ -1142,9 +1142,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8107771",
@@ -1179,9 +1179,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8094534",
@@ -1217,7 +1217,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 61000.01,
-    "paid_amount": 16000.0,
+    "paid_amount": 16000,
     "remaining": 45000.01
   },
   {
@@ -1253,9 +1253,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 49500.0,
-    "paid_amount": 0.0,
-    "remaining": 49500.0
+    "total_fee": 49500,
+    "paid_amount": 0,
+    "remaining": 49500
   },
   {
     "id": "8075158",
@@ -1290,9 +1290,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 49500.0,
-    "paid_amount": 0.0,
-    "remaining": 49500.0
+    "total_fee": 49500,
+    "paid_amount": 0,
+    "remaining": 49500
   },
   {
     "id": "8065290",
@@ -1327,9 +1327,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8052575",
@@ -1364,9 +1364,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "8052109",
@@ -1402,7 +1402,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 65000.1,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 65000.1
   },
   {
@@ -1439,7 +1439,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 50000.5,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 50000.5
   },
   {
@@ -1476,7 +1476,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 17000.0,
+    "paid_amount": 17000,
     "remaining": 54000.05
   },
   {
@@ -1512,9 +1512,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 66000.0,
-    "paid_amount": 0.0,
-    "remaining": 66000.0
+    "total_fee": 66000,
+    "paid_amount": 0,
+    "remaining": 66000
   },
   {
     "id": "8016291",
@@ -1550,7 +1550,7 @@
     "ing_muaf": 0,
     "address": "YENİ MAH. GAYE SOK. NO:8 KAT:2 İnegöl/Bursa",
     "total_fee": 75000.09,
-    "paid_amount": 7500.0,
+    "paid_amount": 7500,
     "remaining": 67500.09
   },
   {
@@ -1587,7 +1587,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.05,
-    "paid_amount": 6000.0,
+    "paid_amount": 6000,
     "remaining": 54000.05
   },
   {
@@ -1624,7 +1624,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -1661,7 +1661,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.6,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.6
   },
   {
@@ -1698,7 +1698,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -1734,9 +1734,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7966990",
@@ -1772,7 +1772,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.05,
-    "paid_amount": 6000.0,
+    "paid_amount": 6000,
     "remaining": 54000.05
   },
   {
@@ -1809,7 +1809,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 50000.5,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 50000.5
   },
   {
@@ -1846,7 +1846,7 @@
     "ing_muaf": 0,
     "address": "KEMALPAŞA MAH. ILICA SOK. NO:15 KAT:3 İnegöl/Bursa",
     "total_fee": 45000.89,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 45000.89
   },
   {
@@ -1882,9 +1882,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7955767",
@@ -1920,7 +1920,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 81000.7,
-    "paid_amount": 11000.0,
+    "paid_amount": 11000,
     "remaining": 70000.7
   },
   {
@@ -1957,7 +1957,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 90000.9,
-    "paid_amount": 22500.0,
+    "paid_amount": 22500,
     "remaining": 67500.9
   },
   {
@@ -1993,9 +1993,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949380",
@@ -2030,9 +2030,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949379",
@@ -2067,9 +2067,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949378",
@@ -2104,9 +2104,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949377",
@@ -2141,9 +2141,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949371",
@@ -2215,9 +2215,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949369",
@@ -2252,9 +2252,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949368",
@@ -2289,9 +2289,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949367",
@@ -2327,7 +2327,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 81000.7,
-    "paid_amount": 11000.0,
+    "paid_amount": 11000,
     "remaining": 70000.7
   },
   {
@@ -2364,7 +2364,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 80000.8,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 80000.8
   },
   {
@@ -2400,9 +2400,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 66000.0,
-    "paid_amount": 0.0,
-    "remaining": 66000.0
+    "total_fee": 66000,
+    "paid_amount": 0,
+    "remaining": 66000
   },
   {
     "id": "7949335",
@@ -2437,9 +2437,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949334",
@@ -2474,9 +2474,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949333",
@@ -2511,9 +2511,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949332",
@@ -2548,9 +2548,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949331",
@@ -2585,9 +2585,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949329",
@@ -2622,9 +2622,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949328",
@@ -2659,9 +2659,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949318",
@@ -2696,9 +2696,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949317",
@@ -2733,9 +2733,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949316",
@@ -2770,9 +2770,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949315",
@@ -2807,9 +2807,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949314",
@@ -2844,9 +2844,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 90000.0,
-    "paid_amount": 25720.0,
-    "remaining": 64280.0
+    "total_fee": 90000,
+    "paid_amount": 25720,
+    "remaining": 64280
   },
   {
     "id": "7949313",
@@ -2881,9 +2881,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949312",
@@ -2918,9 +2918,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949311",
@@ -2955,9 +2955,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949310",
@@ -2992,9 +2992,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949309",
@@ -3029,9 +3029,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949308",
@@ -3066,9 +3066,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949307",
@@ -3103,9 +3103,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949306",
@@ -3140,9 +3140,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949305",
@@ -3177,9 +3177,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949304",
@@ -3214,9 +3214,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 7000.0,
-    "paid_amount": 7000.0,
-    "remaining": 0.0
+    "total_fee": 7000,
+    "paid_amount": 7000,
+    "remaining": 0
   },
   {
     "id": "7949303",
@@ -3251,9 +3251,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949302",
@@ -3288,9 +3288,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7949301",
@@ -3326,7 +3326,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.05,
-    "paid_amount": 6000.0,
+    "paid_amount": 6000,
     "remaining": 54000.05
   },
   {
@@ -3362,9 +3362,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948413",
@@ -3399,9 +3399,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948412",
@@ -3436,9 +3436,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948411",
@@ -3473,9 +3473,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948410",
@@ -3510,9 +3510,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948409",
@@ -3547,9 +3547,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948408",
@@ -3584,9 +3584,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7948407",
@@ -3621,9 +3621,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948406",
@@ -3658,9 +3658,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948405",
@@ -3695,9 +3695,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948403",
@@ -3732,9 +3732,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948402",
@@ -3769,9 +3769,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948401",
@@ -3806,9 +3806,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948400",
@@ -3843,9 +3843,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948399",
@@ -3880,9 +3880,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948398",
@@ -3917,9 +3917,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948397",
@@ -3954,9 +3954,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948396",
@@ -3991,9 +3991,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948395",
@@ -4028,9 +4028,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948394",
@@ -4065,9 +4065,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948393",
@@ -4103,7 +4103,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -4139,9 +4139,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948391",
@@ -4176,9 +4176,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7948390",
@@ -4213,9 +4213,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948389",
@@ -4251,7 +4251,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -4287,9 +4287,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948382",
@@ -4324,9 +4324,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948381",
@@ -4361,9 +4361,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948379",
@@ -4398,9 +4398,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948375",
@@ -4435,9 +4435,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948374",
@@ -4472,9 +4472,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948373",
@@ -4509,9 +4509,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948371",
@@ -4546,9 +4546,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948369",
@@ -4583,9 +4583,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948367",
@@ -4620,9 +4620,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7948365",
@@ -4657,9 +4657,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948364",
@@ -4694,9 +4694,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948360",
@@ -4731,9 +4731,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948357",
@@ -4768,9 +4768,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948356",
@@ -4805,9 +4805,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948351",
@@ -4842,9 +4842,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948349",
@@ -4879,9 +4879,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948348",
@@ -4916,9 +4916,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948347",
@@ -4953,9 +4953,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948346",
@@ -4990,9 +4990,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948345",
@@ -5027,9 +5027,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948344",
@@ -5065,7 +5065,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -5102,7 +5102,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -5138,9 +5138,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948341",
@@ -5175,9 +5175,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7948309",
@@ -5212,9 +5212,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948308",
@@ -5249,9 +5249,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948307",
@@ -5286,9 +5286,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948306",
@@ -5323,9 +5323,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948305",
@@ -5360,9 +5360,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948304",
@@ -5397,9 +5397,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948303",
@@ -5434,9 +5434,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948302",
@@ -5471,9 +5471,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948301",
@@ -5508,9 +5508,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7948300",
@@ -5545,9 +5545,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948299",
@@ -5582,9 +5582,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948298",
@@ -5619,9 +5619,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948297",
@@ -5656,9 +5656,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948296",
@@ -5693,9 +5693,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948295",
@@ -5730,9 +5730,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948294",
@@ -5767,9 +5767,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948293",
@@ -5804,9 +5804,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948292",
@@ -5841,9 +5841,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948291",
@@ -5878,9 +5878,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948290",
@@ -5915,9 +5915,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948289",
@@ -5952,9 +5952,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948288",
@@ -5990,7 +5990,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -6026,9 +6026,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7948286",
@@ -6064,7 +6064,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -6100,9 +6100,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948276",
@@ -6137,9 +6137,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948275",
@@ -6174,9 +6174,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948274",
@@ -6211,9 +6211,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948273",
@@ -6248,9 +6248,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948272",
@@ -6285,9 +6285,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948271",
@@ -6322,9 +6322,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948270",
@@ -6359,9 +6359,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948269",
@@ -6396,9 +6396,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948268",
@@ -6433,9 +6433,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7948267",
@@ -6470,9 +6470,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948266",
@@ -6507,9 +6507,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948265",
@@ -6544,9 +6544,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948264",
@@ -6581,9 +6581,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948263",
@@ -6618,9 +6618,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948262",
@@ -6655,9 +6655,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948261",
@@ -6692,9 +6692,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948260",
@@ -6729,9 +6729,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948258",
@@ -6766,9 +6766,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948257",
@@ -6803,9 +6803,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948256",
@@ -6840,9 +6840,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7948255",
@@ -6877,9 +6877,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948254",
@@ -6914,9 +6914,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948253",
@@ -6951,9 +6951,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948252",
@@ -6989,7 +6989,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -7026,7 +7026,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -7062,9 +7062,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948248",
@@ -7099,9 +7099,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948247",
@@ -7136,9 +7136,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948246",
@@ -7173,9 +7173,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948245",
@@ -7210,9 +7210,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948244",
@@ -7247,9 +7247,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948243",
@@ -7284,9 +7284,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948242",
@@ -7321,9 +7321,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948241",
@@ -7358,9 +7358,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948240",
@@ -7395,9 +7395,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7948239",
@@ -7432,9 +7432,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948238",
@@ -7469,9 +7469,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948237",
@@ -7506,9 +7506,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948236",
@@ -7543,9 +7543,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948235",
@@ -7580,9 +7580,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948234",
@@ -7617,9 +7617,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948233",
@@ -7654,9 +7654,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948232",
@@ -7691,9 +7691,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948231",
@@ -7728,9 +7728,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948230",
@@ -7765,9 +7765,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948229",
@@ -7802,9 +7802,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948228",
@@ -7839,9 +7839,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7948227",
@@ -7877,7 +7877,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -7913,9 +7913,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948225",
@@ -7951,7 +7951,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -7987,9 +7987,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948223",
@@ -8024,9 +8024,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948222",
@@ -8061,9 +8061,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948221",
@@ -8098,9 +8098,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948219",
@@ -8135,9 +8135,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948218",
@@ -8172,9 +8172,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948217",
@@ -8209,9 +8209,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948216",
@@ -8246,9 +8246,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948215",
@@ -8283,9 +8283,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948214",
@@ -8320,9 +8320,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7948213",
@@ -8357,9 +8357,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948212",
@@ -8394,9 +8394,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948211",
@@ -8431,9 +8431,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948210",
@@ -8468,9 +8468,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948209",
@@ -8505,9 +8505,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948208",
@@ -8542,9 +8542,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948206",
@@ -8579,9 +8579,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948205",
@@ -8616,9 +8616,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948204",
@@ -8653,9 +8653,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948203",
@@ -8690,9 +8690,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948202",
@@ -8728,7 +8728,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -8764,9 +8764,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948200",
@@ -8801,9 +8801,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7948199",
@@ -8839,7 +8839,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -8875,9 +8875,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948194",
@@ -8912,9 +8912,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948193",
@@ -8949,9 +8949,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948192",
@@ -8986,9 +8986,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948191",
@@ -9023,9 +9023,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948190",
@@ -9060,9 +9060,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948189",
@@ -9097,9 +9097,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948188",
@@ -9134,9 +9134,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948187",
@@ -9171,9 +9171,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7948186",
@@ -9208,9 +9208,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948185",
@@ -9245,9 +9245,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948184",
@@ -9282,9 +9282,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948183",
@@ -9319,9 +9319,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948182",
@@ -9356,9 +9356,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948181",
@@ -9393,9 +9393,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948180",
@@ -9430,9 +9430,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948179",
@@ -9467,9 +9467,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948178",
@@ -9504,9 +9504,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948177",
@@ -9541,9 +9541,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948176",
@@ -9578,9 +9578,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948175",
@@ -9615,9 +9615,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948174",
@@ -9653,7 +9653,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -9689,9 +9689,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7948172",
@@ -9726,9 +9726,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948171",
@@ -9764,7 +9764,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -9800,9 +9800,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948169",
@@ -9837,9 +9837,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948168",
@@ -9874,9 +9874,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948167",
@@ -9911,9 +9911,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948166",
@@ -9948,9 +9948,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948165",
@@ -9985,9 +9985,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948164",
@@ -10022,9 +10022,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7948163",
@@ -10059,9 +10059,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948162",
@@ -10096,9 +10096,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948161",
@@ -10133,9 +10133,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948160",
@@ -10170,9 +10170,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948159",
@@ -10207,9 +10207,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948158",
@@ -10244,9 +10244,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948157",
@@ -10281,9 +10281,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948156",
@@ -10318,9 +10318,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948155",
@@ -10355,9 +10355,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948154",
@@ -10392,9 +10392,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948153",
@@ -10429,9 +10429,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948152",
@@ -10466,9 +10466,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948151",
@@ -10503,9 +10503,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948150",
@@ -10540,9 +10540,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948149",
@@ -10577,9 +10577,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948148",
@@ -10615,7 +10615,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 71000.05,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 71000.05
   },
   {
@@ -10651,9 +10651,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948146",
@@ -10689,7 +10689,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -10725,9 +10725,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7948120",
@@ -10762,9 +10762,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948118",
@@ -10799,9 +10799,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948117",
@@ -10836,9 +10836,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948116",
@@ -10873,9 +10873,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948115",
@@ -10910,9 +10910,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948114",
@@ -10947,9 +10947,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948113",
@@ -10984,9 +10984,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948111",
@@ -11021,9 +11021,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948110",
@@ -11058,9 +11058,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948109",
@@ -11095,9 +11095,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948108",
@@ -11132,9 +11132,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948107",
@@ -11169,9 +11169,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948039",
@@ -11206,9 +11206,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948038",
@@ -11243,9 +11243,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948037",
@@ -11280,9 +11280,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948036",
@@ -11317,9 +11317,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948035",
@@ -11354,9 +11354,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948034",
@@ -11391,9 +11391,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948033",
@@ -11428,9 +11428,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948032",
@@ -11466,7 +11466,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.05,
-    "paid_amount": 6000.0,
+    "paid_amount": 6000,
     "remaining": 54000.05
   },
   {
@@ -11502,9 +11502,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948030",
@@ -11539,9 +11539,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948029",
@@ -11576,9 +11576,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948028",
@@ -11613,9 +11613,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948027",
@@ -11650,9 +11650,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948026",
@@ -11687,9 +11687,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948025",
@@ -11724,9 +11724,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948024",
@@ -11761,9 +11761,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948023",
@@ -11798,9 +11798,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948021",
@@ -11835,9 +11835,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948020",
@@ -11872,9 +11872,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948019",
@@ -11910,7 +11910,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.05,
-    "paid_amount": 6000.0,
+    "paid_amount": 6000,
     "remaining": 54000.05
   },
   {
@@ -11946,9 +11946,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7948017",
@@ -11983,9 +11983,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947653",
@@ -12020,9 +12020,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947652",
@@ -12057,9 +12057,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947651",
@@ -12094,9 +12094,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947650",
@@ -12131,9 +12131,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947649",
@@ -12168,9 +12168,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947648",
@@ -12205,9 +12205,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947647",
@@ -12242,9 +12242,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947646",
@@ -12279,9 +12279,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7947645",
@@ -12316,9 +12316,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7930881",
@@ -12354,7 +12354,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 57500.3,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 57500.3
   },
   {
@@ -12391,7 +12391,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 57500.3,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 57500.3
   },
   {
@@ -12428,7 +12428,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 6000.0,
+    "paid_amount": 6000,
     "remaining": 54000.01
   },
   {
@@ -12465,7 +12465,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.01
   },
   {
@@ -12501,9 +12501,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 80003.0,
-    "paid_amount": 10000.0,
-    "remaining": 70003.0
+    "total_fee": 80003,
+    "paid_amount": 10000,
+    "remaining": 70003
   },
   {
     "id": "7905178",
@@ -12539,7 +12539,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.01,
-    "paid_amount": 6000.0,
+    "paid_amount": 6000,
     "remaining": 54000.01
   },
   {
@@ -12576,7 +12576,7 @@
     "ing_muaf": 0,
     "address": "CUMHURİYET MAH. 2.SANAYİİ CAD. AFET EVLERİ 1 B D:3 İnegöl/Bursa",
     "total_fee": 64001.3,
-    "paid_amount": 6000.0,
+    "paid_amount": 6000,
     "remaining": 58001.3
   },
   {
@@ -12612,9 +12612,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "ÇELTİKÇİ MAH. CERRAH YOLU NO:63 İnegöl/Bursa",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7856638",
@@ -12650,7 +12650,7 @@
     "ing_muaf": 0,
     "address": "MESUDE MAH. SIRMA SOK. NO:8 D:2 İnegöl/Bursa",
     "total_fee": 60000.01,
-    "paid_amount": 5000.0,
+    "paid_amount": 5000,
     "remaining": 55000.01
   },
   {
@@ -12686,9 +12686,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "KEMALPAŞA MAH. ILICA SOK. D:2 İnegöl/Bursa",
-    "total_fee": 70000.0,
-    "paid_amount": 0.0,
-    "remaining": 70000.0
+    "total_fee": 70000,
+    "paid_amount": 0,
+    "remaining": 70000
   },
   {
     "id": "7851686",
@@ -12724,7 +12724,7 @@
     "ing_muaf": 0,
     "address": "ORHANİYE MAH. GAZİMAGOSA CAD. NO:15 KAT:2 D:3 İnegöl/Bursa",
     "total_fee": 79000.02,
-    "paid_amount": 8780.0,
+    "paid_amount": 8780,
     "remaining": 70220.02
   },
   {
@@ -12760,9 +12760,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "AKHİSAR MAH. ERGÜL SOK. NO:6 D:5 İNEGÖL İnegöl/Bursa",
-    "total_fee": 78001.0,
-    "paid_amount": 15600.0,
-    "remaining": 62401.0
+    "total_fee": 78001,
+    "paid_amount": 15600,
+    "remaining": 62401
   },
   {
     "id": "7826762",
@@ -12797,9 +12797,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 45000.0,
-    "paid_amount": 0.0,
-    "remaining": 45000.0
+    "total_fee": 45000,
+    "paid_amount": 0,
+    "remaining": 45000
   },
   {
     "id": "7826736",
@@ -12834,9 +12834,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 45000.0,
-    "paid_amount": 0.0,
-    "remaining": 45000.0
+    "total_fee": 45000,
+    "paid_amount": 0,
+    "remaining": 45000
   },
   {
     "id": "7803933",
@@ -12871,9 +12871,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7803906",
@@ -12908,9 +12908,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7803885",
@@ -12945,9 +12945,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 80000.0,
-    "paid_amount": 24000.0,
-    "remaining": 56000.0
+    "total_fee": 80000,
+    "paid_amount": 24000,
+    "remaining": 56000
   },
   {
     "id": "7803880",
@@ -12982,9 +12982,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 90000.0,
-    "paid_amount": 10000.0,
-    "remaining": 80000.0
+    "total_fee": 90000,
+    "paid_amount": 10000,
+    "remaining": 80000
   },
   {
     "id": "7803694",
@@ -13019,9 +13019,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7803660",
@@ -13056,9 +13056,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7803494",
@@ -13093,9 +13093,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7801423",
@@ -13167,9 +13167,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7770723",
@@ -13204,9 +13204,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7770666",
@@ -13241,9 +13241,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 78001.0,
-    "paid_amount": 13000.0,
-    "remaining": 65001.0
+    "total_fee": 78001,
+    "paid_amount": 13000,
+    "remaining": 65001
   },
   {
     "id": "7770482",
@@ -13279,7 +13279,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 60000.6,
-    "paid_amount": 0.0,
+    "paid_amount": 0,
     "remaining": 60000.6
   },
   {
@@ -13316,7 +13316,7 @@
     "ing_muaf": 1,
     "address": "",
     "total_fee": 90000.9,
-    "paid_amount": 22500.0,
+    "paid_amount": 22500,
     "remaining": 67500.9
   },
   {
@@ -13352,9 +13352,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7748481",
@@ -13389,9 +13389,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 6000.0,
-    "paid_amount": 0.0,
-    "remaining": 6000.0
+    "total_fee": 6000,
+    "paid_amount": 0,
+    "remaining": 6000
   },
   {
     "id": "7748464",
@@ -13421,14 +13421,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600083",
+    "sozlesme_no": "SZL202600101",
     "gelir_kodu": "GLR202600084",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 8000.0,
-    "paid_amount": 0.0,
-    "remaining": 8000.0
+    "total_fee": 73000.4,
+    "paid_amount": 0,
+    "remaining": 73000.4
   },
   {
     "id": "7748442",
@@ -13463,9 +13463,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 10000.0,
-    "paid_amount": 10000.0,
-    "remaining": 0.0
+    "total_fee": 10000,
+    "paid_amount": 10000,
+    "remaining": 0
   },
   {
     "id": "7748260",
@@ -13495,14 +13495,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600081",
+    "sozlesme_no": "SZL202600106",
     "gelir_kodu": "GLR202600082",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 6000.0,
-    "paid_amount": 6000.0,
-    "remaining": 0.0
+    "total_fee": 74000,
+    "paid_amount": 6000,
+    "remaining": 68000
   },
   {
     "id": "7748252",
@@ -13537,9 +13537,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7748243",
@@ -13574,9 +13574,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 6500.0,
-    "paid_amount": 0.0,
-    "remaining": 6500.0
+    "total_fee": 6500,
+    "paid_amount": 0,
+    "remaining": 6500
   },
   {
     "id": "7748233",
@@ -13611,9 +13611,9 @@
     "din_muaf": 0,
     "ing_muaf": 1,
     "address": "",
-    "total_fee": 6500.0,
-    "paid_amount": 0.0,
-    "remaining": 6500.0
+    "total_fee": 6500,
+    "paid_amount": 0,
+    "remaining": 6500
   },
   {
     "id": "7748194",
@@ -13643,14 +13643,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600077",
+    "sozlesme_no": "SZL202600144",
     "gelir_kodu": "GLR202600078",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 8000.0,
-    "paid_amount": 0.0,
-    "remaining": 8000.0
+    "total_fee": 65010,
+    "paid_amount": 0,
+    "remaining": 65010
   },
   {
     "id": "7748183",
@@ -13685,9 +13685,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 5000.0,
-    "paid_amount": 0.0,
-    "remaining": 5000.0
+    "total_fee": 5000,
+    "paid_amount": 0,
+    "remaining": 5000
   },
   {
     "id": "7743575",
@@ -13717,14 +13717,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600076",
+    "sozlesme_no": "SZL202600145",
     "gelir_kodu": "GLR202600077",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 8000.0,
-    "paid_amount": 8000.0,
-    "remaining": 0.0
+    "total_fee": 65010,
+    "paid_amount": 8000,
+    "remaining": 57010
   },
   {
     "id": "7743545",
@@ -13759,9 +13759,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 6500.0,
-    "paid_amount": 0.0,
-    "remaining": 6500.0
+    "total_fee": 6500,
+    "paid_amount": 0,
+    "remaining": 6500
   },
   {
     "id": "7743531",
@@ -13796,9 +13796,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 6500.0,
-    "paid_amount": 5000.0,
-    "remaining": 1500.0
+    "total_fee": 6500,
+    "paid_amount": 5000,
+    "remaining": 1500
   },
   {
     "id": "7743524",
@@ -13828,14 +13828,14 @@
     "donem_id": 142,
     "donem_adi": "2026-2027-YAZ",
     "has_contract": true,
-    "sozlesme_no": "SZL202600072",
+    "sozlesme_no": "SZL202600100",
     "gelir_kodu": "GLR202600073",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 7000.0,
-    "paid_amount": 7000.0,
-    "remaining": 0.0
+    "total_fee": 60000.01,
+    "paid_amount": 7000,
+    "remaining": 53000.01
   },
   {
     "id": "7545022",
@@ -13870,9 +13870,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7489420",
@@ -13908,7 +13908,7 @@
     "ing_muaf": 0,
     "address": "",
     "total_fee": 86000.2,
-    "paid_amount": 26400.0,
+    "paid_amount": 26400,
     "remaining": 59600.2
   },
   {
@@ -13944,9 +13944,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 90000.0,
-    "paid_amount": 19290.0,
-    "remaining": 70710.0
+    "total_fee": 90000,
+    "paid_amount": 19290,
+    "remaining": 70710
   },
   {
     "id": "7431758",
@@ -13981,9 +13981,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7431742",
@@ -14018,9 +14018,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 90000.0,
-    "paid_amount": 25720.0,
-    "remaining": 64280.0
+    "total_fee": 90000,
+    "paid_amount": 25720,
+    "remaining": 64280
   },
   {
     "id": "7387356",
@@ -14055,9 +14055,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 90000.0,
-    "paid_amount": 10000.0,
-    "remaining": 80000.0
+    "total_fee": 90000,
+    "paid_amount": 10000,
+    "remaining": 80000
   },
   {
     "id": "7327791",
@@ -14092,9 +14092,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 88000.0,
-    "paid_amount": 29350.0,
-    "remaining": 58650.0
+    "total_fee": 88000,
+    "paid_amount": 29350,
+    "remaining": 58650
   },
   {
     "id": "7235990",
@@ -14129,9 +14129,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 16951.0,
-    "paid_amount": 0.0,
-    "remaining": 16951.0
+    "total_fee": 16951,
+    "paid_amount": 0,
+    "remaining": 16951
   },
   {
     "id": "7235611",
@@ -14166,9 +14166,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 16951.0,
-    "paid_amount": 0.0,
-    "remaining": 16951.0
+    "total_fee": 16951,
+    "paid_amount": 0,
+    "remaining": 16951
   },
   {
     "id": "7223213",
@@ -14198,14 +14198,14 @@
     "donem_id": 40,
     "donem_adi": "2025-2026",
     "has_contract": true,
-    "sozlesme_no": "SZL202600050",
+    "sozlesme_no": "SZL202600051",
     "gelir_kodu": "GLR202600051",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 22000.0,
-    "paid_amount": 20000.0,
-    "remaining": 2000.0
+    "total_fee": 63000,
+    "paid_amount": 20000,
+    "remaining": 43000
   },
   {
     "id": "7205488",
@@ -14240,9 +14240,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7205469",
@@ -14277,9 +14277,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7205316",
@@ -14314,9 +14314,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7202985",
@@ -14351,9 +14351,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7194210",
@@ -14388,9 +14388,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7193971",
@@ -14425,9 +14425,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7117138",
@@ -14462,9 +14462,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 8500.0,
-    "paid_amount": 8500.0,
-    "remaining": 0.0
+    "total_fee": 8500,
+    "paid_amount": 8500,
+    "remaining": 0
   },
   {
     "id": "7086994",
@@ -14501,7 +14501,7 @@
     "address": "",
     "total_fee": 0.01,
     "paid_amount": 0.01,
-    "remaining": 0.0
+    "remaining": 0
   },
   {
     "id": "7086993",
@@ -14536,9 +14536,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 1.0,
-    "paid_amount": 1.0,
-    "remaining": 0.0
+    "total_fee": 1,
+    "paid_amount": 1,
+    "remaining": 0
   },
   {
     "id": "7086992",
@@ -14573,9 +14573,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086991",
@@ -14610,9 +14610,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 42000.0,
-    "paid_amount": 0.0,
-    "remaining": 42000.0
+    "total_fee": 42000,
+    "paid_amount": 0,
+    "remaining": 42000
   },
   {
     "id": "7086990",
@@ -14647,9 +14647,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086989",
@@ -14684,9 +14684,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086987",
@@ -14721,9 +14721,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086986",
@@ -14758,9 +14758,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086985",
@@ -14795,9 +14795,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 20000.0,
-    "paid_amount": 20000.0,
-    "remaining": 0.0
+    "total_fee": 20000,
+    "paid_amount": 20000,
+    "remaining": 0
   },
   {
     "id": "7086984",
@@ -14832,9 +14832,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086983",
@@ -14869,9 +14869,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 19500.0,
-    "paid_amount": 19500.0,
-    "remaining": 0.0
+    "total_fee": 19500,
+    "paid_amount": 19500,
+    "remaining": 0
   },
   {
     "id": "7086982",
@@ -14906,9 +14906,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 22500.0,
-    "paid_amount": 17000.0,
-    "remaining": 5500.0
+    "total_fee": 22500,
+    "paid_amount": 17000,
+    "remaining": 5500
   },
   {
     "id": "7086981",
@@ -14943,9 +14943,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 34375.0,
-    "paid_amount": 0.0,
-    "remaining": 34375.0
+    "total_fee": 34375,
+    "paid_amount": 0,
+    "remaining": 34375
   },
   {
     "id": "7086980",
@@ -14980,9 +14980,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086979",
@@ -15017,9 +15017,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 14400.0,
-    "paid_amount": 14400.0,
-    "remaining": 0.0
+    "total_fee": 14400,
+    "paid_amount": 14400,
+    "remaining": 0
   },
   {
     "id": "7086978",
@@ -15054,9 +15054,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 28000.0,
-    "paid_amount": 21000.0,
-    "remaining": 7000.0
+    "total_fee": 28000,
+    "paid_amount": 21000,
+    "remaining": 7000
   },
   {
     "id": "7086977",
@@ -15091,9 +15091,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 5000.0,
-    "paid_amount": 5000.0,
-    "remaining": 0.0
+    "total_fee": 5000,
+    "paid_amount": 5000,
+    "remaining": 0
   },
   {
     "id": "7086976",
@@ -15128,9 +15128,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 13200.0,
-    "paid_amount": 13200.0,
-    "remaining": 0.0
+    "total_fee": 13200,
+    "paid_amount": 13200,
+    "remaining": 0
   },
   {
     "id": "7086975",
@@ -15165,9 +15165,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 15000.0,
-    "paid_amount": 10000.0,
-    "remaining": 5000.0
+    "total_fee": 15000,
+    "paid_amount": 10000,
+    "remaining": 5000
   },
   {
     "id": "7086974",
@@ -15202,9 +15202,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086973",
@@ -15239,9 +15239,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086972",
@@ -15276,9 +15276,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086971",
@@ -15313,9 +15313,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086970",
@@ -15350,9 +15350,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086969",
@@ -15387,9 +15387,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086968",
@@ -15424,9 +15424,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086966",
@@ -15463,7 +15463,7 @@
     "address": "",
     "total_fee": 1.1,
     "paid_amount": 1.1,
-    "remaining": 0.0
+    "remaining": 0
   },
   {
     "id": "7086960",
@@ -15498,9 +15498,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 6300.0,
-    "paid_amount": 6300.0,
-    "remaining": 0.0
+    "total_fee": 6300,
+    "paid_amount": 6300,
+    "remaining": 0
   },
   {
     "id": "7086953",
@@ -15535,9 +15535,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 80000.0,
-    "paid_amount": 24000.0,
-    "remaining": 56000.0
+    "total_fee": 80000,
+    "paid_amount": 24000,
+    "remaining": 56000
   },
   {
     "id": "7086948",
@@ -15574,7 +15574,7 @@
     "address": "",
     "total_fee": 60000.01,
     "paid_amount": 60000.01,
-    "remaining": 0.0
+    "remaining": 0
   },
   {
     "id": "7086942",
@@ -15609,9 +15609,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 5500.0,
-    "paid_amount": 5500.0,
-    "remaining": 0.0
+    "total_fee": 5500,
+    "paid_amount": 5500,
+    "remaining": 0
   },
   {
     "id": "7086932",
@@ -15646,9 +15646,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 40000.0,
-    "paid_amount": 0.0,
-    "remaining": 40000.0
+    "total_fee": 40000,
+    "paid_amount": 0,
+    "remaining": 40000
   },
   {
     "id": "7086926",
@@ -15683,9 +15683,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 16150.0,
-    "paid_amount": 0.0,
-    "remaining": 16150.0
+    "total_fee": 16150,
+    "paid_amount": 0,
+    "remaining": 16150
   },
   {
     "id": "7086906",
@@ -15720,9 +15720,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 2695.0,
-    "paid_amount": 2695.0,
-    "remaining": 0.0
+    "total_fee": 2695,
+    "paid_amount": 2695,
+    "remaining": 0
   },
   {
     "id": "7086899",
@@ -15752,14 +15752,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600027",
+    "sozlesme_no": "SZL202600109",
     "gelir_kodu": "GLR202600027",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 45000.0,
-    "paid_amount": 0.0,
-    "remaining": 45000.0
+    "total_fee": 60000.01,
+    "paid_amount": 0,
+    "remaining": 60000.01
   },
   {
     "id": "7086894",
@@ -15794,9 +15794,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 17000.0,
-    "paid_amount": 17000.0,
-    "remaining": 0.0
+    "total_fee": 17000,
+    "paid_amount": 17000,
+    "remaining": 0
   },
   {
     "id": "7086887",
@@ -15826,14 +15826,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600024",
+    "sozlesme_no": "SZL202600059",
     "gelir_kodu": "GLR202600024",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 20000.0,
-    "paid_amount": 20000.0,
-    "remaining": 0.0
+    "total_fee": 75000.2,
+    "paid_amount": 20000,
+    "remaining": 55000.2
   },
   {
     "id": "7086882",
@@ -15868,9 +15868,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 12000.0,
-    "paid_amount": 12000.0,
-    "remaining": 0.0
+    "total_fee": 12000,
+    "paid_amount": 12000,
+    "remaining": 0
   },
   {
     "id": "7086876",
@@ -15900,14 +15900,14 @@
     "donem_id": 40,
     "donem_adi": "2025-2026",
     "has_contract": true,
-    "sozlesme_no": "SZL202600031",
+    "sozlesme_no": "SZL202600056",
     "gelir_kodu": "GLR202600031",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 9000.0,
-    "paid_amount": 9000.0,
-    "remaining": 0.0
+    "total_fee": 66000,
+    "paid_amount": 9000,
+    "remaining": 57000
   },
   {
     "id": "7086867",
@@ -15942,9 +15942,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 5000.0,
-    "paid_amount": 5000.0,
-    "remaining": 0.0
+    "total_fee": 5000,
+    "paid_amount": 5000,
+    "remaining": 0
   },
   {
     "id": "7086862",
@@ -15979,9 +15979,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086857",
@@ -16016,9 +16016,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 18200.0,
-    "paid_amount": 12400.0,
-    "remaining": 5800.0
+    "total_fee": 18200,
+    "paid_amount": 12400,
+    "remaining": 5800
   },
   {
     "id": "7086852",
@@ -16053,9 +16053,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 25000.0,
-    "paid_amount": 0.0,
-    "remaining": 25000.0
+    "total_fee": 25000,
+    "paid_amount": 0,
+    "remaining": 25000
   },
   {
     "id": "7086845",
@@ -16090,9 +16090,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 82500.0,
-    "paid_amount": 16500.0,
-    "remaining": 66000.0
+    "total_fee": 82500,
+    "paid_amount": 16500,
+    "remaining": 66000
   },
   {
     "id": "7086838",
@@ -16127,9 +16127,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 60000.0,
-    "paid_amount": 60000.0,
-    "remaining": 0.0
+    "total_fee": 60000,
+    "paid_amount": 60000,
+    "remaining": 0
   },
   {
     "id": "7086832",
@@ -16164,9 +16164,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 33000.0,
-    "paid_amount": 0.0,
-    "remaining": 33000.0
+    "total_fee": 33000,
+    "paid_amount": 0,
+    "remaining": 33000
   },
   {
     "id": "7086822",
@@ -16201,9 +16201,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7086812",
@@ -16238,9 +16238,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 30000.0,
-    "paid_amount": 7000.0,
-    "remaining": 23000.0
+    "total_fee": 30000,
+    "paid_amount": 7000,
+    "remaining": 23000
   },
   {
     "id": "7086803",
@@ -16270,14 +16270,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600028",
+    "sozlesme_no": "SZL202600110",
     "gelir_kodu": "GLR202600028",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 30000.0,
-    "paid_amount": 0.0,
-    "remaining": 30000.0
+    "total_fee": 60000.01,
+    "paid_amount": 0,
+    "remaining": 60000.01
   },
   {
     "id": "7086795",
@@ -16307,14 +16307,14 @@
     "donem_id": 40,
     "donem_adi": "2025-2026",
     "has_contract": true,
-    "sozlesme_no": "SZL202600044",
+    "sozlesme_no": "SZL202600061",
     "gelir_kodu": "GLR202600044",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 19000.0,
-    "paid_amount": 19000.0,
-    "remaining": 0.0
+    "total_fee": 70000.7,
+    "paid_amount": 19000,
+    "remaining": 51000.7
   },
   {
     "id": "7086785",
@@ -16349,9 +16349,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 16000.0,
-    "paid_amount": 4000.0,
-    "remaining": 12000.0
+    "total_fee": 16000,
+    "paid_amount": 4000,
+    "remaining": 12000
   },
   {
     "id": "7086779",
@@ -16381,14 +16381,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600042",
+    "sozlesme_no": "SZL202600090",
     "gelir_kodu": "GLR202600042",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 18000.0,
-    "paid_amount": 18000.0,
-    "remaining": 0.0
+    "total_fee": 60000.6,
+    "paid_amount": 18000,
+    "remaining": 42000.6
   },
   {
     "id": "7086773",
@@ -16418,14 +16418,14 @@
     "donem_id": 40,
     "donem_adi": "2025-2026",
     "has_contract": true,
-    "sozlesme_no": "SZL202600040",
+    "sozlesme_no": "SZL202600060",
     "gelir_kodu": "GLR202600040",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 13500.0,
-    "paid_amount": 13500.0,
-    "remaining": 0.0
+    "total_fee": 72000.5,
+    "paid_amount": 13500,
+    "remaining": 58500.5
   },
   {
     "id": "7086769",
@@ -16455,14 +16455,14 @@
     "donem_id": 40,
     "donem_adi": "2025-2026",
     "has_contract": true,
-    "sozlesme_no": "SZL202600037",
+    "sozlesme_no": "SZL202600038",
     "gelir_kodu": "GLR202600038",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 15000.0,
-    "paid_amount": 15000.0,
-    "remaining": 0.0
+    "total_fee": 80000,
+    "paid_amount": 15000,
+    "remaining": 65000
   },
   {
     "id": "7086763",
@@ -16492,14 +16492,14 @@
     "donem_id": 40,
     "donem_adi": "2025-2026",
     "has_contract": true,
-    "sozlesme_no": "SZL202600035",
+    "sozlesme_no": "SZL202600036",
     "gelir_kodu": "GLR202600036",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 15000.0,
-    "paid_amount": 15000.0,
-    "remaining": 0.0
+    "total_fee": 85000,
+    "paid_amount": 15000,
+    "remaining": 70000
   },
   {
     "id": "7086758",
@@ -16534,9 +16534,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 32500.0,
-    "paid_amount": 19500.0,
-    "remaining": 13000.0
+    "total_fee": 32500,
+    "paid_amount": 19500,
+    "remaining": 13000
   },
   {
     "id": "7086754",
@@ -16566,14 +16566,14 @@
     "donem_id": 40,
     "donem_adi": "2025-2026",
     "has_contract": true,
-    "sozlesme_no": "SZL202600032",
+    "sozlesme_no": "SZL202600033",
     "gelir_kodu": "GLR202600033",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 30000.0,
-    "paid_amount": 0.0,
-    "remaining": 30000.0
+    "total_fee": 70000,
+    "paid_amount": 0,
+    "remaining": 70000
   },
   {
     "id": "7086748",
@@ -16603,14 +16603,14 @@
     "donem_id": 113,
     "donem_adi": "2026-2027",
     "has_contract": true,
-    "sozlesme_no": "SZL202600041",
+    "sozlesme_no": "SZL202600091",
     "gelir_kodu": "GLR202600041",
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 18000.0,
-    "paid_amount": 18000.0,
-    "remaining": 0.0
+    "total_fee": 60000.6,
+    "paid_amount": 18000,
+    "remaining": 42000.6
   },
   {
     "id": "7080638",
@@ -16645,9 +16645,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080637",
@@ -16682,9 +16682,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080635",
@@ -16719,9 +16719,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080626",
@@ -16756,9 +16756,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080601",
@@ -16793,9 +16793,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080598",
@@ -16830,9 +16830,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080595",
@@ -16867,9 +16867,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080594",
@@ -16904,9 +16904,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080592",
@@ -16941,9 +16941,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080591",
@@ -16978,9 +16978,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080589",
@@ -17015,9 +17015,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080586",
@@ -17052,9 +17052,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080585",
@@ -17089,9 +17089,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080584",
@@ -17126,9 +17126,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080582",
@@ -17163,9 +17163,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080556",
@@ -17200,9 +17200,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080555",
@@ -17237,9 +17237,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080543",
@@ -17274,9 +17274,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080542",
@@ -17311,9 +17311,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080539",
@@ -17348,9 +17348,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080537",
@@ -17385,9 +17385,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080405",
@@ -17422,9 +17422,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080404",
@@ -17459,9 +17459,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080403",
@@ -17496,9 +17496,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080402",
@@ -17533,9 +17533,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080400",
@@ -17570,9 +17570,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080399",
@@ -17607,9 +17607,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080398",
@@ -17644,9 +17644,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080396",
@@ -17681,9 +17681,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080394",
@@ -17718,9 +17718,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080393",
@@ -17755,9 +17755,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080391",
@@ -17792,9 +17792,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080389",
@@ -17829,9 +17829,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080388",
@@ -17866,9 +17866,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080386",
@@ -17903,9 +17903,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080384",
@@ -17940,9 +17940,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7080381",
@@ -17977,9 +17977,9 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   },
   {
     "id": "7072925",
@@ -18014,8 +18014,8 @@
     "din_muaf": 0,
     "ing_muaf": 0,
     "address": "",
-    "total_fee": 0.0,
-    "paid_amount": 0.0,
-    "remaining": 0.0
+    "total_fee": 0,
+    "paid_amount": 0,
+    "remaining": 0
   }
 ]
