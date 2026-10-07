@@ -137,12 +137,16 @@ function enrichStudent(s) {
 
   if (CANCELLED_STUDENTS.some((c) => name.includes(c))) {
     status = "İptal / Ayrılan";
+    isKesin = false;
   } else if (prog === "2026-2027-YAZ") {
     status = "Yaz Kursu";
+    isKesin = false;
   } else if (prog === "2025-2026") {
     status = "Mezun / Geçmiş";
-  } else if (fee < 10) {
-    status = "Geçmiş / Deneme";
+    isKesin = false;
+  } else if (s.status) {
+    status = s.status;
+    isKesin = status === "Kesin Kayıt";
   } else {
     status = "Kesin Kayıt";
     isKesin = true;
@@ -150,7 +154,9 @@ function enrichStudent(s) {
 
   return {
     ...s,
-    program: prog,
+    program: prog || "2026-2027",
+    donem_id: s.donem_id || 113,
+    donem_adi: s.donem_adi || "2026-2027",
     status: status,
     enrollment_status: status,
     is_kesin_kayit: isKesin,

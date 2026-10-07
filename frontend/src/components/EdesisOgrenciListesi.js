@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Users,
   UserPlus,
@@ -25,17 +25,31 @@ import {
   GraduationCap,
   Settings
 } from "lucide-react";
-import initialStudentsData from "../data/edesisStudentsData.json";
+import { StudentService } from "../lib/edesisStudentService";
 import { trIncludes } from "../lib/utils";
 
 export default function EdesisOgrenciListesi({
+  students: propStudents = [],
+  onNewStudent,
   onSelectStudent,
   onOpenGelir,
   onOpenContract,
   onOpenKarne,
   onNavigate
 }) {
-  const [students, setStudents] = useState(initialStudentsData);
+  const [students, setStudents] = useState(() => StudentService.getAllStudents(propStudents));
+
+  useEffect(() => {
+    setStudents(StudentService.getAllStudents(propStudents));
+  }, [propStudents]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setStudents(StudentService.getAllStudents(propStudents));
+    };
+    window.addEventListener("cozum_students_updated", handleUpdate);
+    return () => window.removeEventListener("cozum_students_updated", handleUpdate);
+  }, [propStudents]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState("Kesin Kayıt"); // default 1:1 with Edesis
   const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027
@@ -448,6 +462,29 @@ export default function EdesisOgrenciListesi({
             >
               <Download size={13} color="#16a34a" /> Excel
             </button>
+
+            {onNewStudent && (
+              <button
+                type="button"
+                onClick={onNewStudent}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  background: "#1d4ed8",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxShadow: "0 1px 2px rgba(29, 78, 216, 0.2)"
+                }}
+              >
+                <UserPlus size={14} /> + Yeni Öğrenci
+              </button>
+            )}
           </div>
         </div>
       </div>

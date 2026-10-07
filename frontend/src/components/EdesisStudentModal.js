@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from "react";
 import axios from "axios";
+import { StudentService } from "../lib/edesisStudentService";
 import {
   X,
   User,
@@ -246,11 +247,15 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         }
       };
 
+      let saved = null;
       if (initialData?.id) {
-        await axios.patch(`${API}/students/${initialData.id}`, payload);
+        const res = await axios.patch(`${API}/students/${initialData.id}`, payload);
+        saved = res.data;
       } else {
-        await axios.post(`${API}/students`, payload);
+        const res = await axios.post(`${API}/students`, payload);
+        saved = res.data;
       }
+      StudentService.saveStudent(saved || payload);
       if (onStudentAdded) onStudentAdded();
       stopCamera();
       onClose();

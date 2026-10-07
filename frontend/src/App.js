@@ -567,7 +567,12 @@ function MainApp({ me, onLogout }) {
 
 
   const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const handleUpdate = () => { load(); };
+    window.addEventListener("cozum_students_updated", handleUpdate);
+    return () => window.removeEventListener("cozum_students_updated", handleUpdate);
+  }, []);
   const filtered = useMemo(() => (data.students || []).filter(s => trIncludes(`${s.student_name} ${s.parent_name} ${s.student_phone}`, search)), [data.students, search]);
   const totalCollected = data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
   const totalExpected = (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
@@ -1018,6 +1023,8 @@ function MainApp({ me, onLogout }) {
         {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
         {page === "students" && (
           <EdesisOgrenciListesi
+            students={data.students || []}
+            onNewStudent={() => guardedOpen("student")}
             onSelectStudent={setSelected}
             onOpenGelir={(st) =>
               setGelirModalData({

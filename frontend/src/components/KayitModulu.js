@@ -81,6 +81,18 @@ export function KayitModulu({
     return dist;
   }, [students]);
 
+  // Son Kayıt Olan Öğrenciler (Tarihe göre en yeniden eskiye sıralı)
+  const recentStudents = useMemo(() => {
+    return [...students]
+      .sort((a, b) => {
+        const dateA = a.created_at || "";
+        const dateB = b.created_at || "";
+        if (dateB && dateA && dateB !== dateA) return dateB.localeCompare(dateA);
+        return String(b.id || "").localeCompare(String(a.id || ""));
+      })
+      .slice(0, 8);
+  }, [students]);
+
   // Missing data alerts
   const missingTc = students.filter(s => !s.student_tc || s.student_tc.length < 11);
   const missingPhoto = students.filter(s => !s.photo);
@@ -454,7 +466,7 @@ export function KayitModulu({
                   </tr>
                 </thead>
                 <tbody>
-                  {students.slice(0, 8).map((s) => (
+                  {recentStudents.map((s) => (
                     <tr key={s.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={{ padding: "12px 16px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
