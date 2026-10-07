@@ -80,6 +80,7 @@ import EdesisGelirListesi from "./components/EdesisGelirListesi";
 import EdesisVadeTakvimi from "./components/EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./components/EdesisTahsilatListesi";
 import { trIncludes } from "./lib/utils";
+import StudentService from "./lib/edesisStudentService";
 
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -100,6 +101,7 @@ export const getBackendBaseUrl = () => {
 };
 
 const API = `${getBackendBaseUrl()}/api`;
+if (typeof window !== "undefined") window.__API_BASE__ = API;
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common["Bypass-Tunnel-Reminder"] = "true";
 const money = (n) => new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(n || 0);
@@ -566,7 +568,19 @@ function MainApp({ me, onLogout }) {
   const toggleTree = (key) => setExpandedTree((prev) => ({ ...prev, [key]: !prev[key] }));
 
 
-  const load = async () => { const r = await axios.get(`${API}/dashboard`); setData(r.data); };
+  const load = async () => {
+    try {
+      const r = await axios.get(`${API}/dashboard`);
+      const rawStudents = r.data?.students || [];
+      const cleanStudents = StudentService.filterActiveStudents(rawStudents);
+      setData({
+        ...r.data,
+        students: cleanStudents
+      });
+    } catch (e) {
+      console.warn("[App] load error:", e);
+    }
+  };
   useEffect(() => {
     load();
     const handleUpdate = () => { load(); };
@@ -1023,6 +1037,7 @@ function MainApp({ me, onLogout }) {
         {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
         {page === "students" && (
           <EdesisOgrenciListesi
+            API={API}
             students={data.students || []}
             onNewStudent={() => guardedOpen("student")}
             onSelectStudent={setSelected}

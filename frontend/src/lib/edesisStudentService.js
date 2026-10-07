@@ -1,7 +1,8 @@
 import initialStudentsData from "../data/edesisStudentsData.json";
 
 const STORAGE_KEYS = {
-  CUSTOM_STUDENTS: "cozum_custom_students_v1"
+  CUSTOM_STUDENTS: "cozum_custom_students_v1",
+  DELETED_STUDENTS: "cozum_deleted_students_v1"
 };
 
 function readStorage(key, fallback = []) {
@@ -31,6 +32,97 @@ export const StudentService = {
 
   getCustomStudents() {
     return readStorage(STORAGE_KEYS.CUSTOM_STUDENTS, []);
+  },
+
+  getDeletedStudentKeys() {
+    return readStorage(STORAGE_KEYS.DELETED_STUDENTS, []);
+  },
+
+  isDeleted(studentOrId) {
+    if (!studentOrId) return false;
+    const deletedKeys = this.getDeletedStudentKeys();
+    if (!deletedKeys || deletedKeys.length === 0) return false;
+    const deletedSet = new Set(deletedKeys.map((k) => String(k).trim().toUpperCase()));
+
+    if (typeof studentOrId === "string") {
+      return deletedSet.has(studentOrId.trim().toUpperCase());
+    }
+
+    if (studentOrId.id && deletedSet.has(String(studentOrId.id).trim().toUpperCase())) {
+      return true;
+    }
+    if (studentOrId.student_name && deletedSet.has(String(studentOrId.student_name).trim().toUpperCase())) {
+      return true;
+    }
+    if (studentOrId.student_tc && deletedSet.has(String(studentOrId.student_tc).trim().toUpperCase())) {
+      return true;
+    }
+    if (studentOrId.student_no && deletedSet.has(String(studentOrId.student_no).trim().toUpperCase())) {
+      return true;
+    }
+    return false;
+  },
+
+  filterActiveStudents(students = []) {
+    if (!Array.isArray(students)) return [];
+    const deletedKeys = this.getDeletedStudentKeys();
+    if (!deletedKeys || deletedKeys.length === 0) return students;
+    const deletedSet = new Set(deletedKeys.map((k) => String(k).trim().toUpperCase()));
+
+    return students.filter((s) => {
+      if (!s) return false;
+      if (s.id && deletedSet.has(String(s.id).trim().toUpperCase())) return false;
+      if (s.student_name && deletedSet.has(String(s.student_name).trim().toUpperCase())) return false;
+      if (s.student_tc && deletedSet.has(String(s.student_tc).trim().toUpperCase())) return false;
+      if (s.student_no && deletedSet.has(String(s.student_no).trim().toUpperCase())) return false;
+      return true;
+    });
+  },
+
+  async deleteStudent(studentOrId, apiBaseUrl = "") {
+    if (!studentOrId) return false;
+    const id = typeof studentOrId === "object" ? studentOrId.id : studentOrId;
+    const name = typeof studentOrId === "object" ? studentOrId.student_name : "";
+
+    // 1. Remove from local custom students storage
+    const custom = this.getCustomStudents();
+    const updatedCustom = custom.filter((s) => {
+      if (id && String(s.id).toUpperCase() === String(id).toUpperCase()) return false;
+      if (name && s.student_name && s.student_name.trim().toUpperCase() === name.trim().toUpperCase()) return false;
+      return true;
+    });
+    writeStorage(STORAGE_KEYS.CUSTOM_STUDENTS, updatedCustom);
+
+    // 2. Add to deleted keys storage (persists through F5)
+    const deleted = this.getDeletedStudentKeys();
+    const newKeys = [...deleted];
+    if (id && !newKeys.includes(String(id))) newKeys.push(String(id));
+    if (name) {
+      const normName = name.trim().toUpperCase();
+      if (!newKeys.includes(normName)) newKeys.push(normName);
+    }
+    writeStorage(STORAGE_KEYS.DELETED_STUDENTS, newKeys);
+
+    // 3. Call remote backend API to delete from Cloudflare D1
+    const targetId = id || name;
+    if (targetId) {
+      const baseUrl = apiBaseUrl || (typeof window !== "undefined" && window.__API_BASE__) || "/api";
+      try {
+        await fetch(`${baseUrl}/students/${encodeURIComponent(targetId)}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        console.warn("[StudentService] Remote delete error:", err);
+      }
+    }
+
+    // 4. Dispatch update event so open views refresh immediately
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "delete", id, name } }));
+    }
+
+    return true;
   },
 
   saveStudent(student) {
@@ -68,7 +160,13 @@ export const StudentService = {
       ...student
     };
 
-    const existingIdx = custom.findIndex((s) => s.id === id || s.student_name.trim().toUpperCase() === normalized.student_name.toUpperCase());
+    // Remove from deleted list if re-saving
+    const deleted = this.getDeletedStudentKeys();
+    const normName = normalized.student_name.toUpperCase();
+    const filteredDeleted = deleted.filter((k) => String(k).toUpperCase() !== String(id).toUpperCase() && String(k).toUpperCase() !== normName);
+    writeStorage(STORAGE_KEYS.DELETED_STUDENTS, filteredDeleted);
+
+    const existingIdx = custom.findIndex((s) => s.id === id || s.student_name.trim().toUpperCase() === normName);
     if (existingIdx >= 0) {
       custom[existingIdx] = { ...custom[existingIdx], ...normalized };
     } else {
@@ -87,9 +185,11 @@ export const StudentService = {
     const custom = this.getCustomStudents();
     const map = new Map();
 
+    const isDel = (s) => this.isDeleted(s);
+
     // 1. Add base students from edesisStudentsData.json
     base.forEach((s) => {
-      if (s && (s.id || s.student_name)) {
+      if (s && (s.id || s.student_name) && !isDel(s)) {
         const key = String(s.id || s.student_name.trim().toUpperCase());
         map.set(key, s);
       }
@@ -97,7 +197,7 @@ export const StudentService = {
 
     // 2. Add remote students from backend / D1
     (remoteStudents || []).forEach((s) => {
-      if (s && (s.id || s.student_name)) {
+      if (s && (s.id || s.student_name) && !isDel(s)) {
         const key = String(s.id || s.student_name.trim().toUpperCase());
         const existing = map.get(key);
         map.set(key, {
@@ -112,7 +212,7 @@ export const StudentService = {
 
     // 3. Add custom students created locally
     custom.forEach((s) => {
-      if (s && (s.id || s.student_name)) {
+      if (s && (s.id || s.student_name) && !isDel(s)) {
         const key = String(s.id || s.student_name.trim().toUpperCase());
         const existing = map.get(key);
         map.set(key, {
@@ -125,7 +225,7 @@ export const StudentService = {
       }
     });
 
-    const all = Array.from(map.values());
+    const all = Array.from(map.values()).filter((s) => !isDel(s));
     all.sort((a, b) => {
       const isNewA = String(a.id || "").startsWith("student-") || (a.created_at && a.created_at >= "2026-10-01");
       const isNewB = String(b.id || "").startsWith("student-") || (b.created_at && b.created_at >= "2026-10-01");

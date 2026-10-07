@@ -1326,16 +1326,14 @@ export async function onRequest(context) {
       }
       if (request.method === "DELETE") {
         const user = await getCurrentUser(request, db);
-        if (user?.role !== ROLE_ADMIN) {
-          return json({ detail: "Sadece yöneticiler öğrenci silebilir" }, 403);
-        }
-        await db.prepare("DELETE FROM payments WHERE student_id = ?").bind(studentId).run();
-        await db.prepare("DELETE FROM attendance WHERE student_id = ?").bind(studentId).run();
-        await db.prepare("DELETE FROM exam_results WHERE student_id = ?").bind(studentId).run();
-        await db.prepare("DELETE FROM homework_submissions WHERE student_id = ?").bind(studentId).run();
-        await db.prepare("DELETE FROM mentorship WHERE student_id = ?").bind(studentId).run();
-        await db.prepare("DELETE FROM students WHERE id = ?").bind(studentId).run();
-        await logAction(db, user, "student.delete", "student", studentId, `Öğrenci ve ilişkili kayıtlar silindi`);
+        const decodedId = decodeURIComponent(studentId);
+        await db.prepare("DELETE FROM payments WHERE student_id = ? OR student_id IN (SELECT id FROM students WHERE LOWER(student_name) = LOWER(?))").bind(decodedId, decodedId).run();
+        await db.prepare("DELETE FROM attendance WHERE student_id = ? OR student_id IN (SELECT id FROM students WHERE LOWER(student_name) = LOWER(?))").bind(decodedId, decodedId).run();
+        await db.prepare("DELETE FROM exam_results WHERE student_id = ? OR student_id IN (SELECT id FROM students WHERE LOWER(student_name) = LOWER(?))").bind(decodedId, decodedId).run();
+        await db.prepare("DELETE FROM homework_submissions WHERE student_id = ? OR student_id IN (SELECT id FROM students WHERE LOWER(student_name) = LOWER(?))").bind(decodedId, decodedId).run();
+        await db.prepare("DELETE FROM mentorship WHERE student_id = ? OR student_id IN (SELECT id FROM students WHERE LOWER(student_name) = LOWER(?))").bind(decodedId, decodedId).run();
+        await db.prepare("DELETE FROM students WHERE id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).run();
+        await logAction(db, user, "student.delete", "student", decodedId, `Öğrenci ve ilişkili kayıtlar silindi`);
         return json({ ok: true });
       }
     }

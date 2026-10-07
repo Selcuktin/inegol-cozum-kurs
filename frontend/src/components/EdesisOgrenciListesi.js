@@ -35,7 +35,8 @@ export default function EdesisOgrenciListesi({
   onOpenGelir,
   onOpenContract,
   onOpenKarne,
-  onNavigate
+  onNavigate,
+  API
 }) {
   const [students, setStudents] = useState(() => StudentService.getAllStudents(propStudents));
 
@@ -161,6 +162,20 @@ export default function EdesisOgrenciListesi({
       else next.add(id);
       return next;
     });
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedIds.size) return;
+    if (window.confirm(`Seçilen ${selectedIds.size} öğrenci kaydını kalıcı olarak silmek istediğinize emin misiniz?`)) {
+      const idsToDelete = Array.from(selectedIds);
+      const toDeleteStudents = students.filter((s) => idsToDelete.includes(s.id));
+      for (const st of toDeleteStudents) {
+        await StudentService.deleteStudent(st, API);
+      }
+      setStudents((prev) => prev.filter((it) => !idsToDelete.includes(it.id)));
+      setSelectedIds(new Set());
+      showToast(`🗑️ ${idsToDelete.length} öğrenci başarıyla silindi.`);
+    }
   };
 
   // Open Edit Modal (1:1 with media_1791229810136.png)
@@ -463,6 +478,29 @@ export default function EdesisOgrenciListesi({
               <Download size={13} color="#16a34a" /> Excel
             </button>
 
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  background: "#dc2626",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxShadow: "0 1px 2px rgba(220, 38, 38, 0.2)"
+                }}
+              >
+                <Trash2 size={13} /> Seçilenleri Sil ({selectedIds.size})
+              </button>
+            )}
+
             {onNewStudent && (
               <button
                 type="button"
@@ -659,10 +697,15 @@ export default function EdesisOgrenciListesi({
                               <div style={{ height: "1px", background: "#f1f5f9", margin: "4px 0" }} />
 
                               <div
-                                onClick={() => {
-                                  if (window.confirm(`${s.student_name} kaydını silmek istediğinize emin misiniz?`)) {
-                                    setStudents((prev) => prev.filter((it) => it.id !== s.id));
-                                    showToast(`🗑️ ${s.student_name} silindi.`);
+                                onClick={async () => {
+                                  if (window.confirm(`${s.student_name} kaydını kalıcı olarak silmek istediğinize emin misiniz?`)) {
+                                    try {
+                                      await StudentService.deleteStudent(s, API);
+                                      setStudents((prev) => prev.filter((it) => it.id !== s.id && it.student_name !== s.student_name));
+                                      showToast(`🗑️ ${s.student_name} başarıyla silindi.`);
+                                    } catch (err) {
+                                      showToast(`❌ Silinemedi: ${err.message}`);
+                                    }
                                   }
                                   setOpenDropdownId(null);
                                 }}
