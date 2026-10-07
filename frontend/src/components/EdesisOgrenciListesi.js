@@ -23,9 +23,12 @@ import {
   AlertCircle,
   Award,
   GraduationCap,
-  Settings
+  Settings,
+  ExternalLink,
+  Plus
 } from "lucide-react";
 import { StudentService } from "../lib/edesisStudentService";
+import AccountingService from "../lib/edesisAccountingService";
 import { trIncludes } from "../lib/utils";
 
 export default function EdesisOgrenciListesi({
@@ -73,6 +76,56 @@ export default function EdesisOgrenciListesi({
   const [editingStudent, setEditingStudent] = useState(null);
   const [editActiveTab, setEditActiveTab] = useState("ogrenci"); // 'ogrenci' | 'kullanici' | 'adres' | 'ogretmen' | 'tarihce'
   const [editFormData, setEditFormData] = useState({});
+
+  // Sözleşmeler modal state & helper
+  const [contractsModalStudent, setContractsModalStudent] = useState(null);
+
+  const allContracts = useMemo(() => {
+    try {
+      return AccountingService.getContracts();
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const contractsByStudentName = useMemo(() => {
+    const map = new Map();
+    (allContracts || []).forEach((c) => {
+      const name = (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase();
+      if (name) {
+        if (!map.has(name)) map.set(name, []);
+        map.get(name).push(c);
+      }
+    });
+    return map;
+  }, [allContracts]);
+
+  const getStudentContracts = (student) => {
+    if (!student) return [];
+    const normName = (student.student_name || "").trim().toUpperCase();
+    const direct = contractsByStudentName.get(normName) || [];
+    if (direct.length > 0) return direct;
+
+    if (student.student_no) {
+      const byNo = allContracts.filter((c) => String(c.ogrenciNo) === String(student.student_no));
+      if (byNo.length > 0) return byNo;
+    }
+
+    if (student.has_contract || student.sozlesme_no) {
+      const cleanNo = student.sozlesme_no || ("SZL2026" + String(student.student_no || student.id || "001").replace(/\D/g, "").padStart(5, "0").slice(-5));
+      return [{
+        sozlesmeNo: cleanNo,
+        donemAdi: student.donem_adi || "2026-2027",
+        sozlesmeTarihi: student.created_at || "2026-10-06T00:00:00",
+        durum: 1,
+        durumText: "Aktif",
+        brutTutar: student.total_fee || 60000,
+        id: cleanNo
+      }];
+    }
+
+    return [];
+  };
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -863,22 +916,34 @@ export default function EdesisOgrenciListesi({
 
                       {/* 13. Sözleşme */}
                       <td style={{ padding: "5px 2px", width: "52px", textAlign: "center", whiteSpace: "nowrap" }}>
-                        {s.has_contract ? (
-                          <span
-                            style={{
-                              padding: "2px 5px",
-                              borderRadius: "4px",
-                              fontSize: "9px",
-                              fontWeight: 600,
-                              background: "#dcfce7",
-                              color: "#15803d"
-                            }}
-                          >
-                            Aktif
-                          </span>
-                        ) : (
-                          <span style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 500 }}>—</span>
-                        )}
+                        {(() => {
+                          const sContracts = getStudentContracts(s);
+                          const hasContract = Boolean(s.has_contract || sContracts.length > 0 || s.sozlesme_no);
+                          if (hasContract) {
+                            return (
+                              <span
+                                onClick={() => setContractsModalStudent(s)}
+                                style={{
+                                  padding: "2px 5px",
+                                  borderRadius: "4px",
+                                  fontSize: "9px",
+                                  fontWeight: 600,
+                                  background: "#dcfce7",
+                                  color: "#15803d",
+                                  cursor: "pointer",
+                                  display: "inline-block",
+                                  transition: "transform 0.1s ease, filter 0.1s ease"
+                                }}
+                                title="Sözleşmeleri Görüntüle"
+                                onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(0.93)"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
+                              >
+                                Aktif
+                              </span>
+                            );
+                          }
+                          return <span style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 500 }}>—</span>;
+                        })()}
                       </td>
                     </tr>
                   );
@@ -1255,6 +1320,244 @@ export default function EdesisOgrenciListesi({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SÖZLEŞMELER POPUP (1:1 with Edesis) */}
+      {contractsModalStudent && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.45)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1050,
+            padding: "16px"
+          }}
+          onClick={() => setContractsModalStudent(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "10px",
+              width: "100%",
+              maxWidth: "700px",
+              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.08)",
+              border: "1px solid #e2e8f0",
+              overflow: "hidden"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 20px",
+                borderBottom: "1px solid #f1f5f9"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "4px",
+                    backgroundColor: "#eff6ff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#3b82f6"
+                  }}
+                >
+                  <FileText size={15} />
+                </div>
+                <div style={{ fontSize: "14px" }}>
+                  <span style={{ fontWeight: 700, color: "#1e293b" }}>Sözleşmeler</span>
+                  <span style={{ color: "#94a3b8", margin: "0 6px" }}>—</span>
+                  <span style={{ color: "#64748b", fontWeight: 600 }}>{contractsModalStudent.student_name}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setContractsModalStudent(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#94a3b8",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "4px",
+                  borderRadius: "4px"
+                }}
+                aria-label="Kapat"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Table Body */}
+            <div style={{ padding: "16px 20px" }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px dashed #cbd5e1" }}>
+                      <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>SÖZLEŞME NO</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>DÖNEM</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>TARİH</th>
+                      <th style={{ padding: "8px 10px", textAlign: "center", fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>DURUM</th>
+                      <th style={{ padding: "8px 10px", textAlign: "right", fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>TUTAR</th>
+                      <th style={{ padding: "8px 10px", textAlign: "right", fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>İŞLEM</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getStudentContracts(contractsModalStudent).map((c, idx) => {
+                      const dateStr = c.sozlesmeTarihi ? new Date(c.sozlesmeTarihi).toLocaleDateString("tr-TR") : "06.10.2026";
+                      const amountStr = "₺" + Math.round(Number(c.brutTutar || 0)).toLocaleString("tr-TR");
+                      return (
+                        <tr key={c.sozlesmeNo || idx} style={{ borderBottom: "1px solid #f8fafc" }}>
+                          <td style={{ padding: "14px 10px", fontSize: "13px", fontWeight: 600, color: "#1e293b" }}>
+                            {c.sozlesmeNo}
+                          </td>
+                          <td style={{ padding: "14px 10px", fontSize: "13px", color: "#334155" }}>
+                            <span>{c.donemAdi || "2026-2027"}</span>
+                            <span
+                              style={{
+                                marginLeft: "8px",
+                                padding: "2px 7px",
+                                backgroundColor: "#e0f2fe",
+                                color: "#0284c7",
+                                borderRadius: "5px",
+                                fontSize: "11px",
+                                fontWeight: 600
+                              }}
+                            >
+                              Seçili Dönem
+                            </span>
+                          </td>
+                          <td style={{ padding: "14px 10px", fontSize: "13px", color: "#334155" }}>
+                            {dateStr}
+                          </td>
+                          <td style={{ padding: "14px 10px", textAlign: "center" }}>
+                            <span
+                              style={{
+                                padding: "3px 8px",
+                                backgroundColor: "#dcfce7",
+                                color: "#16a34a",
+                                borderRadius: "5px",
+                                fontSize: "11px",
+                                fontWeight: 700
+                              }}
+                            >
+                              Aktif
+                            </span>
+                          </td>
+                          <td style={{ padding: "14px 10px", textAlign: "right", fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+                            {amountStr}
+                          </td>
+                          <td style={{ padding: "14px 10px", textAlign: "right" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const targetNo = c.sozlesmeNo;
+                                setContractsModalStudent(null);
+                                if (targetNo) {
+                                  try {
+                                    sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                                  } catch {}
+                                }
+                                if (onOpenContract) {
+                                  onOpenContract(c);
+                                } else if (onNavigate) {
+                                  onNavigate("documents");
+                                }
+                              }}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "5px",
+                                padding: "4px 10px",
+                                backgroundColor: "#f0f9ff",
+                                color: "#0284c7",
+                                border: "1px solid #bae6fd",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                cursor: "pointer"
+                              }}
+                            >
+                              Detay <ExternalLink size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: "10px",
+                padding: "14px 20px",
+                backgroundColor: "#ffffff",
+                borderTop: "1px solid #f1f5f9"
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setContractsModalStudent(null)}
+                style={{
+                  padding: "7px 16px",
+                  backgroundColor: "#f8fafc",
+                  color: "#64748b",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                Kapat
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setContractsModalStudent(null);
+                  if (onOpenContract) {
+                    onOpenContract();
+                  } else if (onNavigate) {
+                    onNavigate("documents");
+                  }
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "7px 16px",
+                  backgroundColor: "#22c55e",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer"
+                }}
+              >
+                <Plus size={15} /> Yeni Sözleşme (Seçili Dönem)
+              </button>
+            </div>
           </div>
         </div>
       )}

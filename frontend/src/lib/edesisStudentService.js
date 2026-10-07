@@ -1,4 +1,14 @@
 import initialStudentsData from "../data/edesisStudentsData.json";
+import edesisAccountingData from "../data/edesisAccountingData.json";
+
+const contractsByNameMap = new Map();
+(edesisAccountingData.sozlesmeler || []).forEach((c) => {
+  const name = (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase();
+  if (name) {
+    if (!contractsByNameMap.has(name)) contractsByNameMap.set(name, []);
+    contractsByNameMap.get(name).push(c);
+  }
+});
 
 const STORAGE_KEYS = {
   CUSTOM_STUDENTS: "cozum_custom_students_v1",
@@ -192,8 +202,15 @@ export const StudentService = {
       if (s && (s.id || s.student_name) && !isDel(s)) {
         const idKey = s.id ? String(s.id) : "";
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
-        if (idKey) map.set(idKey, s);
-        if (nameKey) map.set(nameKey, s);
+        const cList = contractsByNameMap.get(nameKey) || [];
+        const matched = cList[0] || null;
+        const enriched = {
+          ...s,
+          has_contract: Boolean(s.has_contract || matched),
+          sozlesme_no: s.sozlesme_no || matched?.sozlesmeNo || ""
+        };
+        if (idKey) map.set(idKey, enriched);
+        if (nameKey) map.set(nameKey, enriched);
       }
     });
 
@@ -213,9 +230,17 @@ export const StudentService = {
           ? existing.parent_phone
           : (s.parent_phone || existing?.parent_phone || "");
 
+        const normName = (s.student_name || "").trim().toUpperCase();
+        const cList = contractsByNameMap.get(normName) || [];
+        const matchedContract = cList[0] || null;
+        const hasContract = Boolean((existing && existing.has_contract) || s.has_contract || matchedContract || s.sozlesme_no);
+
         const merged = {
           ...(existing || {}),
           ...s,
+          has_contract: hasContract,
+          sozlesme_no: s.sozlesme_no || existing?.sozlesme_no || matchedContract?.sozlesmeNo || "",
+          student_no: s.student_no || existing?.student_no || matchedContract?.ogrenciNo || "",
           parent_name: parentName,
           parent_phone: parentPhone,
           parent_relation: existing?.parent_relation || s.parent_relation || "Veli",
@@ -237,9 +262,17 @@ export const StudentService = {
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
         const existing = (idKey && map.get(idKey)) || (nameKey && map.get(nameKey)) || null;
 
+        const normName = (s.student_name || "").trim().toUpperCase();
+        const cList = contractsByNameMap.get(normName) || [];
+        const matchedContract = cList[0] || null;
+        const hasContract = Boolean((existing && existing.has_contract) || s.has_contract || matchedContract || s.sozlesme_no);
+
         const merged = {
           ...(existing || {}),
           ...s,
+          has_contract: hasContract,
+          sozlesme_no: s.sozlesme_no || existing?.sozlesme_no || matchedContract?.sozlesmeNo || "",
+          student_no: s.student_no || existing?.student_no || matchedContract?.ogrenciNo || "",
           donem_id: s.donem_id || existing?.donem_id || 113,
           donem_adi: s.donem_adi || existing?.donem_adi || "2026-2027",
           status: s.status === "Kayitli" || !s.status ? "Kesin Kayıt" : s.status

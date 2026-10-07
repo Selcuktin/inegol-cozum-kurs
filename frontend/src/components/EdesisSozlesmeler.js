@@ -89,7 +89,29 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
 
   // Modals & UI States
   const [openDropdownId, setOpenDropdownId] = useState(null);
-  const [selectedContract, setSelectedContract] = useState(null);
+  const [selectedContract, setSelectedContract] = useState(() => {
+    try {
+      const targetNo = sessionStorage.getItem("cozum_open_contract_no");
+      if (targetNo) {
+        sessionStorage.removeItem("cozum_open_contract_no");
+        const all = AccountingService.getContracts();
+        const found = all.find((c) => c.sozlesmeNo === targetNo);
+        if (found) return found;
+      }
+    } catch {}
+    return null;
+  });
+
+  useEffect(() => {
+    try {
+      const targetNo = sessionStorage.getItem("cozum_open_contract_no");
+      if (targetNo) {
+        sessionStorage.removeItem("cozum_open_contract_no");
+        const found = contractsList.find((c) => c.sozlesmeNo === targetNo);
+        if (found) setSelectedContract(found);
+      }
+    } catch {}
+  }, [contractsList]);
   const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(null);
   const [showMebPrintModal, setShowMebPrintModal] = useState(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);

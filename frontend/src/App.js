@@ -1077,7 +1077,14 @@ function MainApp({ me, onLogout }) {
                 sozlesmeNo: st?.sozlesme_no
               })
             }
-            onOpenContract={() => setPage("documents")}
+            onOpenContract={(contract) => {
+              if (contract?.sozlesmeNo) {
+                try {
+                  sessionStorage.setItem("cozum_open_contract_no", contract.sozlesmeNo);
+                } catch {}
+              }
+              setPage("documents");
+            }}
             onOpenKarne={(st) =>
               setShowGlobalKarne({
                 student_name: st.student_name,
