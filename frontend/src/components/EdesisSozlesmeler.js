@@ -1383,7 +1383,6 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
                 </th>
                 <th style={{ padding: "12px 14px", textAlign: "right" }}>Tahsilat</th>
                 <th style={{ padding: "12px 14px" }}>Ödeme Türü</th>
-                <th style={{ padding: "12px 14px", textAlign: "center" }}>İmza Durumu</th>
                 <th
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none", textAlign: "center" }}
                   onClick={() => handleSort("durum")}
@@ -1395,7 +1394,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
             <tbody>
               {paginatedContracts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
                     <div style={{ fontSize: "14px", fontWeight: 600 }}>Kayıt bulunamadı.</div>
                     <div style={{ fontSize: "12px", marginTop: "4px" }}>Filtrelerinizi değiştirerek tekrar deneyiniz.</div>
                   </td>
@@ -1743,46 +1742,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
                         </span>
                       </td>
 
-                      {/* 8. İmza Durumu */}
-                      <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                        {c.isSigned || c.kurumImzaAlindi || c.veliImzaAlindi ? (
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "3px",
-                              padding: "2px 8px",
-                              borderRadius: "9999px",
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              background: "#dcfce7",
-                              color: "#15803d"
-                            }}
-                          >
-                            <Check size={11} strokeWidth={3} /> İmzalandı
-                          </span>
-                        ) : c.durum === 1 ? (
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "3px",
-                              padding: "2px 8px",
-                              borderRadius: "9999px",
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              background: "#fef9c3",
-                              color: "#854d0e"
-                            }}
-                          >
-                            <Clock size={11} /> Bekliyor
-                          </span>
-                        ) : (
-                          <span style={{ color: "#94a3b8" }}>—</span>
-                        )}
-                      </td>
-
-                      {/* 9. Durum */}
+                      {/* 8. Durum */}
                       <td style={{ padding: "10px 14px", textAlign: "center" }}>
                         {c.durum === 1 ? (
                           <span

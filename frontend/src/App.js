@@ -518,7 +518,20 @@ function MobileBottomNav({ page, setPage, setModal, canPayment }) {
 }
 
 function MainApp({ me, onLogout }) {
-  const [data, setData] = useState({ summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] });
+  const [data, setData] = useState(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem("cozum_dashboard_data_v1");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.students) && parsed.students.length > 0) {
+            return parsed;
+          }
+        }
+      }
+    } catch (e) {}
+    return { summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] };
+  });
   const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
@@ -601,10 +614,16 @@ function MainApp({ me, onLogout }) {
       const r = await axios.get(`${API}/dashboard`);
       const rawStudents = r.data?.students || [];
       const cleanStudents = StudentService.filterActiveStudents(rawStudents);
-      setData({
+      const nextData = {
         ...r.data,
         students: cleanStudents
-      });
+      };
+      setData(nextData);
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("cozum_dashboard_data_v1", JSON.stringify(nextData));
+        }
+      } catch (e) {}
     } catch (e) {
       console.warn("[App] load error:", e);
     }

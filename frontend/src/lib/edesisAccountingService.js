@@ -121,7 +121,14 @@ export const AccountingService = {
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
-      const allStudentsToInspect = [...(remoteStudents || []), ...customStudents];
+      let activeStudents = (remoteStudents && remoteStudents.length > 0) ? remoteStudents : [];
+      if (activeStudents.length === 0) {
+        const cachedDash = readStorage("cozum_dashboard_data_v1", null);
+        if (cachedDash && Array.isArray(cachedDash.students) && cachedDash.students.length > 0) {
+          activeStudents = cachedDash.students;
+        }
+      }
+      const allStudentsToInspect = [...activeStudents, ...customStudents];
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
@@ -174,8 +181,8 @@ export const AccountingService = {
           brutTutar: gross,
           gelirTarihi: dateStr,
           vadeTarihi: cs.due_date ? (String(cs.due_date).includes("T") ? String(cs.due_date) : String(cs.due_date).replace(" ", "T")) : dateStr,
-          donemId: cs.donem_id || 113,
-          donemAdi: cs.donem_adi || "2026-2027",
+          donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
+          donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
           muH_GelirKategoriId: 87,
           gelirKategoriAdi: "Öğrenci Sözleşmesi",
           musteriUnvan: parentName,
@@ -224,7 +231,14 @@ export const AccountingService = {
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
-      const allStudentsToInspect = [...(remoteStudents || []), ...customStudents];
+      let activeStudents = (remoteStudents && remoteStudents.length > 0) ? remoteStudents : [];
+      if (activeStudents.length === 0) {
+        const cachedDash = readStorage("cozum_dashboard_data_v1", null);
+        if (cachedDash && Array.isArray(cachedDash.students) && cachedDash.students.length > 0) {
+          activeStudents = cachedDash.students;
+        }
+      }
+      const allStudentsToInspect = [...activeStudents, ...customStudents];
       const existingNames = new Set(list.map((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan)));
       const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
 
@@ -272,8 +286,8 @@ export const AccountingService = {
           musteriUnvan: parentName,
           ogrenciAdi: sName,
           ogrenciNo: cs.student_no || "",
-          donemId: cs.donem_id || 113,
-          donemAdi: cs.donem_adi || "2026-2027",
+          donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
+          donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
           sinifAdi: cs.student_class || "Genel",
           netTutar: net,
           kdvTutari: vat,
@@ -318,7 +332,14 @@ export const AccountingService = {
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
-      const allStudentsToInspect = [...(remoteStudents || []), ...customStudents];
+      let activeStudents = (remoteStudents && remoteStudents.length > 0) ? remoteStudents : [];
+      if (activeStudents.length === 0) {
+        const cachedDash = readStorage("cozum_dashboard_data_v1", null);
+        if (cachedDash && Array.isArray(cachedDash.students) && cachedDash.students.length > 0) {
+          activeStudents = cachedDash.students;
+        }
+      }
+      const allStudentsToInspect = [...activeStudents, ...customStudents];
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
@@ -379,8 +400,8 @@ export const AccountingService = {
             vadeTarihi: due.toISOString(),
             durum: 0,
             durumText: "Vadesi Gelmedi",
-            donemId: cs.donem_id || 113,
-            donemAdi: cs.donem_adi || "2026-2027",
+            donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
+            donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
             notlar: `${i}. Taksit`
           });
         }
