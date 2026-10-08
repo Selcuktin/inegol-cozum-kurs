@@ -342,15 +342,318 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
     setOpenDropdownId(null);
   };
 
+  const printStudent = useMemo(() => {
+    if (!showMebPrintModal) return null;
+    const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
+    const name = norm(showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || "");
+    return (allRegisteredStudents || []).find((s) => norm(s.student_name) === name) || null;
+  }, [showMebPrintModal, allRegisteredStudents]);
+
+  const renderPaymentPlanModal = () => {
+    if (!showPaymentPlanModal) return null;
+    return (
+      <div
+        className="modal-backdrop"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(15, 23, 42, 0.55)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 100000,
+          padding: "16px"
+        }}
+        onClick={() => setShowPaymentPlanModal(null)}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: "#fff",
+            borderRadius: "12px",
+            maxWidth: "650px",
+            width: "100%",
+            maxHeight: "90vh",
+            overflowY: "auto",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+            padding: "24px"
+          }}
+        >
+          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <FileSpreadsheet size={22} color="#2563eb" />
+              <div>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>Ödeme Planı Dökümü</h3>
+                <div style={{ fontSize: "12px", color: "#64748b" }}>{showPaymentPlanModal.sozlesmeNo} · {showPaymentPlanModal.ogrenciAdi}</div>
+              </div>
+            </div>
+            <button type="button" onClick={() => setShowPaymentPlanModal(null)} style={{ border: "none", background: "none", cursor: "pointer" }}>
+              <X size={20} color="#64748b" />
+            </button>
+          </div>
+
+          <div style={{ marginBottom: "16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: "10px 14px", borderRadius: "6px", fontSize: "13px" }}>
+              <span>Toplam Tutar: <b>{fmtCurrency(showPaymentPlanModal.brutTutar)}</b></span>
+              <span>Taksit Sayısı: <b>{showPaymentPlanModal.taksitSayisi || 1}</b></span>
+              <span>Ödeme Türü: <b>{showPaymentPlanModal.odemeTuruText}</b></span>
+            </div>
+          </div>
+
+          {/* Generated Installments Schedule */}
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
+            <thead>
+              <tr style={{ background: "#f1f5f9", color: "#475569", textAlign: "left" }}>
+                <th style={{ padding: "8px 12px" }}>Taksit No</th>
+                <th style={{ padding: "8px 12px" }}>Vade Tarihi</th>
+                <th style={{ padding: "8px 12px", textAlign: "right" }}>Tutar</th>
+                <th style={{ padding: "8px 12px", textAlign: "center" }}>Durum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: showPaymentPlanModal.taksitSayisi || 1 }, (_, i) => {
+                const instNum = i + 1;
+                const instAmount = (Number(showPaymentPlanModal.brutTutar) || 0) / (showPaymentPlanModal.taksitSayisi || 1);
+                const baseDate = new Date(showPaymentPlanModal.sozlesmeTarihi || new Date());
+                baseDate.setMonth(baseDate.getMonth() + i);
+                return (
+                  <tr key={instNum} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "8px 12px", fontWeight: 600 }}>{instNum}. Taksit</td>
+                    <td style={{ padding: "8px 12px" }}>{baseDate.toLocaleDateString("tr-TR")}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>{fmtCurrency(instAmount)}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", background: "#fef9c3", color: "#854d0e", fontWeight: 600 }}>
+                        Bekliyor
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="no-print" style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 16px",
+                background: "#2563eb",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer"
+              }}
+            >
+              <Printer size={15} />
+              Yazdır
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPaymentPlanModal(null)}
+              style={{
+                padding: "8px 16px",
+                background: "#e2e8f0",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer"
+              }}
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMebPrintModal = () => {
+    if (!showMebPrintModal) return null;
+    return (
+      <div
+        className="modal-backdrop"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(15, 23, 42, 0.6)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 100000,
+          padding: "20px"
+        }}
+        onClick={() => setShowMebPrintModal(null)}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: "#fff",
+            borderRadius: "12px",
+            maxWidth: "850px",
+            width: "100%",
+            maxHeight: "92vh",
+            overflowY: "auto",
+            boxShadow: "0 25px 50px rgba(0,0,0,0.25)",
+            padding: "30px",
+            fontFamily: "Times New Roman, serif"
+          }}
+        >
+          {/* Action Bar for Modal */}
+          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", fontFamily: "sans-serif" }}>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                data-testid="meb-modal-print-btn"
+                onClick={() => window.print()}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 18px",
+                  background: "#2563eb",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <Printer size={16} /> Yazdır / PDF Kaydet
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMebPrintModal(null)}
+              style={{
+                background: "#f1f5f9",
+                border: "none",
+                borderRadius: "6px",
+                padding: "8px 14px",
+                fontSize: "12px",
+                cursor: "pointer",
+                fontWeight: 600
+              }}
+            >
+              Kapat
+            </button>
+          </div>
+
+          {/* Official MEB Contract Printable Paper */}
+          <div style={{ border: "2px solid #000", padding: "30px", backgroundColor: "#fff" }}>
+            <div style={{ textAlign: "center", marginBottom: "20px" }}>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>T.C.</div>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>MİLLÎ EĞİTİM BAKANLIĞI</div>
+              <div style={{ fontSize: "13px", fontWeight: "bold" }}>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
+              <h2 style={{ fontSize: "18px", margin: "10px 0", textDecoration: "underline" }}>
+                ÖZEL ÖĞRETİM KURUMLARI ÖĞRENCİ KAYIT SÖZLEŞMESİ
+              </h2>
+              <div style={{ fontSize: "12px", fontStyle: "italic" }}>
+                Sözleşme No: {showMebPrintModal.sozlesmeNo} · Tarih: {fmtDate(showMebPrintModal.sozlesmeTarihi)}
+              </div>
+            </div>
+
+            {/* Institution & Student Info Table */}
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "15px" }}>
+              <tbody>
+                <tr>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold", width: "30%" }}>KURUMUN ADI:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px" }}>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ (MEB Kurum Kodu: 627201)</td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>T.C. KİMLİK NO:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px" }}>{printStudent?.student_tc || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖĞRENCİNİN ADI SOYADI:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan}</td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>VELİ / VASİ ADI SOYADI:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px" }}>{printStudent?.parent_name || showMebPrintModal.musteriUnvan || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>VELİ İLETİŞİM (TELEFON):</td>
+                  <td style={{ border: "1px solid #000", padding: "6px" }}>{printStudent?.parent_phone || showMebPrintModal.musteriTelefon || "—"}</td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>SINIFI / PROGRAMI:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px" }}>{showMebPrintModal.sinifAdi || "—"} ({showMebPrintModal.donemAdi || "2026-2027"})</td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖĞRENİM ÜCRETİ (BRÜT):</td>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold", fontSize: "13px" }}>{fmtCurrency(showMebPrintModal.brutTutar)}</td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖDEME ŞEKLİ & VADE:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px" }}>
+                    {showMebPrintModal.odemeTuruText || (showMebPrintModal.taksitSayisi > 1 ? `Taksitli (${showMebPrintModal.taksitSayisi} Taksit)` : "Peşin")}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Legal Terms Paragraph */}
+            <div style={{ fontSize: "11px", lineHeight: "1.5", textAlign: "justify", marginBottom: "25px" }}>
+              <p>
+                1. Bu sözleşme; 5580 sayılı Özel Öğretim Kurumları Kanunu ile bu Kanuna dayanılarak çıkarılan Millî Eğitim Bakanlığı Özel Öğretim Kurumları Yönetmeliği hükümlerine uygun olarak düzenlenmiştir.
+              </p>
+              <p>
+                2. Öğrenci velisi, sözleşmede kararlaştırılan öğrenim ücretini belirtilen vadelerde kuruma tam ve eksiksiz olarak ödemeyi kabul ve taahhüt eder.
+              </p>
+              <p>
+                3. Kurum, Millî Eğitim Bakanlığı mevzuatı çerçevesinde eğitim-öğretim hizmetlerini eksiksiz yürütmekle yükümlüdür.
+              </p>
+            </div>
+
+            {/* Signatures */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", textAlign: "center" }}>
+              <div style={{ width: "40%" }}>
+                <div style={{ fontWeight: "bold", fontSize: "12px" }}>VELİ / VASİ</div>
+                <div style={{ fontSize: "11px", marginTop: "4px" }}>{printStudent?.parent_name || showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan}</div>
+                <div style={{ marginTop: "40px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza</div>
+              </div>
+
+              <div style={{ width: "40%" }}>
+                <div style={{ fontWeight: "bold", fontSize: "12px" }}>KURUM YETKİLİSİ</div>
+                <div style={{ fontSize: "11px", marginTop: "4px" }}>Özel İnegöl Çözüm Kurs Merkezi</div>
+                <div style={{ marginTop: "40px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza / Mühür</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (selectedContract) {
     return (
-      <EdesisSozlesmeDetay
-        contract={selectedContract}
-        onBack={() => setSelectedContract(null)}
-        onOpenGelir={onOpenGelir}
-        onOpenPrintMeb={(c) => setShowOfficialContractModal(c)}
-        onOpenPaymentPlan={(c) => setShowPaymentPlanModal(c)}
-      />
+      <>
+        <EdesisSozlesmeDetay
+          contract={selectedContract}
+          onBack={() => setSelectedContract(null)}
+          onOpenGelir={onOpenGelir}
+          onOpenPrintMeb={(c) => setShowMebPrintModal(c)}
+          onOpenPaymentPlan={(c) => setShowPaymentPlanModal(c)}
+        />
+        {renderPaymentPlanModal()}
+        {renderMebPrintModal()}
+      </>
     );
   }
 
@@ -1937,275 +2240,11 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
       )}
 
       {/* MODAL 2: ÖDEME PLANI ÇIKTISI */}
-      {showPaymentPlanModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(15, 23, 42, 0.55)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100000,
-            padding: "16px"
-          }}
-          onClick={() => setShowPaymentPlanModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: "12px",
-              maxWidth: "650px",
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
-              padding: "24px"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <FileSpreadsheet size={22} color="#2563eb" />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>Ödeme Planı Dökümü</h3>
-                  <div style={{ fontSize: "12px", color: "#64748b" }}>{showPaymentPlanModal.sozlesmeNo} · {showPaymentPlanModal.ogrenciAdi}</div>
-                </div>
-              </div>
-              <button type="button" onClick={() => setShowPaymentPlanModal(null)} style={{ border: "none", background: "none", cursor: "pointer" }}>
-                <X size={20} color="#64748b" />
-              </button>
-            </div>
-
-            <div style={{ marginBottom: "16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: "10px 14px", borderRadius: "6px", fontSize: "13px" }}>
-                <span>Toplam Tutar: <b>{fmtCurrency(showPaymentPlanModal.brutTutar)}</b></span>
-                <span>Taksit Sayısı: <b>{showPaymentPlanModal.taksitSayisi || 1}</b></span>
-                <span>Ödeme Türü: <b>{showPaymentPlanModal.odemeTuruText}</b></span>
-              </div>
-            </div>
-
-            {/* Generated Installments Schedule */}
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
-              <thead>
-                <tr style={{ background: "#f1f5f9", color: "#475569", textAlign: "left" }}>
-                  <th style={{ padding: "8px 12px" }}>Taksit No</th>
-                  <th style={{ padding: "8px 12px" }}>Vade Tarihi</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Tutar</th>
-                  <th style={{ padding: "8px 12px", textAlign: "center" }}>Durum</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: showPaymentPlanModal.taksitSayisi || 1 }, (_, i) => {
-                  const instNum = i + 1;
-                  const instAmount = (Number(showPaymentPlanModal.brutTutar) || 0) / (showPaymentPlanModal.taksitSayisi || 1);
-                  const baseDate = new Date(showPaymentPlanModal.sozlesmeTarihi || new Date());
-                  baseDate.setMonth(baseDate.getMonth() + i);
-                  return (
-                    <tr key={instNum} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "8px 12px", fontWeight: 600 }}>{instNum}. Taksit</td>
-                      <td style={{ padding: "8px 12px" }}>{baseDate.toLocaleDateString("tr-TR")}</td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>{fmtCurrency(instAmount)}</td>
-                      <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                        <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", background: "#fef9c3", color: "#854d0e", fontWeight: 600 }}>
-                          Bekliyor
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 16px",
-                  background: "#2563eb",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer"
-                }}
-              >
-                <Printer size={15} />
-                Yazdır
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowPaymentPlanModal(null)}
-                style={{
-                  padding: "8px 16px",
-                  background: "#e2e8f0",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer"
-                }}
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderPaymentPlanModal()}
 
       {/* MODAL 3: RESMÎ MEB SÖZLEŞMESİ YAZDIRMA (MEB STANDART ÇIKTI) */}
-      {showMebPrintModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100000,
-            padding: "20px"
-          }}
-          onClick={() => setShowMebPrintModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: "12px",
-              maxWidth: "850px",
-              width: "100%",
-              maxHeight: "92vh",
-              overflowY: "auto",
-              boxShadow: "0 25px 50px rgba(0,0,0,0.25)",
-              padding: "30px",
-              fontFamily: "Times New Roman, serif"
-            }}
-          >
-            {/* Action Bar for Modal */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", fontFamily: "sans-serif" }}>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "8px 18px",
-                    background: "#2563eb",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    cursor: "pointer"
-                  }}
-                >
-                  <Printer size={16} /> Yazdır / PDF Kaydet
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowMebPrintModal(null)}
-                style={{
-                  background: "#f1f5f9",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "8px 14px",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  fontWeight: 600
-                }}
-              >
-                Kapat
-              </button>
-            </div>
+      {renderMebPrintModal()}
 
-            {/* Official MEB Contract Printable Paper */}
-            <div style={{ border: "2px solid #000", padding: "30px", backgroundColor: "#fff" }}>
-              <div style={{ textAlign: "center", marginBottom: "20px" }}>
-                <div style={{ fontSize: "14px", fontWeight: "bold" }}>T.C.</div>
-                <div style={{ fontSize: "14px", fontWeight: "bold" }}>MİLLÎ EĞİTİM BAKANLIĞI</div>
-                <div style={{ fontSize: "13px", fontWeight: "bold" }}>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
-                <h2 style={{ fontSize: "18px", margin: "10px 0", textDecoration: "underline" }}>
-                  ÖZEL ÖĞRETİM KURUMLARI ÖĞRENCİ KAYIT SÖZLEŞMESİ
-                </h2>
-                <div style={{ fontSize: "12px", fontStyle: "italic" }}>
-                  Sözleşme No: {showMebPrintModal.sozlesmeNo} · Tarih: {fmtDate(showMebPrintModal.sozlesmeTarihi)}
-                </div>
-              </div>
-
-              {/* Institution & Student Info Table */}
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "15px" }}>
-                <tbody>
-                  <tr>
-                    <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold", width: "30%" }}>KURUMUN ADI:</td>
-                    <td style={{ border: "1px solid #000", padding: "6px" }}>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖĞRENCİNİN ADI SOYADI:</td>
-                    <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>SINIFI / PROGRAMI:</td>
-                    <td style={{ border: "1px solid #000", padding: "6px" }}>{showMebPrintModal.sinifAdi || "—"} ({showMebPrintModal.donemAdi || "2026-2027"})</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖĞRENİM ÜCRETİ (BRÜT):</td>
-                    <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold", fontSize: "13px" }}>{fmtCurrency(showMebPrintModal.brutTutar)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖDEME ŞEKLİ:</td>
-                    <td style={{ border: "1px solid #000", padding: "6px" }}>{showMebPrintModal.odemeTuruText}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {/* Legal Terms Paragraph */}
-              <div style={{ fontSize: "11px", lineHeight: "1.5", textAlign: "justify", marginBottom: "25px" }}>
-                <p>
-                  1. Bu sözleşme; Özel Öğretim Kurumları Kanunu ile bu Kanuna dayanılarak çıkarılan Yönetmelik hükümlerine uygun olarak düzenlenmiştir.
-                </p>
-                <p>
-                  2. Öğrenci velisi, sözleşmede kararlaştırılan öğrenim ücretini belirtilen vadelerde kuruma tam ve eksiksiz olarak ödemeyi kabul ve taahhüt eder.
-                </p>
-                <p>
-                  3. Kurum, Millî Eğitim Bakanlığı mevzuatı çerçevesinde eğitim-öğretim hizmetlerini eksiksiz yürütmekle yükümlüdür.
-                </p>
-              </div>
-
-              {/* Signatures */}
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", textAlign: "center" }}>
-                <div style={{ width: "40%" }}>
-                  <div style={{ fontWeight: "bold", fontSize: "12px" }}>VELİ / VASİ</div>
-                  <div style={{ fontSize: "11px", marginTop: "4px" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan}</div>
-                  <div style={{ marginTop: "40px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza</div>
-                </div>
-
-                <div style={{ width: "40%" }}>
-                  <div style={{ fontWeight: "bold", fontSize: "12px" }}>KURUM YETKİLİSİ</div>
-                  <div style={{ fontSize: "11px", marginTop: "4px" }}>Özel İnegöl Çözüm Kurs Merkezi</div>
-                  <div style={{ marginTop: "40px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza / Mühür</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MODAL 4: İPTAL ETME MODALI */}
       {showCancelModal && (

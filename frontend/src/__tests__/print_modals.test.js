@@ -1,6 +1,8 @@
 import React from "react";
 import { ReceiptModal } from "../components/ReceiptModal";
 import { PromissoryNoteModal, numberToTurkishWords } from "../components/PromissoryNoteModal";
+import EdesisSozlesmeler from "../components/EdesisSozlesmeler";
+import EdesisSozlesmeDetay from "../components/EdesisSozlesmeDetay";
 import {
   render,
   cleanup,
@@ -336,4 +338,73 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       expect(noteContainer.textContent).toContain("SIRA NO: 4 / 6");
     });
   });
+
+  /* =====================================================================
+   * TIER 5: RESMÎ SÖZLEŞME YAZDIRMA (MEB STANDART ÇIKTI) & DETAY ENTEGRASYONU
+   * ===================================================================== */
+  describe("Tier 5: Resmî Sözleşmeyi Yazdır (MEB) Modal & Detay Entegrasyonu", () => {
+    test("T5.1: clicking 'Resmî Sözleşmeyi Yazdır (MEB)' in EdesisSozlesmeDetay invokes onOpenPrintMeb", async () => {
+      const mockContract = {
+        id: "SZL202600135",
+        sozlesmeNo: "SZL202600135",
+        sozlesmeTarihi: "2026-10-03T00:00:00",
+        ogrenciAdi: "Ahmet Yılmaz",
+        musteriUnvan: "Ahmet Yılmaz",
+        sinifAdi: "12-SAY-A",
+        donemAdi: "2026-2027",
+        brutTutar: 80000,
+        odemeTuruText: "Taksitli (8 Taksit)",
+        taksitSayisi: 8
+      };
+
+      const onOpenPrintMeb = jest.fn();
+      const { container } = await render(
+        <EdesisSozlesmeDetay
+          contract={mockContract}
+          onBack={jest.fn()}
+          onOpenPrintMeb={onOpenPrintMeb}
+        />
+      );
+
+      const printBtn = container.querySelector('[data-testid="print-meb-contract-btn"]');
+      expect(printBtn).toBeTruthy();
+      expect(printBtn.textContent).toContain("Resmî Sözleşmeyi Yazdır (MEB)");
+
+      await fireEvent.click(printBtn);
+      expect(onOpenPrintMeb).toHaveBeenCalledWith(mockContract);
+    });
+
+    test("T5.2: EdesisSozlesmeler renders MEB print modal from detail view and triggers window.print", async () => {
+      sessionStorage.setItem("cozum_open_contract_no", "SZL202600135");
+
+      const { container } = await render(
+        <EdesisSozlesmeler
+          students={mockStudents}
+          payments={mockPayments}
+        />
+      );
+
+      // Verify contract detail is open
+      expect(container.textContent).toContain("Sözleşme Detay");
+      expect(container.textContent).toContain("SZL202600135");
+
+      // Find and click the Resmî Sözleşmeyi Yazdır (MEB) button
+      const printBtn = container.querySelector('[data-testid="print-meb-contract-btn"]');
+      expect(printBtn).toBeTruthy();
+      await fireEvent.click(printBtn);
+
+      // Verify official MEB modal opened
+      expect(container.textContent).toContain("ÖZEL ÖĞRETİM KURUMLARI ÖĞRENCİ KAYIT SÖZLEŞMESİ");
+      expect(container.textContent).toContain("MİLLÎ EĞİTİM BAKANLIĞI");
+      expect(container.textContent).toContain("SZL202600135");
+      expect(container.textContent).toContain("ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ");
+
+      // Click Yazdır / PDF Kaydet button inside modal
+      const modalPrintBtn = container.querySelector('[data-testid="meb-modal-print-btn"]');
+      expect(modalPrintBtn).toBeTruthy();
+      await fireEvent.click(modalPrintBtn);
+      expect(window.print).toHaveBeenCalled();
+    });
+  });
 });
+

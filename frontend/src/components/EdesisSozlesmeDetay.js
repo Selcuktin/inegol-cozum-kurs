@@ -357,6 +357,8 @@ export default function EdesisSozlesmeDetay({
 
             <button
               type="button"
+              data-testid="print-meb-contract-btn"
+              aria-label="Resmî Sözleşmeyi Yazdır (MEB)"
               onClick={() => {
                 if (onOpenPrintMeb) onOpenPrintMeb(contract);
               }}
