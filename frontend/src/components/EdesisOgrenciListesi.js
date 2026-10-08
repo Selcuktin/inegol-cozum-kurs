@@ -1534,9 +1534,15 @@ export default function EdesisOgrenciListesi({
               <button
                 type="button"
                 onClick={() => {
+                  const targetStudent = contractsModalStudent;
                   setContractsModalStudent(null);
+                  if (targetStudent?.id) {
+                    try {
+                      sessionStorage.setItem("cozum_new_contract_student_id", String(targetStudent.id));
+                    } catch {}
+                  }
                   if (onOpenContract) {
-                    onOpenContract();
+                    onOpenContract(null, targetStudent);
                   } else if (onNavigate) {
                     onNavigate("documents");
                   }

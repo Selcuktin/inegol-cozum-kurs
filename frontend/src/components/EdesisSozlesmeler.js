@@ -22,10 +22,13 @@ import {
   Coins,
   Clock,
   ArrowLeft,
-  Check
+  Check,
+  Users,
+  UserCheck
 } from "lucide-react";
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
+import { StudentService } from "../lib/edesisStudentService";
 import EdesisSozlesmeDetay from "./EdesisSozlesmeDetay";
 import { trIncludes } from "../lib/utils";
 
@@ -119,6 +122,66 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
   const [showCancelModal, setShowCancelModal] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
+
+  const allRegisteredStudents = useMemo(() => {
+    try {
+      const list = StudentService.getAllStudents(students);
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return Array.isArray(students) ? students : [];
+    }
+  }, [students]);
+
+  // New contract form states
+  const [selectedStudentForContract, setSelectedStudentForContract] = useState(null);
+  const [contractStudentName, setContractStudentName] = useState("");
+  const [contractStudentClass, setContractStudentClass] = useState("8-A");
+  const [contractParentName, setContractParentName] = useState("");
+  const [contractParentPhone, setContractParentPhone] = useState("");
+  const [contractParentRelation, setContractParentRelation] = useState("Veli");
+  const [contractAmount, setContractAmount] = useState(75000);
+  const [contractInstallments, setContractInstallments] = useState(10);
+  const [contractDueDate, setContractDueDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const handleOpenNewContract = (preSelectedStudent = null) => {
+    if (preSelectedStudent) {
+      setSelectedStudentForContract(preSelectedStudent);
+      setContractStudentName(preSelectedStudent.student_name || "");
+      setContractStudentClass(preSelectedStudent.student_class || "8-A");
+      setContractParentName(
+        preSelectedStudent.parent_name && preSelectedStudent.parent_name !== "Belirtilmedi"
+          ? preSelectedStudent.parent_name
+          : ""
+      );
+      setContractParentPhone(preSelectedStudent.parent_phone || "");
+      setContractParentRelation(preSelectedStudent.parent_relation || "Veli");
+      setContractAmount(preSelectedStudent.total_fee ? Number(preSelectedStudent.total_fee) : 75000);
+    } else {
+      setSelectedStudentForContract(null);
+      setContractStudentName("");
+      setContractStudentClass("8-A");
+      setContractParentName("");
+      setContractParentPhone("");
+      setContractParentRelation("Veli");
+      setContractAmount(75000);
+    }
+    setContractInstallments(10);
+    setContractDueDate(new Date().toISOString().slice(0, 10));
+    setShowNewContractModal(true);
+  };
+
+  useEffect(() => {
+    try {
+      const studentId = sessionStorage.getItem("cozum_new_contract_student_id");
+      if (studentId) {
+        sessionStorage.removeItem("cozum_new_contract_student_id");
+        const found = allRegisteredStudents.find((st) => String(st.id) === String(studentId));
+        if (found) {
+          handleOpenNewContract(found);
+        }
+      }
+    } catch {}
+  }, [allRegisteredStudents]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -444,7 +507,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
 
           <button
             type="button"
-            onClick={() => setShowNewContractModal(true)}
+            onClick={() => handleOpenNewContract()}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -2313,10 +2376,12 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
             style={{
               background: "#fff",
               borderRadius: "12px",
-              maxWidth: "600px",
+              maxWidth: "680px",
               width: "100%",
               padding: "24px",
-              boxShadow: "0 20px 40px rgba(0,0,0,0.2)"
+              boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+              maxHeight: "90vh",
+              overflowY: "auto"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "16px" }}>
@@ -2332,86 +2397,221 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const formData = new FormData(e.target);
-                const studentName = formData.get("studentName");
-                const amount = Number(formData.get("amount")) || 0;
-                const installments = Number(formData.get("installments")) || 10;
-                const sinif = formData.get("sinif") || "7-A";
+                if (!contractStudentName.trim()) {
+                  showToast("⚠️ Lütfen öğrenci adını giriniz.");
+                  return;
+                }
 
+                const finalParent = contractParentName.trim() || contractStudentName.trim();
                 const res = AccountingService.addNewIncome({
-                  ogrenciAdi: studentName,
-                  veliAdi: studentName,
-                  sinifAdi: sinif,
-                  brutTutar: amount,
-                  taksitSayisi: installments,
-                  aciklama: `Sözleşme Kaydı`
+                  ogrenciAdi: contractStudentName.trim(),
+                  veliAdi: finalParent,
+                  sinifAdi: contractStudentClass || "Genel",
+                  brutTutar: Number(contractAmount) || 0,
+                  taksitSayisi: Number(contractInstallments) || 1,
+                  vadeTarihi: contractDueDate,
+                  aciklama: `Kayıt Sözleşmesi`
                 });
+
+                // Link to student so that student table also has authentic contract & parent info
+                const normName = contractStudentName.trim().toUpperCase();
+                const targetStudent = selectedStudentForContract || allRegisteredStudents.find(
+                  (st) => (st.student_name || "").trim().toUpperCase() === normName
+                );
+
+                if (targetStudent) {
+                  StudentService.saveStudent({
+                    ...targetStudent,
+                    has_contract: true,
+                    sozlesme_no: res.contract?.sozlesmeNo || targetStudent.sozlesme_no,
+                    parent_name: finalParent,
+                    parent_phone: contractParentPhone.trim() || targetStudent.parent_phone,
+                    parent_relation: contractParentRelation || targetStudent.parent_relation || "Veli",
+                    total_fee: Number(contractAmount) || targetStudent.total_fee
+                  });
+                }
 
                 setContractsList(AccountingService.getContracts());
                 showToast(`✅ ${res.contract?.sozlesmeNo || "Yeni"} numaralı yeni sözleşme kaydedildi.`);
                 setShowNewContractModal(false);
               }}
             >
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Öğrenci / Müşteri Adı Soyadı</label>
-                  <input
-                    required
-                    name="studentName"
-                    placeholder="Örn: AHMET YILMAZ"
-                    style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                  />
-                </div>
+              {/* 1. Kayıtlı Öğrencilerden Seçme Kutusu */}
+              <div style={{ marginBottom: "16px", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                  <Users size={14} color="#2563eb" /> Kayıtlı Öğrencilerden Seç (Önerilen)
+                </label>
+                <select
+                  value={selectedStudentForContract?.id || ""}
+                  onChange={(e) => {
+                    const targetId = e.target.value;
+                    const found = allRegisteredStudents.find((st) => String(st.id) === String(targetId));
+                    if (found) {
+                      setSelectedStudentForContract(found);
+                      setContractStudentName(found.student_name || "");
+                      setContractStudentClass(found.student_class || "Genel");
+                      setContractParentName(
+                        found.parent_name && found.parent_name !== "Belirtilmedi" ? found.parent_name : ""
+                      );
+                      setContractParentPhone(found.parent_phone || "");
+                      setContractParentRelation(found.parent_relation || "Veli");
+                      if (found.total_fee && Number(found.total_fee) > 0) {
+                        setContractAmount(Number(found.total_fee));
+                      }
+                    } else {
+                      setSelectedStudentForContract(null);
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    fontSize: "12px",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "6px",
+                    background: "#fff",
+                    color: "#0f172a",
+                    fontWeight: 500
+                  }}
+                >
+                  <option value="">-- Kayıtlı Öğrenci Seçin veya Manuel Girin --</option>
+                  {allRegisteredStudents.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.student_name} {st.student_class ? `(${st.student_class})` : ""} {st.parent_name && st.parent_name !== "Belirtilmedi" ? `— Veli: ${st.parent_name}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedStudentForContract && (
+                  <div style={{ marginTop: "6px", fontSize: "11px", color: "#16a34a", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                    <UserCheck size={13} /> Öğrenci ve veli bilgileri otomatik çekildi. Dilerseniz alanları aşağıdan düzenleyebilirsiniz.
+                  </div>
+                )}
+              </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Sınıf</label>
-                  <input
-                    name="sinif"
-                    defaultValue="8-A"
-                    style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                  />
+              {/* 2. Öğrenci Bilgileri */}
+              <div style={{ marginBottom: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", marginBottom: "8px" }}>
+                  1. Öğrenci Bilgileri
                 </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Sözleşme Brüt Tutarı (TL)</label>
-                  <input
-                    required
-                    type="number"
-                    name="amount"
-                    defaultValue={75000}
-                    style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                  />
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Taksit Sayısı</label>
-                  <select
-                    name="installments"
-                    defaultValue="10"
-                    style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                  >
-                    <option value="1">Peşin (1)</option>
-                    <option value="6">6 Taksit</option>
-                    <option value="8">8 Taksit</option>
-                    <option value="9">9 Taksit</option>
-                    <option value="10">10 Taksit (Standart)</option>
-                    <option value="11">11 Taksit</option>
-                    <option value="12">12 Taksit</option>
-                  </select>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Öğrenci Adı Soyadı *</label>
+                    <input
+                      required
+                      value={contractStudentName}
+                      onChange={(e) => setContractStudentName(e.target.value)}
+                      placeholder="Örn: AHMET YILMAZ"
+                      style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Sınıf / Şube</label>
+                    <input
+                      value={contractStudentClass}
+                      onChange={(e) => setContractStudentClass(e.target.value)}
+                      placeholder="Örn: 8-A"
+                      style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "18px" }}>
+              {/* 3. Veli & İletişim Bilgileri (Kullanıcının talep ettiği eksik kısım) */}
+              <div style={{ marginBottom: "14px", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", marginBottom: "8px" }}>
+                  2. Veli Bilgileri (Sözleşmede Müşteri Olarak Görünecektir)
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr", gap: "10px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Veli Adı Soyadı *</label>
+                    <input
+                      required
+                      value={contractParentName}
+                      onChange={(e) => setContractParentName(e.target.value)}
+                      placeholder="Örn: MEHMET YILMAZ"
+                      style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Veli Telefonu</label>
+                    <input
+                      value={contractParentPhone}
+                      onChange={(e) => setContractParentPhone(e.target.value)}
+                      placeholder="Örn: (532) 000 00 00"
+                      style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Yakınlık</label>
+                    <select
+                      value={contractParentRelation}
+                      onChange={(e) => setContractParentRelation(e.target.value)}
+                      style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
+                    >
+                      <option value="Baba">Baba (♂)</option>
+                      <option value="Anne">Anne (♀)</option>
+                      <option value="Veli">Veli (👤)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Sözleşme & Ödeme Bilgileri */}
+              <div style={{ marginBottom: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", marginBottom: "8px" }}>
+                  3. Sözleşme & Ödeme Planı
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Sözleşme Brüt Tutarı (TL) *</label>
+                    <input
+                      required
+                      type="number"
+                      value={contractAmount}
+                      onChange={(e) => setContractAmount(Number(e.target.value))}
+                      style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Taksit Sayısı</label>
+                    <select
+                      value={contractInstallments}
+                      onChange={(e) => setContractInstallments(Number(e.target.value))}
+                      style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                    >
+                      <option value="1">Peşin (1 Taksit)</option>
+                      <option value="6">6 Taksit</option>
+                      <option value="8">8 Taksit</option>
+                      <option value="9">9 Taksit</option>
+                      <option value="10">10 Taksit (Standart)</option>
+                      <option value="11">11 Taksit</option>
+                      <option value="12">12 Taksit</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>İlk Taksit Vade Tarihi</label>
+                    <input
+                      type="date"
+                      value={contractDueDate}
+                      onChange={(e) => setContractDueDate(e.target.value)}
+                      style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "18px", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
                 <button
                   type="button"
                   onClick={() => setShowNewContractModal(false)}
-                  style={{ padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}
+                  style={{ padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: 600, color: "#475569" }}
                 >
                   Vazgeç
                 </button>
                 <button
                   type="submit"
-                  style={{ padding: "8px 18px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                  style={{ padding: "8px 20px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
                 >
                   Sözleşmeyi Oluştur
                 </button>

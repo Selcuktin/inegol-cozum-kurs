@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from "react";
 import axios from "axios";
 import { StudentService } from "../lib/edesisStudentService";
+import AccountingService from "../lib/edesisAccountingService";
 import {
   X,
   User,
@@ -232,13 +233,40 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
 
     setLoading(true);
     try {
+      const extraSum =
+        Number(formData.extra_kaynak || 0) +
+        Number(formData.extra_dijital || 0) +
+        Number(formData.extra_dnm || 0) +
+        Number(formData.extra_kutuphane || 0);
+      const grossFee = Math.max(0, Number(formData.total_fee || 0) + extraSum - Number(formData.discount_amount || 0));
+
+      let contractRes = null;
+      if (grossFee > 0) {
+        try {
+          contractRes = AccountingService.addNewIncome({
+            ogrenciAdi: formData.student_name.trim(),
+            veliAdi: resolvedParent,
+            sinifAdi: formData.student_class || "Genel",
+            brutTutar: grossFee,
+            taksitSayisi: Number(formData.installment_count) || 1,
+            vadeTarihi: formData.due_date || new Date().toISOString().slice(0, 10),
+            aciklama: `Kayıt Sözleşmesi`
+          });
+        } catch (accErr) {
+          console.warn("Accounting contract creation warning:", accErr);
+        }
+      }
+
       const payload = {
         ...formData,
         student_name: formData.student_name.trim(),
         parent_name: resolvedParent,
-        total_fee: Number(formData.total_fee || 0),
+        total_fee: grossFee || Number(formData.total_fee || 0),
         installment_count: Number(formData.installment_count || 1),
         discount_amount: Number(formData.discount_amount || 0),
+        has_contract: Boolean(contractRes?.contract || formData.has_contract),
+        sozlesme_no: contractRes?.contract?.sozlesmeNo || formData.sozlesme_no || "",
+        gelir_kodu: contractRes?.income?.gelirKodu || formData.gelir_kodu || "",
         extra_fees: {
           kaynak: Number(formData.extra_kaynak || 0),
           dijital: Number(formData.extra_dijital || 0),
@@ -255,7 +283,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         const res = await axios.post(`${API}/students`, payload);
         saved = res.data;
       }
-      StudentService.saveStudent(saved || payload);
+      StudentService.saveStudent({ ...(saved || {}), ...payload });
       if (onStudentAdded) onStudentAdded();
       stopCamera();
       onClose();
