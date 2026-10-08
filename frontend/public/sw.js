@@ -24,6 +24,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only intercept same-origin requests (ignore external analytics / cross-origin)
+  if (!event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
   // Pass through API calls to network directly
   if (event.request.url.includes('/api/')) {
     return;
@@ -53,6 +58,8 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return networkResponse;
+      }).catch(() => {
+        return new Response('', { status: 404 });
       });
     })
   );

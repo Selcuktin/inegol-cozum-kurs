@@ -364,6 +364,7 @@ export const AccountingService = {
     const base = edesisData.sozlesmeler || [];
     const list = [...custom, ...base];
     const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
+    const { delContracts, delIncomes } = this._buildDelSets();
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
@@ -379,8 +380,6 @@ export const AccountingService = {
       const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
       const existingStudentIds = new Set(list.map((c) => String(c.studentId || c.student_id || c.ogrenciId || "")).filter(Boolean));
 
-      // ponytail: read localStorage once for whole loop
-      const { delContracts: dc2, delIncomes: di2 } = this._buildDelSets();
 
       let maxSeqSzl = 150;
       list.forEach((c) => {
@@ -396,24 +395,24 @@ export const AccountingService = {
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
-        if (this._isContractDeletedFast(cs, dc2) || this._isIncomeDeletedFast(cs, di2)) return;
+        if (this._isContractDeletedFast(cs, delContracts) || this._isIncomeDeletedFast(cs, delIncomes)) return;
 
         if (cs.id && existingStudentIds.has(String(cs.id))) return;
         if (existingNames.has(sName)) return;
         if (cs.sozlesme_no && existingNos.has(trNorm(cs.sozlesme_no))) return;
 
         let cleanNo = cs.sozlesme_no;
-        if (!cleanNo || existingNos.has(trNorm(cleanNo)) || this._isContractDeletedFast(cleanNo, dc2)) {
+        if (!cleanNo || existingNos.has(trNorm(cleanNo)) || this._isContractDeletedFast(cleanNo, delContracts)) {
           maxSeqSzl++;
           while (
             existingNos.has(trNorm(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`)) ||
-            this._isContractDeletedFast(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`, dc2)
+            this._isContractDeletedFast(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`, delContracts)
           ) {
             maxSeqSzl++;
           }
           cleanNo = `SZL2026${String(maxSeqSzl).padStart(5, "0")}`;
         }
-        if (this._isContractDeletedFast(cleanNo, dc2)) return;
+        if (this._isContractDeletedFast(cleanNo, delContracts)) return;
 
         existingNames.add(sName);
         existingNos.add(trNorm(cleanNo));
@@ -466,7 +465,7 @@ export const AccountingService = {
     }
 
     // Filter out deleted contracts
-    const activeList = list.filter(c => !this._isContractDeletedFast(c, dc2));
+    const activeList = list.filter(c => !this._isContractDeletedFast(c, delContracts));
 
     // Apply overrides (e.g. cancellations)
     return activeList.map(c => {
@@ -483,6 +482,7 @@ export const AccountingService = {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
     const overrides = readStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, {});
     const base = edesisData.taksitler || [];
+    const { delContracts, delIncomes } = this._buildDelSets();
 
     const list = [...custom, ...base];
     const existingNames = new Set(list.map(t => trNorm(t.ogrenciAdiSoyadi || t.ogrenciAdi)));
@@ -500,8 +500,6 @@ export const AccountingService = {
       }
       const allStudentsToInspect = [...activeStudents, ...customStudents];
 
-      // ponytail: read localStorage once for whole loop
-      const { delContracts: dc3, delIncomes: di3 } = this._buildDelSets();
 
       let maxSeqInst = 150;
       list.forEach((t) => {
@@ -517,7 +515,7 @@ export const AccountingService = {
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
-        if (this._isContractDeletedFast(cs, dc3) || this._isIncomeDeletedFast(cs, di3)) return;
+        if (this._isContractDeletedFast(cs, delContracts) || this._isIncomeDeletedFast(cs, delIncomes)) return;
 
         if (cs.id && existingStudentIds.has(String(cs.id))) return;
         if (existingNames.has(sName)) return;
@@ -525,11 +523,11 @@ export const AccountingService = {
 
         let cleanSzl = cs.sozlesme_no;
         let cleanGlr = cs.gelir_kodu;
-        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this._isContractDeletedFast(cleanSzl, dc3)) {
+        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this._isContractDeletedFast(cleanSzl, delContracts)) {
           maxSeqInst++;
           while (
             existingSzl.has(trNorm(`SZL2026${String(maxSeqInst).padStart(5, "0")}`)) ||
-            this._isContractDeletedFast(`SZL2026${String(maxSeqInst).padStart(5, "0")}`, dc3)
+            this._isContractDeletedFast(`SZL2026${String(maxSeqInst).padStart(5, "0")}`, delContracts)
           ) {
             maxSeqInst++;
           }
@@ -540,7 +538,7 @@ export const AccountingService = {
           const numPart = cleanSzl.replace(/\D/g, "").slice(-5) || "00155";
           cleanGlr = `GLR2026${numPart}`;
         }
-        if (this._isContractDeletedFast(cleanSzl, dc3) || this._isIncomeDeletedFast(cleanGlr, di3)) return;
+        if (this._isContractDeletedFast(cleanSzl, delContracts) || this._isIncomeDeletedFast(cleanGlr, delIncomes)) return;
 
         existingNames.add(sName);
         existingSzl.add(trNorm(cleanSzl));
@@ -594,7 +592,7 @@ export const AccountingService = {
       console.warn("Dynamic installments error:", e);
     }
 
-    const merged = list.filter(t => !this._isContractDeletedFast(t, dc3) && !this._isIncomeDeletedFast(t, di3));
+    const merged = list.filter(t => !this._isContractDeletedFast(t, delContracts) && !this._isIncomeDeletedFast(t, delIncomes));
 
     return merged.map((t) => {
       const key = `${t.gelirKodu || t.sozlesmeNo}_${t.taksitNo}`;
