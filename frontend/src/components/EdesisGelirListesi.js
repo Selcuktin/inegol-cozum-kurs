@@ -57,15 +57,23 @@ export default function EdesisGelirListesi({
   onNavigate
 }) {
   // AccountingService senkronizasyonu - eklenen gelirler ve taksitler anında tüm sisteme ve grafiklere yansısın
-  const [incomesList, setIncomesList] = useState(() => AccountingService.getIncomes());
+  const [incomesList, setIncomesList] = useState(() => AccountingService.getIncomes(students));
+
+  useEffect(() => {
+    setIncomesList(AccountingService.getIncomes(students));
+  }, [students]);
 
   useEffect(() => {
     const handleUpdate = () => {
-      setIncomesList(AccountingService.getIncomes());
+      setIncomesList(AccountingService.getIncomes(students));
     };
     window.addEventListener("cozum_accounting_updated", handleUpdate);
-    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
-  }, []);
+    window.addEventListener("cozum_students_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("cozum_accounting_updated", handleUpdate);
+      window.removeEventListener("cozum_students_updated", handleUpdate);
+    };
+  }, [students]);
 
   // Filtreler
   const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027 (Aktif), 40: 2025-2026, all: Tümü

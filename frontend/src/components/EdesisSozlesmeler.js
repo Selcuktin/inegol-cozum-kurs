@@ -54,25 +54,33 @@ export function fmtDate(isoStr) {
 }
 
 export default function EdesisSozlesmeler({ students = [], payments = [], onOpenGelir }) {
-  const [contractsList, setContractsList] = useState(() => AccountingService.getContracts());
+  const [contractsList, setContractsList] = useState(() => AccountingService.getContracts(students));
+
+  useEffect(() => {
+    setContractsList(AccountingService.getContracts(students));
+  }, [students]);
 
   useEffect(() => {
     const handleUpdate = () => {
-      setContractsList(AccountingService.getContracts());
+      setContractsList(AccountingService.getContracts(students));
     };
     window.addEventListener("cozum_accounting_updated", handleUpdate);
-    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
-  }, []);
+    window.addEventListener("cozum_students_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("cozum_accounting_updated", handleUpdate);
+      window.removeEventListener("cozum_students_updated", handleUpdate);
+    };
+  }, [students]);
 
   const gelirMap = useMemo(() => {
     const map = {};
-    (AccountingService.getIncomes() || []).forEach((g) => {
+    (AccountingService.getIncomes(students) || []).forEach((g) => {
       if (g.sozlesmeNo) {
         map[g.sozlesmeNo] = g;
       }
     });
     return map;
-  }, [contractsList]);
+  }, [contractsList, students]);
   const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027 (Default 64 records), 40: 2025-2026, 142: 2026-2027-YAZ, -1: Tümü
   const [statusFilter, setStatusFilter] = useState("all"); // "all", "active", "draft", "canceled"
   const [customerFilter, setCustomerFilter] = useState("all");

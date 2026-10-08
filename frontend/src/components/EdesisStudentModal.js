@@ -284,6 +284,10 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         saved = res.data;
       }
       StudentService.saveStudent({ ...(saved || {}), ...payload });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("cozum_accounting_updated"));
+        window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: payload } }));
+      }
       if (onStudentAdded) onStudentAdded();
       stopCamera();
       onClose();

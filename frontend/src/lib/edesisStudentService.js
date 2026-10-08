@@ -2,7 +2,7 @@ import initialStudentsData from "../data/edesisStudentsData.json";
 import edesisAccountingData from "../data/edesisAccountingData.json";
 
 const contractsByNameMap = {
-  get(name) {
+  get(name, remoteStudents = []) {
     if (!name) return [];
     const norm = String(name).trim().toUpperCase();
     const map = new Map();
@@ -15,6 +15,26 @@ const contractsByNameMap = {
         map.get(n).push(c);
       }
     });
+
+    (remoteStudents || []).forEach((s) => {
+      if (!s) return;
+      const n = (s.student_name || "").trim().toUpperCase();
+      if (!n) return;
+      const fee = Number(s.total_fee || 0);
+      if ((fee > 0 || s.has_contract || s.sozlesme_no) && !map.has(n)) {
+        const cleanNo = s.sozlesme_no || `SZL2026${String(s.student_no || s.id || "001").replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
+        map.set(n, [{
+          sozlesmeNo: cleanNo,
+          ogrenciAdi: n,
+          donemAdi: s.donem_adi || "2026-2027",
+          sozlesmeTarihi: s.created_at || new Date().toISOString(),
+          durum: 1,
+          durumText: "Aktif",
+          brutTutar: fee
+        }]);
+      }
+    });
+
     return map.get(norm) || [];
   }
 };
@@ -244,7 +264,7 @@ export const StudentService = {
         const parentRelation = existing?.parent_relation || s.parent_relation || (s.mother_name && s.parent_name && s.mother_name.trim().toUpperCase() === s.parent_name.trim().toUpperCase() ? "Anne" : (s.primary_parent === "anne" ? "Anne" : (s.primary_parent === "baba" ? "Baba" : "Veli")));
 
         const normName = (s.student_name || "").trim().toUpperCase();
-        const cList = contractsByNameMap.get(normName) || [];
+        const cList = contractsByNameMap.get(normName, remoteStudents) || [];
         const matchedContract = cList[0] || null;
         const hasContract = Boolean((existing && existing.has_contract) || s.has_contract || matchedContract || s.sozlesme_no);
 

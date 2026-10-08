@@ -59,15 +59,23 @@ export default function EdesisVadeTakvimi({
   onOpenGelir,
   onNavigate
 }) {
-  const [allTaksitler, setAllTaksitler] = useState(() => AccountingService.getInstallments());
+  const [allTaksitler, setAllTaksitler] = useState(() => AccountingService.getInstallments(students));
+
+  useEffect(() => {
+    setAllTaksitler(AccountingService.getInstallments(students));
+  }, [students]);
 
   useEffect(() => {
     const handleUpdate = () => {
-      setAllTaksitler(AccountingService.getInstallments());
+      setAllTaksitler(AccountingService.getInstallments(students));
     };
     window.addEventListener("cozum_accounting_updated", handleUpdate);
-    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
-  }, []);
+    window.addEventListener("cozum_students_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("cozum_accounting_updated", handleUpdate);
+      window.removeEventListener("cozum_students_updated", handleUpdate);
+    };
+  }, [students]);
 
   // Filtre durumları
   const [period, setPeriod] = useState("2026-2027");
