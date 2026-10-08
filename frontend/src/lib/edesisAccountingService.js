@@ -75,6 +75,7 @@ export const AccountingService = {
     if (typeof contractOrNo === "string" || typeof contractOrNo === "number") {
       return delContracts.has(trNorm(contractOrNo));
     }
+    if (contractOrNo.contract_deleted) return true;
     const szl = trNorm(contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no);
     if (szl && delContracts.has(szl)) return true;
     const id = trNorm(contractOrNo.id);
@@ -85,6 +86,8 @@ export const AccountingService = {
     if (oid && delContracts.has(trNorm(`szl-${oid}`))) return true;
     const on = trNorm(contractOrNo.ogrenciNo || contractOrNo.student_no);
     if (on && delContracts.has(on)) return true;
+    const sName = trNorm(contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.student_name || contractOrNo.musteriUnvan);
+    if (sName && delContracts.has(sName)) return true;
     return false;
   },
 
@@ -442,7 +445,9 @@ export const AccountingService = {
         if (cs.sozlesme_no && existingNos.has(trNorm(cs.sozlesme_no))) return;
 
         let cleanNo = cs.sozlesme_no;
-        if (!cleanNo || existingNos.has(trNorm(cleanNo)) || this._isContractDeletedFast(cleanNo, delContracts)) {
+        if (cleanNo && this._isContractDeletedFast(cleanNo, delContracts)) return;
+
+        if (!cleanNo || existingNos.has(trNorm(cleanNo))) {
           maxSeqSzl++;
           while (
             existingNos.has(trNorm(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`)) ||
@@ -523,7 +528,9 @@ export const AccountingService = {
 
         let cleanSzl = cs.sozlesme_no;
         let cleanGlr = cs.gelir_kodu;
-        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this._isContractDeletedFast(cleanSzl, delContracts)) {
+        if (cleanSzl && this._isContractDeletedFast(cleanSzl, delContracts)) return;
+
+        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl))) {
           maxSeqInst++;
           while (
             existingSzl.has(trNorm(`SZL2026${String(maxSeqInst).padStart(5, "0")}`)) ||

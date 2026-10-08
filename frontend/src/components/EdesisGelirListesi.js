@@ -98,6 +98,17 @@ export default function EdesisGelirListesi({
 
   // Modallar ve Aksiyon Durumları
   const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  useEffect(() => {
+    if (!openDropdownId) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest || !e.target.closest("[data-gelir-dropdown]")) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [openDropdownId]);
   const [showNewIncomeModal, setShowNewIncomeModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
   const [showQuickCollectModal, setShowQuickCollectModal] = useState(null);
@@ -1131,7 +1142,7 @@ export default function EdesisGelirListesi({
                     >
                       {/* 1. İşlemler Dropdown Butonu */}
                       <td style={{ padding: "10px 14px", textAlign: "center", position: "relative" }}>
-                        <div style={{ position: "relative", display: "inline-block" }}>
+                        <div data-gelir-dropdown={g.gelirKodu} style={{ position: "relative", display: "inline-block" }}>
                           <button
                             type="button"
                             aria-label={`${g.gelirKodu} ${stName} işlem menüsünü aç`}

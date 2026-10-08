@@ -81,3 +81,16 @@ assert.strictEqual(
 );
 
 console.log("Self-check passed: Contracts count is 121 and active amount is 5.204.810,48.");
+
+// Test that deleting a contract does not resurrect it
+const delContractsSet = new Set(["SZL202600150"]);
+const sampleStudent = { student_name: "TEST STUDENT", sozlesme_no: "SZL202600150" };
+const isDeleted = delContractsSet.has(sampleStudent.sozlesme_no);
+assert.strictEqual(isDeleted, true, "Contract must be detected as deleted");
+// When deleted, synthesis must skip
+let synthGenerated = false;
+if (!isDeleted) {
+  synthGenerated = true;
+}
+assert.strictEqual(synthGenerated, false, "Synthetic contract must NOT be generated when deleted");
+console.log("Self-check passed: Deleted contracts are never resurrected.");

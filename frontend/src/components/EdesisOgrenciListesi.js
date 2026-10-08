@@ -82,6 +82,17 @@ export default function EdesisOgrenciListesi({
   }, [globalSearch]);
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
+  useEffect(() => {
+    if (!openDropdownId) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest || !e.target.closest("[data-edesis-dropdown]")) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [openDropdownId]);
+
   // Edit modal state
   const [editingStudent, setEditingStudent] = useState(null);
   const [editActiveTab, setEditActiveTab] = useState("ogrenci"); // 'ogrenci' | 'kullanici' | 'adres' | 'ogretmen' | 'tarihce'
@@ -284,15 +295,33 @@ export default function EdesisOgrenciListesi({
     setOpenDropdownId(null);
   };
 
+  // Auto-open edit modal if requested via sessionStorage (e.g. from Sözleşme Detay)
+  useEffect(() => {
+    try {
+      const editTarget = sessionStorage.getItem("cozum_open_edit_student_id");
+      if (editTarget && students && students.length > 0) {
+        sessionStorage.removeItem("cozum_open_edit_student_id");
+        const normTarget = trNorm(editTarget);
+        const found = students.find(
+          (s) => String(s.id) === String(editTarget) || trNorm(s.student_name) === normTarget
+        );
+        if (found) {
+          handleOpenEdit(found);
+        }
+      }
+    } catch (e) {}
+  }, [students]);
+
   // Save Edit Form
   const handleSaveEdit = (e) => {
     e.preventDefault();
     if (!editingStudent) return;
 
+    let updatedObj = null;
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id === editingStudent.id) {
-          return {
+          updatedObj = {
             ...s,
             student_class: editFormData.sube,
             department: editFormData.bolum,
@@ -315,10 +344,15 @@ export default function EdesisOgrenciListesi({
             secondary_parent_phone: editFormData.secondaryParentPhone,
             address: editFormData.address
           };
+          return updatedObj;
         }
         return s;
       })
     );
+
+    if (updatedObj) {
+      StudentService.saveStudent(updatedObj);
+    }
 
     showToast(`✅ ${editingStudent.student_name} bilgileri güncellendi.`);
     setEditingStudent(null);
@@ -684,7 +718,7 @@ export default function EdesisOgrenciListesi({
 
                       {/* 2. İşlemler Dropdown Button */}
                       <td style={{ padding: "5px 2px", textAlign: "center", position: "relative", width: "70px" }}>
-                        <div style={{ position: "relative", display: "inline-block" }}>
+                        <div data-edesis-dropdown={s.id} style={{ position: "relative", display: "inline-block" }}>
                           <button
                             type="button"
                             aria-label={`${s.student_name} için işlemler menüsünü aç`}
@@ -793,7 +827,7 @@ export default function EdesisOgrenciListesi({
                                   if (window.confirm(`${s.student_name} kaydını kalıcı olarak silmek istediğinize emin misiniz?`)) {
                                     try {
                                       await StudentService.deleteStudent(s, API);
-                                      setStudents((prev) => prev.filter((it) => it.id !== s.id && it.student_name !== s.student_name));
+                                      setStudents((prev) => prev.filter((it) => it.id !== s.id && trNorm(it.student_name) !== trNorm(s.student_name)));
                                       showToast(`🗑️ ${s.student_name} başarıyla silindi.`);
                                     } catch (err) {
                                       showToast(`❌ Silinemedi: ${err.message}`);

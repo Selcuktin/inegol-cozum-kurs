@@ -36,7 +36,8 @@ export default function EdesisSozlesmeDetay({
   onBack,
   onOpenGelir,
   onOpenPrintMeb,
-  onOpenPaymentPlan
+  onOpenPaymentPlan,
+  onEditStudent
 }) {
   const [notes, setNotes] = useState([
     // Empty initially as in screenshot ("Henüz not eklenmemiş")
@@ -65,10 +66,6 @@ export default function EdesisSozlesmeDetay({
   };
 
   // Find corresponding student in data
-  const [studentOverride, setStudentOverride] = useState(null);
-  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
-  const [editStudentForm, setEditStudentForm] = useState({});
-
   const baseStudent = useMemo(() => {
     if (!contract) return null;
     const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
@@ -82,45 +79,7 @@ export default function EdesisSozlesmeDetay({
     }) || allStudents[0] || null;
   }, [contract, students]);
 
-  const student = studentOverride || baseStudent;
-
-  const handleOpenEditStudent = () => {
-    setEditStudentForm({
-      student_name: student?.student_name || contract?.ogrenciAdi || "",
-      student_class: student?.student_class || contract?.sinifAdi || "5-A",
-      student_tc: student?.student_tc || "",
-      student_phone: student?.student_phone || "",
-      student_no: student?.student_no || contract?.ogrenciNo || "",
-      gender: student?.gender || "Erkek",
-      birth_date: student?.birth_date || "",
-      school: student?.school || "",
-      parent_name: student?.parent_name || contract?.musteriUnvan || "",
-      parent_relation: student?.parent_relation || "Veli",
-      parent_phone: student?.parent_phone || "",
-      parent_tc: student?.parent_tc || "",
-      parent_email: student?.parent_email || "",
-      address: student?.address || ""
-    });
-    setShowEditStudentModal(true);
-  };
-
-  const handleSaveStudent = (e) => {
-    e.preventDefault();
-    if (!editStudentForm.student_name) return;
-
-    const toSave = {
-      ...(student || {}),
-      ...editStudentForm,
-      id: student?.id || contract?.studentId || `student-${Date.now().toString(36)}`
-    };
-
-    const saved = StudentService.saveStudent(toSave);
-    if (saved) {
-      setStudentOverride(saved);
-      setShowEditStudentModal(false);
-      showToast("✅ Öğrenci ve veli bilgileri başarıyla güncellendi.");
-    }
-  };
+  const student = baseStudent;
 
   // Find installments for this contract
   const installments = useMemo(() => {
@@ -992,7 +951,14 @@ export default function EdesisSozlesmeDetay({
               </div>
               <button
                 type="button"
-                onClick={handleOpenEditStudent}
+                onClick={() => {
+                  if (onEditStudent) {
+                    onEditStudent(student || {
+                      id: contract?.studentId || contract?.ogrenciId,
+                      student_name: contract?.ogrenciAdi || contract?.musteriUnvan
+                    });
+                  }
+                }}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -1850,215 +1816,6 @@ export default function EdesisSozlesmeDetay({
           }}
           onClose={() => setReceiptModalPayment(null)}
         />
-      )}
-
-      {/* 6. ÖĞRENCİ DÜZENLEME MODAL */}
-      {showEditStudentModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.55)",
-            backdropFilter: "blur(4px)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 99999,
-            padding: "20px"
-          }}
-          onClick={() => setShowEditStudentModal(false)}
-        >
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: "14px",
-              boxShadow: "0 20px 45px rgba(0, 0, 0, 0.25)",
-              width: "100%",
-              maxWidth: "640px",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              padding: "24px",
-              animation: "popIn 0.2s ease"
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid #f1f5f9", paddingBottom: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "18px" }}>✏️</span>
-                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
-                  Öğrenci & Veli Bilgilerini Düzenle
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEditStudentModal(false)}
-                style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8" }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveStudent}>
-              {/* Öğrenci Bilgileri Bölümü */}
-              <div style={{ marginBottom: "20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px", color: "#1e40af", fontWeight: 700, fontSize: "13px" }}>
-                  <User size={15} /> Öğrenci Bilgileri
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Öğrenci Adı Soyadı *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={editStudentForm.student_name}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, student_name: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Sınıf / Grup
-                    </label>
-                    <input
-                      type="text"
-                      value={editStudentForm.student_class}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, student_class: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Öğrenci T.C. Kimlik No
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={11}
-                      value={editStudentForm.student_tc}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, student_tc: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Öğrenci Telefonu
-                    </label>
-                    <input
-                      type="text"
-                      value={editStudentForm.student_phone}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, student_phone: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Okul Numarası
-                    </label>
-                    <input
-                      type="text"
-                      value={editStudentForm.student_no}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, student_no: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Okul
-                    </label>
-                    <input
-                      type="text"
-                      value={editStudentForm.school}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, school: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Veli Bilgileri Bölümü */}
-              <div style={{ marginBottom: "20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px", color: "#1e40af", fontWeight: 700, fontSize: "13px" }}>
-                  <Users size={15} /> Veli Bilgileri
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Veli Adı Soyadı
-                    </label>
-                    <input
-                      type="text"
-                      value={editStudentForm.parent_name}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, parent_name: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Yakınlık Derecesi
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Anne, Baba, Veli..."
-                      value={editStudentForm.parent_relation}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, parent_relation: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Veli Telefonu
-                    </label>
-                    <input
-                      type="text"
-                      value={editStudentForm.parent_phone}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, parent_phone: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Veli T.C. Kimlik No
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={11}
-                      value={editStudentForm.parent_tc}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, parent_tc: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-                      Adres
-                    </label>
-                    <input
-                      type="text"
-                      value={editStudentForm.address}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, address: e.target.value })}
-                      style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", paddingTop: "12px", borderTop: "1px solid #f1f5f9" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowEditStudentModal(false)}
-                  style={{ padding: "9px 16px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  style={{ padding: "9px 20px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
-                >
-                  <Check size={16} /> Kaydet
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </div>
   );

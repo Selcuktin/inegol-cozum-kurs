@@ -104,6 +104,17 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
 
   // Modals & UI States
   const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  useEffect(() => {
+    if (!openDropdownId) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest || !e.target.closest("[data-sozlesme-dropdown]")) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [openDropdownId]);
   const getTargetContractKey = () => {
     try {
       if (typeof window !== "undefined") {
@@ -1012,6 +1023,17 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
           onOpenGelir={onOpenGelir}
           onOpenPrintMeb={(c) => setShowMebPrintModal(c)}
           onOpenPaymentPlan={(c) => setShowPaymentPlanModal(c)}
+          onEditStudent={(st) => {
+            const target = st?.id || st?.student_name || selectedContract?.ogrenciAdi || selectedContract?.musteriUnvan;
+            if (target) {
+              try {
+                sessionStorage.setItem("cozum_open_edit_student_id", String(target));
+              } catch {}
+            }
+            if (onNavigate) {
+              onNavigate("students");
+            }
+          }}
         />
         {renderPaymentPlanModal()}
         {renderMebPrintModal()}
@@ -1764,7 +1786,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
                     >
                       {/* 1. İşlemler Dropdown Button */}
                       <td style={{ padding: "10px 14px", textAlign: "center", position: "relative" }}>
-                        <div style={{ position: "relative", display: "inline-block" }}>
+                        <div data-sozlesme-dropdown={c.id} style={{ position: "relative", display: "inline-block" }}>
                           <button
                             type="button"
                             onClick={(e) => {

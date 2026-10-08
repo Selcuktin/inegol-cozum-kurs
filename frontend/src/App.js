@@ -902,6 +902,16 @@ function MainApp({ me, onLogout }) {
   ];
 
   const [quickOpen, setQuickOpen] = useState(false);
+  useEffect(() => {
+    if (!quickOpen) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest || !e.target.closest(".edesis-quick-actions-wrapper")) {
+        setQuickOpen(false);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [quickOpen]);
   const guardedOpen = (type) => setModal(type);
 
   return <div className="app-shell">
@@ -1088,11 +1098,14 @@ function MainApp({ me, onLogout }) {
       <header className="topbar" role="banner">
         <button className="mobile-menu" data-testid="mobile-menu" aria-label="Menüyü aç" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} aria-hidden="true" /></button>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ position: "relative" }}>
+          <div className="edesis-quick-actions-wrapper" style={{ position: "relative" }}>
             <button
               type="button"
               className="edesis-quick-actions-btn"
-              onClick={() => setQuickOpen(!quickOpen)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setQuickOpen((prev) => !prev);
+              }}
               title="Hızlı İşlemler Menüsü"
               aria-label="Hızlı işlemler menüsü"
               aria-haspopup="true"
