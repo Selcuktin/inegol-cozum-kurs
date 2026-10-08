@@ -54,3 +54,91 @@ Yerel şema sayımları tekrar: `python3 /app/tests/schema_integrity_check.py`. 
 4. **G3: Raporlama ve güvence.** Sıfır veri, dönem, vade, rapor ve yedekleme testleri; 123 mevcut test + yeni D1 entegrasyon testleri ve CI derlemesi yeşil.
 
 **Not:** `/app/memory/test_credentials.md` önceki MongoDB dönemine ait ve güncel D1 test hesabı kanıtı değildir; oradaki yerel oturum talimatlarıyla gerçek hesaplara giriş denemesi yapılmamalıdır. Koddan görülen bulguların gerçek verideki etkisi, G0 sağlandıktan sonra ölçülebilir.
+
+## Uygulamaya geçildiğinde açılacak somut iş paketleri
+
+Bu liste **yapılmış işler değil**, düzeltme izni verildiğinde izlenecek sıradır. Bir paketin kabul testi geçmeden onun üzerine kurulu paket başlatılmamalıdır.
+
+| Paket | Öncelik / bağımlılık | Yapılacak iş | Tamamlanma kanıtı |
+|---|---|---|---|
+| T-01 | P0 / başlangıç | Pages Function için gerçek D1'den bağımsız test DB ve `/api` erişimi; örnek şemayı tekrarlanabilir kurma | `/api/status` 200; test DB bağlantısı; gerçek D1'e yazma yok |
+| T-02 | P0 / T-01 | API rotalarını rol ve işlem türüne göre sınıflandırma; okuyana/yazana sunucu tarafında 401/403 | Kimliksiz ve yanlış rollü istekler DB öncesi reddediliyor; yalnız oturum sayfası/status herkese açık |
+| T-03 | P0 / T-02 | Ödeme için tek API yazarı, istek tekrarı koruması ve tutar sınırları; yerel tahsilatı sunucu kaydına bağlama | Tek işlemde tek ödeme; iki eşzamanlı istekte ve yeniden denemede bakiye değişimi bir kez |
+| T-04 | P0 / T-03 | Baz ücret + ekler − indirim hesabını tekleştirip `students`/`contracts`/`student_incomes` bakiyelerini uzlaştırma | Yeni kayıt, düzenleme, kısmi/tam ödeme ve ödeme silme sonrasında toplamlar eşit |
+| T-05 | P1 / T-04 | JSON/yerel depolama ile D1 karışımını kimlik bazlı taşıma planına ayırma; çift sözleşme üretimini kaldırma | Tek öğrencinin tek dönemde beklenen sayıda sözleşmesi var; ikinci tarayıcı aynı sonucu görüyor |
+| T-06 | P1 / T-05 | Silme, iptal ve imzalamayı ID'ye bağlayıp başarısız uzaktan isteği görünür kılma | Aynı isimli kişiler ayrışıyor; ağ kesilince yanlış başarı/tombstone oluşmuyor |
+| T-07 | P1 / T-01 ve T-04 | Gerçek D1'de **salt okunur** mutabakat, tarihî veri sınıflandırması, yedek sonrası kademeli migration | Eski kayıtların kökeni belirli; migration tekrar çalışabilir; tutarsızlar raporda ayrı |
+| T-08 | P1 / T-05 | Dashboard, dönem, vade, sınıf ve ders programı hesaplarını D1 kayıtlarına bağlama | Boş DB'de sıfır; sınıf/dönem filtreleri ve ay sonu vadeleri tutarlı |
+| T-09 | P2 / T-02…T-08 | Akademik modüller için CRUD/ilişki testleri, iki tarayıcı regresyonu, CI derleme uyarılarının çözümü | Aşağıdaki test matrisi geçiyor; 123 mevcut test korunuyor; CI derlemesi başarılı |
+| T-10 | P2 / T-07 | İzole DB'de yedek/geri yüklemenin bütünlük, zamanlama ve başarısızlık denemeleri | Kısmi hata başarı diye bildirilmez; geri dönüşte satır sayıları/mutabakat aynı |
+
+### Gerçek D1'e erişim sağlandığında yalnız okunacak sayım sorguları
+
+Bu sorgular **bu çalışmada gerçek D1'de çalıştırılmadı**. Yetkili erişim ve yedek teyidi sonrası yalnız `SELECT` ile, kişisel alanları dışarı aktarmadan alınmalıdır. Sonuçlar tarihî içe aktarım/iptal kayıtları ayrıştırılmadan otomatik silme veya güncelleme gerekçesi sayılmaz.
+
+```sql
+-- Envanter: yalnızca sayı, öğrenci adı/TC/telefon yok.
+SELECT 'students' AS source, COUNT(*) AS rows FROM students
+UNION ALL SELECT 'contracts', COUNT(*) FROM contracts
+UNION ALL SELECT 'student_incomes', COUNT(*) FROM student_incomes
+UNION ALL SELECT 'payments', COUNT(*) FROM payments
+UNION ALL SELECT 'expenses', COUNT(*) FROM expenses;
+
+-- Harici sistemden gelmiş olabilecek eşleşmemiş sözleşmeler.
+SELECT COUNT(*) AS unmatched_student_ids FROM contracts c
+WHERE c.is_deleted = 0
+  AND NOT EXISTS (SELECT 1 FROM students s WHERE s.id = c.student_id);
+
+-- Sözleşme bağlantısı ne ID ne numarayla kurulabilen gelirler.
+SELECT COUNT(*) AS unmatched_incomes FROM student_incomes i
+WHERE i.is_deleted = 0 AND NOT EXISTS (
+  SELECT 1 FROM contracts c WHERE c.is_deleted = 0
+  AND (c.id = i.contract_id OR c.sozlesme_no = i.sozlesme_no)
+);
+
+-- Bakiye sapması: iptal, iade ve eski açılış bakiyeleri ayrı değerlendirilmeli.
+SELECT COUNT(*) AS unbalanced_incomes FROM student_incomes
+WHERE is_deleted = 0
+  AND ABS(COALESCE(brut_tutar, 0) - COALESCE(toplam_tahsilat, 0)
+          - COALESCE(kalan_alacak, 0)) > 0.01;
+SELECT COUNT(*) AS student_ledger_differences FROM students s
+LEFT JOIN (SELECT student_id, SUM(amount) AS collected FROM payments GROUP BY student_id) p
+  ON p.student_id = s.id
+WHERE ABS(COALESCE(s.paid_amount, 0) - COALESCE(p.collected, 0)) > 0.01;
+
+-- Tek öğrenci/dönem için birden çok etkin sözleşme olabilecek kayıt grupları.
+SELECT COUNT(*) AS groups_to_review FROM (
+  SELECT student_id, period_id FROM contracts
+  WHERE is_deleted = 0 AND student_id <> ''
+  GROUP BY student_id, period_id HAVING COUNT(*) > 1
+);
+```
+
+**Yorumlama sınırı:** Bu sorgular ilişki sorunu *adaylarını* sayar; sözleşmenin aktarım kaynağına, dönemine ve iptal durumuna bakmadan veriyi “bozuk” saymak doğru olmaz. `contract_id` boş olan gelirler numaradan bağlanabiliyor olabilir. Gerçek veri onarımı ayrı bir değişiklik ve geri dönüş planı gerektirir.
+
+## Tam uçtan uca test matrisi (henüz çalıştırılmadı)
+
+Testleri gerçek veriye değil, **izole D1 test kayıtlarına** uygulayın. Aşağıdaki “beklenen” satırları kabul ölçütüdür; mevcut üründe geçtikleri iddia edilmez.
+
+| Senaryo | İşlem / olumsuz durum | Beklenen sonuç |
+|---|---|---|
+| A01 Kimlik ve roller | Anonim/yönetici/muhasebe/öğretmen olarak okuma ve yazma; oturum bitişi/çıkış | 401/403/200 doğru; başka kullanıcının finans ve yedeği erişilemez |
+| A02 Öğrenci kaydı | Yeni öğrenci, aynı isimde ikinci öğrenci, mevcut öğrenciyi düzeltme | Değişmez öğrenci ID; iki kişi birleşmez; düzenleme yeni sözleşme üretmez |
+| A03 Sözleşme ve gelir | Ek hizmet, indirim, 0 tutar, peşin/taksitli, tekrar kaydetme | Ücret denklemi tek; gelir ve sözleşme aynı ID/numara ve tutara bağlı |
+| A04 Tahsilat | Kısmi/tam, aşırı/negatif tutar, ardışık çift tıklama, istek tekrar denemesi | Geçersiz tutar reddedilir; tek ödeme satırı; öğrenci/gelir/taksit bakiyesi eşit |
+| A05 İptal ve silme | Ödeme iptali, sözleşme/öğrenci silme, ağ kesintisi; aynı adlı iki kişi | İlişkiler ID ile korunur; yanlış kişiye dokunulmaz; başarısız istekte görünür hata |
+| A06 Gider, kasa, banka | Nakit/banka gideri, 0/negatif tutar, silme, farklı dönem | Yalnız seçilen hesap etkilenir; kasa ve rapor toplamı değişimi aynı |
+| A07 Dashboard ve rapor | Boş DB, farklı dönem, CSV/PDF aylık rapor, geciken vade | Sabit uydurma sayılar yok; API, özet ve çıktı toplamları mutabık |
+| A08 Sınıf ve öğretmen | Sınıf kapasitesi, öğretmen ekle/düzenle/sil, sınıfla ilişkili ders | Kayıtlar tutarlı; geçersiz/silinmiş sınıf referansı görünür hataya dönüşür |
+| A09 Ders programı | Aynı öğretmen/oda/saat çakışması, düzenleme/silme, haftanın 7 günü | Çakışma ve kayıp referans engellenir; iki cihazda aynı haftalık plan |
+| A10 Sınav ve yoklama | Sınav/sonuç ekle-sil, sıralama; öğrenci-sınıf yoklaması/bildirim | Başka öğrencinin sonucu değişmez; bildirilmeyen veli yanlış işaretlenmez |
+| A11 Ödev/rehberlik/optik | Ödev–teslim, mentorluk oturumu, optik şablon listesi | Kayıtlar doğru öğrenci/sınıfa bağlı; eksik referanslar raporlanır |
+| A12 Belgeler | İmzalı sözleşme yükle/görüntüle; tek/çift imza ve iptal | Öğrenciyle eşleşir; izinsiz erişim yok; imza türü yanlış gösterilmez |
+| A13 Cihazlar ve çevrim dışı | İki tarayıcıda kayıt/silme, localStorage temizliği, ağ kesintisi | D1 kaydı korunur; veri yerelde sessizce dirilmez/kaybolmaz |
+| A14 Yedek ve geri dönüş | İzole ortamda tam/kısmi bozuk snapshot; planlanan saat | Satır sayıları ve tutarlar aynı; bozuk geri yükleme reddedilip geri alınabilir |
+
+### Geçiş kararı ve raporlama biçimi
+
+- Her senaryoda **önceki/sonraki satır sayısı, HTTP durumu, ödeme toplamı ve borç** kaydedilsin; ad, TC, telefon veya oturum anahtarı rapora konmasın.
+- P0 senaryolarından biri başarısızsa finansal değişiklikler gerçek veride denenmesin. P1 göçü yalnızca doğrulanmış yedek, eşleme listesi ve geri dönüş prova sonucu varsa başlasın.
+- Başarısız testler “koddan öngörülen”, “izole ortamda tekrar edilen” veya “gerçek D1 salt okunur gözlem” diye ayrı işaretlensin; önizleme 502 canlı ortam hatası diye sunulmasın.

@@ -18,7 +18,7 @@ Kullanıcı tercihi: **Önce test ve öncelikli çözüm planı; bu aşamada ür
 - CI koşulunda derleme lint uyarıları nedeniyle başarısız, CI olmadan uyarılarla başarılı.
 - Önizlemede masaüstü ve mobil giriş ekranı açıldı; `/api/auth/me`, `/api/status`, `/api/contracts/deleted-keys` 502.
 - `schema.sql` yalnızca geçici bellek SQLite'ında denendi; örnek veride ilişki ve finansal tutarsızlıklar görüldü. Gerçek D1 satırları sorgulanmadı.
-- Kanıt, risk, düzeltme sırası ve kabul testleri: [`VERITABANI_TEST_VE_COZUM_PLANI.md`](./VERITABANI_TEST_VE_COZUM_PLANI.md). Ayrıntılı test raporu: `/app/test_reports/iteration_1.json`.
+- Kanıt, risk, paket bazlı düzeltme sırası, salt okunur mutabakat sorguları ve finans/akademik modüller için 14 senaryolu kabul matrisi: [`VERITABANI_TEST_VE_COZUM_PLANI.md`](./VERITABANI_TEST_VE_COZUM_PLANI.md). Ayrıntılı önceki test raporu: `/app/test_reports/iteration_1.json`.
 
 ## Öncelikli backlog
 ### P0 — veri güvenliği ve ana akış
@@ -35,6 +35,7 @@ Kullanıcı tercihi: **Önce test ve öncelikli çözüm planı; bu aşamada ür
 ### P2 — güvenilirlik ve bakım
 1. Gerçek D1'e bağlı, izole test verili API + tarayıcı regresyon testleri ve CI derlemesi.
 2. Geri yükleme, yedekleme ve raporlama hatalarının açıkça bildirilmesi; kesintiden geri dönüş denemesi.
+3. Sınıf, öğretmen, program, sınav, yoklama, ödev, rehberlik ve belge ilişkilerini izole D1 kabul matrisinde doğrulama.
 
 ## Sonraki görevler
 1. Öncelikle `/app/memory/VERITABANI_TEST_VE_COZUM_PLANI.md` içindeki P0 kabul ölçütleriyle izole D1 test ortamını açmak.
