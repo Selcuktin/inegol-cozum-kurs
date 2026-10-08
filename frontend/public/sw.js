@@ -1,5 +1,5 @@
 // Service Worker for Inegol Cozum Kurs PWA
-const CACHE_NAME = 'inegol-cozum-cache-v2-20261007';
+const CACHE_NAME = 'inegol-cozum-cache-v3-20261008-force-purge';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

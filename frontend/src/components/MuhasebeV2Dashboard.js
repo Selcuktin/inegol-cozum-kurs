@@ -48,7 +48,6 @@ import {
 } from "recharts";
 import { ReceiptModal } from "./ReceiptModal";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
-import { GelirDetayModal } from "./GelirDetayModal";
 import { EdesisMuhasebeDashboard } from "./EdesisMuhasebeDashboard";
 import EdesisGelirListesi from "./EdesisGelirListesi";
 import EdesisVadeTakvimi from "./EdesisVadeTakvimi";
@@ -205,7 +204,8 @@ export function MuhasebeV2Dashboard({
   API, 
   reload,
   activeTab: propActiveTab,
-  onTabChange
+  onTabChange,
+  onNavigate
 }) {
   const [internalTab, setInternalTab] = useState(propActiveTab || "dashboard");
   const [statusQuickFilter, setStatusQuickFilter] = useState("all"); // 'all' | 'paid' | 'unpaid' | 'overdue'
@@ -237,7 +237,21 @@ export function MuhasebeV2Dashboard({
   const [promissoryStudent, setPromissoryStudent] = useState(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
-  const [gelirModalData, setGelirModalData] = useState(null);
+
+  const handleOpenUnifiedContract = (target) => {
+    const targetNo = typeof target === "string" 
+      ? target 
+      : (target?.sozlesmeNo || target?.gelirKodu || target?.ogrenciAdiSoyadi || target?.student_name || target?.student?.student_name);
+    if (targetNo) {
+      try {
+        sessionStorage.setItem("cozum_open_contract_no", targetNo);
+        sessionStorage.setItem("cozum_contract_prev_page", "payments");
+      } catch {}
+    }
+    if (onNavigate) {
+      onNavigate("documents");
+    }
+  };
 
   const loadBackups = async () => {
     setLoadingBackups(true);
@@ -1194,11 +1208,11 @@ export function MuhasebeV2Dashboard({
           </button>
           <button 
             className="btn secondary" 
-            onClick={() => setGelirModalData({ isOpen: true, gelirKodu: "GLR202600150" })}
+            onClick={() => handleOpenUnifiedContract("GLR202600150")}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderColor: "#3b82f6", color: "#2563eb", fontWeight: "600" }}
-            title="Edesis Resmi Gelir & Sözleşme Detay Sayfası"
+            title="Edesis Resmi Sözleşme ve Gelir Detay Sayfası"
           >
-            <FileText size={16} /> 📄 Edesis Gelir Detay (GLR)
+            <FileText size={16} /> 📄 Edesis Sözleşme / Gelir Detay
           </button>
           <button 
             className="btn secondary" 
@@ -1848,17 +1862,8 @@ export function MuhasebeV2Dashboard({
         <EdesisVadeTakvimi
           students={students}
           onSelectStudent={onSelectStudent}
-          onOpenGelir={(g) =>
-            setGelirModalData({
-              isOpen: true,
-              gelirKodu: g.gelirKodu,
-              sozlesmeNo: g.sozlesmeNo,
-              student: students.find((s) => s.student_name === g.ogrenciAdiSoyadi)
-            })
-          }
-          onNavigate={(p) => {
-            if (p === "gelir" && onTabChange) onTabChange("gelirler");
-          }}
+          onOpenGelir={handleOpenUnifiedContract}
+          onNavigate={onNavigate}
         />
       )}
 
@@ -1869,14 +1874,8 @@ export function MuhasebeV2Dashboard({
           payments={payments}
           API={API}
           onSelectStudent={onSelectStudent}
-          onOpenGelir={(g) =>
-            setGelirModalData({
-              isOpen: true,
-              gelirKodu: g.gelirKodu,
-              sozlesmeNo: g.sozlesmeNo,
-              student: students.find((s) => s.student_name === g.ogrenciAdiSoyadi)
-            })
-          }
+          onOpenGelir={handleOpenUnifiedContract}
+          onNavigate={onNavigate}
         />
       )}
 
@@ -1979,14 +1978,8 @@ export function MuhasebeV2Dashboard({
         <EdesisGelirListesi
           students={students}
           onSelectStudent={onSelectStudent}
-          onOpenGelir={(g) =>
-            setGelirModalData({
-              isOpen: true,
-              gelirKodu: g.gelirKodu,
-              sozlesmeNo: g.sozlesmeNo,
-              student: students.find((s) => s.student_name === g.ogrenciAdiSoyadi)
-            })
-          }
+          onOpenGelir={handleOpenUnifiedContract}
+          onNavigate={onNavigate}
         />
       )}
 
@@ -2188,18 +2181,6 @@ export function MuhasebeV2Dashboard({
         <PromissoryNoteModal 
           student={promissoryStudent}
           onClose={() => setPromissoryStudent(null)}
-        />
-      )}
-
-      {/* MODAL 2.5: EDESİS GELİR DETAY SÜİTİ */}
-      {gelirModalData && (
-        <GelirDetayModal
-          isOpen={true}
-          onClose={() => setGelirModalData(null)}
-          gelirKodu={gelirModalData.gelirKodu}
-          sozlesmeNo={gelirModalData.sozlesmeNo}
-          student={gelirModalData.student}
-          onRecordPayment={() => reload && reload()}
         />
       )}
 

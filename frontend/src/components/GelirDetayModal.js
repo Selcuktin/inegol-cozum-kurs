@@ -412,13 +412,15 @@ export function GelirDetayModal({
   return (
     <>
       <div 
-        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
+        className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="gelir-detay-title"
-        style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1050, backgroundColor: "rgba(15, 23, 42, 0.75)" }}
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100100, backgroundColor: "rgba(15, 23, 42, 0.75)" }}
       >
         <div 
+          onClick={(e) => e.stopPropagation()}
           className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[92vh] flex flex-col overflow-hidden text-slate-800"
           style={{ 
             backgroundColor: "#ffffff", 
@@ -444,11 +446,11 @@ export function GelirDetayModal({
                 <span>›</span>
                 <span>Gelir Yönetimi</span>
                 <span>›</span>
-                <span className="font-semibold text-slate-700" style={{ color: "#334155", fontWeight: 600 }}>Gelir Detay</span>
+                <span className="font-semibold text-slate-700" style={{ color: "#334155", fontWeight: 600 }}>Sözleşme & Gelir Detay</span>
               </div>
               <div className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <h1 id="gelir-detay-title" className="text-xl font-bold text-slate-900 m-0" style={{ fontSize: "20px", fontWeight: 700, margin: 0, color: "#0f172a" }}>
-                  Gelir Detay <span className="text-slate-400 font-normal ml-1" style={{ color: "#94a3b8", fontWeight: 400 }}>{gCode}</span>
+                  Sözleşme & Gelir Detay <span className="text-slate-400 font-normal ml-1" style={{ color: "#94a3b8", fontWeight: 400 }}>{gCode} · {szNo}</span>
                 </h1>
               </div>
             </div>
@@ -456,7 +458,8 @@ export function GelirDetayModal({
             {/* ACTION BUTTONS */}
             <div className="flex items-center gap-2" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button
-                onClick={onClose}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
                 style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, border: "1px solid #cbd5e1", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
@@ -464,7 +467,7 @@ export function GelirDetayModal({
               </button>
               <button
                 type="button"
-                onClick={() => setShowClassificationModal(true)}
+                onClick={(e) => { e.stopPropagation(); setShowClassificationModal(true); }}
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
                 style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, border: "1px solid #cbd5e1", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
                 title="Gelir muhasebe kategorisini ve faturadaki sınıflandırmayı değiştir"
@@ -473,7 +476,7 @@ export function GelirDetayModal({
               </button>
               <button
                 type="button"
-                onClick={() => setShowPaymentPlanModal(true)}
+                onClick={(e) => { e.stopPropagation(); setShowPaymentPlanModal(true); }}
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
                 style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, border: "1px solid #cbd5e1", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
                 title="Taksit vadeleri ve tahsilat takvimini görüntüle"
@@ -482,14 +485,15 @@ export function GelirDetayModal({
               </button>
               <button
                 type="button"
-                onClick={handlePrint}
+                onClick={(e) => { e.stopPropagation(); handlePrint(); }}
                 className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1.5 shadow-sm transition-colors"
                 style={{ padding: "6px 14px", fontSize: "13px", fontWeight: 600, borderRadius: "8px", background: "#2563eb", color: "#fff", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
                 <Printer size={15} aria-hidden="true" /> Yazdır
               </button>
               <button
-                onClick={onClose}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
                 aria-label="Pencereyi kapat"
                 className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 ml-1"
                 style={{ border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8" }}
@@ -682,10 +686,20 @@ export function GelirDetayModal({
                   </div>
 
                   <div className="flex items-center gap-3 text-xs" style={{ display: "flex", gap: "12px", fontSize: "12px" }}>
-                    <button className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1" style={{ color: "#2563eb", background: "none", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setShowPaymentPlanModal(true); }}
+                      className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                      style={{ color: "#2563eb", background: "none", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                    >
                       <Settings size={13} /> Tutarları Düzenle
                     </button>
-                    <button onClick={handleCopyLink} className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1" style={{ color: "#2563eb", background: "none", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleCopyLink(); }}
+                      className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                      style={{ color: "#2563eb", background: "none", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                    >
                       <LinkIcon size={13} /> {copiedLink ? "Link Kopyalandı!" : "Tümü İçin Ödeme Linki"}
                     </button>
                   </div>
@@ -769,7 +783,8 @@ export function GelirDetayModal({
                               <div className="flex items-center justify-center gap-1" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "4px" }}>
                                 {!isPaid && (
                                   <button
-                                    onClick={() => handleOpenAddPayment(t)}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleOpenAddPayment(t); }}
                                     title="Hızlı Tahsilat Yap (Kısmi Ödeme & Makbuz)"
                                     className="p-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-colors"
                                     style={{ border: "1px solid #bfdbfe", background: "#eff6ff", color: "#2563eb", borderRadius: "4px", padding: "3px 6px", cursor: "pointer" }}
@@ -778,7 +793,8 @@ export function GelirDetayModal({
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => handleOpenReceipt(t)}
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleOpenReceipt(t); }}
                                   title="Resmî Makbuz & Yazdır"
                                   className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                                   style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: "3px" }}
@@ -786,6 +802,7 @@ export function GelirDetayModal({
                                   <Printer size={13} />
                                 </button>
                                 <button
+                                  type="button"
                                   title="Kilitli Kayıt"
                                   className="p-1 rounded text-slate-300"
                                   style={{ border: "none", background: "transparent", color: "#cbd5e1", padding: "3px" }}
@@ -817,7 +834,12 @@ export function GelirDetayModal({
                     <User size={16} className="text-blue-600" />
                     <span>Müşteri / Alıcı</span>
                   </div>
-                  <button className="text-xs text-blue-600 hover:underline font-medium" style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: "11px" }}>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-xs text-blue-600 hover:underline font-medium"
+                    style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: "11px" }}
+                  >
                     Cari Hesap
                   </button>
                 </div>
@@ -841,7 +863,8 @@ export function GelirDetayModal({
                       <span>{stPhone}</span>
                     </div>
                     <button
-                      onClick={handleSendWhatsAppReminder}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleSendWhatsAppReminder(); }}
                       title="WhatsApp'tan Ulaş"
                       className="text-emerald-600 hover:text-emerald-700 p-1"
                       style={{ border: "none", background: "transparent", color: "#059669", cursor: "pointer" }}
@@ -904,7 +927,8 @@ export function GelirDetayModal({
 
                 <div className="flex flex-col gap-2">
                   <button
-                    onClick={() => handleOpenAddPayment()}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleOpenAddPayment(); }}
                     className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-lg border border-slate-200 flex items-center gap-2.5 transition-colors"
                     style={{ width: "100%", padding: "8px 12px", fontSize: "12px", fontWeight: 600, border: "1px solid #e2e8f0", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                   >
@@ -912,24 +936,30 @@ export function GelirDetayModal({
                   </button>
 
                   <button
-                    onClick={() => setShowHistoryModal(true)}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShowHistoryModal(true); }}
                     className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-lg border border-slate-200 flex items-center gap-2.5 transition-colors"
                     style={{ width: "100%", padding: "8px 12px", fontSize: "12px", fontWeight: 600, border: "1px solid #e2e8f0", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                   >
                     <History size={14} className="text-indigo-600" /> Tahsilat Geçmişi ({allHistory.length})
                   </button>
 
-                  <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-100 text-xs" style={{ background: "#fffbeb", border: "1px solid #fef3c7", padding: "10px", borderRadius: "8px" }}>
+                  <div 
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-100 text-xs" 
+                    style={{ background: "#fffbeb", border: "1px solid #fef3c7", padding: "10px", borderRadius: "8px" }}
+                  >
                     <div className="flex items-center gap-1.5 font-semibold text-amber-900 mb-0.5" style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, color: "#78350f" }}>
                       <FileCheck size={13} className="text-amber-600" /> E-Fatura
                     </div>
                     <p className="text-[11px] text-amber-700 m-0" style={{ fontSize: "11px", color: "#b45309", margin: 0 }}>
-                      Aktif e-fatura hesabı bulunamadı. <span className="underline cursor-pointer">Hesap ekleyin</span>
+                      Aktif e-fatura hesabı bulunamadı. <span className="underline cursor-pointer" onClick={(e) => { e.stopPropagation(); alert("E-Fatura entegrasyonu için GİB API yapılandırması gereklidir."); }}>Hesap ekleyin</span>
                     </p>
                   </div>
 
                   <button
-                    onClick={handleSendWhatsAppReminder}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleSendWhatsAppReminder(); }}
                     className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-lg border border-slate-200 flex items-center gap-2.5 transition-colors"
                     style={{ width: "100%", padding: "8px 12px", fontSize: "12px", fontWeight: 600, border: "1px solid #e2e8f0", borderRadius: "8px", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                   >
@@ -983,7 +1013,8 @@ export function GelirDetayModal({
                   </div>
 
                   <button
-                    onClick={handleCopyLink}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleCopyLink(); }}
                     className="w-full py-2 px-3 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition-colors"
                     style={{ width: "100%", padding: "8px 12px", fontSize: "12px", fontWeight: 600, background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
                   >
@@ -992,7 +1023,8 @@ export function GelirDetayModal({
 
                   <div className="text-center">
                     <button
-                      onClick={handleCopyLink}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleCopyLink(); }}
                       className="text-xs text-blue-600 hover:underline font-medium"
                       style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: "11px" }}
                     >
@@ -1009,14 +1041,16 @@ export function GelirDetayModal({
               >
                 <div className="flex items-center gap-4 pb-2 mb-3 border-b border-slate-100 text-xs font-semibold" style={{ display: "flex", gap: "16px", borderBottom: "1px solid #f1f5f9", paddingBottom: "8px", marginBottom: "12px", fontSize: "12px", fontWeight: 600 }}>
                   <button
-                    onClick={() => setActiveTabNotes("notes")}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setActiveTabNotes("notes"); }}
                     className={`pb-1 ${activeTabNotes === "notes" ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-400 hover:text-slate-600"}`}
                     style={{ background: "none", border: "none", borderBottom: activeTabNotes === "notes" ? "2px solid #2563eb" : "none", color: activeTabNotes === "notes" ? "#2563eb" : "#94a3b8", cursor: "pointer" }}
                   >
                     Gelir Notları
                   </button>
                   <button
-                    onClick={() => setActiveTabNotes("activity")}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setActiveTabNotes("activity"); }}
                     className={`pb-1 ${activeTabNotes === "activity" ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-400 hover:text-slate-600"}`}
                     style={{ background: "none", border: "none", borderBottom: activeTabNotes === "activity" ? "2px solid #2563eb" : "none", color: activeTabNotes === "activity" ? "#2563eb" : "#94a3b8", cursor: "pointer" }}
                   >
@@ -1114,7 +1148,7 @@ export function GelirDetayModal({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 100050,
+            zIndex: 100200,
             padding: "16px"
           }}
           onClick={() => setShowClassificationModal(false)}
@@ -1217,7 +1251,7 @@ export function GelirDetayModal({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 100050,
+            zIndex: 100200,
             padding: "16px"
           }}
           onClick={() => setShowPaymentPlanModal(false)}
@@ -1333,7 +1367,7 @@ export function GelirDetayModal({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 100060,
+            zIndex: 100200,
             padding: "16px"
           }}
           onClick={() => setShowAddPaymentModal(false)}
@@ -1575,7 +1609,7 @@ export function GelirDetayModal({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 100060,
+            zIndex: 100200,
             padding: "16px"
           }}
           onClick={() => setShowHistoryModal(false)}

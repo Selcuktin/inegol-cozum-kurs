@@ -305,7 +305,7 @@ export default function EdesisSozlesmeDetay({
                 <ArrowLeft size={14} /> Geri
               </button>
               <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a" }}>
-                Sözleşme Detay <span style={{ color: "#94a3b8", fontWeight: 400 }}>{contract?.sozlesmeNo}</span>
+                Sözleşme Detay & Gelir Yönetimi <span style={{ color: "#94a3b8", fontWeight: 400 }}>{contract?.sozlesmeNo}</span>
               </h1>
             </div>
 
@@ -316,7 +316,7 @@ export default function EdesisSozlesmeDetay({
               <span>•</span>
               <span>Sözleşmeler V2</span>
               <span>•</span>
-              <span style={{ color: "#0f172a", fontWeight: 600 }}>Sözleşme Detay</span>
+              <span style={{ color: "#0f172a", fontWeight: 600 }}>Sözleşme Detay & Gelir</span>
             </div>
           </div>
 
@@ -324,24 +324,24 @@ export default function EdesisSozlesmeDetay({
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <button
               type="button"
-              onClick={() => {
-                if (onOpenGelir) onOpenGelir(contract);
-              }}
+              data-testid="print-promissory-notes-btn"
+              aria-label="Resmî Senetler (Bono) Yazdır"
+              onClick={() => setShowPromissoryModal(true)}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
                 padding: "8px 14px",
-                background: "#16a34a",
-                color: "#fff",
-                border: "none",
+                background: "#f8fafc",
+                color: "#1e293b",
+                border: "1px solid #cbd5e1",
                 borderRadius: "6px",
                 fontSize: "12px",
                 fontWeight: 600,
                 cursor: "pointer"
               }}
             >
-              <Plus size={14} /> Gelir Ekle / Gelir Detayı (GLR)
+              <FileText size={14} /> Resmî Senetler (Bono)
             </button>
 
             {contract?.sozlesmeUrl && (
@@ -638,7 +638,8 @@ export default function EdesisSozlesmeDetay({
 
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setReceiptModalPayment({
                                   id: `THS-${t.taksitNo}-${contract?.sozlesmeNo || Date.now()}`,
                                   amount: Number(t.tahsilEdilen) || Number(t.taksitTutari) || 0,
@@ -669,7 +670,10 @@ export default function EdesisSozlesmeDetay({
 
                             <button
                               type="button"
-                              onClick={() => handleOpenCancel(t)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenCancel(t);
+                              }}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
@@ -692,7 +696,10 @@ export default function EdesisSozlesmeDetay({
                         ) : (
                           <button
                             type="button"
-                            onClick={() => handleOpenCollect(t)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenCollect(t);
+                            }}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -715,7 +722,10 @@ export default function EdesisSozlesmeDetay({
 
                         <button
                           type="button"
-                          onClick={() => setEditDateModal({ taksit: t, newDate: t.vadeTarihi })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditDateModal({ taksit: t, newDate: t.vadeTarihi });
+                          }}
                           style={{
                             padding: "3px 8px",
                             background: "#eff6ff",

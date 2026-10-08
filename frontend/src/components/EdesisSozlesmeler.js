@@ -53,7 +53,7 @@ export function fmtDate(isoStr) {
   }
 }
 
-export default function EdesisSozlesmeler({ students = [], payments = [], onOpenGelir }) {
+export default function EdesisSozlesmeler({ students = [], payments = [], onOpenGelir, onNavigate }) {
   const [contractsList, setContractsList] = useState(() => AccountingService.getContracts(students));
 
   useEffect(() => {
@@ -683,7 +683,17 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
       <>
         <EdesisSozlesmeDetay
           contract={selectedContract}
-          onBack={() => setSelectedContract(null)}
+          onBack={() => {
+            setSelectedContract(null);
+            try {
+              sessionStorage.removeItem("cozum_open_contract_no");
+              const prev = sessionStorage.getItem("cozum_contract_prev_page");
+              if (prev) {
+                sessionStorage.removeItem("cozum_contract_prev_page");
+                if (onNavigate) onNavigate(prev);
+              }
+            } catch {}
+          }}
           onOpenGelir={onOpenGelir}
           onOpenPrintMeb={(c) => setShowMebPrintModal(c)}
           onOpenPaymentPlan={(c) => setShowPaymentPlanModal(c)}

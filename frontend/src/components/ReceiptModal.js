@@ -25,7 +25,7 @@ export function ReceiptModal({ payment, student, onClose }) {
   const remaining = Math.max(0, totalFee - paidAmount);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 100250 }}>
       <div 
         className="modal" 
         onClick={(e) => e.stopPropagation()} 

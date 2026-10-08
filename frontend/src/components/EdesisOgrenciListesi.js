@@ -765,20 +765,7 @@ export default function EdesisOgrenciListesi({
                                 Öğrenci Karnesi
                               </div>
 
-                              <div
-                                onClick={() => {
-                                  if (onOpenGelir) onOpenGelir(s);
-                                  setOpenDropdownId(null);
-                                }}
-                                style={{ padding: "7px 12px", fontSize: "12px", fontWeight: 500, color: "#1e293b", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
-                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                              >
-                                <FileText size={13} color="#16a34a" />
-                                Gelir Detayı (GLR)
-                              </div>
-
-                              <div
+                               <div
                                 onClick={() => {
                                   const sContracts = getStudentContracts(s);
                                   const targetContract = sContracts[0] || (s.sozlesme_no ? { sozlesmeNo: s.sozlesme_no } : null);
@@ -790,6 +777,8 @@ export default function EdesisOgrenciListesi({
                                   }
                                   if (onOpenContract) {
                                     onOpenContract(targetContract, s);
+                                  } else if (onOpenGelir) {
+                                    onOpenGelir(s);
                                   } else if (onNavigate) {
                                     onNavigate("documents");
                                   } else {
@@ -801,8 +790,8 @@ export default function EdesisOgrenciListesi({
                                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
                                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                               >
-                                <FileText size={13} color="#0284c7" />
-                                Sözleşme Detayı
+                                <FileText size={13} color="#2563eb" />
+                                Sözleşme & Muhasebe Detayı
                               </div>
 
                               <div style={{ height: "1px", background: "#f1f5f9", margin: "4px 0" }} />
@@ -834,12 +823,12 @@ export default function EdesisOgrenciListesi({
 
                       {/* 3. Öğrenci (Avatar + Name + TC + No) - Kart tıklanabilir */}
                       <td
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (onSelectStudent) onSelectStudent(s);
-                          handleOpenEdit(s);
                         }}
                         style={{ padding: "5px 3px", width: "135px", whiteSpace: "nowrap", cursor: "pointer" }}
-                        title="Öğrenci Bilgilerini Düzenle / İncele"
+                        title="Öğrenci Bilgilerini İncele"
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                           <div
@@ -958,18 +947,43 @@ export default function EdesisOgrenciListesi({
 
                       {/* 12. Durum */}
                       <td style={{ padding: "5px 2px", width: "64px", textAlign: "center", whiteSpace: "nowrap" }}>
-                        <span
-                          style={{
-                            padding: "2px 5px",
-                            borderRadius: "4px",
-                            fontSize: "9px",
-                            fontWeight: 600,
-                            background: "#dcfce7",
-                            color: "#15803d"
-                          }}
-                        >
-                          {s.status || "Kesin Kayıt"}
-                        </span>
+                        {(() => {
+                          const sContracts = getStudentContracts(s);
+                          const isDel = AccountingService.isContractDeleted(s.sozlesme_no) || AccountingService.isContractDeleted(s.student_name);
+                          const hasContract = !isDel && (sContracts.length > 0 || Boolean(s.has_contract && s.sozlesme_no));
+                          return (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!hasContract) return;
+                                const targetContract = sContracts[0] || (s.sozlesme_no ? { sozlesmeNo: s.sozlesme_no } : null);
+                                const targetNo = targetContract?.sozlesmeNo || s.sozlesme_no || s.student_name;
+                                if (targetNo) {
+                                  try { sessionStorage.setItem("cozum_open_contract_no", targetNo); } catch {}
+                                }
+                                if (onOpenContract) {
+                                  onOpenContract(targetContract, s);
+                                } else if (onNavigate) {
+                                  onNavigate("documents");
+                                } else {
+                                  setContractsModalStudent(s);
+                                }
+                              }}
+                              style={{
+                                padding: "2px 5px",
+                                borderRadius: "4px",
+                                fontSize: "9px",
+                                fontWeight: 600,
+                                background: "#dcfce7",
+                                color: "#15803d",
+                                cursor: hasContract ? "pointer" : "default"
+                              }}
+                              title={hasContract ? "Sözleşmeyi Aç / Görüntüle" : (s.status || "Aktif")}
+                            >
+                              {s.status || "Aktif"}
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       {/* 13. Sözleşme */}
@@ -981,7 +995,8 @@ export default function EdesisOgrenciListesi({
                           if (hasContract) {
                             return (
                               <span
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   const targetContract = sContracts[0] || (s.sozlesme_no ? { sozlesmeNo: s.sozlesme_no } : null);
                                   const targetNo = targetContract?.sozlesmeNo || s.sozlesme_no || s.student_name;
                                   if (targetNo) {
@@ -1520,14 +1535,30 @@ export default function EdesisOgrenciListesi({
                           </td>
                           <td style={{ padding: "14px 10px", textAlign: "center" }}>
                             <span
+                              onClick={() => {
+                                const targetNo = c.sozlesmeNo;
+                                setContractsModalStudent(null);
+                                if (targetNo) {
+                                  try {
+                                    sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                                  } catch {}
+                                }
+                                if (onOpenContract) {
+                                  onOpenContract(c);
+                                } else if (onNavigate) {
+                                  onNavigate("documents");
+                                }
+                              }}
                               style={{
                                 padding: "3px 8px",
                                 backgroundColor: "#dcfce7",
                                 color: "#16a34a",
                                 borderRadius: "5px",
                                 fontSize: "11px",
-                                fontWeight: 700
+                                fontWeight: 700,
+                                cursor: "pointer"
                               }}
+                              title="Sözleşmeyi Aç"
                             >
                               Aktif
                             </span>

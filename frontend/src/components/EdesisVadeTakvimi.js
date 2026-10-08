@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
-import { GelirDetayModal } from "./GelirDetayModal";
 import { trIncludes } from "../lib/utils";
 
 // Para birimi formatlayıcı (₺70.000,00)
@@ -94,9 +93,23 @@ export default function EdesisVadeTakvimi({
   // Seçili satırlar (Checkbox)
   const [selectedIds, setSelectedIds] = useState(new Set());
 
-  // Modal ve Bildirim
-  const [selectedGelirDetail, setSelectedGelirDetail] = useState(null);
+  // Bildirim
   const [toastMessage, setToastMessage] = useState(null);
+
+  const handleOpenContract = (t) => {
+    const targetNo = t?.sozlesmeNo || t?.gelirAciklama?.replace("Sözleşme: ", "") || t?.gelirKodu || t?.ogrenciAdiSoyadi;
+    if (targetNo) {
+      try {
+        sessionStorage.setItem("cozum_open_contract_no", targetNo);
+        sessionStorage.setItem("cozum_contract_prev_page", "vade-takvimi");
+      } catch {}
+    }
+    if (onNavigate) {
+      onNavigate("documents");
+    } else if (onOpenGelir) {
+      onOpenGelir(t);
+    }
+  };
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -769,17 +782,7 @@ export default function EdesisVadeTakvimi({
                       <div style={{ display: "inline-flex", gap: "8px", alignItems: "center", justifyContent: "flex-end" }}>
                         {/* 1. Detay Görüntüle */}
                         <button
-                          onClick={() => {
-                            if (onOpenGelir) {
-                              onOpenGelir({
-                                gelirKodu: t.gelirKodu,
-                                sozlesmeNo: t.gelirAciklama?.replace("Sözleşme: ", "") || t.gelirKodu,
-                                ogrenciAdiSoyadi: t.ogrenciAdiSoyadi
-                              });
-                            } else {
-                              setSelectedGelirDetail(t);
-                            }
-                          }}
+                          onClick={() => handleOpenContract(t)}
                           title="Detay Görüntüle"
                           style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", padding: "4px" }}
                         >
@@ -809,17 +812,7 @@ export default function EdesisVadeTakvimi({
 
                         {/* 4. Makbuz / Tahsilat */}
                         <button
-                          onClick={() => {
-                            if (onOpenGelir) {
-                              onOpenGelir({
-                                gelirKodu: t.gelirKodu,
-                                sozlesmeNo: t.gelirAciklama?.replace("Sözleşme: ", "") || t.gelirKodu,
-                                ogrenciAdiSoyadi: t.ogrenciAdiSoyadi
-                              });
-                            } else {
-                              setSelectedGelirDetail(t);
-                            }
-                          }}
+                          onClick={() => handleOpenContract(t)}
                           title="Tahsilat Al / Makbuz"
                           style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", padding: "4px" }}
                         >
@@ -923,17 +916,6 @@ export default function EdesisVadeTakvimi({
           </div>
         </div>
       </div>
-
-      {/* Gelir Detay Modalı */}
-      {selectedGelirDetail && (
-        <GelirDetayModal
-          isOpen={!!selectedGelirDetail}
-          onClose={() => setSelectedGelirDetail(null)}
-          gelirKodu={selectedGelirDetail.gelirKodu}
-          sozlesmeNo={selectedGelirDetail.gelirAciklama?.replace("Sözleşme: ", "") || selectedGelirDetail.gelirKodu}
-          student={students.find((s) => s.student_name === selectedGelirDetail.ogrenciAdiSoyadi)}
-        />
-      )}
     </div>
   );
 }

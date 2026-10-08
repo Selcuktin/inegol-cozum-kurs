@@ -22,7 +22,6 @@ import {
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
 import { ReceiptModal } from "./ReceiptModal";
-import { GelirDetayModal } from "./GelirDetayModal";
 import { trIncludes } from "../lib/utils";
 
 // Para birimi formatlayıcı (₺55.000,00)
@@ -53,10 +52,26 @@ export default function EdesisTahsilatListesi({
   payments = [],
   API,
   onSelectStudent,
-  onOpenGelir
+  onOpenGelir,
+  onNavigate
 }) {
   const [tahsilatList, setTahsilatList] = useState(() => AccountingService.getCollections(payments));
   const [showNewPaymentModal, setShowNewPaymentModal] = useState(false);
+
+  const handleOpenUnifiedContract = (t) => {
+    const targetNo = t?.sozlesmeNo || t?.gelirAciklama?.replace("Sözleşme: ", "") || t?.gelirKodu || t?.musteriUnvan;
+    if (targetNo) {
+      try {
+        sessionStorage.setItem("cozum_open_contract_no", targetNo);
+        sessionStorage.setItem("cozum_contract_prev_page", "tahsilat");
+      } catch {}
+    }
+    if (onNavigate) {
+      onNavigate("documents");
+    } else if (onOpenGelir) {
+      onOpenGelir(t);
+    }
+  };
 
   useEffect(() => {
     setTahsilatList(AccountingService.getCollections(payments));
@@ -86,7 +101,6 @@ export default function EdesisTahsilatListesi({
   // Modallar
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [selectedReceiptPayment, setSelectedReceiptPayment] = useState(null);
-  const [selectedGelirDetail, setSelectedGelirDetail] = useState(null);
   const [showCancelModal, setShowCancelModal] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -779,7 +793,7 @@ export default function EdesisTahsilatListesi({
                       <td style={{ padding: "10px 14px", textAlign: "center" }}>
                         <button
                           type="button"
-                          onClick={() => setSelectedGelirDetail({ gelirKodu: t.gelirKodu, sozlesmeNo: t.gelirAciklama, student: { student_name: t.musteriUnvan } })}
+                          onClick={() => handleOpenUnifiedContract(t)}
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
@@ -793,7 +807,7 @@ export default function EdesisTahsilatListesi({
                             fontWeight: 600,
                             cursor: "pointer"
                           }}
-                          title="Gelir Detayını Aç"
+                          title="Sözleşme & Muhasebe Detayını Aç"
                         >
                           <FileText size={12} />
                           Detay
@@ -1004,17 +1018,6 @@ export default function EdesisTahsilatListesi({
           payment={selectedReceiptPayment}
           student={{ student_name: selectedReceiptPayment.student_name }}
           onClose={() => setSelectedReceiptPayment(null)}
-        />
-      )}
-
-      {/* GELİR DETAY MODAL */}
-      {selectedGelirDetail && (
-        <GelirDetayModal
-          isOpen={true}
-          onClose={() => setSelectedGelirDetail(null)}
-          gelirKodu={selectedGelirDetail.gelirKodu}
-          sozlesmeNo={selectedGelirDetail.sozlesmeNo}
-          student={selectedGelirDetail.student}
         />
       )}
 

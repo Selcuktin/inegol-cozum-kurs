@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
-import { GelirDetayModal } from "./GelirDetayModal";
 import { trIncludes } from "../lib/utils";
 
 // Para birimi formatlayıcı (₺55.000,00)
@@ -102,8 +101,22 @@ export default function EdesisGelirListesi({
   const [showNewIncomeModal, setShowNewIncomeModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
   const [showQuickCollectModal, setShowQuickCollectModal] = useState(null);
-  const [selectedGelirDetail, setSelectedGelirDetail] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+
+  const handleOpenUnifiedContract = (g) => {
+    const targetNo = g?.sozlesmeNo || g?.gelirKodu || g?.ogrenciAdiSoyadi;
+    if (targetNo) {
+      try {
+        sessionStorage.setItem("cozum_open_contract_no", targetNo);
+        sessionStorage.setItem("cozum_contract_prev_page", "gelir");
+      } catch {}
+    }
+    if (onNavigate) {
+      onNavigate("documents");
+    } else if (onOpenGelir) {
+      onOpenGelir(g);
+    }
+  };
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -1170,7 +1183,7 @@ export default function EdesisGelirListesi({
                             >
                               <div
                                 onClick={() => {
-                                  setSelectedGelirDetail(g);
+                                  handleOpenUnifiedContract(g);
                                   setOpenDropdownId(null);
                                 }}
                                 style={{
@@ -1187,7 +1200,7 @@ export default function EdesisGelirListesi({
                                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                               >
                                 <Eye size={14} color="#2563eb" />
-                                Gelir Detayı (GLR)
+                                Sözleşme & Muhasebe Detayı
                               </div>
 
                               {!isFullyPaid && (
@@ -1270,7 +1283,7 @@ export default function EdesisGelirListesi({
                       {/* 2. Gelir Kodu */}
                       <td style={{ padding: "10px 14px" }}>
                         <span
-                          onClick={() => setSelectedGelirDetail(g)}
+                          onClick={() => handleOpenUnifiedContract(g)}
                           style={{
                             color: "#2563eb",
                             fontWeight: 700,
@@ -1280,7 +1293,7 @@ export default function EdesisGelirListesi({
                           }}
                           onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
                           onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-                          title="Gelir Detay Kartını Aç"
+                          title="Sözleşme & Muhasebe Detayını Aç"
                         >
                           {g.gelirKodu}
                         </span>
@@ -1309,7 +1322,7 @@ export default function EdesisGelirListesi({
                       <td style={{ padding: "10px 14px" }}>
                         <div
                           style={{ fontWeight: 700, color: "#0f172a", cursor: "pointer" }}
-                          onClick={() => setSelectedGelirDetail(g)}
+                          onClick={() => handleOpenUnifiedContract(g)}
                         >
                           {stName}
                         </div>
@@ -2280,23 +2293,6 @@ export default function EdesisGelirListesi({
         </div>
       )}
 
-      {/* 4. GELİR DETAY MODAL ENTEGRASYONU */}
-      {selectedGelirDetail && (
-        <GelirDetayModal
-          isOpen={true}
-          onClose={() => setSelectedGelirDetail(null)}
-          gelirKodu={selectedGelirDetail.gelirKodu}
-          sozlesmeNo={selectedGelirDetail.sozlesmeNo}
-          student={{
-            student_name: selectedGelirDetail.ogrenciAdiSoyadi,
-            parent_name: selectedGelirDetail.musteriUnvan
-          }}
-          onRecordPayment={() => {
-            // Detay ekranından ödeme yapıldığında ana listeyi yenile
-            showToast("💰 Tahsilat başarıyla işlendi.");
-          }}
-        />
-      )}
     </div>
   );
 }

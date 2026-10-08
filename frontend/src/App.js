@@ -51,7 +51,8 @@ import {
   Sparkles,
   Folder,
   CreditCard,
-  Building
+  Building,
+  RefreshCw
 } from "lucide-react";
 import {
   openWhatsApp,
@@ -69,7 +70,6 @@ import { AbsenceLetterModal } from "./components/AbsenceLetterModal";
 import { HataKarnesiModal } from "./components/HataKarnesiModal";
 import { ClassDetailModal } from "./components/ClassDetailModal";
 import { MuhasebeV2Dashboard } from "./components/MuhasebeV2Dashboard";
-import { GelirDetayModal } from "./components/GelirDetayModal";
 import { EdesisTestBenchModal } from "./components/EdesisTestBenchModal";
 import { TeachersPage } from "./components/TeachersPage";
 import { MonthlyReportPreview } from "./components/MonthlyReportPreview";
@@ -84,22 +84,46 @@ import StudentService from "./lib/edesisStudentService";
 import AccountingService from "./lib/edesisAccountingService";
 
 // Client storage cache-busting & refresh across all devices
-const CLIENT_STORAGE_VERSION = "cozum_v2_20261007_force_refresh_all_devices";
-if (typeof window !== "undefined") {
-  const currentVersion = localStorage.getItem("cozum_app_version");
-  if (currentVersion !== CLIENT_STORAGE_VERSION) {
-    console.log("[App] Purging stale client cache and upgrading to:", CLIENT_STORAGE_VERSION);
-    const staleKeys = [
-      "cozum_custom_students_v1",
-      "cozum_income_overrides_v1",
-      "cozum_installment_overrides_v1",
-      "cozum_custom_incomes_v1",
-      "cozum_custom_installments_v1",
-      "cozum_custom_contracts_v1",
-      "cozum_custom_collections_v1"
-    ];
-    staleKeys.forEach((k) => localStorage.removeItem(k));
+export const CLIENT_STORAGE_VERSION = "cozum_v3_20261008_purge_all_devices";
+
+export function purgeClientStorage(preserveAuth = true) {
+  if (typeof window === "undefined") return;
+  try {
+    console.log("[App] Purging stale client cache across all devices, upgraded to:", CLIENT_STORAGE_VERSION);
+
+    // Preserve critical authentication & persistent tombstones
+    const token = localStorage.getItem("session_token");
+    const customApi = localStorage.getItem("custom_api_url");
+    const deletedContracts = localStorage.getItem("cozum_deleted_contracts_v1");
+    const deletedIncomes = localStorage.getItem("cozum_deleted_incomes_v1");
+    const deletedStudents = localStorage.getItem("cozum_deleted_students_v1");
+
+    // Clear all localStorage
+    localStorage.clear();
+
+    // Restore preserved credentials & tombstone sync
+    if (preserveAuth) {
+      if (token) localStorage.setItem("session_token", token);
+      if (customApi) localStorage.setItem("custom_api_url", customApi);
+    }
+    if (deletedContracts) localStorage.setItem("cozum_deleted_contracts_v1", deletedContracts);
+    if (deletedIncomes) localStorage.setItem("cozum_deleted_incomes_v1", deletedIncomes);
+    if (deletedStudents) localStorage.setItem("cozum_deleted_students_v1", deletedStudents);
+
+    // Set current version tag
     localStorage.setItem("cozum_app_version", CLIENT_STORAGE_VERSION);
+
+    // Clear all sessionStorage
+    sessionStorage.clear();
+
+    // Clear non-essential client cookies
+    document.cookie.split(";").forEach((c) => {
+      const eqPos = c.indexOf("=");
+      const name = eqPos > -1 ? c.substring(0, eqPos).trim() : c.trim();
+      if (name && (!preserveAuth || name !== "session_token")) {
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      }
+    });
 
     // Clear CacheStorage API (PWA / Service Worker caches)
     if ("caches" in window) {
@@ -107,6 +131,23 @@ if (typeof window !== "undefined") {
         names.forEach((name) => caches.delete(name));
       }).catch(() => {});
     }
+
+    // Force service worker update across devices
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((reg) => reg.update().catch(() => {}));
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn("[App] Purge error:", err);
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.cozumPurgeAllCaches = purgeClientStorage;
+  const currentVersion = localStorage.getItem("cozum_app_version");
+  if (currentVersion !== CLIENT_STORAGE_VERSION) {
+    purgeClientStorage(true);
   }
 }
 
@@ -575,7 +616,6 @@ function MainApp({ me, onLogout }) {
   const [selected, setSelected] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [gelirModalData, setGelirModalData] = useState(null);
 
   // Edesis Tree Navigation & Module States
   const [kayitTab, setKayitTab] = useState("kokpit");
@@ -1000,6 +1040,21 @@ function MainApp({ me, onLogout }) {
         })}
       </nav>
       <div className="side-bottom">
+        <button
+          type="button"
+          className="nav-item"
+          title="Tüm cihaz önbelleğini ve çerezleri temizleyip en güncel verileri yükler"
+          onClick={() => {
+            if (window.confirm("Tüm cihaz önbelleği ve geçici veriler sıfırlanıp sayfa yenilenecektir. Onaylıyor musunuz?")) {
+              purgeClientStorage(true);
+              window.location.reload();
+            }
+          }}
+          style={{ color: "#64748b" }}
+        >
+          <RefreshCw size={17} />
+          <span>Önbelleği Temizle</span>
+        </button>
         <button data-testid="nav-logout" className="nav-item" onClick={onLogout}><LogOut size={18}/><span>Çıkış yap</span></button>
         <div className="profile">
           {me?.picture ? <img className="avatar" src={me.picture} alt="" /> : <div className="avatar">{(me?.name || "İÇ").slice(0,2).toUpperCase()}</div>}
@@ -1090,14 +1145,16 @@ function MainApp({ me, onLogout }) {
             students={data.students || []}
             onNewStudent={() => guardedOpen("student")}
             onSelectStudent={setSelected}
-            onOpenGelir={(st) =>
-              setGelirModalData({
-                isOpen: true,
-                student: st,
-                gelirKodu: st?.gelir_kodu,
-                sozlesmeNo: st?.sozlesme_no
-              })
-            }
+            onOpenGelir={(st) => {
+              const targetNo = st?.sozlesme_no || st?.gelir_kodu || st?.student_name;
+              if (targetNo) {
+                try {
+                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                  sessionStorage.setItem("cozum_contract_prev_page", "students");
+                } catch {}
+              }
+              setPage("documents");
+            }}
             onOpenContract={(contract) => {
               if (contract?.sozlesmeNo) {
                 try {
@@ -1121,19 +1178,22 @@ function MainApp({ me, onLogout }) {
             onNavigate={setPage}
           />
         )}
-        {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} />}
+        {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} onNavigate={setPage} />}
         {page === "vade" && (
           <EdesisVadeTakvimi
             students={data.students}
             onSelectStudent={setSelected}
             onNavigate={setPage}
-            onOpenGelir={(g) =>
-              setGelirModalData({
-                isOpen: true,
-                gelirKodu: g.gelirKodu,
-                sozlesmeNo: g.sozlesmeNo
-              })
-            }
+            onOpenGelir={(g) => {
+              const targetNo = g?.sozlesmeNo || g?.gelirKodu || g?.ogrenciAdiSoyadi;
+              if (targetNo) {
+                try {
+                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                  sessionStorage.setItem("cozum_contract_prev_page", "vade");
+                } catch {}
+              }
+              setPage("documents");
+            }}
           />
         )}
         {page === "tahsilat" && (
@@ -1142,13 +1202,17 @@ function MainApp({ me, onLogout }) {
             payments={data.payments || []}
             API={API}
             onSelectStudent={setSelected}
-            onOpenGelir={(g) =>
-              setGelirModalData({
-                isOpen: true,
-                gelirKodu: g.gelirKodu,
-                sozlesmeNo: g.sozlesmeNo
-              })
-            }
+            onNavigate={setPage}
+            onOpenGelir={(g) => {
+              const targetNo = g?.sozlesmeNo || g?.gelirKodu || g?.ogrenciAdiSoyadi || g?.student_name;
+              if (targetNo) {
+                try {
+                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                  sessionStorage.setItem("cozum_contract_prev_page", "tahsilat");
+                } catch {}
+              }
+              setPage("documents");
+            }}
           />
         )}
         {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
@@ -1159,26 +1223,23 @@ function MainApp({ me, onLogout }) {
             students={data.students}
             onSelectStudent={setSelected}
             onNavigate={setPage}
-            onOpenGelir={(g) =>
-              setGelirModalData({
-                isOpen: true,
-                gelirKodu: g.gelirKodu,
-                sozlesmeNo: g.sozlesmeNo
-              })
-            }
+            onOpenGelir={(g) => {
+              const targetNo = g?.sozlesmeNo || g?.gelirKodu || g?.ogrenciAdiSoyadi;
+              if (targetNo) {
+                try {
+                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                  sessionStorage.setItem("cozum_contract_prev_page", "gelir");
+                } catch {}
+              }
+              setPage("documents");
+            }}
           />
         )}
         {page === "documents" && (
           <EdesisSozlesmeler
             students={data.students}
             payments={data.payments}
-            onOpenGelir={(szl) =>
-              setGelirModalData({
-                isOpen: true,
-                sozlesmeNo: szl.sozlesmeNo,
-                gelirKodu: "GLR202600150"
-              })
-            }
+            onNavigate={setPage}
           />
         )}
         {page === "reports" && <Reports me={me} data={data} />}
@@ -1207,22 +1268,18 @@ function MainApp({ me, onLogout }) {
       onEditStudent={(st) => { setSelected(null); setEditingStudent(st); }}
       onOpenPayment={() => guardedOpen("payment")}
       onNavigate={setPage}
+      onOpenGelir={(st) => {
+        setSelected(null);
+        const targetNo = st?.sozlesme_no || st?.sozlesmeNo || st?.student_name;
+        if (targetNo) {
+          try {
+            sessionStorage.setItem("cozum_open_contract_no", targetNo);
+            sessionStorage.setItem("cozum_contract_prev_page", page);
+          } catch {}
+        }
+        setPage("documents");
+      }}
     />
-    {gelirModalData && (
-      <GelirDetayModal
-        isOpen={true}
-        onClose={() => setGelirModalData(null)}
-        gelirKodu={gelirModalData.gelirKodu}
-        sozlesmeNo={gelirModalData.sozlesmeNo}
-        student={gelirModalData.student}
-        onRecordPayment={() => load()}
-        onOpenProfile={(st) => {
-          const target = st || gelirModalData.student;
-          setGelirModalData(null);
-          setSelected(target);
-        }}
-      />
-    )}
 
     {/* EDESIS TEST LABORATUVARI & MODAL VİTRİNİ */}
     <EdesisTestBenchModal
@@ -3341,7 +3398,7 @@ function Reports({ me, data = {} }) {
   </>;
 }
 
-function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStudent, onOpenPayment, onNavigate }) {
+function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStudent, onOpenPayment, onNavigate, onOpenGelir }) {
   const [activeTab, setActiveTab] = useState("genel"); // 'genel' | 'sinavlar' | 'yoklama' | 'muhasebe' | 'rehberlik'
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -3435,7 +3492,10 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <button 
               className="btn small secondary" 
-              onClick={() => setShowGelirModal(true)}
+              onClick={() => {
+                if (onOpenGelir) onOpenGelir(s);
+                else setShowGelirModal(true);
+              }}
               style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#2563eb", borderColor: "#3b82f6" }}
               title="Edesis Resmi Gelir ve Taksit Detay Sayfası"
             >
@@ -3721,7 +3781,10 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button 
                     className="btn small secondary" 
-                    onClick={() => setShowGelirModal(true)} 
+                    onClick={() => {
+                      if (onOpenGelir) onOpenGelir(s);
+                      else setShowGelirModal(true);
+                    }} 
                     style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#2563eb", borderColor: "#93c5fd" }}
                   >
                     <FileText size={14} /> 📄 Edesis Gelir Detayı (GLR)
@@ -3809,16 +3872,6 @@ function StudentProfileModal({ student, onClose, me, API, data = {}, onEditStude
         <HataKarnesiModal 
           student={s} 
           onClose={() => setShowHataKarnesiModal(false)} 
-        />
-      )}
-
-      {/* EDESİS GELİR DETAY SÜİTİ */}
-      {showGelirModal && (
-        <GelirDetayModal
-          isOpen={true}
-          onClose={() => setShowGelirModal(false)}
-          student={s}
-          onRecordPayment={() => refresh()}
         />
       )}
     </div>
