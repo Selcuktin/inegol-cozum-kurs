@@ -1183,7 +1183,7 @@ function MainApp({ me, onLogout }) {
       me={me} 
       API={API} 
       data={data}
-      onEditStudent={(st) => { setEditingStudent(st); }}
+      onEditStudent={(st) => { setSelected(null); setEditingStudent(st); }}
       onOpenPayment={() => guardedOpen("payment")}
       onNavigate={setPage}
     />

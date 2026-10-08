@@ -325,11 +325,8 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
       alert("Lütfen en az 5 karakterlik iptal nedeni belirtiniz.");
       return;
     }
-    setContractsList((prev) =>
-      prev.map((c) =>
-        c.id === showCancelModal.id ? { ...c, durum: 3, iptalNedeni: cancelReason, durumRenk: "danger" } : c
-      )
-    );
+    AccountingService.cancelContract(showCancelModal, cancelReason);
+    setContractsList(AccountingService.getContracts());
     showToast(`⚠️ ${showCancelModal.sozlesmeNo} numaralı sözleşme iptal edildi.`);
     setShowCancelModal(null);
     setCancelReason("");
@@ -338,7 +335,8 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
   // Delete contract action
   const handleDeleteContract = (contract) => {
     if (window.confirm(`${contract.sozlesmeNo} sözleşmesini silmek istediğinize emin misiniz?`)) {
-      setContractsList((prev) => prev.filter((c) => c.id !== contract.id));
+      AccountingService.deleteContract(contract);
+      setContractsList(AccountingService.getContracts());
       showToast(`🗑️ ${contract.sozlesmeNo} sözleşmesi silindi.`);
     }
     setOpenDropdownId(null);

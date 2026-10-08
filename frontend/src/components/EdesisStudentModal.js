@@ -297,7 +297,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="student-modal-title">
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="student-modal-title" style={{ zIndex: 100060 }}>
       <div className="modal wide edesis-wizard-modal" onClick={(e) => e.stopPropagation()}>
         {/* Başlık ve Kapat Butonu */}
         <div className="modal-head">

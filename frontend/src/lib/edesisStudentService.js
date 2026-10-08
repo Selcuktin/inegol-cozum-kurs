@@ -235,9 +235,13 @@ export const StudentService = {
           ? existing.parent_name
           : (s.parent_name || existing?.parent_name || "Belirtilmedi");
 
+        const isIlkokul = s.department === "ILKOKUL" || (s.student_class || "").includes("ILK") || ["1-A", "2-A", "3-A", "4-A"].includes(s.student_class);
+        const resolvedParentPhone = s.parent_phone || s.mother_phone || s.father_phone || s.guardian_phone || (isIlkokul ? s.student_phone : "") || existing?.parent_phone || "";
         const parentPhone = (!s.parent_phone || s.parent_phone === existing?.student_phone) && existing?.parent_phone
           ? existing.parent_phone
-          : (s.parent_phone || existing?.parent_phone || "");
+          : (resolvedParentPhone || "");
+        const studentPhone = (isIlkokul && (s.student_phone === parentPhone || s.student_phone === s.mother_phone)) ? "" : (s.student_phone || existing?.student_phone || "");
+        const parentRelation = existing?.parent_relation || s.parent_relation || (s.mother_name && s.parent_name && s.mother_name.trim().toUpperCase() === s.parent_name.trim().toUpperCase() ? "Anne" : (s.primary_parent === "anne" ? "Anne" : (s.primary_parent === "baba" ? "Baba" : "Veli")));
 
         const normName = (s.student_name || "").trim().toUpperCase();
         const cList = contractsByNameMap.get(normName) || [];
@@ -252,7 +256,8 @@ export const StudentService = {
           student_no: s.student_no || existing?.student_no || matchedContract?.ogrenciNo || "",
           parent_name: parentName,
           parent_phone: parentPhone,
-          parent_relation: existing?.parent_relation || s.parent_relation || "Veli",
+          student_phone: studentPhone,
+          parent_relation: parentRelation,
           gender: existing?.gender || s.gender || "Erkek",
           donem_id: s.donem_id || existing?.donem_id || 113,
           donem_adi: s.donem_adi || existing?.donem_adi || "2026-2027",

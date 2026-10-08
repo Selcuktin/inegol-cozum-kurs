@@ -6,7 +6,10 @@ const STORAGE_KEYS = {
   CUSTOM_INSTALLMENTS: "cozum_custom_installments_v1",
   CUSTOM_COLLECTIONS: "cozum_custom_collections_v1",
   INCOME_OVERRIDES: "cozum_income_overrides_v1",
-  INSTALLMENT_OVERRIDES: "cozum_installment_overrides_v1"
+  INSTALLMENT_OVERRIDES: "cozum_installment_overrides_v1",
+  CONTRACT_OVERRIDES: "cozum_contract_overrides_v1",
+  DELETED_CONTRACTS: "cozum_deleted_contracts_v1",
+  DELETED_INCOMES: "cozum_deleted_incomes_v1"
 };
 
 function readStorage(key, fallback = []) {
@@ -30,13 +33,47 @@ function writeStorage(key, value) {
 }
 
 export const AccountingService = {
-  // 1. Get all incomes (authentic base + custom additions + payment overrides applied)
+  getDeletedContracts() {
+    return readStorage(STORAGE_KEYS.DELETED_CONTRACTS, []);
+  },
+
+  getDeletedIncomes() {
+    return readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
+  },
+
+  isContractDeleted(contractOrNo) {
+    if (!contractOrNo) return false;
+    const deleted = this.getDeletedContracts();
+    if (!deleted || deleted.length === 0) return false;
+    const delSet = new Set(deleted.map(k => String(k).trim().toUpperCase()));
+    if (typeof contractOrNo === "string") {
+      return delSet.has(contractOrNo.trim().toUpperCase());
+    }
+    if (contractOrNo.sozlesmeNo && delSet.has(String(contractOrNo.sozlesmeNo).trim().toUpperCase())) return true;
+    if (contractOrNo.id && delSet.has(String(contractOrNo.id).trim().toUpperCase())) return true;
+    const stName = (contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.musteriUnvan || "").trim().toUpperCase();
+    if (stName && delSet.has(stName)) return true;
+    return false;
+  },
+
+  // 1. Get all incomes (authentic base + custom additions + payment overrides applied - deleted)
   getIncomes() {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_INCOMES, []);
     const overrides = readStorage(STORAGE_KEYS.INCOME_OVERRIDES, {});
     const base = edesisData.gelirler || [];
+    const deletedIncomes = new Set(this.getDeletedIncomes().map(k => String(k).trim().toUpperCase()));
+    const deletedContracts = new Set(this.getDeletedContracts().map(k => String(k).trim().toUpperCase()));
 
-    const merged = [...custom, ...base];
+    const merged = [...custom, ...base].filter(g => {
+      if (!g) return false;
+      if (g.gelirKodu && deletedIncomes.has(String(g.gelirKodu).trim().toUpperCase())) return false;
+      if (g.id && deletedIncomes.has(String(g.id).trim().toUpperCase())) return false;
+      if (g.sozlesmeNo && deletedContracts.has(String(g.sozlesmeNo).trim().toUpperCase())) return false;
+      const stName = (g.ogrenciAdiSoyadi || g.musteriUnvan || "").trim().toUpperCase();
+      if (stName && (deletedIncomes.has(stName) || deletedContracts.has(stName))) return false;
+      return true;
+    });
+
     return merged.map((g) => {
       const ov = overrides[g.gelirKodu];
       if (ov) {
@@ -51,20 +88,23 @@ export const AccountingService = {
     });
   },
 
-  // 2. Get all contracts (authentic base + custom additions + safety net for students with fees)
+  // 2. Get all contracts (authentic base + custom additions - deleted + overrides applied)
   getContracts() {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
     const base = edesisData.sozlesmeler || [];
     const list = [...custom, ...base];
+    const deleted = new Set(this.getDeletedContracts().map(k => String(k).trim().toUpperCase()));
+    const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
       const existingNames = new Set(list.map((c) => (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase()));
       customStudents.forEach((cs) => {
         const sName = (cs.student_name || "").trim().toUpperCase();
-        if (sName && !existingNames.has(sName) && (Number(cs.total_fee) > 0 || cs.has_contract)) {
+        if (sName && !existingNames.has(sName) && !deleted.has(sName) && (Number(cs.total_fee) > 0 || cs.has_contract)) {
           existingNames.add(sName);
           const szl = cs.sozlesme_no || `SZL2026${String(cs.id || Date.now()).replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
+          if (deleted.has(szl)) return;
           const gross = Number(cs.total_fee) || 50000;
           const net = Math.round((gross / 1.1) * 100) / 100;
           const vat = Math.round((gross - net) * 100) / 100;
@@ -92,16 +132,43 @@ export const AccountingService = {
       console.warn("Dynamic contract error:", e);
     }
 
-    return list;
+    // Filter out deleted contracts
+    const activeList = list.filter(c => {
+      if (!c) return false;
+      if (c.sozlesmeNo && deleted.has(String(c.sozlesmeNo).trim().toUpperCase())) return false;
+      if (c.id && deleted.has(String(c.id).trim().toUpperCase())) return false;
+      const stName = (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase();
+      if (stName && deleted.has(stName)) return false;
+      return true;
+    });
+
+    // Apply overrides (e.g. cancellations)
+    return activeList.map(c => {
+      const ov = (c.sozlesmeNo && overrides[c.sozlesmeNo]) || (c.id && overrides[c.id]);
+      if (ov) {
+        return { ...c, ...ov };
+      }
+      return c;
+    });
   },
 
-  // 3. Get all installments (authentic base + custom additions + payment overrides)
+  // 3. Get all installments (authentic base + custom additions - deleted + payment overrides)
   getInstallments() {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
     const overrides = readStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, {});
     const base = edesisData.taksitler || [];
+    const deletedIncomes = new Set(this.getDeletedIncomes().map(k => String(k).trim().toUpperCase()));
+    const deletedContracts = new Set(this.getDeletedContracts().map(k => String(k).trim().toUpperCase()));
 
-    const merged = [...custom, ...base];
+    const merged = [...custom, ...base].filter(t => {
+      if (!t) return false;
+      if (t.sozlesmeNo && deletedContracts.has(String(t.sozlesmeNo).trim().toUpperCase())) return false;
+      if (t.gelirKodu && deletedIncomes.has(String(t.gelirKodu).trim().toUpperCase())) return false;
+      const stName = (t.ogrenciAdiSoyadi || t.musteriUnvan || "").trim().toUpperCase();
+      if (stName && (deletedContracts.has(stName) || deletedIncomes.has(stName))) return false;
+      return true;
+    });
+
     return merged.map((t) => {
       const key = `${t.gelirKodu || t.sozlesmeNo}_${t.taksitNo}`;
       const ov = overrides[key];
@@ -406,7 +473,111 @@ export const AccountingService = {
     return newCollection;
   },
 
-  // 7. Reset all custom data to original authentic Edesis dump (100% data integrity safety)
+  // 7. Delete Contract persistently across refreshes and devices
+  deleteContract(contractOrNo) {
+    if (!contractOrNo) return false;
+    const szlNo = typeof contractOrNo === "object" ? contractOrNo.sozlesmeNo : contractOrNo;
+    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
+    const studentName = typeof contractOrNo === "object" ? (contractOrNo.ogrenciAdi || contractOrNo.musteriUnvan) : null;
+
+    // 1. Add to DELETED_CONTRACTS
+    const deleted = this.getDeletedContracts();
+    const newDeleted = [...deleted];
+    if (szlNo && !newDeleted.includes(String(szlNo))) newDeleted.push(String(szlNo));
+    if (id && !newDeleted.includes(String(id))) newDeleted.push(String(id));
+    if (studentName && !newDeleted.includes(String(studentName).trim().toUpperCase())) {
+      newDeleted.push(String(studentName).trim().toUpperCase());
+    }
+    writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, newDeleted);
+
+    // 2. Remove from custom contracts storage
+    const customContracts = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
+    const updatedCustom = customContracts.filter((c) => {
+      if (szlNo && c.sozlesmeNo === szlNo) return false;
+      if (id && c.id === id) return false;
+      return true;
+    });
+    writeStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, updatedCustom);
+
+    // 3. Find and delete corresponding income
+    const allIncomes = readStorage(STORAGE_KEYS.CUSTOM_INCOMES, []);
+    const updatedIncomes = allIncomes.filter((g) => {
+      if (szlNo && g.sozlesmeNo === szlNo) return false;
+      return true;
+    });
+    writeStorage(STORAGE_KEYS.CUSTOM_INCOMES, updatedIncomes);
+
+    // Add matching income code to DELETED_INCOMES
+    const deletedIncomes = this.getDeletedIncomes();
+    const newDeletedIncomes = [...deletedIncomes];
+    const matchInc = (edesisData.gelirler || []).find((g) => g.sozlesmeNo === szlNo);
+    if (matchInc?.gelirKodu && !newDeletedIncomes.includes(matchInc.gelirKodu)) {
+      newDeletedIncomes.push(matchInc.gelirKodu);
+    }
+    writeStorage(STORAGE_KEYS.DELETED_INCOMES, newDeletedIncomes);
+
+    // 4. Remove from custom installments
+    const customInstallments = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
+    const updatedInstallments = customInstallments.filter((t) => {
+      if (szlNo && t.sozlesmeNo === szlNo) return false;
+      if (matchInc?.gelirKodu && t.gelirKodu === matchInc.gelirKodu) return false;
+      return true;
+    });
+    writeStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, updatedInstallments);
+
+    // 5. Update StudentService if student had this contract
+    if (studentName || szlNo) {
+      try {
+        const customStudents = readStorage("cozum_custom_students_v1", []);
+        const normName = studentName ? studentName.trim().toUpperCase() : "";
+        const updatedStudents = customStudents.map((st) => {
+          if (
+            (normName && st.student_name && st.student_name.trim().toUpperCase() === normName) ||
+            (szlNo && st.sozlesme_no === szlNo)
+          ) {
+            return { ...st, has_contract: false, sozlesme_no: "", gelir_kodu: "" };
+          }
+          return st;
+        });
+        writeStorage("cozum_custom_students_v1", updatedStudents);
+      } catch (e) {
+        console.warn("Student contract unlink error:", e);
+      }
+    }
+
+    // 6. Dispatch events
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+      window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "contract_deleted", szlNo, studentName } }));
+    }
+
+    return true;
+  },
+
+  // 8. Cancel contract action with persistent reason
+  cancelContract(contractOrNo, reason = "") {
+    if (!contractOrNo) return false;
+    const szlNo = typeof contractOrNo === "object" ? contractOrNo.sozlesmeNo : contractOrNo;
+    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
+    const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
+    const key = szlNo || id;
+    if (key) {
+      overrides[key] = {
+        durum: 3,
+        durumText: "İptal",
+        durumRenk: "danger",
+        iptalNedeni: reason || "Kullanıcı talebiyle iptal edildi",
+        iptalTarihi: new Date().toISOString()
+      };
+      writeStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, overrides);
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+    }
+    return true;
+  },
+
+  // 9. Reset all custom data to original authentic Edesis dump (100% data integrity safety)
   resetCustomData() {
     Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
     if (typeof window !== "undefined") {
