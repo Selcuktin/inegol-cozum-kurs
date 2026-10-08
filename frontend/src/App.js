@@ -1164,7 +1164,16 @@ function MainApp({ me, onLogout }) {
             onSearchChange={setSearch}
             students={data.students || []}
             onNewStudent={() => guardedOpen("student")}
-            onSelectStudent={setSelected}
+            onSelectStudent={(st) => {
+              const targetNo = st?.sozlesme_no || st?.gelir_kodu || st?.student_name;
+              if (targetNo) {
+                try {
+                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                  sessionStorage.setItem("cozum_contract_prev_page", "students");
+                } catch {}
+              }
+              setPage("documents");
+            }}
             onOpenGelir={(st) => {
               const targetNo = st?.sozlesme_no || st?.gelir_kodu || st?.student_name;
               if (targetNo) {

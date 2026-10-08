@@ -167,11 +167,12 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
   useEffect(() => {
     try {
       const targetKey = getTargetContractKey();
-      if (targetKey) {
+      if (targetKey && Array.isArray(contractsList) && contractsList.length > 0) {
         const found = findMatchingContract(targetKey, contractsList);
         if (found) {
           setSelectedContract(found);
         }
+        try { sessionStorage.removeItem("cozum_open_contract_no"); } catch {}
       }
     } catch {}
   }, [contractsList, students]);

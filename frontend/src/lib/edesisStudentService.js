@@ -241,11 +241,13 @@ export const StudentService = {
       if (s && (s.id || s.student_name) && !isDel(s)) {
         const idKey = s.id ? String(s.id) : "";
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
-        const matched = contractsByName.get(trNorm(nameKey)) || (idKey ? contractsByName.get(idKey) : null) || null;
+        const isContractDel = Boolean(s.contract_deleted || AccountingService.isContractDeleted(s));
+        const matched = isContractDel ? null : (contractsByName.get(trNorm(nameKey)) || (idKey ? contractsByName.get(idKey) : null) || null);
         const enriched = {
           ...s,
-          has_contract: Boolean(s.has_contract || matched),
-          sozlesme_no: s.sozlesme_no || matched?.sozlesmeNo || ""
+          contract_deleted: isContractDel,
+          has_contract: Boolean(matched),
+          sozlesme_no: matched?.sozlesmeNo || ""
         };
         if (idKey) map.set(idKey, enriched);
         if (nameKey) map.set(nameKey, enriched);
@@ -273,14 +275,16 @@ export const StudentService = {
         const parentRelation = existing?.parent_relation || s.parent_relation || (s.mother_name && s.parent_name && s.mother_name.trim().toUpperCase() === s.parent_name.trim().toUpperCase() ? "Anne" : (s.primary_parent === "anne" ? "Anne" : (s.primary_parent === "baba" ? "Baba" : "Veli")));
 
         const normName = (s.student_name || "").trim().toUpperCase();
-        const matchedContract = contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || null;
-        const hasContract = Boolean((existing && existing.has_contract) || s.has_contract || matchedContract || s.sozlesme_no);
+        const isContractDel = Boolean(s.contract_deleted || existing?.contract_deleted || AccountingService.isContractDeleted(s));
+        const matchedContract = isContractDel ? null : (contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || null);
+        const hasContract = Boolean(matchedContract);
 
         const merged = {
           ...(existing || {}),
           ...s,
+          contract_deleted: isContractDel,
           has_contract: hasContract,
-          sozlesme_no: s.sozlesme_no || existing?.sozlesme_no || matchedContract?.sozlesmeNo || "",
+          sozlesme_no: matchedContract?.sozlesmeNo || "",
           student_no: s.student_no || existing?.student_no || matchedContract?.ogrenciNo || "",
           parent_name: parentName,
           parent_phone: parentPhone,
@@ -305,14 +309,16 @@ export const StudentService = {
         const existing = (idKey && map.get(idKey)) || (nameKey && map.get(nameKey)) || null;
 
         const normName = (s.student_name || "").trim().toUpperCase();
-        const matchedContract = contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || null;
-        const hasContract = Boolean((existing && existing.has_contract) || s.has_contract || matchedContract || s.sozlesme_no);
+        const isContractDel = Boolean(s.contract_deleted || existing?.contract_deleted || AccountingService.isContractDeleted(s));
+        const matchedContract = isContractDel ? null : (contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || null);
+        const hasContract = Boolean(matchedContract);
 
         const merged = {
           ...(existing || {}),
           ...s,
+          contract_deleted: isContractDel,
           has_contract: hasContract,
-          sozlesme_no: s.sozlesme_no || existing?.sozlesme_no || matchedContract?.sozlesmeNo || "",
+          sozlesme_no: matchedContract?.sozlesmeNo || "",
           student_no: s.student_no || existing?.student_no || matchedContract?.ogrenciNo || "",
           donem_id: s.donem_id || existing?.donem_id || 113,
           donem_adi: s.donem_adi || existing?.donem_adi || "2026-2027",
