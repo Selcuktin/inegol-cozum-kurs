@@ -1314,7 +1314,7 @@ export async function onRequest(context) {
         await db.prepare("DELETE FROM students WHERE id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).run();
         await db.prepare("UPDATE contracts SET is_deleted = 1 WHERE student_id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).run().catch(() => {});
         await db.prepare("UPDATE student_incomes SET is_deleted = 1 WHERE student_id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).run().catch(() => {});
-        await db.prepare("INSERT OR REPLACE INTO contracts (id, sozlesme_no, student_id, student_name, is_deleted, created_at) VALUES (?, ?, ?, ?, 1, datetime('now'))")
+        await db.prepare("INSERT OR REPLACE INTO contracts (id, sozlesme_no, student_id, student_name, sozlesme_tarihi, is_deleted, created_at) VALUES (?, ?, ?, ?, datetime('now'), 1, datetime('now'))")
           .bind(`del-${decodedId}`, `del-${decodedId}`, decodedId, decodedId).run().catch(() => {});
         await logAction(db, user, "student.delete", "student", decodedId, `Öğrenci ve ilişkili kayıtlar silindi`);
         return json({ ok: true });
@@ -1615,7 +1615,7 @@ export async function onRequest(context) {
       const row = await db.prepare("SELECT * FROM contracts WHERE (id = ? OR sozlesme_no = ?)").bind(targetId, targetId).first();
       if (!row) {
         // Record persistent tombstone so it stays deleted even across cookie clears
-        await db.prepare("INSERT OR REPLACE INTO contracts (id, sozlesme_no, student_id, student_name, is_deleted, created_at) VALUES (?, ?, ?, ?, 1, datetime('now'))")
+        await db.prepare("INSERT OR REPLACE INTO contracts (id, sozlesme_no, student_id, student_name, sozlesme_tarihi, is_deleted, created_at) VALUES (?, ?, ?, ?, datetime('now'), 1, datetime('now'))")
           .bind(`del-${targetId}`, targetId, `del-${targetId}`, studentName)
           .run().catch(() => {});
         await db.prepare("UPDATE student_incomes SET is_deleted = 1 WHERE sozlesme_no = ? OR student_name = ?")
