@@ -85,9 +85,6 @@ export const AccountingService = {
     if (oid && delContracts.has(trNorm(`szl-${oid}`))) return true;
     const on = trNorm(contractOrNo.ogrenciNo || contractOrNo.student_no);
     if (on && delContracts.has(on)) return true;
-    const n1 = trNorm(contractOrNo.ogrenciAdi); if (n1 && delContracts.has(n1)) return true;
-    const n2 = trNorm(contractOrNo.ogrenciAdiSoyadi); if (n2 && delContracts.has(n2)) return true;
-    const n3 = trNorm(contractOrNo.student_name); if (n3 && delContracts.has(n3)) return true;
     return false;
   },
 
@@ -320,13 +317,71 @@ export const AccountingService = {
     });
   },
 
+  buildSyntheticContractForStudent(cs) {
+    if (!cs) return null;
+    const sName = trNorm(cs.student_name);
+    const fee = Number(cs.total_fee || 0);
+    let extraSum = 0;
+    try {
+      const extras = typeof cs.extra_fees === "string" ? JSON.parse(cs.extra_fees || "{}") : (cs.extra_fees || {});
+      extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
+    } catch {}
+    const disc = Number(cs.discount_amount || 0);
+    const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
+    const inst = Math.max(1, Number(cs.installment_count) || 10);
+    const net = Math.round((gross / 1.1) * 100) / 100;
+    const vat = Math.round((gross - net) * 100) / 100;
+    const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : (cs.student_name || sName);
+    const rawDate = cs.created_at || new Date().toISOString();
+    const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
+    const cleanNo = cs.sozlesme_no || `SZL2026${String(Date.now()).slice(-5)}`;
+    return {
+      id: cs.id ? `szl-${cs.id}` : `szl-${cleanNo}`,
+      studentId: cs.id,
+      ogrenciId: cs.id,
+      sozlesmeNo: cleanNo,
+      sozlesmeTarihi: dateStr,
+      tarih: dateStr,
+      musteriUnvan: parentName,
+      ogrenciAdi: cs.student_name ? cs.student_name.trim().toLocaleUpperCase("tr-TR") : sName,
+      ogrenciNo: cs.student_no || "",
+      donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
+      donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
+      sinifAdi: cs.student_class || "Genel",
+      netTutar: net,
+      kdvTutari: vat,
+      brutTutar: gross,
+      odemeTuru: inst > 1 ? 1 : 2,
+      odemeTuruText: inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim",
+      taksitSayisi: inst,
+      imzaDurumu: "İmzalandı",
+      isSigned: true,
+      durum: 1,
+      durumText: "Aktif",
+      durumRenk: "success",
+      silinebilirMi: true
+    };
+  },
+
   // 2. Get all contracts (authentic base + custom additions + remote D1 synthesis - deleted + overrides applied)
-  getContracts(remoteStudents = []) {
+  getContracts(remoteStudents = [], remoteContracts = []) {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
     const base = edesisData.sozlesmeler || [];
-    const list = [...custom, ...base];
+    let rContracts = Array.isArray(remoteContracts) && remoteContracts.length > 0 ? remoteContracts : [];
+    if (rContracts.length === 0) {
+      try {
+        const cachedDash = readStorage("cozum_dashboard_data_v1", null);
+        if (cachedDash && Array.isArray(cachedDash.contracts) && cachedDash.contracts.length > 0) {
+          rContracts = cachedDash.contracts;
+        }
+      } catch {}
+    }
+    const list = [...custom, ...rContracts, ...base];
     const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
     const { delContracts, delIncomes } = this._buildDelSets();
+
+    // Critical: Filter deleted contracts FIRST so dead tombstones don't block synthesis for active students
+    const activeList = list.filter(c => !this._isContractDeletedFast(c, delContracts));
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
@@ -338,13 +393,12 @@ export const AccountingService = {
         }
       }
       const allStudentsToInspect = [...activeStudents, ...customStudents];
-      const existingNames = new Set(list.map((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi)));
-      const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
-      const existingStudentIds = new Set(list.map((c) => String(c.studentId || c.student_id || c.ogrenciId || "")).filter(Boolean));
-
+      const existingNames = new Set(activeList.map((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi)));
+      const existingNos = new Set(activeList.map((c) => trNorm(c.sozlesmeNo)));
+      const existingStudentIds = new Set(activeList.map((c) => String(c.studentId || c.student_id || c.ogrenciId || "")).filter(Boolean));
 
       let maxSeqSzl = 150;
-      list.forEach((c) => {
+      activeList.forEach((c) => {
         const m = (c.sozlesmeNo || "").match(/SZL2026(\d+)/);
         if (m) {
           const val = parseInt(m[1], 10);
@@ -380,54 +434,14 @@ export const AccountingService = {
         existingNos.add(trNorm(cleanNo));
         if (cs.id) existingStudentIds.add(String(cs.id));
 
-        const fee = Number(cs.total_fee || 0);
-        let extraSum = 0;
-        try {
-          const extras = typeof cs.extra_fees === "string" ? JSON.parse(cs.extra_fees || "{}") : (cs.extra_fees || {});
-          extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
-        } catch {}
-        const disc = Number(cs.discount_amount || 0);
-        const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
-
-        const inst = Math.max(1, Number(cs.installment_count) || 10);
-        const net = Math.round((gross / 1.1) * 100) / 100;
-        const vat = Math.round((gross - net) * 100) / 100;
-        const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : (cs.student_name || sName);
-        const rawDate = cs.created_at || new Date().toISOString();
-        const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
-
-        list.push({
-          id: cs.id ? `szl-${cs.id}` : `szl-${cleanNo}`,
-          studentId: cs.id,
-          sozlesmeNo: cleanNo,
-          sozlesmeTarihi: dateStr,
-          tarih: dateStr,
-          musteriUnvan: parentName,
-          ogrenciAdi: cs.student_name ? cs.student_name.trim().toLocaleUpperCase("tr-TR") : sName,
-          ogrenciNo: cs.student_no || "",
-          donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
-          donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
-          sinifAdi: cs.student_class || "Genel",
-          netTutar: net,
-          kdvTutari: vat,
-          brutTutar: gross,
-          odemeTuru: inst > 1 ? 1 : 2,
-          odemeTuruText: inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim",
-          taksitSayisi: inst,
-          imzaDurumu: "İmzalandı",
-          isSigned: true,
-          durum: 1,
-          durumText: "Aktif",
-          durumRenk: "success",
-          silinebilirMi: true
-        });
+        const synth = this.buildSyntheticContractForStudent({ ...cs, sozlesme_no: cleanNo });
+        if (synth) {
+          activeList.push(synth);
+        }
       });
     } catch (e) {
       console.warn("Dynamic contract error:", e);
     }
-
-    // Filter out deleted contracts
-    const activeList = list.filter(c => !this._isContractDeletedFast(c, delContracts));
 
     // Apply overrides (e.g. cancellations)
     return activeList.map(c => {
@@ -632,7 +646,12 @@ export const AccountingService = {
     }, 152);
 
     const nextCode = payload.gelirKodu || `GLR2026${String(maxNum + 1).padStart(5, "0")}`;
-    const nextSzlCode = payload.sozlesmeNo || `SZL2026${String(maxNum + 1).padStart(5, "0")}`;
+    const { delContracts } = this._buildDelSets();
+    let nextSzlCode = payload.sozlesmeNo || `SZL2026${String(maxNum + 1).padStart(5, "0")}`;
+    while (delContracts.has(trNorm(nextSzlCode))) {
+      maxNum++;
+      nextSzlCode = `SZL2026${String(maxNum + 1).padStart(5, "0")}`;
+    }
 
     const gross = Number(payload.brutTutar) || 0;
     const vatRate = Number(payload.kdvOrani) || 10;
@@ -718,7 +737,10 @@ export const AccountingService = {
 
     // 5.3 Create Contract record
     const newContract = {
-      id: Date.now() + 100,
+      id: payload.contract_id || payload.contractId || (Date.now() + 100),
+      studentId: payload.studentId || payload.student_id || payload.id || null,
+      ogrenciId: payload.studentId || payload.student_id || payload.id || null,
+      ogrenciNo: payload.student_no || payload.ogrenciNo || "",
       sozlesmeNo: nextSzlCode,
       sozlesmeTarihi: baseDate.toISOString(),
       tarih: baseDate.toISOString(),
@@ -748,7 +770,9 @@ export const AccountingService = {
     const customInstallments = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
     writeStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, [...generatedInstallments, ...customInstallments]);
 
-    const customContracts = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
+    const customContracts = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []).filter(
+      (c) => c && c.sozlesmeNo !== nextSzlCode && (!newContract.studentId || c.studentId !== newContract.studentId)
+    );
     writeStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, [newContract, ...customContracts]);
 
     if (typeof window !== "undefined") {

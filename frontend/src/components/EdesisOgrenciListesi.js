@@ -942,19 +942,17 @@ export default function EdesisOgrenciListesi({
                         {(() => {
                           const sContracts = getStudentContracts(s);
                           const isDel = Boolean(s.contract_deleted || AccountingService.isContractDeleted(s));
-                          const hasContract = !isDel && sContracts.length > 0;
+                          const hasContract = !isDel && (sContracts.length > 0 || Boolean(s.sozlesme_no) || Boolean(s.has_contract));
                           return (
                             <span
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (!hasContract) return;
                                 const targetContract = sContracts[0] || (s.sozlesme_no ? { sozlesmeNo: s.sozlesme_no } : null);
-                                const targetNo = targetContract?.sozlesmeNo || s.sozlesme_no || s.student_name;
-                                if (targetNo) {
-                                  try { sessionStorage.setItem("cozum_open_contract_no", targetNo); } catch {}
-                                }
                                 if (onOpenContract) {
                                   onOpenContract(targetContract, s);
+                                } else if (onSelectStudent) {
+                                  onSelectStudent(s);
                                 } else if (onNavigate) {
                                   onNavigate("documents");
                                 } else {
@@ -983,21 +981,17 @@ export default function EdesisOgrenciListesi({
                         {(() => {
                           const sContracts = getStudentContracts(s);
                           const isDel = Boolean(s.contract_deleted || AccountingService.isContractDeleted(s));
-                          const hasContract = !isDel && sContracts.length > 0;
+                          const hasContract = !isDel && (sContracts.length > 0 || Boolean(s.sozlesme_no) || Boolean(s.has_contract));
                           if (hasContract) {
                             return (
                               <span
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const targetContract = sContracts[0] || (s.sozlesme_no ? { sozlesmeNo: s.sozlesme_no } : null);
-                                  const targetNo = targetContract?.sozlesmeNo || s.sozlesme_no || s.student_name;
-                                  if (targetNo) {
-                                    try {
-                                      sessionStorage.setItem("cozum_open_contract_no", targetNo);
-                                    } catch {}
-                                  }
                                   if (onOpenContract) {
                                     onOpenContract(targetContract, s);
+                                  } else if (onSelectStudent) {
+                                    onSelectStudent(s);
                                   } else if (onNavigate) {
                                     onNavigate("documents");
                                   } else {

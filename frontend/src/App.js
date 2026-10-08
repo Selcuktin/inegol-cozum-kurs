@@ -1165,29 +1165,41 @@ function MainApp({ me, onLogout }) {
             students={data.students || []}
             onNewStudent={() => guardedOpen("student")}
             onSelectStudent={(st) => {
-              const targetNo = st?.sozlesme_no || st?.gelir_kodu || st?.student_name;
+              const targetNo = st?.sozlesme_no || st?.id || st?.student_name;
               if (targetNo) {
                 try {
-                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                  sessionStorage.setItem("cozum_open_contract_no", String(targetNo));
                   sessionStorage.setItem("cozum_contract_prev_page", "students");
+                  if (st?.student_name) sessionStorage.setItem("cozum_open_contract_student", st.student_name);
+                  if (st?.id) sessionStorage.setItem("cozum_open_contract_student_id", String(st.id));
                 } catch {}
               }
               setPage("documents");
             }}
             onOpenGelir={(st) => {
-              const targetNo = st?.sozlesme_no || st?.gelir_kodu || st?.student_name;
+              const targetNo = st?.sozlesme_no || st?.id || st?.student_name;
               if (targetNo) {
                 try {
-                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                  sessionStorage.setItem("cozum_open_contract_no", String(targetNo));
                   sessionStorage.setItem("cozum_contract_prev_page", "students");
+                  if (st?.student_name) sessionStorage.setItem("cozum_open_contract_student", st.student_name);
+                  if (st?.id) sessionStorage.setItem("cozum_open_contract_student_id", String(st.id));
                 } catch {}
               }
               setPage("documents");
             }}
-            onOpenContract={(contract) => {
-              if (contract?.sozlesmeNo) {
+            onOpenContract={(contract, st) => {
+              const targetNo = contract?.sozlesmeNo || contract?.id || st?.sozlesme_no || st?.id || st?.student_name;
+              if (targetNo) {
                 try {
-                  sessionStorage.setItem("cozum_open_contract_no", contract.sozlesmeNo);
+                  sessionStorage.setItem("cozum_open_contract_no", String(targetNo));
+                  sessionStorage.setItem("cozum_contract_prev_page", "students");
+                  if (st?.student_name || contract?.ogrenciAdi) {
+                    sessionStorage.setItem("cozum_open_contract_student", st?.student_name || contract?.ogrenciAdi);
+                  }
+                  if (st?.id || contract?.studentId) {
+                    sessionStorage.setItem("cozum_open_contract_student_id", String(st?.id || contract?.studentId));
+                  }
                 } catch {}
               }
               setPage("documents");
@@ -1266,6 +1278,7 @@ function MainApp({ me, onLogout }) {
         )}
         {page === "documents" && (
           <EdesisSozlesmeler
+            contracts={data.contracts || []}
             students={data.students}
             payments={data.payments}
             onNavigate={setPage}

@@ -582,6 +582,38 @@ export async function onRequest(context) {
         GROUP BY s.id
         ORDER BY s.student_name ASC
       `).all().catch(() => db.prepare("SELECT * FROM students ORDER BY student_name ASC").all());
+      const contractsRes = await db.prepare("SELECT * FROM contracts WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY sozlesme_tarihi DESC, id DESC").all().catch(() => ({ results: [] }));
+      const contracts = (contractsRes.results || []).map((r) => ({
+        ...r,
+        sozlesmeNo: r.sozlesme_no,
+        sozlesmeTarihi: r.sozlesme_tarihi,
+        ogrenciAdi: r.student_name,
+        ogrenciAdiSoyadi: r.student_name,
+        ogrenciNo: r.student_no,
+        ogrenciId: r.student_id,
+        studentId: r.student_id,
+        musteriUnvan: r.parent_name || r.student_name,
+        sinifAdi: r.student_class,
+        donemId: r.period_id || 113,
+        donemAdi: r.period_name || "2026-2027",
+        netTutar: r.net_tutar,
+        kdvTutari: r.kdv_tutari,
+        brutTutar: r.brut_tutar,
+        taksitSayisi: r.taksit_sayisi,
+        odemeTuru: r.odeme_turu || (r.taksit_sayisi > 1 ? 1 : 2),
+        odemeTuruText: r.odeme_turu_text || (r.taksit_sayisi > 1 ? `Taksitli (${r.taksit_sayisi} Taksit)` : "Peşin / Tek Çekim"),
+        isSigned: !!(r.is_signed || r.kurum_imza_alindi || r.veli_imza_alindi),
+        veliImzaAlindi: !!r.veli_imza_alindi,
+        kurumImzaAlindi: !!r.kurum_imza_alindi,
+        kurumImzalayan: r.kurum_imzalayan,
+        signedAt: r.signed_at,
+        sozlesmeUrl: r.sozlesme_url,
+        durum: r.durum != null ? r.durum : 1,
+        durumText: r.durum === 0 ? "Taslak" : r.durum === 3 ? "İptal Edildi" : "Aktif",
+        durumRenk: r.durum === 0 ? "warning" : r.durum === 3 ? "danger" : "success",
+        silinebilirMi: true
+      }));
+
       const paymentsRes = await db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date DESC").all();
       const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all();
       const classesRes = await db.prepare("SELECT * FROM classes ORDER BY name ASC").all();
@@ -694,6 +726,7 @@ export async function onRequest(context) {
 
       return json({
         students,
+        contracts,
         teachers,
         payments,
         expenses,
@@ -1155,17 +1188,17 @@ export async function onRequest(context) {
       let nextSeq = 150;
       try {
         // Clear old tombstones for this student
-        await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(id, s.student_name.toLowerCase()).run().catch(() => {});
-        await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND is_deleted = 1").bind(id, s.student_name.toLowerCase()).run().catch(() => {});
+        await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR student_name = ? COLLATE NOCASE OR TRIM(LOWER(student_name)) = TRIM(LOWER(?))) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(id, s.student_name, s.student_name).run().catch(() => {});
+        await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR student_name = ? COLLATE NOCASE OR TRIM(LOWER(student_name)) = TRIM(LOWER(?))) AND is_deleted = 1").bind(id, s.student_name, s.student_name).run().catch(() => {});
 
-        const existingContract = await db.prepare("SELECT * FROM contracts WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 0 OR is_deleted IS NULL) LIMIT 1").bind(id, s.student_name.toLowerCase()).first().catch(() => null);
+        const existingContract = await db.prepare("SELECT * FROM contracts WHERE (student_id = ? OR student_name = ? COLLATE NOCASE) AND (is_deleted = 0 OR is_deleted IS NULL) LIMIT 1").bind(id, s.student_name).first().catch(() => null);
         if (existingContract) {
           sozlesmeNo = existingContract.sozlesme_no;
           contractId = existingContract.id;
         }
 
         if (!sozlesmeNo) {
-          const maxSzl = await db.prepare("SELECT sozlesme_no FROM contracts WHERE sozlesme_no LIKE 'SZL2026%' ORDER BY sozlesme_no DESC LIMIT 1").first().catch(() => null);
+          const maxSzl = await db.prepare("SELECT sozlesme_no FROM contracts WHERE sozlesme_no LIKE 'SZL2026%' AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY sozlesme_no DESC LIMIT 1").first().catch(() => null);
           if (maxSzl?.sozlesme_no) {
             const num = parseInt(maxSzl.sozlesme_no.replace(/\D/g, "")) || 202600149;
             nextSeq = (num % 1000) + 1;
@@ -1173,11 +1206,11 @@ export async function onRequest(context) {
           sozlesmeNo = `SZL2026${String(nextSeq).padStart(5, "0")}`;
         }
 
-        let existsSzl = await db.prepare("SELECT id FROM contracts WHERE sozlesme_no = ?").bind(sozlesmeNo).first().catch(() => null);
-        while (existsSzl && existsSzl.id !== contractId) {
+        let existsSzl = await db.prepare("SELECT id FROM contracts WHERE sozlesme_no = ? AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)").bind(sozlesmeNo, contractId).first().catch(() => null);
+        while (existsSzl) {
           nextSeq++;
           sozlesmeNo = `SZL2026${String(nextSeq).padStart(5, "0")}`;
-          existsSzl = await db.prepare("SELECT id FROM contracts WHERE sozlesme_no = ?").bind(sozlesmeNo).first().catch(() => null);
+          existsSzl = await db.prepare("SELECT id FROM contracts WHERE sozlesme_no = ? AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)").bind(sozlesmeNo, contractId).first().catch(() => null);
         }
 
         const gross = Math.max(0, Number(s.total_fee) || 75000);
@@ -1718,12 +1751,11 @@ export async function onRequest(context) {
 
     if (path === "/contracts/deleted-keys" && request.method === "GET") {
       try {
-        const rows = await db.prepare("SELECT sozlesme_no, id, student_name FROM contracts WHERE is_deleted = 1").all();
+        const rows = await db.prepare("SELECT sozlesme_no, id FROM contracts WHERE is_deleted = 1").all();
         const deletedKeys = [];
         (rows.results || []).forEach(r => {
           if (r.sozlesme_no) deletedKeys.push(r.sozlesme_no);
           if (r.id) deletedKeys.push(r.id);
-          if (r.student_name) deletedKeys.push(r.student_name);
         });
         return json({ ok: true, deletedKeys });
       } catch (e) {

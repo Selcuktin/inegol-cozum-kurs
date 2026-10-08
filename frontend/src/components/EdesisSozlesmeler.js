@@ -53,20 +53,20 @@ export function fmtDate(isoStr) {
   }
 }
 
-export default function EdesisSozlesmeler({ students = [], payments = [], onOpenGelir, onNavigate }) {
-  const [contractsList, setContractsList] = useState(() => AccountingService.getContracts(students));
+export default function EdesisSozlesmeler({ contracts: propContracts = [], students = [], payments = [], onOpenGelir, onNavigate }) {
+  const [contractsList, setContractsList] = useState(() => AccountingService.getContracts(students, propContracts));
 
   useEffect(() => {
     AccountingService.syncDeletedWithRemote().catch(() => {});
   }, []);
 
   useEffect(() => {
-    setContractsList(AccountingService.getContracts(students));
-  }, [students]);
+    setContractsList(AccountingService.getContracts(students, propContracts));
+  }, [students, propContracts]);
 
   useEffect(() => {
     const handleUpdate = () => {
-      setContractsList(AccountingService.getContracts(students));
+      setContractsList(AccountingService.getContracts(students, propContracts));
     };
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
@@ -74,7 +74,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };
-  }, [students]);
+  }, [students, propContracts]);
 
   const gelirMap = useMemo(() => {
     const map = {};
@@ -146,8 +146,22 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
     try {
       const targetKey = getTargetContractKey();
       if (targetKey) {
-        const all = AccountingService.getContracts(students);
-        return findMatchingContract(targetKey, all);
+        const all = AccountingService.getContracts(students, propContracts);
+        let found = findMatchingContract(targetKey, all);
+        if (!found && typeof sessionStorage !== "undefined") {
+          const sName = sessionStorage.getItem("cozum_open_contract_student");
+          const sId = sessionStorage.getItem("cozum_open_contract_student_id");
+          if (sName) found = findMatchingContract(sName, all);
+          if (!found && sId) found = findMatchingContract(sId, all);
+        }
+        if (found) {
+          try {
+            sessionStorage.removeItem("cozum_open_contract_no");
+            sessionStorage.removeItem("cozum_open_contract_student");
+            sessionStorage.removeItem("cozum_open_contract_student_id");
+          } catch {}
+          return found;
+        }
       }
     } catch {}
     return null;
@@ -167,14 +181,57 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
   useEffect(() => {
     try {
       const targetKey = getTargetContractKey();
-      if (targetKey && Array.isArray(contractsList) && contractsList.length > 0) {
-        const found = findMatchingContract(targetKey, contractsList);
-        if (found) {
-          setSelectedContract(found);
-        }
-        try { sessionStorage.removeItem("cozum_open_contract_no"); } catch {}
+      if (!targetKey) return;
+
+      let found = findMatchingContract(targetKey, contractsList);
+
+      // If not found, check student name or student id from sessionStorage
+      if (!found && typeof sessionStorage !== "undefined") {
+        const sName = sessionStorage.getItem("cozum_open_contract_student");
+        const sId = sessionStorage.getItem("cozum_open_contract_student_id");
+        if (sName) found = findMatchingContract(sName, contractsList);
+        if (!found && sId) found = findMatchingContract(sId, contractsList);
       }
-    } catch {}
+
+      // If still not found, check in students array and synthesize on the fly
+      if (!found && Array.isArray(students) && students.length > 0) {
+        const normKey = trNorm(targetKey);
+        const sNameKey = typeof sessionStorage !== "undefined" ? trNorm(sessionStorage.getItem("cozum_open_contract_student") || "") : "";
+        const sIdKey = typeof sessionStorage !== "undefined" ? String(sessionStorage.getItem("cozum_open_contract_student_id") || "") : "";
+
+        const st = students.find((s) => 
+          (s.id && String(s.id) === String(targetKey)) || 
+          (s.id && sIdKey && String(s.id) === sIdKey) ||
+          (s.sozlesme_no && String(s.sozlesme_no) === String(targetKey)) || 
+          (s.student_name && trNorm(s.student_name) === normKey) ||
+          (s.student_name && sNameKey && trNorm(s.student_name) === sNameKey)
+        );
+        if (st) {
+          found = findMatchingContract(st.sozlesme_no, contractsList) || 
+                  findMatchingContract(st.student_name, contractsList) ||
+                  findMatchingContract(st.id, contractsList);
+
+          if (!found) {
+            const synth = AccountingService.buildSyntheticContractForStudent(st);
+            if (synth) {
+              found = synth;
+              setContractsList((prev) => [synth, ...prev]);
+            }
+          }
+        }
+      }
+
+      if (found) {
+        setSelectedContract(found);
+        try {
+          sessionStorage.removeItem("cozum_open_contract_no");
+          sessionStorage.removeItem("cozum_open_contract_student");
+          sessionStorage.removeItem("cozum_open_contract_student_id");
+        } catch {}
+      }
+    } catch (e) {
+      console.warn("Contract open effect error:", e);
+    }
   }, [contractsList, students]);
   const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(null);
   const [showMebPrintModal, setShowMebPrintModal] = useState(null);

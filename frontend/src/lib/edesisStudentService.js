@@ -234,6 +234,7 @@ export const StudentService = {
       if (c.studentId && !contractsByName.has(String(c.studentId))) contractsByName.set(String(c.studentId), c);
       if (c.id && !contractsByName.has(String(c.id))) contractsByName.set(String(c.id), c);
       if (c.ogrenciNo && !contractsByName.has(String(c.ogrenciNo))) contractsByName.set(String(c.ogrenciNo), c);
+      if (c.sozlesmeNo && !contractsByName.has(String(c.sozlesmeNo))) contractsByName.set(String(c.sozlesmeNo), c);
     });
 
     // 1. Add base students from edesisStudentsData.json
@@ -242,7 +243,7 @@ export const StudentService = {
         const idKey = s.id ? String(s.id) : "";
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
         const isContractDel = Boolean(s.contract_deleted || AccountingService.isContractDeleted(s));
-        const matched = isContractDel ? null : (contractsByName.get(trNorm(nameKey)) || (idKey ? contractsByName.get(idKey) : null) || null);
+        const matched = isContractDel ? null : (contractsByName.get(trNorm(nameKey)) || (idKey ? contractsByName.get(idKey) : null) || (s.sozlesme_no ? contractsByName.get(String(s.sozlesme_no)) : null) || null);
         const enriched = {
           ...s,
           contract_deleted: isContractDel,
@@ -276,15 +277,15 @@ export const StudentService = {
 
         const normName = (s.student_name || "").trim().toUpperCase();
         const isContractDel = Boolean(s.contract_deleted || existing?.contract_deleted || AccountingService.isContractDeleted(s));
-        const matchedContract = isContractDel ? null : (contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || null);
-        const hasContract = Boolean(matchedContract);
+        const matchedContract = isContractDel ? null : (contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || (s.sozlesme_no ? contractsByName.get(String(s.sozlesme_no)) : null) || null);
+        const hasContract = Boolean(matchedContract || (!isContractDel && s.has_contract && s.sozlesme_no));
 
         const merged = {
           ...(existing || {}),
           ...s,
           contract_deleted: isContractDel,
           has_contract: hasContract,
-          sozlesme_no: matchedContract?.sozlesmeNo || "",
+          sozlesme_no: matchedContract?.sozlesmeNo || s.sozlesme_no || "",
           student_no: s.student_no || existing?.student_no || matchedContract?.ogrenciNo || "",
           parent_name: parentName,
           parent_phone: parentPhone,

@@ -177,4 +177,39 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
     expect(found2).toBeDefined();
     expect(found2.durumText).toBe("Aktif");
   });
+
+  test("persists contract across reloads even when another contract was deleted and respects remoteContracts", () => {
+    // Contract A is deleted
+    AccountingService.deleteContract({ id: "szl-old-deleted", sozlesmeNo: "SZL202600150" });
+
+    // New student B is created with contract
+    const studentB = {
+      id: "stu-b-123",
+      student_name: "YENI B OGRENCI",
+      sozlesme_no: "SZL202600154",
+      total_fee: 70000,
+      donem_id: 113
+    };
+    const remoteContracts = [{
+      id: "cnt-b-123",
+      studentId: "stu-b-123",
+      sozlesmeNo: "SZL202600154",
+      ogrenciAdi: "YENI B OGRENCI",
+      brutTutar: 70000,
+      donemId: 113,
+      durum: 1,
+      durumText: "Aktif"
+    }];
+
+    // getContracts with remote contracts returns active contract for student B
+    const contracts = AccountingService.getContracts([studentB], remoteContracts);
+    const foundB = contracts.find(c => c.sozlesmeNo === "SZL202600154");
+    expect(foundB).toBeDefined();
+    expect(foundB.durum).toBe(1);
+
+    // buildSyntheticContractForStudent works as fallback
+    const synth = AccountingService.buildSyntheticContractForStudent(studentB);
+    expect(synth.studentId).toBe("stu-b-123");
+    expect(synth.sozlesmeNo).toBe("SZL202600154");
+  });
 });

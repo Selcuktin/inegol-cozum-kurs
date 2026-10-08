@@ -289,6 +289,26 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         has_contract: true,
         sozlesme_no: saved?.sozlesme_no || contractRes?.contract?.sozlesmeNo || payload.sozlesme_no || ""
       };
+      if (grossFee > 0) {
+        try {
+          AccountingService.addNewIncome({
+            id: saved?.id,
+            studentId: saved?.id,
+            student_no: saved?.student_no || formData.student_no,
+            sozlesmeNo: finalStudent.sozlesme_no,
+            contract_id: saved?.contract_id,
+            ogrenciAdi: formData.student_name.trim(),
+            veliAdi: resolvedParent,
+            sinifAdi: formData.student_class || "Genel",
+            brutTutar: grossFee,
+            taksitSayisi: Number(formData.installment_count) || 1,
+            vadeTarihi: formData.due_date || new Date().toISOString().slice(0, 10),
+            aciklama: `Kayıt Sözleşmesi`
+          });
+        } catch (accErr) {
+          console.warn("Accounting contract re-sync warning:", accErr);
+        }
+      }
       AccountingService.unTombstone(finalStudent.student_name, finalStudent.sozlesme_no, finalStudent.id);
       StudentService.saveStudent(finalStudent);
       if (typeof window !== "undefined") {
