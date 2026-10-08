@@ -45,6 +45,7 @@ export default function EdesisSozlesmeDetay({
   const [collectModal, setCollectModal] = useState(null);
   const [cancelModal, setCancelModal] = useState(null);
   const [editDateModal, setEditDateModal] = useState(null);
+  const [quickEditInst, setQuickEditInst] = useState(null);
   const [editAmountsModal, setEditAmountsModal] = useState(false);
   const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [receiptModalPayment, setReceiptModalPayment] = useState(null);
@@ -148,12 +149,15 @@ export default function EdesisSozlesmeDetay({
     setLocalInstallments(installments);
   }, [installments]);
 
-  // Calculations
-  const brutTutar = contract?.brutTutar || 81000.04;
-  const netTutar = contract?.netTutar || Number((brutTutar / 1.1).toFixed(2));
-  const kdvTutari = contract?.kdvTutari || Number((brutTutar - netTutar).toFixed(2));
-  const totalPaid = localInstallments.reduce((acc, it) => acc + (it.tahsilEdilen || 0), 0);
-  const totalRemaining = brutTutar - totalPaid;
+  // Calculations: Dynamically derive from installments if present, ensuring increasing an installment immediately reflects in total!
+  const installmentsSum = (localInstallments && localInstallments.length > 0)
+    ? localInstallments.reduce((acc, it) => acc + (Number(it.taksitTutari) || 0), 0)
+    : (contract?.brutTutar || 81000.04);
+  const brutTutar = Math.round(installmentsSum * 100) / 100;
+  const netTutar = Math.round((brutTutar / 1.1) * 100) / 100;
+  const kdvTutari = Math.round((brutTutar - netTutar) * 100) / 100;
+  const totalPaid = (localInstallments || []).reduce((acc, it) => acc + (Number(it.tahsilEdilen) || 0), 0);
+  const totalRemaining = Math.max(0, brutTutar - totalPaid);
 
   const fmtTRY = (num) => {
     return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(num || 0);
@@ -200,21 +204,21 @@ export default function EdesisSozlesmeDetay({
       sozlesmeNo: contract.sozlesmeNo
     });
 
-    setLocalInstallments((prev) =>
-      prev.map((t) =>
-        t.taksitNo === taksit.taksitNo
-          ? {
-              ...t,
-              tahsilEdilen: paidAmount,
-              kalanTutar: Math.max(0, t.taksitTutari - paidAmount),
-              durum: 1,
-              durumText: "Tahsil Edildi",
-              odemeYontemi: collectModal.method,
-              tahsilatTarihi: collectModal.date
-            }
-          : t
-      )
+    const updated = localInstallments.map((t) =>
+      t.taksitNo === taksit.taksitNo
+        ? {
+            ...t,
+            tahsilEdilen: paidAmount,
+            kalanTutar: Math.max(0, t.taksitTutari - paidAmount),
+            durum: 1,
+            durumText: "Tahsil Edildi",
+            odemeYontemi: collectModal.method,
+            tahsilatTarihi: collectModal.date
+          }
+        : t
     );
+    setLocalInstallments(updated);
+    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
     showToast(`✅ ${taksit.taksitNo}. Taksit (${fmtTRY(paidAmount)}) tahsil edildi ve kaydedildi.`);
     setCollectModal(null);
   };
@@ -227,21 +231,21 @@ export default function EdesisSozlesmeDetay({
     if (!cancelModal || !cancelModal.taksit) return;
     const { taksit } = cancelModal;
 
-    setLocalInstallments((prev) =>
-      prev.map((t) =>
-        t.taksitNo === taksit.taksitNo
-          ? {
-              ...t,
-              tahsilEdilen: 0,
-              kalanTutar: t.taksitTutari,
-              durum: 0,
-              durumText: "Vadesi Gelmedi",
-              odemeYontemi: null,
-              tahsilatTarihi: null
-            }
-          : t
-      )
+    const updated = localInstallments.map((t) =>
+      t.taksitNo === taksit.taksitNo
+        ? {
+            ...t,
+            tahsilEdilen: 0,
+            kalanTutar: t.taksitTutari,
+            durum: 0,
+            durumText: "Vadesi Gelmedi",
+            odemeYontemi: null,
+            tahsilatTarihi: null
+          }
+        : t
     );
+    setLocalInstallments(updated);
+    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
     showToast(`↩️ ${taksit.taksitNo}. Taksit tahsilatı iptal edildi ve geri alındı.`);
     setCancelModal(null);
   };
@@ -249,11 +253,105 @@ export default function EdesisSozlesmeDetay({
   const handleConfirmDateChange = () => {
     if (!editDateModal || !editDateModal.taksit) return;
     const { taksit, newDate } = editDateModal;
-    setLocalInstallments((prev) =>
-      prev.map((t) => (t.taksitNo === taksit.taksitNo ? { ...t, vadeTarihi: newDate } : t))
-    );
-    showToast(`📅 ${taksit.taksitNo}. Taksit vadesi ${newDate} olarak güncellendi.`);
+    const updated = localInstallments.map((t) => (t.taksitNo === taksit.taksitNo ? { ...t, vadeTarihi: newDate } : t));
+    setLocalInstallments(updated);
+    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
+    showToast(`📅 ${taksit.taksitNo}. Taksit vadesi ${newDate} olarak güncellendi ve kaydedildi.`);
     setEditDateModal(null);
+  };
+
+  const handleSaveAmounts = () => {
+    const res = AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, localInstallments);
+    showToast(`✅ Sözleşme tutarı ve taksitler kaydedildi: ${fmtTRY(res?.newBrut || brutTutar)} (${localInstallments.length} Taksit)`);
+    setEditAmountsModal(false);
+  };
+
+  const handleAddInstallment = () => {
+    const nextNo = (localInstallments.length > 0 ? Math.max(...localInstallments.map((t) => t.taksitNo)) : 0) + 1;
+    const lastDate = localInstallments[localInstallments.length - 1]?.vadeTarihi;
+    let dateStr = new Date().toISOString().slice(0, 10);
+    try {
+      const d = lastDate ? new Date(lastDate) : new Date();
+      d.setMonth(d.getMonth() + 1);
+      dateStr = d.toISOString().slice(0, 10);
+    } catch {}
+    const newInst = {
+      id: `inst-${contract?.sozlesmeNo || Date.now()}-${nextNo}`,
+      taksitNo: nextNo,
+      gelirKodu: contract?.gelirKodu || (contract?.sozlesmeNo ? `GLR2026${contract.sozlesmeNo.replace(/\D/g, "").slice(-5)}` : ""),
+      sozlesmeNo: contract?.sozlesmeNo || "",
+      ogrenciAdiSoyadi: contract?.ogrenciAdi || "",
+      musteriUnvan: contract?.musteriUnvan || "",
+      sinifAdi: contract?.sinifAdi || "Genel",
+      taksitTutari: 0,
+      toplamTutar: 0,
+      tahsilEdilen: 0,
+      kalanTutar: 0,
+      vadeTarihi: dateStr,
+      durum: 0,
+      durumText: "Vadesi Gelmedi"
+    };
+    setLocalInstallments((prev) => [...prev, newInst]);
+  };
+
+  const handleRemoveLastInstallment = () => {
+    if (localInstallments.length <= 1) return;
+    const last = localInstallments[localInstallments.length - 1];
+    if (last.durum === 1) {
+      showToast("⚠️ Tahsil edilmiş taksit silinemez!");
+      return;
+    }
+    setLocalInstallments((prev) => prev.slice(0, -1));
+  };
+
+  const handleDistributeRemainderEvenly = () => {
+    const unpaid = localInstallments.filter((t) => t.durum !== 1);
+    if (unpaid.length === 0) {
+      showToast("ℹ️ Dağıtılacak ödenmemiş taksit bulunmuyor.");
+      return;
+    }
+    const rem = Math.max(0, brutTutar - totalPaid);
+    const perInst = Math.floor((rem / unpaid.length) * 100) / 100;
+    const diff = Math.round((rem - perInst * unpaid.length) * 100) / 100;
+    let idx = 0;
+    setLocalInstallments((prev) =>
+      prev.map((t) => {
+        if (t.durum === 1) return t;
+        idx++;
+        const isLast = idx === unpaid.length;
+        const amt = isLast ? Math.round((perInst + diff) * 100) / 100 : perInst;
+        return {
+          ...t,
+          taksitTutari: amt,
+          toplamTutar: amt,
+          kalanTutar: amt
+        };
+      })
+    );
+    showToast(`⚖️ Kalan ${fmtTRY(rem)} tutar ${unpaid.length} taksite eşit dağıtıldı.`);
+  };
+
+  const handleConfirmSingleInstallment = () => {
+    if (!quickEditInst || !quickEditInst.taksit) return;
+    const { taksit, amount, date } = quickEditInst;
+    const newAmt = Number(amount) || 0;
+    const updated = localInstallments.map((t) => {
+      if (t.taksitNo === taksit.taksitNo) {
+        const paid = Number(t.tahsilEdilen) || 0;
+        return {
+          ...t,
+          taksitTutari: newAmt,
+          toplamTutar: newAmt,
+          kalanTutar: Math.max(0, newAmt - paid),
+          vadeTarihi: date || t.vadeTarihi
+        };
+      }
+      return t;
+    });
+    setLocalInstallments(updated);
+    const res = AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
+    showToast(`✅ ${taksit.taksitNo}. Taksit güncellendi: ${fmtTRY(newAmt)} (Yeni Toplam: ${fmtTRY(res?.newBrut)})`);
+    setQuickEditInst(null);
   };
 
   return (
@@ -747,6 +845,33 @@ export default function EdesisSozlesmeDetay({
                         >
                           Vade
                         </button>
+
+                        {t.durum !== 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickEditInst({
+                                taksit: t,
+                                amount: t.taksitTutari,
+                                date: t.vadeTarihi
+                              });
+                            }}
+                            style={{
+                              padding: "3px 8px",
+                              background: "#f0fdf4",
+                              color: "#16a34a",
+                              border: "1px solid #bbf7d0",
+                              borderRadius: "12px",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              cursor: "pointer"
+                            }}
+                            title="Taksit Tutarını Hızlı Düzenle"
+                          >
+                            <Edit2 size={10} style={{ marginRight: "2px" }} /> Tutar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1334,61 +1459,292 @@ export default function EdesisSozlesmeDetay({
               borderRadius: "12px",
               boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)",
               width: "100%",
-              maxWidth: "560px",
-              maxHeight: "85vh",
+              maxWidth: "600px",
+              maxHeight: "88vh",
               overflow: "auto",
               padding: "24px",
               animation: "popIn 0.2s ease"
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid #f1f5f9", paddingBottom: "10px" }}>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
-                ✏️ Ödeme Takvimi ve Tutarları Düzenle
-              </h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", borderBottom: "1px solid #f1f5f9", paddingBottom: "10px" }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
+                  ✏️ Ödeme Takvimi ve Tutarları Düzenle
+                </h3>
+                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+                  Taksit tutarını değiştirdikçe sözleşme ana tutarı otomatik güncellenir.
+                </div>
+              </div>
               <button type="button" onClick={() => setEditAmountsModal(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8" }}>
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "14px" }}>
-              Taksit tutarlarını veya vade tarihlerini düzenleyebilirsiniz:
+            {/* Live Stats Summary in Modal */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
+              <div>
+                <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>YENİ TOPLAM</div>
+                <div style={{ fontSize: "15px", fontWeight: 700, color: "#1d4ed8", marginTop: "2px" }}>{fmtTRY(brutTutar)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>ÖDENEN</div>
+                <div style={{ fontSize: "15px", fontWeight: 700, color: "#16a34a", marginTop: "2px" }}>{fmtTRY(totalPaid)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>KALAN BAKİYE</div>
+                <div style={{ fontSize: "15px", fontWeight: 700, color: "#b45309", marginTop: "2px" }}>{fmtTRY(totalRemaining)}</div>
+              </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
-              {localInstallments.map((t, idx) => (
-                <div key={t.taksitNo} style={{ display: "grid", gridTemplateColumns: "35px 1fr 1fr", gap: "10px", alignItems: "center", background: "#f8fafc", padding: "6px 10px", borderRadius: "6px" }}>
-                  <span style={{ fontWeight: 700, fontSize: "12px" }}>#{t.taksitNo}</span>
-                  <input
-                    type="text"
-                    value={t.vadeTarihi}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setLocalInstallments((prev) => prev.map((item, i) => i === idx ? { ...item, vadeTarihi: val } : item));
-                    }}
-                    style={{ height: "32px", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "0 8px", fontSize: "12px" }}
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={t.taksitTutari}
-                    onChange={(e) => {
-                      const val = Number(e.target.value) || 0;
-                      setLocalInstallments((prev) => prev.map((item, i) => i === idx ? { ...item, taksitTutari: val, kalanTutar: Math.max(0, val - (item.tahsilEdilen || 0)) } : item));
-                    }}
-                    style={{ height: "32px", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "0 8px", fontSize: "12px", fontWeight: 600, textAlign: "right" }}
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+            {/* Practical Toolbar: Add, Rebalance, Remove */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "14px" }}>
               <button
                 type="button"
-                onClick={() => setEditAmountsModal(false)}
+                onClick={handleAddInstallment}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "6px 12px",
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: "6px",
+                  color: "#1d4ed8",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <Plus size={13} /> Taksit Ekle
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDistributeRemainderEvenly}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "6px 12px",
+                  background: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: "6px",
+                  color: "#15803d",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+                title="Kalan tutarı ödenmemiş taksitlere eşit olarak paylaştırır"
+              >
+                ⚖️ Kalanı Eşit Dağıt
+              </button>
+
+              {localInstallments.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLastInstallment}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    padding: "6px 12px",
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    borderRadius: "6px",
+                    color: "#dc2626",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  <Trash2 size={13} /> Son Taksiti Sil
+                </button>
+              )}
+            </div>
+
+            {/* Table Header */}
+            <div style={{ display: "grid", gridTemplateColumns: "35px 140px 1fr 90px", gap: "8px", padding: "0 10px 6px 10px", fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
+              <span>NO</span>
+              <span>VADE TARİHİ</span>
+              <span style={{ textAlign: "right" }}>TUTAR (₺)</span>
+              <span style={{ textAlign: "center" }}>DURUM</span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "18px", maxHeight: "350px", overflowY: "auto", paddingRight: "4px" }}>
+              {localInstallments.map((t, idx) => {
+                const isPaid = t.durum === 1;
+                return (
+                  <div
+                    key={t.taksitNo}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "35px 140px 1fr 90px",
+                      gap: "8px",
+                      alignItems: "center",
+                      background: isPaid ? "#f0fdf4" : "#f8fafc",
+                      border: isPaid ? "1px solid #bbf7d0" : "1px solid #e2e8f0",
+                      padding: "6px 10px",
+                      borderRadius: "6px"
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: "12px", color: isPaid ? "#16a34a" : "#0f172a" }}>#{t.taksitNo}</span>
+                    <input
+                      type="text"
+                      disabled={isPaid}
+                      value={t.vadeTarihi || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLocalInstallments((prev) => prev.map((item, i) => (i === idx ? { ...item, vadeTarihi: val } : item)));
+                      }}
+                      style={{ height: "32px", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "0 8px", fontSize: "12px", background: isPaid ? "#f1f5f9" : "#fff" }}
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      disabled={isPaid}
+                      value={t.taksitTutari}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0;
+                        setLocalInstallments((prev) =>
+                          prev.map((item, i) =>
+                            i === idx
+                              ? {
+                                  ...item,
+                                  taksitTutari: val,
+                                  toplamTutar: val,
+                                  kalanTutar: Math.max(0, val - (item.tahsilEdilen || 0))
+                                }
+                              : item
+                          )
+                        );
+                      }}
+                      style={{ height: "32px", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "0 8px", fontSize: "12px", fontWeight: 700, textAlign: "right", background: isPaid ? "#f1f5f9" : "#fff" }}
+                    />
+                    <div style={{ textAlign: "center" }}>
+                      {isPaid ? (
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#16a34a", background: "#dcfce7", padding: "2px 6px", borderRadius: "4px" }}>
+                          Ödendi
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748b" }}>
+                          Bekliyor
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f1f5f9", paddingTop: "14px" }}>
+              <div style={{ fontSize: "12px", color: "#64748b" }}>
+                Toplam Taksit: <b>{localInstallments.length}</b>
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setEditAmountsModal(false)}
+                  style={{ padding: "8px 14px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAmounts}
+                  style={{ padding: "8px 18px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                >
+                  Tamamla ve Kaydet ({fmtTRY(brutTutar)})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4.1 TEK TAKSİT PRATİK DÜZENLEME MODAL */}
+      {quickEditInst && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.5)",
+            backdropFilter: "blur(4px)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 99999,
+            padding: "20px"
+          }}
+          onClick={() => setQuickEditInst(null)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)",
+              width: "100%",
+              maxWidth: "400px",
+              padding: "22px",
+              animation: "popIn 0.2s ease"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", borderBottom: "1px solid #f1f5f9", paddingBottom: "10px" }}>
+              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+                ✏️ #{quickEditInst.taksit?.taksitNo}. Taksiti Düzenle
+              </h3>
+              <button type="button" onClick={() => setQuickEditInst(null)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8" }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                  Taksit Tutarı (₺)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={quickEditInst.amount}
+                  onChange={(e) => setQuickEditInst({ ...quickEditInst, amount: e.target.value })}
+                  style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "14px", fontWeight: 700, boxSizing: "border-box" }}
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
+                  Vade Tarihi
+                </label>
+                <input
+                  type="text"
+                  value={quickEditInst.date}
+                  onChange={(e) => setQuickEditInst({ ...quickEditInst, date: e.target.value })}
+                  style={{ width: "100%", height: "36px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", boxSizing: "border-box" }}
+                  placeholder="GG.AA.YYYY veya YYYY-AA-GG"
+                />
+              </div>
+
+              <div style={{ background: "#f8fafc", padding: "10px", borderRadius: "6px", fontSize: "11px", color: "#64748b" }}>
+                💡 Bu taksitin tutarını değiştirdiğinizde, sözleşmenin genel toplamı otomatik güncellenecektir.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => setQuickEditInst(null)}
+                style={{ padding: "8px 14px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSingleInstallment}
                 style={{ padding: "8px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
               >
-                Tamamla ve Kaydet
+                Kaydet ve Uygula
               </button>
             </div>
           </div>

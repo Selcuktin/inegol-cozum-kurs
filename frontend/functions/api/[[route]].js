@@ -1442,6 +1442,25 @@ export async function onRequest(context) {
           values.push(studentId);
           await db.prepare(`UPDATE students SET ${updates.join(", ")} WHERE id = ?`).bind(...values).run();
           await logAction(db, user, "student.update", "student", studentId, `Öğrenci güncellendi`);
+
+          // If total_fee or installment_count changed, sync active contract and income in D1
+          if ("total_fee" in patch || "installment_count" in patch) {
+            const st = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
+            if (st) {
+              const effectiveFee = getEffectiveTotalFee(st);
+              const inst = st.installment_count || 1;
+              const net = Math.round((effectiveFee / 1.1) * 100) / 100;
+              const vat = Math.round((effectiveFee - net) * 100) / 100;
+              await db.prepare(`
+                UPDATE contracts SET brut_tutar = ?, net_tutar = ?, kdv_tutari = ?, taksit_sayisi = ?
+                WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 0 OR is_deleted IS NULL)
+              `).bind(effectiveFee, net, vat, inst, studentId, st.student_name).run().catch(() => {});
+              await db.prepare(`
+                UPDATE student_incomes SET brut_tutar = ?, net_tutar = ?, kdv_tutari = ?, taksit_sayisi = ?, kalan_alacak = MAX(0, ? - toplam_tahsilat)
+                WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 0 OR is_deleted IS NULL)
+              `).bind(effectiveFee, net, vat, inst, effectiveFee, studentId, st.student_name).run().catch(() => {});
+            }
+          }
         }
         const updated = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
         if (updated) {
@@ -1797,6 +1816,59 @@ export async function onRequest(context) {
         sozlesmeNo: row.sozlesme_no,
         ogrenciAdi: row.student_name,
         isSigned: !!(row.is_signed || row.kurum_imza_alindi || row.veli_imza_alindi)
+      });
+    }
+
+    if (contractDetailMatch && (request.method === "PATCH" || request.method === "PUT")) {
+      const user = await getCurrentUser(request, db);
+      const targetId = contractDetailMatch[1];
+      const patch = await request.json();
+      const row = await db.prepare("SELECT * FROM contracts WHERE (id = ? OR sozlesme_no = ?) AND (is_deleted = 0 OR is_deleted IS NULL)").bind(targetId, targetId).first();
+      if (!row) return json({ detail: "Sözleşme bulunamadı" }, 404);
+
+      const brut = patch.brutTutar != null ? Number(patch.brutTutar) : (patch.brut_tutar != null ? Number(patch.brut_tutar) : row.brut_tutar);
+      const net = patch.netTutar != null ? Number(patch.netTutar) : Math.round((brut / 1.1) * 100) / 100;
+      const kdv = patch.kdvTutari != null ? Number(patch.kdvTutari) : Math.round((brut - net) * 100) / 100;
+      const inst = patch.taksitSayisi != null ? Number(patch.taksitSayisi) : row.taksit_sayisi;
+      const odemeTuru = patch.odemeTuru != null ? Number(patch.odemeTuru) : (inst > 1 ? 1 : 2);
+      const odemeTuruText = patch.odemeTuruText || (inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim");
+      const dateStr = patch.sozlesmeTarihi || patch.tarih || row.sozlesme_tarihi;
+
+      await db.prepare(`
+        UPDATE contracts SET
+          brut_tutar = ?, net_tutar = ?, kdv_tutari = ?,
+          taksit_sayisi = ?, odeme_turu = ?, odeme_turu_text = ?,
+          sozlesme_tarihi = ?
+        WHERE id = ?
+      `).bind(brut, net, kdv, inst, odemeTuru, odemeTuruText, dateStr, row.id).run();
+
+      // Sync student total_fee and installment_count
+      if (row.student_id || row.student_name) {
+        await db.prepare(`
+          UPDATE students SET total_fee = ?, installment_count = ?
+          WHERE id = ? OR LOWER(student_name) = LOWER(?)
+        `).bind(brut, inst, row.student_id || "", row.student_name).run().catch(() => {});
+      }
+
+      // Sync student_incomes
+      await db.prepare(`
+        UPDATE student_incomes SET
+          brut_tutar = ?, net_tutar = ?, kdv_tutari = ?,
+          taksit_sayisi = ?, kalan_alacak = MAX(0, ? - toplam_tahsilat)
+        WHERE contract_id = ? OR sozlesme_no = ? OR LOWER(student_name) = LOWER(?)
+      `).bind(brut, net, kdv, inst, brut, row.id, row.sozlesme_no, row.student_name).run().catch(() => {});
+
+      await logAction(db, user, "contract.update", "contract", row.id, `${row.sozlesme_no} güncellendi: ${brut} TL`);
+
+      const updatedRow = await db.prepare("SELECT * FROM contracts WHERE id = ?").bind(row.id).first();
+      return json({
+        ...updatedRow,
+        sozlesmeNo: updatedRow.sozlesme_no,
+        ogrenciAdi: updatedRow.student_name,
+        brutTutar: updatedRow.brut_tutar,
+        netTutar: updatedRow.net_tutar,
+        kdvTutari: updatedRow.kdv_tutari,
+        taksitSayisi: updatedRow.taksit_sayisi
       });
     }
 

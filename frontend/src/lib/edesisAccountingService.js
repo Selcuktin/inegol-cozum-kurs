@@ -529,7 +529,10 @@ export const AccountingService = {
         const disc = Number(cs.discount_amount || 0);
         const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
 
-        const inst = Math.max(1, Number(cs.installment_count) || 10);
+        const contractOverrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
+        const ovContract = (cleanSzl && contractOverrides[cleanSzl]) || (cs.id && contractOverrides[cs.id]);
+        const ovCount = ovContract?.taksitSayisi ? Number(ovContract.taksitSayisi) : null;
+        const inst = ovCount || Math.max(1, Number(cs.installment_count) || 10);
         const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : sName;
         const className = cs.student_class || "Genel";
 
@@ -571,14 +574,24 @@ export const AccountingService = {
     const merged = list.filter(t => !this._isContractDeletedFast(t, delContracts) && !this._isIncomeDeletedFast(t, delIncomes));
 
     return merged.map((t) => {
-      const key = `${t.gelirKodu || t.sozlesmeNo}_${t.taksitNo}`;
-      const ov = overrides[key];
+      const key1 = t.gelirKodu ? `${t.gelirKodu}_${t.taksitNo}` : null;
+      const key2 = t.sozlesmeNo ? `${t.sozlesmeNo}_${t.taksitNo}` : null;
+      const key3 = t.id;
+      const ov = (key1 && overrides[key1]) || (key2 && overrides[key2]) || (key3 && overrides[key3]);
       if (ov) {
+        const amt = ov.taksitTutari != null ? Number(ov.taksitTutari) : t.taksitTutari;
+        const paid = ov.tahsilEdilen != null ? Number(ov.tahsilEdilen) : (t.tahsilEdilen || 0);
+        const rem = ov.kalanTutar != null ? Number(ov.kalanTutar) : Math.max(0, amt - paid);
         return {
           ...t,
-          tahsilEdilen: ov.tahsilEdilen != null ? ov.tahsilEdilen : t.tahsilEdilen,
-          kalanTutar: ov.kalanTutar != null ? ov.kalanTutar : t.kalanTutar,
-          durumText: (ov.kalanTutar <= 0) ? "Tam Ödendi" : t.durumText
+          ...ov,
+          taksitTutari: amt,
+          toplamTutar: amt,
+          tahsilEdilen: paid,
+          kalanTutar: rem,
+          vadeTarihi: ov.vadeTarihi || t.vadeTarihi,
+          durum: ov.durum != null ? ov.durum : (paid >= amt && amt > 0 ? 1 : t.durum),
+          durumText: ov.durumText || (rem <= 0 ? "Tam Ödendi" : t.durumText)
         };
       }
       return t;
@@ -1094,7 +1107,214 @@ export const AccountingService = {
     return true;
   },
 
-  // 10. Reset all custom data to original authentic Edesis dump (100% data integrity safety)
+  // 10. Update contract details (brutTutar, netTutar, installments count, etc.)
+  updateContract(contractOrNo, patchData = {}) {
+    if (!contractOrNo) return null;
+    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
+    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
+    const targetKey = szlNo || id;
+    if (!targetKey) return null;
+
+    const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
+    const existing = overrides[targetKey] || (szlNo && overrides[szlNo]) || (id && overrides[id]) || {};
+
+    const updatedPatch = {
+      ...existing,
+      ...patchData,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (szlNo) overrides[szlNo] = updatedPatch;
+    if (id) overrides[id] = updatedPatch;
+    writeStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, overrides);
+
+    // If brutTutar changed, sync corresponding student income in INCOME_OVERRIDES
+    if (patchData.brutTutar != null) {
+      const incomeOverrides = readStorage(STORAGE_KEYS.INCOME_OVERRIDES, {});
+      const glrKey = patchData.gelirKodu || (szlNo ? `GLR2026${szlNo.replace(/\D/g, "").slice(-5)}` : null);
+      if (glrKey) {
+        const curInc = incomeOverrides[glrKey] || {};
+        const paid = curInc.toplamTahsilat || 0;
+        const newGross = Number(patchData.brutTutar) || 0;
+        const newNet = patchData.netTutar != null ? Number(patchData.netTutar) : Math.round((newGross / 1.1) * 100) / 100;
+        const newVat = patchData.kdvTutari != null ? Number(patchData.kdvTutari) : Math.round((newGross - newNet) * 100) / 100;
+        incomeOverrides[glrKey] = {
+          ...curInc,
+          brutTutar: newGross,
+          netTutar: newNet,
+          kdvTutari: newVat,
+          kalanAlacak: Math.max(0, newGross - paid)
+        };
+        writeStorage(STORAGE_KEYS.INCOME_OVERRIDES, incomeOverrides);
+      }
+    }
+
+    // Sync student total_fee and installment_count in custom students
+    try {
+      const customStudents = readStorage("cozum_custom_students_v1", []);
+      let stModified = false;
+      const updatedStudents = customStudents.map((st) => {
+        const match = (szlNo && st.sozlesme_no === szlNo) || (st.id && id && String(st.id) === String(id)) ||
+          (patchData.studentId && String(st.id) === String(patchData.studentId)) ||
+          (patchData.ogrenciAdi && trNorm(st.student_name) === trNorm(patchData.ogrenciAdi));
+        if (match) {
+          stModified = true;
+          return {
+            ...st,
+            total_fee: patchData.brutTutar != null ? patchData.brutTutar : st.total_fee,
+            installment_count: patchData.taksitSayisi != null ? patchData.taksitSayisi : st.installment_count
+          };
+        }
+        return st;
+      });
+      if (stModified) {
+        writeStorage("cozum_custom_students_v1", updatedStudents);
+      }
+    } catch (e) {
+      console.warn("Student sync error:", e);
+    }
+
+    // Remote sync with backend D1 API if reachable
+    if (typeof fetch !== "undefined") {
+      try {
+        const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
+        const token = (typeof localStorage !== "undefined" && localStorage.getItem("session_token")) || "";
+        const remoteId = id || szlNo;
+        fetch(`${apiUrl}/api/contracts/${encodeURIComponent(remoteId)}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(patchData)
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+    }
+
+    return updatedPatch;
+  },
+
+  // 11. Save customized installments and automatically recalculate/update contract total
+  saveInstallments(contractOrNo, installmentsList = []) {
+    if (!contractOrNo || !Array.isArray(installmentsList)) return null;
+    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
+    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
+
+    // 1. Calculate new contract price from installments
+    const newBrut = installmentsList.reduce((acc, t) => acc + (Number(t.taksitTutari) || 0), 0);
+    const newNet = Math.round((newBrut / 1.1) * 100) / 100;
+    const newKdv = Math.round((newBrut - newNet) * 100) / 100;
+
+    // 2. Persist installment overrides
+    const instOverrides = readStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, {});
+    installmentsList.forEach((t) => {
+      const num = t.taksitNo;
+      const amt = Number(t.taksitTutari) || 0;
+      const paid = Number(t.tahsilEdilen) || 0;
+      const rem = Math.max(0, amt - paid);
+      const isPaid = paid >= amt && amt > 0;
+      const data = {
+        taksitNo: num,
+        taksitTutari: amt,
+        toplamTutar: amt,
+        vadeTarihi: t.vadeTarihi,
+        tahsilEdilen: paid,
+        kalanTutar: rem,
+        durum: isPaid ? 1 : (t.durum || 0),
+        durumText: isPaid ? "Tahsil Edildi" : (t.durumText || "Vadesi Gelmedi"),
+        odemeYontemi: t.odemeYontemi || null,
+        tahsilatTarihi: t.tahsilatTarihi || null
+      };
+      if (t.gelirKodu) instOverrides[`${t.gelirKodu}_${num}`] = data;
+      if (szlNo) instOverrides[`${szlNo}_${num}`] = data;
+      if (t.id) instOverrides[t.id] = data;
+    });
+    writeStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, instOverrides);
+
+    // Persist to CUSTOM_INSTALLMENTS so count and details are 100% stable
+    const customInst = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
+    const filteredCustom = customInst.filter((t) => t.sozlesmeNo !== szlNo && (id ? t.sozlesmeNo !== id : true));
+    writeStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, [...filteredCustom, ...installmentsList]);
+
+    // 3. Update contract total & installment count
+    this.updateContract(contractOrNo, {
+      brutTutar: newBrut,
+      netTutar: newNet,
+      kdvTutari: newKdv,
+      taksitSayisi: installmentsList.length,
+      sozlesmeNo: szlNo
+    });
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+    }
+
+    return {
+      ok: true,
+      newBrut,
+      newNet,
+      newKdv,
+      count: installmentsList.length
+    };
+  },
+
+  // 12. Practical rebalance: Distribute total fee across installments preserving paid installments
+  rebalanceInstallments(contractOrNo, targetTotal, targetCount = null, baseDateStr = null) {
+    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
+    const all = this.getInstallments();
+    const existing = all.filter(t => t.sozlesmeNo === szlNo).sort((a, b) => a.taksitNo - b.taksitNo);
+    const count = Math.max(1, parseInt(targetCount, 10) || (existing.length > 0 ? existing.length : 10));
+    const total = Number(targetTotal) || 0;
+
+    const paidSum = existing.filter(t => t.durum === 1).reduce((acc, t) => acc + (Number(t.tahsilEdilen) || Number(t.taksitTutari) || 0), 0);
+    const remainingToDistribute = Math.max(0, total - paidSum);
+    const unpaidCount = Math.max(1, count - existing.filter(t => t.durum === 1).length);
+
+    const perInst = Math.floor((remainingToDistribute / unpaidCount) * 100) / 100;
+    const diff = Math.round((remainingToDistribute - perInst * unpaidCount) * 100) / 100;
+
+    const baseDate = baseDateStr ? new Date(baseDateStr) : (existing[0]?.vadeTarihi ? new Date(existing[0].vadeTarihi) : new Date());
+
+    let unpaidIndex = 0;
+    const newList = [];
+    for (let i = 1; i <= count; i++) {
+      const prev = existing.find(t => t.taksitNo === i);
+      if (prev && prev.durum === 1) {
+        newList.push(prev);
+      } else {
+        unpaidIndex++;
+        const isLastUnpaid = unpaidIndex === unpaidCount;
+        const amt = isLastUnpaid ? Math.round((perInst + diff) * 100) / 100 : perInst;
+        const d = new Date(baseDate);
+        d.setMonth(d.getMonth() + (i - 1));
+        const dateFormatted = d.toISOString().slice(0, 10);
+        newList.push({
+          id: prev?.id || `inst-${szlNo}-${i}`,
+          taksitNo: i,
+          gelirKodu: prev?.gelirKodu || (szlNo ? `GLR2026${szlNo.replace(/\D/g, "").slice(-5)}` : ""),
+          sozlesmeNo: szlNo,
+          ogrenciAdiSoyadi: prev?.ogrenciAdiSoyadi || (typeof contractOrNo === "object" ? contractOrNo.ogrenciAdi : ""),
+          musteriUnvan: prev?.musteriUnvan || (typeof contractOrNo === "object" ? contractOrNo.musteriUnvan : ""),
+          sinifAdi: prev?.sinifAdi || (typeof contractOrNo === "object" ? contractOrNo.sinifAdi : "Genel"),
+          taksitTutari: amt,
+          toplamTutar: amt,
+          tahsilEdilen: 0,
+          kalanTutar: amt,
+          vadeTarihi: dateFormatted,
+          durum: 0,
+          durumText: "Vadesi Gelmedi"
+        });
+      }
+    }
+
+    return this.saveInstallments(contractOrNo, newList);
+  },
+
+  // 13. Reset all custom data to original authentic Edesis dump (100% data integrity safety)
   resetCustomData() {
     Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
     if (typeof window !== "undefined") {

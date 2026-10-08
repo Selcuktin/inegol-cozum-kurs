@@ -234,6 +234,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
     }
   }, [contractsList, students]);
   const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(null);
+  const [showQuickEditModal, setShowQuickEditModal] = useState(null);
   const [showMebPrintModal, setShowMebPrintModal] = useState(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showNewContractModal, setShowNewContractModal] = useState(false);
@@ -482,6 +483,23 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
 
   const renderPaymentPlanModal = () => {
     if (!showPaymentPlanModal) return null;
+    const allInsts = AccountingService.getInstallments();
+    const contractInsts = allInsts.filter((t) => t.sozlesmeNo === showPaymentPlanModal.sozlesmeNo).sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0));
+    const hasRealInsts = contractInsts.length > 0;
+    const planItems = hasRealInsts ? contractInsts : Array.from({ length: showPaymentPlanModal.taksitSayisi || 1 }, (_, i) => {
+      const instNum = i + 1;
+      const instAmount = (Number(showPaymentPlanModal.brutTutar) || 0) / (showPaymentPlanModal.taksitSayisi || 1);
+      const baseDate = new Date(showPaymentPlanModal.sozlesmeTarihi || new Date());
+      baseDate.setMonth(baseDate.getMonth() + i);
+      return {
+        taksitNo: instNum,
+        vadeTarihi: baseDate.toISOString().slice(0, 10),
+        taksitTutari: instAmount,
+        durumText: "Bekliyor",
+        durum: 0
+      };
+    });
+
     return (
       <div
         className="modal-backdrop"
@@ -530,12 +548,12 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
           <div style={{ marginBottom: "16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: "10px 14px", borderRadius: "6px", fontSize: "13px" }}>
               <span>Toplam Tutar: <b>{fmtCurrency(showPaymentPlanModal.brutTutar)}</b></span>
-              <span>Taksit Sayısı: <b>{showPaymentPlanModal.taksitSayisi || 1}</b></span>
+              <span>Taksit Sayısı: <b>{planItems.length || showPaymentPlanModal.taksitSayisi || 1}</b></span>
               <span>Ödeme Türü: <b>{showPaymentPlanModal.odemeTuruText}</b></span>
             </div>
           </div>
 
-          {/* Generated Installments Schedule */}
+          {/* Generated or Authentic Installments Schedule */}
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
             <thead>
               <tr style={{ background: "#f1f5f9", color: "#475569", textAlign: "left" }}>
@@ -546,19 +564,25 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: showPaymentPlanModal.taksitSayisi || 1 }, (_, i) => {
-                const instNum = i + 1;
-                const instAmount = (Number(showPaymentPlanModal.brutTutar) || 0) / (showPaymentPlanModal.taksitSayisi || 1);
-                const baseDate = new Date(showPaymentPlanModal.sozlesmeTarihi || new Date());
-                baseDate.setMonth(baseDate.getMonth() + i);
+              {planItems.map((t) => {
+                const isPaid = t.durum === 1;
                 return (
-                  <tr key={instNum} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "8px 12px", fontWeight: 600 }}>{instNum}. Taksit</td>
-                    <td style={{ padding: "8px 12px" }}>{baseDate.toLocaleDateString("tr-TR")}</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>{fmtCurrency(instAmount)}</td>
+                  <tr key={t.taksitNo} style={{ borderBottom: "1px solid #f1f5f9", background: isPaid ? "#f0fdf4" : "transparent" }}>
+                    <td style={{ padding: "8px 12px", fontWeight: 600 }}>{t.taksitNo}. Taksit</td>
+                    <td style={{ padding: "8px 12px" }}>{String(t.vadeTarihi || "").slice(0, 10)}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>{fmtCurrency(t.taksitTutari)}</td>
                     <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                      <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", background: "#fef9c3", color: "#854d0e", fontWeight: 600 }}>
-                        Bekliyor
+                      <span
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontSize: "11px",
+                          background: isPaid ? "#dcfce7" : "#fef9c3",
+                          color: isPaid ? "#15803d" : "#854d0e",
+                          fontWeight: 600
+                        }}
+                      >
+                        {isPaid ? "Tahsil Edildi" : "Bekliyor"}
                       </span>
                     </td>
                   </tr>
@@ -567,41 +591,211 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
             </tbody>
           </table>
 
-          <div className="no-print" style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={() => {
+                const target = showPaymentPlanModal;
+                setShowPaymentPlanModal(null);
+                setShowQuickEditModal({
+                  ...target,
+                  editBrut: target.brutTutar,
+                  editCount: target.taksitSayisi || planItems.length || 1,
+                  editDate: target.sozlesmeTarihi ? String(target.sozlesmeTarihi).slice(0, 10) : new Date().toISOString().slice(0, 10),
+                  rebalance: true
+                });
+              }}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
-                padding: "8px 16px",
-                background: "#2563eb",
-                color: "#fff",
-                border: "none",
+                padding: "8px 14px",
+                background: "#f0fdf4",
+                color: "#16a34a",
+                border: "1px solid #bbf7d0",
                 borderRadius: "6px",
                 fontSize: "12px",
                 fontWeight: 600,
                 cursor: "pointer"
               }}
             >
-              <Printer size={15} />
-              Yazdır
+              <Edit2 size={14} />
+              Tutarları / Planı Düzenle
+            </button>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 16px",
+                  background: "#2563eb",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <Printer size={15} />
+                Yazdır
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPaymentPlanModal(null)}
+                style={{
+                  padding: "8px 16px",
+                  background: "#e2e8f0",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderQuickEditModal = () => {
+    if (!showQuickEditModal) return null;
+    return (
+      <div
+        className="modal-backdrop"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(15, 23, 42, 0.55)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 100000,
+          padding: "16px"
+        }}
+        onClick={() => setShowQuickEditModal(null)}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: "#fff",
+            borderRadius: "12px",
+            maxWidth: "520px",
+            width: "100%",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+            padding: "24px",
+            animation: "popIn 0.2s ease"
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Edit2 size={20} color="#2563eb" />
+              <div>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>Sözleşmeyi Hızlı Düzenle</h3>
+                <div style={{ fontSize: "12px", color: "#64748b" }}>{showQuickEditModal.sozlesmeNo} · {showQuickEditModal.ogrenciAdi}</div>
+              </div>
+            </div>
+            <button type="button" onClick={() => setShowQuickEditModal(null)} style={{ border: "none", background: "none", cursor: "pointer" }}>
+              <X size={20} color="#64748b" />
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "20px" }}>
+            <div>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "5px" }}>
+                Toplam Sözleşme Tutarı (Brüt ₺)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={showQuickEditModal.editBrut}
+                onChange={(e) => setShowQuickEditModal({ ...showQuickEditModal, editBrut: e.target.value })}
+                style={{ width: "100%", height: "38px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 12px", fontSize: "15px", fontWeight: 700, boxSizing: "border-box" }}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "5px" }}>
+                  Taksit Sayısı
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={showQuickEditModal.editCount}
+                  onChange={(e) => setShowQuickEditModal({ ...showQuickEditModal, editCount: e.target.value })}
+                  style={{ width: "100%", height: "38px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 12px", fontSize: "14px", fontWeight: 600, boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "5px" }}>
+                  Vade Başlangıç Tarihi
+                </label>
+                <input
+                  type="date"
+                  value={showQuickEditModal.editDate}
+                  onChange={(e) => setShowQuickEditModal({ ...showQuickEditModal, editDate: e.target.value })}
+                  style={{ width: "100%", height: "38px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 12px", fontSize: "13px", boxSizing: "border-box" }}
+                />
+              </div>
+            </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#475569", cursor: "pointer", background: "#f8fafc", padding: "10px", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+              <input
+                type="checkbox"
+                checked={!!showQuickEditModal.rebalance}
+                onChange={(e) => setShowQuickEditModal({ ...showQuickEditModal, rebalance: e.target.checked })}
+              />
+              <span>Taksit tutarlarını otomatik olarak yeniden paylaştır ve takvime dağıt</span>
+            </label>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+            <button
+              type="button"
+              onClick={() => setShowQuickEditModal(null)}
+              style={{ padding: "8px 16px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+            >
+              Vazgeç
             </button>
             <button
               type="button"
-              onClick={() => setShowPaymentPlanModal(null)}
-              style={{
-                padding: "8px 16px",
-                background: "#e2e8f0",
-                border: "none",
-                borderRadius: "6px",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer"
+              onClick={() => {
+                const newBrut = Number(showQuickEditModal.editBrut) || 0;
+                const newCount = Math.max(1, parseInt(showQuickEditModal.editCount, 10) || 1);
+                const newDate = showQuickEditModal.editDate;
+
+                if (showQuickEditModal.rebalance) {
+                  AccountingService.rebalanceInstallments(showQuickEditModal, newBrut, newCount, newDate);
+                } else {
+                  AccountingService.updateContract(showQuickEditModal, {
+                    brutTutar: newBrut,
+                    netTutar: Math.round((newBrut / 1.1) * 100) / 100,
+                    kdvTutari: Math.round((newBrut - Math.round((newBrut / 1.1) * 100) / 100) * 100) / 100,
+                    taksitSayisi: newCount,
+                    sozlesmeTarihi: newDate
+                  });
+                }
+                showToast(`✅ ${showQuickEditModal.sozlesmeNo} başarıyla güncellendi: ${fmtCurrency(newBrut)}`);
+                setShowQuickEditModal(null);
               }}
+              style={{ padding: "8px 18px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
             >
-              Kapat
+              Kaydet ve Güncelle
             </button>
           </div>
         </div>
@@ -811,6 +1005,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
         />
         {renderPaymentPlanModal()}
         {renderMebPrintModal()}
+        {renderQuickEditModal()}
       </>
     );
   }
@@ -1585,6 +1780,35 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
                             <span>▾</span>
                           </button>
 
+                          <button
+                            type="button"
+                            title="Hızlı Düzenle (Tutar / Taksit)"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowQuickEditModal({
+                                ...c,
+                                editBrut: c.brutTutar,
+                                editCount: c.taksitSayisi || 1,
+                                editDate: c.sozlesmeTarihi ? String(c.sozlesmeTarihi).slice(0, 10) : new Date().toISOString().slice(0, 10),
+                                rebalance: true
+                              });
+                            }}
+                            style={{
+                              marginLeft: "4px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "4px 6px",
+                              background: "#f1f5f9",
+                              color: "#2563eb",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              cursor: "pointer"
+                            }}
+                          >
+                            <Edit2 size={12} />
+                          </button>
+
                           {/* Action Menu Dropdown */}
                           {isMenuOpen && (
                             <div
@@ -1623,6 +1847,34 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
                               >
                                 <Eye size={14} color="#64748b" />
                                 Detay Görüntüle
+                              </div>
+
+                              <div
+                                onClick={() => {
+                                  setShowQuickEditModal({
+                                    ...c,
+                                    editBrut: c.brutTutar,
+                                    editCount: c.taksitSayisi || 1,
+                                    editDate: c.sozlesmeTarihi ? String(c.sozlesmeTarihi).slice(0, 10) : new Date().toISOString().slice(0, 10),
+                                    rebalance: true
+                                  });
+                                  setOpenDropdownId(null);
+                                }}
+                                style={{
+                                  padding: "8px 14px",
+                                  fontSize: "12px",
+                                  fontWeight: 500,
+                                  color: "#1e293b",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px"
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                              >
+                                <Edit2 size={14} color="#2563eb" />
+                                Hızlı Düzenle (Tutar / Taksit)
                               </div>
 
                               <div
@@ -2359,6 +2611,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
 
       {/* MODAL 2: ÖDEME PLANI ÇIKTISI */}
       {renderPaymentPlanModal()}
+      {renderQuickEditModal()}
 
       {/* MODAL 3: RESMÎ MEB SÖZLEŞMESİ YAZDIRMA (MEB STANDART ÇIKTI) */}
       {renderMebPrintModal()}
