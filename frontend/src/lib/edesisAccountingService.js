@@ -376,7 +376,31 @@ export const AccountingService = {
         }
       } catch {}
     }
-    const list = [...custom, ...rContracts, ...base];
+    // Deduplicate by sozlesmeNo / id across base, remote, and custom
+    const contractMap = new Map();
+    base.forEach((c) => {
+      if (!c) return;
+      const key = (c.sozlesmeNo || "").trim().toUpperCase() || (c.id ? String(c.id) : "");
+      if (key) contractMap.set(key, c);
+    });
+
+    rContracts.forEach((c) => {
+      if (!c) return;
+      const key = (c.sozlesmeNo || "").trim().toUpperCase() || (c.id ? String(c.id) : "");
+      if (key) {
+        contractMap.set(key, { ...(contractMap.get(key) || {}), ...c });
+      }
+    });
+
+    custom.forEach((c) => {
+      if (!c) return;
+      const key = (c.sozlesmeNo || "").trim().toUpperCase() || (c.id ? String(c.id) : "");
+      if (key) {
+        contractMap.set(key, { ...(contractMap.get(key) || {}), ...c });
+      }
+    });
+
+    const list = Array.from(contractMap.values());
     const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
     const { delContracts, delIncomes } = this._buildDelSets();
 

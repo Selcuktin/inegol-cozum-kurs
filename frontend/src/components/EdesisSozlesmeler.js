@@ -84,8 +84,8 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
       }
     });
     return map;
-  }, [students]);  // contractsList excluded: gelirMap only uses students, contractsList dep caused double recompute
-  const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027 (Default 64 records), 40: 2025-2026, 142: 2026-2027-YAZ, -1: Tümü
+  }, [students]);
+  const [periodFilter, setPeriodFilter] = useState("-1"); // -1: Tümü (Matches Edesis default 1:1), 113: 2026-2027, 40: 2025-2026, 142: 2026-2027-YAZ
   const [statusFilter, setStatusFilter] = useState("all"); // "all", "active", "draft", "canceled"
   const [customerFilter, setCustomerFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -315,6 +315,16 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
       if (name) set.add(name);
     });
     return Array.from(set).sort();
+  }, [contractsList]);
+
+  // Dynamic contract counts per period
+  const periodCounts = useMemo(() => {
+    const counts = { "113": 0, "40": 0, "142": 0, all: contractsList.length };
+    contractsList.forEach((c) => {
+      const id = String(c.donemId);
+      if (counts[id] !== undefined) counts[id]++;
+    });
+    return counts;
   }, [contractsList]);
 
   // Filtered & Sorted contracts
@@ -1394,10 +1404,10 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
                   padding: "4px"
                 }}
               >
-                <option value="113">2026-2027 (64 Sözleşme)</option>
-                <option value="40">2025-2026 (40 Sözleşme)</option>
-                <option value="142">2026-2027-YAZ (15 Sözleşme)</option>
-                <option value="-1">Tümü (119 Sözleşme)</option>
+                <option value="-1">{`Tümü (${periodCounts.all || 0} Sözleşme)`}</option>
+                <option value="113">{`2026-2027 (${periodCounts["113"] || 0} Sözleşme)`}</option>
+                <option value="40">{`2025-2026 (${periodCounts["40"] || 0} Sözleşme)`}</option>
+                <option value="142">{`2026-2027-YAZ (${periodCounts["142"] || 0} Sözleşme)`}</option>
               </select>
             </div>
 
