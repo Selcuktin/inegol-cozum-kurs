@@ -209,7 +209,8 @@ export const StudentService = {
   getAllStudents(remoteStudents = []) {
     const base = this.getBaseStudents();
     const custom = this.getCustomStudents();
-    const map = new Map();
+    const studentRecords = new Map();
+    const idMap = new Map();
 
     // ponytail: pre-build deleted student set once
     const delKeys = this.getDeletedStudentKeys();
@@ -242,16 +243,41 @@ export const StudentService = {
       if (s && (s.id || s.student_name) && !isDel(s)) {
         const idKey = s.id ? String(s.id) : "";
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
+        const donemId = String(s.donem_id || "113");
+        const periodKey = nameKey ? `${nameKey}__${donemId}` : idKey;
+        const existing = (periodKey && studentRecords.get(periodKey)) || (idKey && idMap.get(idKey)) || null;
+
         const isContractDel = Boolean(s.contract_deleted || AccountingService.isContractDeleted(s));
         const matched = isContractDel ? null : (contractsByName.get(trNorm(nameKey)) || (idKey ? contractsByName.get(idKey) : null) || (s.sozlesme_no ? contractsByName.get(String(s.sozlesme_no)) : null) || null);
         const enriched = {
           ...s,
           contract_deleted: isContractDel,
-          has_contract: Boolean(matched),
-          sozlesme_no: matched?.sozlesmeNo || ""
+          has_contract: Boolean(matched || s.has_contract),
+          sozlesme_no: matched?.sozlesmeNo || s.sozlesme_no || ""
         };
-        if (idKey) map.set(idKey, enriched);
-        if (nameKey) map.set(nameKey, enriched);
+
+        const isKesin = enriched.status === "Kesin Kayıt" || existing?.status === "Kesin Kayıt";
+        const hasCont = Boolean(enriched.has_contract || existing?.has_contract);
+
+        const preferIncoming = (enriched.status === "Kesin Kayıt" && existing?.status !== "Kesin Kayıt") ||
+                               (enriched.has_contract && !existing?.has_contract);
+        const primary = preferIncoming ? enriched : (existing || enriched);
+        const secondary = preferIncoming ? (existing || enriched) : enriched;
+
+        const merged = {
+          ...secondary,
+          ...primary,
+          status: isKesin ? "Kesin Kayıt" : primary.status,
+          has_contract: hasCont,
+          sozlesme_no: primary.sozlesme_no || secondary.sozlesme_no || "",
+          student_no: primary.student_no || secondary.student_no || "",
+          student_phone: primary.student_phone || secondary.student_phone || "",
+          parent_name: (primary.parent_name && primary.parent_name !== "Belirtilmedi") ? primary.parent_name : (secondary.parent_name || "Belirtilmedi"),
+          parent_phone: primary.parent_phone || secondary.parent_phone || ""
+        };
+
+        studentRecords.set(periodKey, merged);
+        if (idKey) idMap.set(idKey, merged);
       }
     });
 
@@ -260,7 +286,9 @@ export const StudentService = {
       if (s && (s.id || s.student_name) && !isDel(s)) {
         const idKey = s.id ? String(s.id) : "";
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
-        const existing = (idKey && map.get(idKey)) || (nameKey && map.get(nameKey)) || null;
+        const donemId = String(s.donem_id || "113");
+        const periodKey = nameKey ? `${nameKey}__${donemId}` : idKey;
+        const existing = (periodKey && studentRecords.get(periodKey)) || (idKey && idMap.get(idKey)) || null;
 
         const isPlaceholder = (name) => !name || name.trim() === "Belirtilmedi" || name.trim().endsWith(" Velisi");
         const parentName = isPlaceholder(s.parent_name) && existing?.parent_name && !isPlaceholder(existing.parent_name)
@@ -278,14 +306,15 @@ export const StudentService = {
         const normName = (s.student_name || "").trim().toUpperCase();
         const isContractDel = Boolean(s.contract_deleted || existing?.contract_deleted || AccountingService.isContractDeleted(s));
         const matchedContract = isContractDel ? null : (contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || (s.sozlesme_no ? contractsByName.get(String(s.sozlesme_no)) : null) || null);
-        const hasContract = Boolean(matchedContract || (!isContractDel && s.has_contract && s.sozlesme_no));
+        const hasContract = Boolean(matchedContract || (!isContractDel && (s.has_contract || existing?.has_contract) && (s.sozlesme_no || existing?.sozlesme_no)));
+        const isKesin = s.status === "Kesin Kayıt" || existing?.status === "Kesin Kayıt" || s.status === "Kayitli";
 
         const merged = {
           ...(existing || {}),
           ...s,
           contract_deleted: isContractDel,
           has_contract: hasContract,
-          sozlesme_no: matchedContract?.sozlesmeNo || s.sozlesme_no || "",
+          sozlesme_no: matchedContract?.sozlesmeNo || s.sozlesme_no || existing?.sozlesme_no || "",
           student_no: s.student_no || existing?.student_no || matchedContract?.ogrenciNo || "",
           parent_name: parentName,
           parent_phone: parentPhone,
@@ -294,11 +323,11 @@ export const StudentService = {
           gender: existing?.gender || s.gender || "Erkek",
           donem_id: s.donem_id || existing?.donem_id || 113,
           donem_adi: s.donem_adi || existing?.donem_adi || "2026-2027",
-          status: s.status === "Kayitli" || !s.status ? "Kesin Kayıt" : s.status
+          status: isKesin ? "Kesin Kayıt" : (s.status || existing?.status || "Kesin Kayıt")
         };
 
-        if (idKey) map.set(idKey, merged);
-        if (nameKey) map.set(nameKey, merged);
+        studentRecords.set(periodKey, merged);
+        if (idKey) idMap.set(idKey, merged);
       }
     });
 
@@ -307,45 +336,34 @@ export const StudentService = {
       if (s && (s.id || s.student_name) && !isDel(s)) {
         const idKey = s.id ? String(s.id) : "";
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
-        const existing = (idKey && map.get(idKey)) || (nameKey && map.get(nameKey)) || null;
+        const donemId = String(s.donem_id || "113");
+        const periodKey = nameKey ? `${nameKey}__${donemId}` : idKey;
+        const existing = (periodKey && studentRecords.get(periodKey)) || (idKey && idMap.get(idKey)) || null;
 
         const normName = (s.student_name || "").trim().toUpperCase();
         const isContractDel = Boolean(s.contract_deleted || existing?.contract_deleted || AccountingService.isContractDeleted(s));
         const matchedContract = isContractDel ? null : (contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || null);
-        const hasContract = Boolean(matchedContract);
+        const hasContract = Boolean(matchedContract || (!isContractDel && (s.has_contract || existing?.has_contract)));
+        const isKesin = s.status === "Kesin Kayıt" || existing?.status === "Kesin Kayıt";
 
         const merged = {
           ...(existing || {}),
           ...s,
           contract_deleted: isContractDel,
           has_contract: hasContract,
-          sozlesme_no: matchedContract?.sozlesmeNo || "",
+          sozlesme_no: matchedContract?.sozlesmeNo || s.sozlesme_no || existing?.sozlesme_no || "",
           student_no: s.student_no || existing?.student_no || matchedContract?.ogrenciNo || "",
           donem_id: s.donem_id || existing?.donem_id || 113,
           donem_adi: s.donem_adi || existing?.donem_adi || "2026-2027",
-          status: s.status === "Kayitli" || !s.status ? "Kesin Kayıt" : s.status
+          status: isKesin ? "Kesin Kayıt" : (s.status || existing?.status || "Kesin Kayıt")
         };
 
-        if (idKey) map.set(idKey, merged);
-        if (nameKey) map.set(nameKey, merged);
+        studentRecords.set(periodKey, merged);
+        if (idKey) idMap.set(idKey, merged);
       }
     });
 
-    // Dedup by student_name or id
-    const seenNames = new Set();
-    const all = [];
-    for (const s of map.values()) {
-      if (!isDel(s)) {
-        const norm = (s.student_name || "").trim().toUpperCase();
-        if (norm && !seenNames.has(norm)) {
-          seenNames.add(norm);
-          all.push(s);
-        } else if (!norm && s.id && !seenNames.has(s.id)) {
-          seenNames.add(s.id);
-          all.push(s);
-        }
-      }
-    }
+    const all = Array.from(studentRecords.values()).filter((s) => !isDel(s));
     all.sort((a, b) => {
       const isNewA = String(a.id || "").startsWith("student-") || (a.created_at && a.created_at >= "2026-10-01");
       const isNewB = String(b.id || "").startsWith("student-") || (b.created_at && b.created_at >= "2026-10-01");
