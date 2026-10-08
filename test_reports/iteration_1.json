@@ -1,0 +1,94 @@
+{
+  "summary": "Preview ortamında canlı API erişimi 502 ile bloklu; frontend login yükleniyor; Jest paketleri geçiyor ancak çoğu localStorage/fixture tabanlı olduğu için gerçek D1 entegrasyonunu kanıtlamıyor. schema.sql izole SQLite doğrulamasında orphan ve finansal tutarsızlıklar yeniden üretildi.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/auth/me (preview)",
+        "issue": "Canlı endpoint HTTP 502 dönüyor; auth doğrulama ve sonraki tüm entegrasyon akışları bloklanıyor.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "GET /api/contracts/deleted-keys (preview)",
+        "issue": "HTTP 502; tombstone senkronizasyonu canlıda doğrulanamıyor.",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "Mutation endpoints (/students, /payments, /expenses, /contracts/*)",
+        "issue": "Kodda getCurrentUser çağrısı var ama !user veya role guard yok; kimliksiz finansal mutasyon riski.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "N/A (pod runtime)",
+        "issue": "/app/backend dizini yok; supervisor backend FATAL bağlamı ile uyumlu, backend pytest uygulanamadı."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "App mount -> /api/auth/me",
+        "issue": "Preview 502 nedeniyle oturum doğrulama ve korumalı akışlar açılamıyor.",
+        "affected_selectors": [
+          "[data-testid=quick-login-admin]",
+          "[data-testid=google-login-button]"
+        ]
+      },
+      {
+        "flow": "Tahsilat kayıt akışı",
+        "issue": "Çifte yazım riski: axios POST /payments sonrası AccountingService.recordCollection tekrar /payments POST tetikliyor.",
+        "affected_selectors": [
+          "N/A (App.js submit)",
+          "N/A (MuhasebeV2Dashboard submit)"
+        ]
+      },
+      {
+        "flow": "Kayıt/sözleşme üretimi",
+        "issue": "Frontend grossFee değerini total_fee olarak gönderiyor; backend getEffectiveTotalFee extra/indirim tekrar uygulayabildiği için şişme riski.",
+        "affected_selectors": [
+          "N/A (EdesisStudentModal submit)",
+          "N/A (API getEffectiveTotalFee)"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/jest_results.json",
+    "/app/tests/schema_integrity_check.py",
+    "/app/frontend/src/__tests__/accounting_service_sync.test.js",
+    "/app/frontend/src/__tests__/test_helpers.js"
+  ],
+  "action_items": [
+    "P0: Preview 502 kök nedenini (Cloudflare Functions route/binding/env) gider; auth ve contracts/deleted-keys canlı yanıtını stabilize et.",
+    "P0: Tüm mutasyon endpointlerine zorunlu auth + role authorization (admin/muhasebe) guard ekle; yetkisizde 401/403 dön.",
+    "P1: Payment yazımını tek kaynağa indir (UI local override veya API write, ikisi birden değil).",
+    "P1: total_fee/extra_fees/discount hesap sözleşmesini frontend-backend arasında tekilleştir; double-apply engelle.",
+    "P1: Student/Contract delete eşleşmelerinde isim yerine deterministic ID kullan; aynı isimli farklı öğrencilerin toplu etkilenmesini engelle.",
+    "P2: schema.sql için FK ilişkileri (students->contracts->student_incomes) ve CHECK/trigger doğrulamaları ekle."
+  ],
+  "critical_code_review_comments": [
+    "frontend/functions/api/[[route]].js:134 -> has_contract hesaplamasında '|| true' nedeniyle her öğrenci true oluyor.",
+    "frontend/functions/api/[[route]].js:402-423 -> getDynamicAccountingSummary, sorgu boşsa hardcoded fallback sayılar döndürüyor; sıfır veri maskeleniyor.",
+    "frontend/functions/api/[[route]].js:1438-1490 ve benzeri mutasyon blokları -> getCurrentUser sonrası yetki kontrolü yok.",
+    "frontend/functions/api/[[route]].js:1427 ve 1430+ -> student delete isim/id karması ve tombstone id/name stratejisi yanlış pozitif silme riski taşıyor.",
+    "frontend/src/App.js:4072-4084 -> öğrenci create sonrası AccountingService.addNewIncome tekrar çağrılıyor (API auto contract/income ile çakışma).",
+    "frontend/src/App.js:4100-4111 ve frontend/src/components/MuhasebeV2Dashboard.js:1064-1082 -> payment API + recordCollection çift mutasyon.",
+    "frontend/src/lib/edesisStudentService.js:136-143 ve frontend/src/lib/edesisAccountingService.js:887-899 -> fire-and-forget silme, yanıt/başarısızlık kontrolü yok; local-remote ayrışma riski."
+  ],
+  "updated_files": [
+    "/app/tests/schema_integrity_check.py",
+    "/app/test_reports/iteration_1.json"
+  ],
+  "success_rate": {
+    "backend": "10%",
+    "frontend": "70%"
+  },
+  "seed_data_creation": "Yok. Sadece in-memory SQLite ile izole doğrulama çalıştırıldı.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Canlı preview'de /api/auth/me ve /api/contracts/deleted-keys halen 502. Jest 11 suite/123 test geçiyor ancak testler localStorage ve fixture ağırlıklı. schema_integrity_check.py sonuçları: students=2, contracts=65, incomes=70, contracts orphan=65, incomes mismatch=3, FK=0.",
+  "rca of the issue": "Reproduction: (1) curl -i https://inegol-course-debug.preview.emergentagent.com/api/auth/me -> 502. (2) curl -i .../api/contracts/deleted-keys -> 502. (3) python /app/tests/schema_integrity_check.py -> orphan/mismatch sayıları üretir. Root causes: canlı function katmanına erişim kırık; veri modeli FK'sız ve seed yoğunluğu students/contracts dengesiz; frontend ve API aynı iş kurallarını ayrı ayrı uyguluyor (dual-write + double-calc). Mitigation: routing/env düzeltmesi + authorization middleware + transactional single-writer payment/contract flow + FK/constraint migration + idempotency anahtarları."
+}

@@ -1,68 +1,42 @@
-# İnegöl Çözüm Kurs Yönetim Sistemi PRD
+# İnegöl Çözüm Kurs — mevcut ürün ve inceleme durumu
 
-## Orijinal problem tanımı
-İNEGÖL ÇZÜM KURS işletme sahibiyim işimiz eğitim. Gelen giden muhasebe durumunu anlık takip edeceğim; veli ve öğrenci ad soyad telefon, okul bilgileri gibi bilgileri kaydedeceğim. PDF olarak verilecek sözleşmeyi otomatik veren, makbuz veren ve genel toplamdan düşen; sınıf oluşturabileceğim, otomatik çıktı alabileceğim bir kurs programı istiyorum. Banka seçimi, nakit, çek ve kredi kartı seçenekleri; tahsilat takibi; öğrenci fotoğrafını PC kamerası ile aktarabilme isteniyor.
+## Orijinal kullanıcı isteği
+> inegöl cozum kursu github projemdeki veritabansal fonskiyonal hatalar var bağlam hataları hepsini test edip çözüm planı hazırla
 
-## Mimari kararlar
-- React 19 + FastAPI + MongoDB kullanıldı.
-- Frontend tüm API çağrılarını `REACT_APP_BACKEND_URL` üzerinden `/api` ile yapar.
-- Öğrenci, sınıf, tahsilat ve gider kayıtları MongoDB koleksiyonlarında UUID tabanlı kayıtlarla tutulur; Mongo `_id` alanı response’lara taşınmaz.
-- Belgeler tarayıcı yazdırma akışıyla hazırlanır; kullanıcı yazdırma ekranından PDF olarak kaydedebilir.
-- Kamera akışı tarayıcı `getUserMedia` ile alınır; izin verilmezse form çalışmaya devam eder.
+Kullanıcı tercihi: **Önce test ve öncelikli çözüm planı; bu aşamada ürün koduna düzeltme yapılmayacak.**
 
-## Kullanıcı personası
-- **Kurs işletme yöneticisi:** Günlük tahsilat, gider, kalan bakiye ve geciken ödemeleri hızlı görmek ister.
-- **Kurs kayıt personeli:** Öğrenci/veli bilgilerini, okul-sınıf ve program bilgilerini kaydeder; sözleşme ve makbuz çıktısı alır.
+## Mimari kararlar / mevcut durum
+- Kaynak: `/app` içindeki bağlı `inegol-cozum-kurs` deposu.
+- Uygulama: React 19/CRA (`frontend/src/App.js`) ve Cloudflare Pages Functions (`frontend/functions/api/[[route]].js`); veri kaynağı Cloudflare D1/SQLite (`frontend/schema.sql`, `frontend/wrangler.toml`).
+- Muhasebe ve öğrenci ekranlarının bir kısmı ayrıca paketlenmiş Edesis JSON'u ve tarayıcı `localStorage` kayıtlarını kullanıyor. Bunlar D1 ile otomatik olarak aynı kayıt kümesi değil.
+- Bu çalışma ortamında `/app/backend` yok; supervisor'ın beklediği FastAPI servisi çalışmıyor. React önizlemesi açılıyor ama önizleme `/api` uçları 502; canlı Cloudflare D1 hakkında bundan sonuç çıkarılamaz.
+- Önceki PRD'deki FastAPI/MongoDB bilgisi **bu checkout için güncel değildir**.
 
-## Sabit çekirdek gereksinimler
-- Türkçe ve kurumsal, hızlı yönetim paneli
-- Dashboard: tahsilat, kalan alacak, aktif öğrenci, gider özeti
-- Öğrenci/veli kayıtları: ad-soyad, telefon, okul, sınıf, TC, adres, program, ücret, taksit
-- Öğrenci ve veli araması
-- Sınıf oluşturma ve derslik/öğretmen/kontenjan bilgileri
-- Nakit, çek, kredi kartı ve banka transferi tahsilatı
-- Banka, tarih, tutar, açıklama bilgileri ve otomatik kalan bakiye
-- Pozitif tutar ve aşırı tahsilat doğrulaması
-- Yaklaşan/geciken ödeme görünümü
-- Sözleşme ve ayrı tahsilat makbuzu önizlemesi
-- Logo alanı için kurumsal başlık yapısı
-- Kamera ile öğrenci fotoğrafı çekme
-- Mobil uyumlu menü ve yatay taşma olmadan görünüm
-
-## Uygulananlar
-### 2026-09-29
-- Yönetim paneli, responsive sidebar ve mobil menü oluşturuldu.
-- Dashboard, öğrenci bul, tahsilat, sınıflar ve sözleşme/makbuz ekranları eklendi.
-- Demo öğrenci ve sınıf kayıtlarıyla ilk açılış görünümü hazırlandı.
-- Öğrenci/veli kayıt formu ve MongoDB öğrenci endpoint’leri oluşturuldu.
-- Tahsilat formu, ödeme yöntemleri, banka alanı, tarih, açıklama ve kalan bakiye güncellemesi eklendi.
-- Gider ve sınıf kayıt endpoint’leri eklendi.
-- Pozitif tutar, kalan bakiyeyi aşmama ve modal içi görünür hata yönetimi eklendi.
-- Sözleşme ile makbuz için ayrı yazdırma önizlemeleri oluşturuldu.
-- Kamera izin akışı ve fotoğraf yakalama kontrolü eklendi.
-- Mobil taşma ve mobil menü sorunları düzeltildi.
-- Backend ve frontend regresyon testleri tamamlandı.
+## İnceleme sırasında yapılanlar
+- Üretim verisi değiştirilmedi ve uygulama kaynak koduna düzeltme uygulanmadı.
+- 11 Jest paketi / 123 test geçti; çoğu yerel veri/fixture ile çalıştığı için gerçek D1 entegrasyonunu doğrulamaz.
+- CI koşulunda derleme lint uyarıları nedeniyle başarısız, CI olmadan uyarılarla başarılı.
+- Önizlemede masaüstü ve mobil giriş ekranı açıldı; `/api/auth/me`, `/api/status`, `/api/contracts/deleted-keys` 502.
+- `schema.sql` yalnızca geçici bellek SQLite'ında denendi; örnek veride ilişki ve finansal tutarsızlıklar görüldü. Gerçek D1 satırları sorgulanmadı.
+- Kanıt, risk, düzeltme sırası ve kabul testleri: [`VERITABANI_TEST_VE_COZUM_PLANI.md`](./VERITABANI_TEST_VE_COZUM_PLANI.md). Ayrıntılı test raporu: `/app/test_reports/iteration_1.json`.
 
 ## Öncelikli backlog
-### P0 — Sonraki temel iş
-- Gönderilecek gerçek sözleşme PDF şablonunu yükleyip alan eşleştirme yapmak.
-- Gerçek kurs logosu ve kurum renklerini ayarlara bağlamak.
-- Gider ekleme ekranını dashboard üzerinde görünür hızlı aksiyona bağlamak.
+### P0 — veri güvenliği ve ana akış
+1. Cloudflare Functions + D1'i izole bir test ortamında erişilebilir kılıp önizlemenin 502 sınırını kaldırmak.
+2. API okuma/yazma yollarında kimlik doğrulama ve role göre yetki kontrolü.
+3. Tahsilatın çifte kaydedilmesini engellemek; öğrenci, gelir ve taksit toplamlarını tek işlemin sonucu olarak tutmak.
+4. Öğrenci ücreti/ek hizmet/indirim hesabını tek tanım altında toplayıp sözleşme ile kalan borcu eşitlemek.
 
-### P1 — Operasyonel geliştirmeler
-- Taksit planını ayrı kayıtlar halinde üretip her vade için durum takibi yapmak.
-- Öğrenci detay ekranında sözleşme, ödeme geçmişi ve fotoğrafı birlikte göstermek.
-- Excel/CSV öğrenci ve tahsilat raporu dışa aktarma.
-- Aylık tarih filtresini kullanıcı seçimine bağlamak.
+### P1 — veri bütünlüğü
+1. D1'in gerçek (salt okunur) mutabakat raporunu çıkarmak ve örnek şemadaki eksik ilişkileri güvenli göçle düzeltmek.
+2. Öğrenci/sözleşme oluşturma, düzenleme ve silmeyi sabit ID üzerinden tek kaynaklı ve işlemsel yapmak.
+3. Boş D1 verisi için uydurma KPI rakamlarını kaldırıp vade/dönem hesaplarını doğrulamak.
 
-### P2 — İleri seviye geliştirmeler
-- Kullanıcı rolleri ve güvenli oturum açma.
-- Toplu makbuz ve sözleşme çıktısı.
-- SMS/e-posta ile yaklaşan ödeme bildirimi.
-- Muhasebe dönem kapanışı ve arşiv raporları.
+### P2 — güvenilirlik ve bakım
+1. Gerçek D1'e bağlı, izole test verili API + tarayıcı regresyon testleri ve CI derlemesi.
+2. Geri yükleme, yedekleme ve raporlama hatalarının açıkça bildirilmesi; kesintiden geri dönüş denemesi.
 
-## Sonraki görev listesi
-1. Gerçek PDF sözleşme ve logoyu almak.
-2. Taksit planı ekranını eklemek.
-3. Gider hızlı ekleme ve gider raporunu görünür hale getirmek.
-4. Öğrenci detay ekranını genişletmek.
+## Sonraki görevler
+1. Öncelikle `/app/memory/VERITABANI_TEST_VE_COZUM_PLANI.md` içindeki P0 kabul ölçütleriyle izole D1 test ortamını açmak.
+2. Gerçek veride yalnızca salt okunur tutarlılık sorgularını çalıştırıp şema göçünü yedek sonrası tasarlamak.
+3. Kullanıcı düzeltme yetkisi verirse P0 değişikliklerini sırayla uygulayıp uçtan uca tekrar doğrulamak.
