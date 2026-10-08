@@ -60,6 +60,10 @@ export default function EdesisGelirListesi({
   const [incomesList, setIncomesList] = useState(() => AccountingService.getIncomes(students));
 
   useEffect(() => {
+    AccountingService.syncDeletedWithRemote().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setIncomesList(AccountingService.getIncomes(students));
   }, [students]);
 

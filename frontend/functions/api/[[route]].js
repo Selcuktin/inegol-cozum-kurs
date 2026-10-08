@@ -1312,6 +1312,10 @@ export async function onRequest(context) {
         await db.prepare("DELETE FROM homework_submissions WHERE student_id = ? OR student_id IN (SELECT id FROM students WHERE LOWER(student_name) = LOWER(?))").bind(decodedId, decodedId).run();
         await db.prepare("DELETE FROM mentorship WHERE student_id = ? OR student_id IN (SELECT id FROM students WHERE LOWER(student_name) = LOWER(?))").bind(decodedId, decodedId).run();
         await db.prepare("DELETE FROM students WHERE id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).run();
+        await db.prepare("UPDATE contracts SET is_deleted = 1 WHERE student_id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).run().catch(() => {});
+        await db.prepare("UPDATE student_incomes SET is_deleted = 1 WHERE student_id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).run().catch(() => {});
+        await db.prepare("INSERT OR REPLACE INTO contracts (id, sozlesme_no, student_id, student_name, is_deleted, created_at) VALUES (?, ?, ?, ?, 1, datetime('now'))")
+          .bind(`del-${decodedId}`, `del-${decodedId}`, decodedId, decodedId).run().catch(() => {});
         await logAction(db, user, "student.delete", "student", decodedId, `Öğrenci ve ilişkili kayıtlar silindi`);
         return json({ ok: true });
       }
@@ -1586,19 +1590,43 @@ export async function onRequest(context) {
       return json({ success: true, contract: updated, is_signed: true, isSigned: true, kurumImzaAlindi: true });
     }
 
+    if (path === "/contracts/deleted-keys" && request.method === "GET") {
+      try {
+        const rows = await db.prepare("SELECT sozlesme_no, id, student_name FROM contracts WHERE is_deleted = 1").all();
+        const deletedKeys = [];
+        (rows.results || []).forEach(r => {
+          if (r.sozlesme_no) deletedKeys.push(r.sozlesme_no);
+          if (r.id) deletedKeys.push(r.id);
+          if (r.student_name) deletedKeys.push(r.student_name);
+        });
+        return json({ ok: true, deletedKeys });
+      } catch (e) {
+        return json({ ok: true, deletedKeys: [] });
+      }
+    }
+
     const contractDelMatch = path.match(/^\/contracts\/([^\/]+)$/);
     if (contractDelMatch && request.method === "DELETE") {
       const user = await getCurrentUser(request, db).catch(() => null);
-      const targetId = contractDelMatch[1];
+      const targetId = decodeURIComponent(contractDelMatch[1]);
+      const body = await request.json().catch(() => ({}));
+      const studentName = (body && body.student_name) || url.searchParams.get("student_name") || targetId;
       
       const row = await db.prepare("SELECT * FROM contracts WHERE (id = ? OR sozlesme_no = ?)").bind(targetId, targetId).first();
-      if (!row) return json({ detail: "Sözleşme bulunamadı" }, 404);
+      if (!row) {
+        // Record persistent tombstone so it stays deleted even across cookie clears
+        await db.prepare("INSERT OR REPLACE INTO contracts (id, sozlesme_no, student_id, student_name, is_deleted, created_at) VALUES (?, ?, ?, ?, 1, datetime('now'))")
+          .bind(`del-${targetId}`, targetId, `del-${targetId}`, studentName)
+          .run().catch(() => {});
+        await db.prepare("UPDATE student_incomes SET is_deleted = 1 WHERE sozlesme_no = ? OR student_name = ?")
+          .bind(targetId, studentName).run().catch(() => {});
+      } else {
+        await db.prepare("UPDATE contracts SET is_deleted = 1 WHERE id = ? OR sozlesme_no = ?").bind(targetId, targetId).run();
+        await db.prepare("UPDATE student_incomes SET is_deleted = 1 WHERE contract_id = ? OR sozlesme_no = ? OR student_name = ?").bind(row.id, row.sozlesme_no, studentName).run();
+      }
 
-      await db.prepare("UPDATE contracts SET is_deleted = 1 WHERE id = ? OR sozlesme_no = ?").bind(targetId, targetId).run();
-      await db.prepare("UPDATE student_incomes SET is_deleted = 1 WHERE contract_id = ? OR sozlesme_no = ?").bind(row.id, row.sozlesme_no).run();
-
-      await logAction(db, user, "contract.delete", "contract", row.id, `${row.sozlesme_no} silindi`);
-      return json({ ok: true, id: row.id, sozlesmeNo: row.sozlesme_no });
+      await logAction(db, user, "contract.delete", "contract", targetId, `${targetId} silindi`);
+      return json({ ok: true, id: targetId, sozlesmeNo: targetId });
     }
 
     const contractDetailMatch = path.match(/^\/contracts\/([^\/]+)$/);

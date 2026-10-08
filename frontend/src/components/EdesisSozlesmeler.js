@@ -57,6 +57,10 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
   const [contractsList, setContractsList] = useState(() => AccountingService.getContracts(students));
 
   useEffect(() => {
+    AccountingService.syncDeletedWithRemote().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setContractsList(AccountingService.getContracts(students));
   }, [students]);
 

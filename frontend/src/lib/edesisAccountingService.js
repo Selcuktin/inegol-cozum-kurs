@@ -52,6 +52,31 @@ export const AccountingService = {
     return readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
   },
 
+  // Remote sync for tombstoned/deleted contracts from D1 database
+  async syncDeletedWithRemote() {
+    if (typeof fetch === "undefined") return [];
+    try {
+      const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
+      const res = await fetch(`${apiUrl}/api/contracts/deleted-keys`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (data && Array.isArray(data.deletedKeys) && data.deletedKeys.length > 0) {
+        const localDeleted = this.getDeletedContracts();
+        const merged = Array.from(new Set([...localDeleted, ...data.deletedKeys]));
+        if (merged.length > localDeleted.length) {
+          writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, merged);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event("cozum_accounting_updated"));
+          }
+        }
+        return data.deletedKeys;
+      }
+    } catch (e) {
+      // quiet fail
+    }
+    return [];
+  },
+
   isContractDeleted(contractOrNo) {
     if (!contractOrNo) return false;
     const deleted = this.getDeletedContracts();
@@ -729,7 +754,12 @@ export const AccountingService = {
     const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
     const targetKey = szlNo || id;
 
-    // Fire API DELETE to D1 backend
+    const ogrenciId = typeof contractOrNo === "object" ? contractOrNo.ogrenciId : null;
+    const ogrenciNo = typeof contractOrNo === "object" ? (contractOrNo.ogrenciNo || contractOrNo.student_no) : null;
+    const studentName = typeof contractOrNo === "object" ? (contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.student_name) : null;
+    const musteriUnvan = typeof contractOrNo === "object" ? contractOrNo.musteriUnvan : null;
+
+    // Fire API DELETE to D1 backend with tombstone metadata
     if (typeof fetch !== "undefined" && targetKey) {
       try {
         const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
@@ -739,15 +769,15 @@ export const AccountingService = {
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
+          },
+          body: JSON.stringify({
+            student_name: studentName || musteriUnvan,
+            sozlesme_no: szlNo,
+            id: id
+          })
         }).catch((err) => console.warn("[AccountingService] API DELETE error:", err));
       } catch (e) {}
     }
-
-    const ogrenciId = typeof contractOrNo === "object" ? contractOrNo.ogrenciId : null;
-    const ogrenciNo = typeof contractOrNo === "object" ? (contractOrNo.ogrenciNo || contractOrNo.student_no) : null;
-    const studentName = typeof contractOrNo === "object" ? (contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.student_name) : null;
-    const musteriUnvan = typeof contractOrNo === "object" ? contractOrNo.musteriUnvan : null;
 
     // 1. Add to DELETED_CONTRACTS
     const deleted = this.getDeletedContracts();
@@ -927,5 +957,12 @@ export const AccountingService = {
     }
   }
 };
+
+if (typeof window !== "undefined") {
+  // Sync D1 deleted tombstones on startup to prevent resurrection across cookie wipes
+  setTimeout(() => {
+    AccountingService.syncDeletedWithRemote().catch(() => {});
+  }, 100);
+}
 
 export default AccountingService;
