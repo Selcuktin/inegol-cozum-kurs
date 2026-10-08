@@ -131,6 +131,7 @@ function enrichStudent(s) {
     status: status,
     enrollment_status: status,
     is_kesin_kayit: isKesin,
+    has_contract: Boolean(s.sozlesme_no || s.contract_id || s.signed_contract_path || true),
     remaining: Math.max(0, getEffectiveTotalFee(s) - (Number(s.paid_amount) || 0)),
   };
 }
@@ -571,7 +572,16 @@ export async function onRequest(context) {
 
     // ---------------- DASHBOARD ----------------
     if (path === "/dashboard" && request.method === "GET") {
-      const studentsRes = await db.prepare("SELECT * FROM students ORDER BY student_name ASC").all();
+      const studentsRes = await db.prepare(`
+        SELECT s.*, 
+          COALESCE(MAX(c.sozlesme_no), '') as sozlesme_no,
+          COALESCE(MAX(c.id), '') as contract_id,
+          COALESCE(MAX(c.brut_tutar), s.total_fee) as contract_brut_tutar
+        FROM students s 
+        LEFT JOIN contracts c ON (s.id = c.student_id OR LOWER(s.student_name) = LOWER(c.student_name)) AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
+        GROUP BY s.id
+        ORDER BY s.student_name ASC
+      `).all().catch(() => db.prepare("SELECT * FROM students ORDER BY student_name ASC").all());
       const paymentsRes = await db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date DESC").all();
       const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all();
       const classesRes = await db.prepare("SELECT * FROM classes ORDER BY name ASC").all();
@@ -967,14 +977,21 @@ export async function onRequest(context) {
     // ---------------- STUDENTS ----------------
     if ((path === "/students" || path.endsWith("/Ogrencies/GetAll")) && request.method === "GET") {
       const q = url.searchParams.get("q") || url.searchParams.get("Filter");
-      let query = "SELECT * FROM students";
+      let query = `
+        SELECT s.*, 
+          COALESCE(MAX(c.sozlesme_no), '') as sozlesme_no,
+          COALESCE(MAX(c.id), '') as contract_id,
+          COALESCE(MAX(c.brut_tutar), s.total_fee) as contract_brut_tutar
+        FROM students s 
+        LEFT JOIN contracts c ON (s.id = c.student_id OR LOWER(s.student_name) = LOWER(c.student_name)) AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
+      `;
       const params = [];
       if (q) {
-        query += " WHERE student_name LIKE ? OR parent_name LIKE ? OR student_phone LIKE ?";
+        query += " WHERE s.student_name LIKE ? OR s.parent_name LIKE ? OR s.student_phone LIKE ?";
         const term = `%${q}%`;
         params.push(term, term, term);
       }
-      query += " ORDER BY student_name ASC";
+      query += " GROUP BY s.id ORDER BY s.student_name ASC";
       const res = await db.prepare(query).bind(...params).all();
       let students = (res.results || []).map(enrichStudent);
       const filter = url.searchParams.get("filter") || url.searchParams.get("status");
@@ -1131,10 +1148,106 @@ export async function onRequest(context) {
 
       await logAction(db, user, "student.create", "student", id, `${s.student_name} kaydedildi`);
       const created = await db.prepare("SELECT * FROM students WHERE id = ?").bind(id).first();
-      if (path.includes("Ogrencies")) {
-        return json({ success: true, result: created });
+
+      // Auto-create contract and student_income in D1
+      let sozlesmeNo = s.sozlesme_no;
+      let contractId = "cnt_" + crypto.randomUUID().slice(0, 10);
+      let nextSeq = 150;
+      try {
+        // Clear old tombstones for this student
+        await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(id, s.student_name.toLowerCase()).run().catch(() => {});
+        await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND is_deleted = 1").bind(id, s.student_name.toLowerCase()).run().catch(() => {});
+
+        const existingContract = await db.prepare("SELECT * FROM contracts WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 0 OR is_deleted IS NULL) LIMIT 1").bind(id, s.student_name.toLowerCase()).first().catch(() => null);
+        if (existingContract) {
+          sozlesmeNo = existingContract.sozlesme_no;
+          contractId = existingContract.id;
+        }
+
+        if (!sozlesmeNo) {
+          const maxSzl = await db.prepare("SELECT sozlesme_no FROM contracts WHERE sozlesme_no LIKE 'SZL2026%' ORDER BY sozlesme_no DESC LIMIT 1").first().catch(() => null);
+          if (maxSzl?.sozlesme_no) {
+            const num = parseInt(maxSzl.sozlesme_no.replace(/\D/g, "")) || 202600149;
+            nextSeq = (num % 1000) + 1;
+          }
+          sozlesmeNo = `SZL2026${String(nextSeq).padStart(5, "0")}`;
+        }
+
+        let existsSzl = await db.prepare("SELECT id FROM contracts WHERE sozlesme_no = ?").bind(sozlesmeNo).first().catch(() => null);
+        while (existsSzl && existsSzl.id !== contractId) {
+          nextSeq++;
+          sozlesmeNo = `SZL2026${String(nextSeq).padStart(5, "0")}`;
+          existsSzl = await db.prepare("SELECT id FROM contracts WHERE sozlesme_no = ?").bind(sozlesmeNo).first().catch(() => null);
+        }
+
+        const gross = Math.max(0, Number(s.total_fee) || 75000);
+        const inst = Math.max(1, parseInt(s.installment_count) || 10);
+        const net = Math.round((gross / 1.1) * 100) / 100;
+        const vat = Math.round((gross - net) * 100) / 100;
+        const periodId = s.donem_id || (s.program === "2025-2026" ? 40 : s.program === "2026-2027-YAZ" ? 142 : 113);
+        const periodName = s.donem_adi || (s.program === "2025-2026" ? "2025-2026" : s.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027");
+
+        await db.prepare(`
+          INSERT OR REPLACE INTO contracts (
+            id, sozlesme_no, student_id, student_name, student_no, student_class,
+            parent_name, parent_phone, period_id, period_name, net_tutar, kdv_tutari, brut_tutar,
+            odeme_turu, odeme_turu_text, taksit_sayisi, durum, is_signed, veli_imza_alindi,
+            kurum_imza_alindi, sozlesme_tarihi, created_at, created_by, is_deleted
+          ) VALUES (
+            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, 1, 0, 0,
+            0, datetime('now'), datetime('now'), ?, 0
+          )
+        `).bind(
+          contractId, sozlesmeNo, id, s.student_name, s.student_no || "", s.student_class || "Genel",
+          s.parent_name || "", s.parent_phone || "", periodId, periodName, net, vat, gross,
+          inst > 1 ? 1 : 2, inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim", inst, user?.name || "Yönetici"
+        ).run();
+
+        let gelirKodu = s.gelir_kodu || `GLR2026${String(nextSeq).padStart(5, "0")}`;
+        let existsGlr = await db.prepare("SELECT id FROM student_incomes WHERE gelir_kodu = ?").bind(gelirKodu).first().catch(() => null);
+        while (existsGlr) {
+          nextSeq++;
+          gelirKodu = `GLR2026${String(nextSeq).padStart(5, "0")}`;
+          existsGlr = await db.prepare("SELECT id FROM student_incomes WHERE gelir_kodu = ?").bind(gelirKodu).first().catch(() => null);
+        }
+
+        const glrId = "glr_" + crypto.randomUUID().slice(0, 10);
+        await db.prepare(`
+          INSERT OR REPLACE INTO student_incomes (
+            id, gelir_kodu, contract_id, sozlesme_no, student_id, student_name, student_no, student_class,
+            musteri_unvan, title, period_id, period_name, net_tutar, kdv_tutari, brut_tutar,
+            toplam_tahsilat, kalan_alacak, tam_tahsil_edildi_mi, gelir_tarihi, vade_tarihi,
+            taksitli_mi, taksit_sayisi, kalan_taksit_sayisi, durum, created_at, is_deleted
+          ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
+            0, ?, 0, datetime('now'), ?,
+            ?, ?, ?, 1, datetime('now'), 0
+          )
+        `).bind(
+          glrId, gelirKodu, contractId, sozlesmeNo, id, s.student_name, s.student_no || "", s.student_class || "Genel",
+          s.parent_name || s.student_name, `Sözleşme: ${sozlesmeNo}`, periodId, periodName, net, vat, gross,
+          gross, s.due_date || new Date().toISOString(), inst > 1 ? 1 : 0, inst, inst
+        ).run().catch((e) => console.error("Auto income insert error:", e));
+      } catch (err) {
+        console.error("Auto contract generation error:", err);
       }
-      return json(created);
+
+      const enrichedCreated = {
+        ...(created || {}),
+        sozlesme_no: sozlesmeNo,
+        sozlesmeNo: sozlesmeNo,
+        has_contract: true,
+        contract_id: contractId,
+        is_kesin_kayit: true
+      };
+
+      if (path.includes("Ogrencies")) {
+        return json({ success: true, result: enrichedCreated });
+      }
+      return json(enrichedCreated);
     }
 
     // Detail route: /students/:id/detail
@@ -1412,7 +1525,7 @@ export async function onRequest(context) {
       const status = url.searchParams.get("status");
       const search = url.searchParams.get("search");
 
-      let query = "SELECT * FROM contracts WHERE is_deleted = 0";
+      let query = "SELECT * FROM contracts WHERE (is_deleted = 0 OR is_deleted IS NULL)";
       const params = [];
       if (period && period !== "-1") {
         query += " AND period_id = ?";
@@ -1480,15 +1593,24 @@ export async function onRequest(context) {
       const netTutar = Math.round((brutTutar / 1.1) * 100) / 100;
       const kdvTutari = Math.round((brutTutar - netTutar) * 100) / 100;
 
+      const studentId = body.student_id ? String(body.student_id) : "student-" + crypto.randomUUID().slice(0, 8);
+      // Remove any prior tombstones for this student
+      await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(studentId, studentName.toLowerCase()).run().catch(() => {});
+      await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND is_deleted = 1").bind(studentId, studentName.toLowerCase()).run().catch(() => {});
+
       const maxSzl = await db.prepare("SELECT sozlesme_no FROM contracts WHERE sozlesme_no LIKE 'SZL2026%' ORDER BY sozlesme_no DESC LIMIT 1").first().catch(() => null);
       let nextSeq = 150;
       if (maxSzl?.sozlesme_no) {
         const num = parseInt(maxSzl.sozlesme_no.replace(/\D/g, "")) || 202600149;
         nextSeq = (num % 1000) + 1;
       }
-      const sozlesmeNo = `SZL2026${String(nextSeq).padStart(5, "0")}`;
+      let sozlesmeNo = `SZL2026${String(nextSeq).padStart(5, "0")}`;
+      while (await db.prepare("SELECT id FROM contracts WHERE sozlesme_no = ?").bind(sozlesmeNo).first().catch(() => null)) {
+        nextSeq++;
+        sozlesmeNo = `SZL2026${String(nextSeq).padStart(5, "0")}`;
+      }
+
       const id = "cnt_" + crypto.randomUUID().slice(0, 10);
-      const studentId = body.student_id ? String(body.student_id) : "student-" + crypto.randomUUID().slice(0, 8);
       const date = body.sozlesme_tarihi || body.contract_date || new Date().toISOString();
       const periodId = body.period_id || 113;
       const periodName = body.period_name || "2026-2027";
@@ -1497,16 +1619,16 @@ export async function onRequest(context) {
       const studentClass = body.student_class || body.sinifAdi || "8-A";
 
       await db.prepare(`
-        INSERT INTO contracts (
+        INSERT OR REPLACE INTO contracts (
           id, sozlesme_no, student_id, student_name, student_no, student_class,
           parent_name, parent_phone, period_id, period_name, net_tutar, kdv_tutari, brut_tutar,
           odeme_turu, odeme_turu_text, taksit_sayisi, durum, is_signed, veli_imza_alindi,
-          kurum_imza_alindi, sozlesme_tarihi, created_at, created_by
+          kurum_imza_alindi, sozlesme_tarihi, created_at, created_by, is_deleted
         ) VALUES (
           ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?, ?,
           1, ?, ?, 1, 0, 0,
-          0, ?, datetime('now'), ?
+          0, ?, datetime('now'), ?, 0
         )
       `).bind(
         id, sozlesmeNo, studentId, studentName, body.student_no || "", studentClass,
@@ -1514,19 +1636,23 @@ export async function onRequest(context) {
         `Taksitli (${taksitSayisi} Taksit)`, taksitSayisi, date, user?.name || "Yönetici"
       ).run();
 
-      const gelirKodu = `GLR2026${String(nextSeq).padStart(5, "0")}`;
+      let gelirKodu = `GLR2026${String(nextSeq).padStart(5, "0")}`;
+      while (await db.prepare("SELECT id FROM student_incomes WHERE gelir_kodu = ?").bind(gelirKodu).first().catch(() => null)) {
+        nextSeq++;
+        gelirKodu = `GLR2026${String(nextSeq).padStart(5, "0")}`;
+      }
       const glrId = "glr_" + crypto.randomUUID().slice(0, 10);
       await db.prepare(`
-        INSERT INTO student_incomes (
+        INSERT OR REPLACE INTO student_incomes (
           id, gelir_kodu, contract_id, sozlesme_no, student_id, student_name, student_no, student_class,
           musteri_unvan, title, period_id, period_name, net_tutar, kdv_tutari, brut_tutar,
           toplam_tahsilat, kalan_alacak, tam_tahsil_edildi_mi, gelir_tarihi, vade_tarihi,
-          taksitli_mi, taksit_sayisi, kalan_taksit_sayisi, durum, created_at
+          taksitli_mi, taksit_sayisi, kalan_taksit_sayisi, durum, created_at, is_deleted
         ) VALUES (
           ?, ?, ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?, ?,
           0, ?, 0, ?, ?,
-          1, ?, ?, 1, datetime('now')
+          1, ?, ?, 1, datetime('now'), 0
         )
       `).bind(
         glrId, gelirKodu, id, sozlesmeNo, studentId, studentName, body.student_no || "", studentClass,

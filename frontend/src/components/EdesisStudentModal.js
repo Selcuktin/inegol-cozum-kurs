@@ -283,10 +283,17 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         const res = await axios.post(`${API}/students`, payload);
         saved = res.data;
       }
-      StudentService.saveStudent({ ...(saved || {}), ...payload });
+      const finalStudent = {
+        ...(saved || {}),
+        ...payload,
+        has_contract: true,
+        sozlesme_no: saved?.sozlesme_no || contractRes?.contract?.sozlesmeNo || payload.sozlesme_no || ""
+      };
+      AccountingService.unTombstone(finalStudent.student_name, finalStudent.sozlesme_no, finalStudent.id);
+      StudentService.saveStudent(finalStudent);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("cozum_accounting_updated"));
-        window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: payload } }));
+        window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: finalStudent } }));
       }
       if (onStudentAdded) onStudentAdded();
       stopCamera();

@@ -77,6 +77,36 @@ export const AccountingService = {
     return [];
   },
 
+  unTombstone(studentOrName, sozlesmeNo, id) {
+    const rawKeys = [];
+    if (typeof studentOrName === "object" && studentOrName) {
+      if (studentOrName.id) rawKeys.push(studentOrName.id);
+      if (studentOrName.student_name) rawKeys.push(studentOrName.student_name);
+      if (studentOrName.ogrenciAdi) rawKeys.push(studentOrName.ogrenciAdi);
+      if (studentOrName.ogrenciAdiSoyadi) rawKeys.push(studentOrName.ogrenciAdiSoyadi);
+      if (studentOrName.student_no) rawKeys.push(studentOrName.student_no);
+      if (studentOrName.student_tc) rawKeys.push(studentOrName.student_tc);
+      if (studentOrName.sozlesme_no) rawKeys.push(studentOrName.sozlesme_no);
+      if (studentOrName.sozlesmeNo) rawKeys.push(studentOrName.sozlesmeNo);
+    } else if (studentOrName) {
+      rawKeys.push(studentOrName);
+    }
+    if (sozlesmeNo) rawKeys.push(sozlesmeNo);
+    if (id) rawKeys.push(id);
+
+    const normKeys = new Set(rawKeys.filter(Boolean).map(trNorm));
+    if (normKeys.size === 0) return;
+
+    const delContracts = this.getDeletedContracts().filter(k => !normKeys.has(trNorm(k)));
+    writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, delContracts);
+
+    const delIncomes = this.getDeletedIncomes().filter(k => !normKeys.has(trNorm(k)));
+    writeStorage(STORAGE_KEYS.DELETED_INCOMES, delIncomes);
+
+    const delStudents = readStorage("cozum_deleted_students_v1", []).filter(k => !normKeys.has(trNorm(k)));
+    writeStorage("cozum_deleted_students_v1", delStudents);
+  },
+
   isContractDeleted(contractOrNo) {
     if (!contractOrNo) return false;
     const deleted = this.getDeletedContracts();
@@ -89,8 +119,10 @@ export const AccountingService = {
     if (szl && delSet.has(szl)) return true;
     const id = trNorm(contractOrNo.id);
     if (id && delSet.has(id)) return true;
-    const ogrenciId = trNorm(contractOrNo.ogrenciId);
+    if (id && delSet.has(trNorm(`szl-${id}`))) return true;
+    const ogrenciId = trNorm(contractOrNo.ogrenciId || contractOrNo.studentId || contractOrNo.student_id);
     if (ogrenciId && delSet.has(ogrenciId)) return true;
+    if (ogrenciId && delSet.has(trNorm(`szl-${ogrenciId}`))) return true;
     const ogrenciNo = trNorm(contractOrNo.ogrenciNo || contractOrNo.student_no);
     if (ogrenciNo && delSet.has(ogrenciNo)) return true;
     const name1 = trNorm(contractOrNo.ogrenciAdi);
@@ -99,8 +131,6 @@ export const AccountingService = {
     if (name2 && delSet.has(name2)) return true;
     const name3 = trNorm(contractOrNo.student_name);
     if (name3 && delSet.has(name3)) return true;
-    const name4 = trNorm(contractOrNo.musteriUnvan);
-    if (name4 && delSet.has(name4)) return true;
     return false;
   },
 
@@ -122,14 +152,15 @@ export const AccountingService = {
     if (szl && delSet.has(szl)) return true;
     const id = trNorm(incomeOrCode.id);
     if (id && delSet.has(id)) return true;
+    if (id && delSet.has(trNorm(`inc-${id}`))) return true;
+    const ogrenciId = trNorm(incomeOrCode.ogrenciId || incomeOrCode.studentId || incomeOrCode.student_id);
+    if (ogrenciId && delSet.has(ogrenciId)) return true;
     const name1 = trNorm(incomeOrCode.ogrenciAdi);
     if (name1 && delSet.has(name1)) return true;
     const name2 = trNorm(incomeOrCode.ogrenciAdiSoyadi);
     if (name2 && delSet.has(name2)) return true;
     const name3 = trNorm(incomeOrCode.student_name);
     if (name3 && delSet.has(name3)) return true;
-    const name4 = trNorm(incomeOrCode.musteriUnvan);
-    if (name4 && delSet.has(name4)) return true;
     return false;
   },
 
@@ -142,7 +173,7 @@ export const AccountingService = {
     const list = [...custom, ...base];
     const existingGlr = new Set(list.map(g => trNorm(g.gelirKodu)));
     const existingSzl = new Set(list.map(g => trNorm(g.sozlesmeNo)));
-    const existingNames = new Set(list.map(g => trNorm(g.ogrenciAdiSoyadi || g.musteriUnvan)));
+    const existingNames = new Set(list.map(g => trNorm(g.ogrenciAdiSoyadi || g.ogrenciAdi)));
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
@@ -155,12 +186,53 @@ export const AccountingService = {
       }
       const allStudentsToInspect = [...activeStudents, ...customStudents];
 
+      const existingStudentIds = new Set(list.map((g) => String(g.studentId || g.student_id || g.ogrenciId || "")).filter(Boolean));
+      let maxSeqGlr = 150;
+      list.forEach((g) => {
+        const m = (g.gelirKodu || "").match(/GLR2026(\d+)/);
+        if (m) {
+          const val = parseInt(m[1], 10);
+          if (val > maxSeqGlr) maxSeqGlr = val;
+        }
+      });
+
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
         if (this.isIncomeDeleted(cs) || this.isContractDeleted(cs)) return;
+
+        if (cs.id && existingStudentIds.has(String(cs.id))) return;
+        if (existingNames.has(sName)) return;
+        if (cs.sozlesme_no && existingSzl.has(trNorm(cs.sozlesme_no))) return;
+        if (cs.gelir_kodu && existingGlr.has(trNorm(cs.gelir_kodu))) return;
+
+        let cleanSzl = cs.sozlesme_no;
+        let cleanGlr = cs.gelir_kodu;
+        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this.isContractDeleted(cleanSzl)) {
+          maxSeqGlr++;
+          while (
+            existingSzl.has(trNorm(`SZL2026${String(maxSeqGlr).padStart(5, "0")}`)) ||
+            this.isContractDeleted(`SZL2026${String(maxSeqGlr).padStart(5, "0")}`) ||
+            existingGlr.has(trNorm(`GLR2026${String(maxSeqGlr).padStart(5, "0")}`)) ||
+            this.isIncomeDeleted(`GLR2026${String(maxSeqGlr).padStart(5, "0")}`)
+          ) {
+            maxSeqGlr++;
+          }
+          cleanSzl = `SZL2026${String(maxSeqGlr).padStart(5, "0")}`;
+          cleanGlr = `GLR2026${String(maxSeqGlr).padStart(5, "0")}`;
+        }
+        if (!cleanGlr) {
+          const numPart = cleanSzl.replace(/\D/g, "").slice(-5) || "00155";
+          cleanGlr = `GLR2026${numPart}`;
+        }
+        if (this.isContractDeleted(cleanSzl) || this.isIncomeDeleted(cleanGlr)) return;
+
+        existingNames.add(sName);
+        existingSzl.add(trNorm(cleanSzl));
+        existingGlr.add(trNorm(cleanGlr));
+        if (cs.id) existingStudentIds.add(String(cs.id));
 
         const fee = Number(cs.total_fee || 0);
         let extraSum = 0;
@@ -169,22 +241,7 @@ export const AccountingService = {
           extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
         } catch {}
         const disc = Number(cs.discount_amount || 0);
-        const gross = Math.max(0, fee + extraSum - disc);
-
-        if (gross <= 0 && !cs.has_contract && !cs.sozlesme_no) return;
-        if (existingNames.has(sName)) return;
-
-        const stableDigits = String(cs.student_no || cs.student_tc || cs.id || sName).replace(/\D/g, "");
-        const numPart = stableDigits ? stableDigits.padStart(5, "0").slice(-5) : "00155";
-        const cleanSzl = cs.sozlesme_no || `SZL2026${numPart}`;
-        if (existingSzl.has(trNorm(cleanSzl)) || this.isContractDeleted(cleanSzl)) return;
-
-        const cleanGlr = cs.gelir_kodu || `GLR2026${numPart}`;
-        if (existingGlr.has(trNorm(cleanGlr)) || this.isIncomeDeleted(cleanGlr)) return;
-
-        existingNames.add(sName);
-        existingSzl.add(trNorm(cleanSzl));
-        existingGlr.add(trNorm(cleanGlr));
+        const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
 
         const inst = Math.max(1, Number(cs.installment_count) || 8);
         const net = Math.round((gross / 1.1) * 100) / 100;
@@ -222,7 +279,7 @@ export const AccountingService = {
           kalanTaksitSayisi: inst,
           vadesiGectiMi: false,
           gecikmeGunSayisi: 0,
-          ogrenciAdiSoyadi: sName,
+          ogrenciAdiSoyadi: cs.student_name ? cs.student_name.trim() : sName,
           sinifAdi: cs.student_class || "Genel",
           gradeAdi: (cs.student_class || "").split("-")[0] || "Genel"
         });
@@ -264,8 +321,18 @@ export const AccountingService = {
         }
       }
       const allStudentsToInspect = [...activeStudents, ...customStudents];
-      const existingNames = new Set(list.map((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan)));
+      const existingNames = new Set(list.map((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi)));
       const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
+      const existingStudentIds = new Set(list.map((c) => String(c.studentId || c.student_id || c.ogrenciId || "")).filter(Boolean));
+
+      let maxSeqSzl = 150;
+      list.forEach((c) => {
+        const m = (c.sozlesmeNo || "").match(/SZL2026(\d+)/);
+        if (m) {
+          const val = parseInt(m[1], 10);
+          if (val > maxSeqSzl) maxSeqSzl = val;
+        }
+      });
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
@@ -274,6 +341,27 @@ export const AccountingService = {
         if (cs.contract_deleted) return;
         if (this.isContractDeleted(cs) || this.isIncomeDeleted(cs)) return;
 
+        if (cs.id && existingStudentIds.has(String(cs.id))) return;
+        if (existingNames.has(sName)) return;
+        if (cs.sozlesme_no && existingNos.has(trNorm(cs.sozlesme_no))) return;
+
+        let cleanNo = cs.sozlesme_no;
+        if (!cleanNo || existingNos.has(trNorm(cleanNo)) || this.isContractDeleted(cleanNo)) {
+          maxSeqSzl++;
+          while (
+            existingNos.has(trNorm(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`)) ||
+            this.isContractDeleted(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`)
+          ) {
+            maxSeqSzl++;
+          }
+          cleanNo = `SZL2026${String(maxSeqSzl).padStart(5, "0")}`;
+        }
+        if (this.isContractDeleted(cleanNo)) return;
+
+        existingNames.add(sName);
+        existingNos.add(trNorm(cleanNo));
+        if (cs.id) existingStudentIds.add(String(cs.id));
+
         const fee = Number(cs.total_fee || 0);
         let extraSum = 0;
         try {
@@ -281,35 +369,23 @@ export const AccountingService = {
           extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
         } catch {}
         const disc = Number(cs.discount_amount || 0);
-        const gross = Math.max(0, fee + extraSum - disc);
+        const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
 
-        if (gross <= 0 && !cs.has_contract && !cs.sozlesme_no) return;
-        if (existingNames.has(sName) || (cs.sozlesme_no && existingNos.has(trNorm(cs.sozlesme_no)))) {
-          return;
-        }
-
-        const stableDigits = String(cs.student_no || cs.student_tc || cs.id || sName).replace(/\D/g, "");
-        const numPart = stableDigits ? stableDigits.padStart(5, "0").slice(-5) : "00155";
-        const cleanNo = cs.sozlesme_no || `SZL2026${numPart}`;
-        if (this.isContractDeleted(cleanNo)) return;
-
-        existingNames.add(sName);
-        existingNos.add(trNorm(cleanNo));
-
-        const inst = Math.max(1, Number(cs.installment_count) || 8);
+        const inst = Math.max(1, Number(cs.installment_count) || 10);
         const net = Math.round((gross / 1.1) * 100) / 100;
         const vat = Math.round((gross - net) * 100) / 100;
-        const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : sName;
+        const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : (cs.student_name || sName);
         const rawDate = cs.created_at || new Date().toISOString();
         const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
 
         list.push({
-          id: cs.id || `szl-${cleanNo}`,
+          id: cs.id ? `szl-${cs.id}` : `szl-${cleanNo}`,
+          studentId: cs.id,
           sozlesmeNo: cleanNo,
           sozlesmeTarihi: dateStr,
           tarih: dateStr,
           musteriUnvan: parentName,
-          ogrenciAdi: sName,
+          ogrenciAdi: cs.student_name ? cs.student_name.trim().toLocaleUpperCase("tr-TR") : sName,
           ogrenciNo: cs.student_no || "",
           donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
           donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
@@ -352,8 +428,9 @@ export const AccountingService = {
     const base = edesisData.taksitler || [];
 
     const list = [...custom, ...base];
-    const existingNames = new Set(list.map(t => trNorm(t.ogrenciAdiSoyadi || t.musteriUnvan)));
+    const existingNames = new Set(list.map(t => trNorm(t.ogrenciAdiSoyadi || t.ogrenciAdi)));
     const existingSzl = new Set(list.map(t => trNorm(t.sozlesmeNo)));
+    const existingStudentIds = new Set(list.map((t) => String(t.studentId || t.student_id || t.ogrenciId || "")).filter(Boolean));
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
@@ -366,12 +443,48 @@ export const AccountingService = {
       }
       const allStudentsToInspect = [...activeStudents, ...customStudents];
 
+      let maxSeqInst = 150;
+      list.forEach((t) => {
+        const m = (t.sozlesmeNo || "").match(/SZL2026(\d+)/);
+        if (m) {
+          const val = parseInt(m[1], 10);
+          if (val > maxSeqInst) maxSeqInst = val;
+        }
+      });
+
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
         if (this.isContractDeleted(cs) || this.isIncomeDeleted(cs)) return;
+
+        if (cs.id && existingStudentIds.has(String(cs.id))) return;
+        if (existingNames.has(sName)) return;
+        if (cs.sozlesme_no && existingSzl.has(trNorm(cs.sozlesme_no))) return;
+
+        let cleanSzl = cs.sozlesme_no;
+        let cleanGlr = cs.gelir_kodu;
+        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this.isContractDeleted(cleanSzl)) {
+          maxSeqInst++;
+          while (
+            existingSzl.has(trNorm(`SZL2026${String(maxSeqInst).padStart(5, "0")}`)) ||
+            this.isContractDeleted(`SZL2026${String(maxSeqInst).padStart(5, "0")}`)
+          ) {
+            maxSeqInst++;
+          }
+          cleanSzl = `SZL2026${String(maxSeqInst).padStart(5, "0")}`;
+          cleanGlr = `GLR2026${String(maxSeqInst).padStart(5, "0")}`;
+        }
+        if (!cleanGlr) {
+          const numPart = cleanSzl.replace(/\D/g, "").slice(-5) || "00155";
+          cleanGlr = `GLR2026${numPart}`;
+        }
+        if (this.isContractDeleted(cleanSzl) || this.isIncomeDeleted(cleanGlr)) return;
+
+        existingNames.add(sName);
+        existingSzl.add(trNorm(cleanSzl));
+        if (cs.id) existingStudentIds.add(String(cs.id));
 
         const fee = Number(cs.total_fee || 0);
         let extraSum = 0;
@@ -380,23 +493,9 @@ export const AccountingService = {
           extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
         } catch {}
         const disc = Number(cs.discount_amount || 0);
-        const gross = Math.max(0, fee + extraSum - disc);
+        const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
 
-        if (gross <= 0 && !cs.has_contract && !cs.sozlesme_no) return;
-        if (existingNames.has(sName)) return;
-
-        const stableDigits = String(cs.student_no || cs.student_tc || cs.id || sName).replace(/\D/g, "");
-        const numPart = stableDigits ? stableDigits.padStart(5, "0").slice(-5) : "00155";
-        const cleanSzl = cs.sozlesme_no || `SZL2026${numPart}`;
-        if (existingSzl.has(trNorm(cleanSzl)) || this.isContractDeleted(cleanSzl)) return;
-
-        const cleanGlr = cs.gelir_kodu || `GLR2026${numPart}`;
-        if (this.isIncomeDeleted(cleanGlr)) return;
-
-        existingNames.add(sName);
-        existingSzl.add(trNorm(cleanSzl));
-
-        const inst = Math.max(1, Number(cs.installment_count) || 8);
+        const inst = Math.max(1, Number(cs.installment_count) || 10);
         const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : sName;
         const className = cs.student_class || "Genel";
 
@@ -415,7 +514,7 @@ export const AccountingService = {
             taksitNo: i,
             gelirKodu: cleanGlr,
             sozlesmeNo: cleanSzl,
-            ogrenciAdiSoyadi: sName,
+            ogrenciAdiSoyadi: cs.student_name ? cs.student_name.trim() : sName,
             musteriUnvan: parentName,
             sinifAdi: className,
             taksitTutari: instAmt,
@@ -512,8 +611,8 @@ export const AccountingService = {
       return max;
     }, 152);
 
-    const nextCode = `GLR2026${String(maxNum + 1).padStart(5, "0")}`;
-    const nextSzlCode = `SZL2026${String(maxNum + 1).padStart(5, "0")}`;
+    const nextCode = payload.gelirKodu || `GLR2026${String(maxNum + 1).padStart(5, "0")}`;
+    const nextSzlCode = payload.sozlesmeNo || `SZL2026${String(maxNum + 1).padStart(5, "0")}`;
 
     const gross = Number(payload.brutTutar) || 0;
     const vatRate = Number(payload.kdvOrani) || 10;
@@ -522,6 +621,7 @@ export const AccountingService = {
     const installments = Math.max(1, Number(payload.taksitSayisi) || 1);
 
     const stName = (payload.ogrenciAdi || "").trim().toUpperCase();
+    this.unTombstone(stName, nextSzlCode, nextCode);
     const parentName = (payload.veliAdi || stName).trim().toUpperCase();
     const className = payload.sinifAdi || "Genel";
     const category = payload.gelirKategoriAdi || "Öğrenci Sözleşmesi";

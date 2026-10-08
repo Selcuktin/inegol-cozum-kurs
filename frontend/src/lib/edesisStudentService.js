@@ -6,39 +6,8 @@ const contractsByNameMap = {
   get(name, remoteStudents = []) {
     if (!name) return [];
     const norm = trNorm(name);
-    const map = new Map();
-    const custom = readStorage("cozum_custom_contracts_v1", []);
-    const base = edesisAccountingData.sozlesmeler || [];
-    [...custom, ...base].forEach((c) => {
-      const n = trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan);
-      if (n) {
-        if (!map.has(n)) map.set(n, []);
-        map.get(n).push(c);
-      }
-    });
-
-    (remoteStudents || []).forEach((s) => {
-      if (!s) return;
-      const n = trNorm(s.student_name);
-      if (!n) return;
-      const fee = Number(s.total_fee || 0);
-      if ((fee > 0 || s.has_contract || s.sozlesme_no) && !map.has(n)) {
-        const cleanNo = s.sozlesme_no || `SZL2026${String(s.student_no || s.id || "001").replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
-        const rawDate = s.created_at || new Date().toISOString();
-        const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
-        map.set(n, [{
-          sozlesmeNo: cleanNo,
-          ogrenciAdi: n,
-          donemAdi: s.donem_adi || "2026-2027",
-          sozlesmeTarihi: dateStr,
-          durum: 1,
-          durumText: "Aktif",
-          brutTutar: fee
-        }]);
-      }
-    });
-
-    return map.get(norm) || [];
+    const all = AccountingService.getContracts(remoteStudents) || [];
+    return all.filter((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan) === norm);
   }
 };
 
@@ -225,9 +194,10 @@ export const StudentService = {
     };
 
     // Remove from deleted list if re-saving
+    AccountingService.unTombstone(normalized.student_name, normalized.sozlesme_no, id);
     const deleted = this.getDeletedStudentKeys();
-    const normName = normalized.student_name.toUpperCase();
-    const filteredDeleted = deleted.filter((k) => String(k).toUpperCase() !== String(id).toUpperCase() && String(k).toUpperCase() !== normName);
+    const normName = trNorm(normalized.student_name);
+    const filteredDeleted = deleted.filter((k) => trNorm(k) !== trNorm(id) && trNorm(k) !== normName);
     writeStorage(STORAGE_KEYS.DELETED_STUDENTS, filteredDeleted);
 
     const existingIdx = custom.findIndex((s) => s.id === id || s.student_name.trim().toUpperCase() === normName);

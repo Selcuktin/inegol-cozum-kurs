@@ -145,4 +145,36 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
     const sumAfter = after.filter(c => c.donemId === 113 && c.durum === 1).reduce((s, c) => s + (c.brutTutar || 0), 0);
     expect(sumAfter).toBe(sumBefore - 60000);
   });
+
+  test("re-adding a student with the same name un-tombstones and automatically creates an active contract", () => {
+    const deletedStudent = {
+      id: "stu-repeat-1",
+      student_name: "YENI TEKRAR OGRENCI",
+      total_fee: 55000,
+      donem_id: 113
+    };
+
+    // 1. Synthesize and delete
+    const contracts1 = AccountingService.getContracts([deletedStudent]);
+    const found1 = contracts1.find((c) => c.ogrenciAdi === "YENI TEKRAR OGRENCI");
+    expect(found1).toBeDefined();
+    AccountingService.deleteContract(found1);
+
+    expect(AccountingService.isContractDeleted(found1.sozlesmeNo)).toBe(true);
+
+    // 2. Re-add student with new contract
+    const incomeRes = AccountingService.addNewIncome({
+      ogrenciAdi: "YENI TEKRAR OGRENCI",
+      brutTutar: 55000,
+      taksitSayisi: 8
+    });
+    expect(incomeRes.contract).toBeDefined();
+    expect(incomeRes.contract.durumText).toBe("Aktif");
+
+    // 3. getContracts now includes the re-added student's contract
+    const contracts2 = AccountingService.getContracts([deletedStudent]);
+    const found2 = contracts2.find((c) => c.ogrenciAdi === "YENI TEKRAR OGRENCI");
+    expect(found2).toBeDefined();
+    expect(found2.durumText).toBe("Aktif");
+  });
 });

@@ -28,7 +28,7 @@ import {
   Plus
 } from "lucide-react";
 import { StudentService } from "../lib/edesisStudentService";
-import AccountingService from "../lib/edesisAccountingService";
+import AccountingService, { trNorm } from "../lib/edesisAccountingService";
 import { trIncludes } from "../lib/utils";
 
 export default function EdesisOgrenciListesi({
@@ -113,7 +113,7 @@ export default function EdesisOgrenciListesi({
   const contractsByStudentName = useMemo(() => {
     const map = new Map();
     (allContracts || []).forEach((c) => {
-      const name = (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase();
+      const name = trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "");
       if (name) {
         if (!map.has(name)) map.set(name, []);
         map.get(name).push(c);
@@ -124,10 +124,8 @@ export default function EdesisOgrenciListesi({
 
   const getStudentContracts = (student) => {
     if (!student) return [];
-    if (AccountingService.isContractDeleted(student.sozlesme_no) || AccountingService.isContractDeleted(student.student_name)) {
-      return [];
-    }
-    const normName = (student.student_name || "").trim().toUpperCase();
+    if (student.contract_deleted) return [];
+    const normName = trNorm(student.student_name || "");
     const direct = (contractsByStudentName.get(normName) || []).filter((c) => !AccountingService.isContractDeleted(c));
     if (direct.length > 0) return direct;
 
@@ -136,24 +134,45 @@ export default function EdesisOgrenciListesi({
       if (byNo.length > 0) return byNo;
     }
 
-    const hasFee = (Number(student.total_fee) || 0) > 0;
-    if ((hasFee || student.has_contract || student.sozlesme_no) && !AccountingService.isContractDeleted(student.sozlesme_no || normName)) {
-      const cleanNo = student.sozlesme_no || ("SZL2026" + String(student.student_no || student.id || "001").replace(/\D/g, "").padStart(5, "0").slice(-5));
-      if (AccountingService.isContractDeleted(cleanNo)) return [];
-      const rawDate = student.created_at || new Date().toISOString();
-      const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
-      return [{
-        sozlesmeNo: cleanNo,
-        donemAdi: student.donem_adi || "2026-2027",
-        sozlesmeTarihi: dateStr,
-        durum: 1,
-        durumText: "Aktif",
-        brutTutar: student.total_fee || 60000,
-        id: cleanNo
-      }];
+    if (student.id) {
+      const byId = allContracts.filter((c) => (String(c.studentId) === String(student.id) || String(c.id) === String(student.id)) && !AccountingService.isContractDeleted(c));
+      if (byId.length > 0) return byId;
     }
 
-    return [];
+    if (student.sozlesme_no) {
+      const bySzl = allContracts.filter((c) => c.sozlesmeNo === student.sozlesme_no && !AccountingService.isContractDeleted(c));
+      if (bySzl.length > 0) return bySzl;
+    }
+
+    const cleanNo = student.sozlesme_no || ("SZL2026" + String(student.student_no || student.id || "155").replace(/\D/g, "").padStart(5, "0").slice(-5));
+    if (AccountingService.isContractDeleted(cleanNo)) return [];
+    const rawDate = student.created_at || new Date().toISOString();
+    const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
+    const gross = Number(student.total_fee || 75000);
+    const inst = Math.max(1, Number(student.installment_count) || 10);
+    return [{
+      id: student.id ? `szl-${student.id}` : `szl-${cleanNo}`,
+      studentId: student.id,
+      sozlesmeNo: cleanNo,
+      ogrenciAdi: student.student_name,
+      ogrenciAdiSoyadi: student.student_name,
+      musteriUnvan: student.parent_name || student.student_name,
+      donemAdi: student.donem_adi || "2026-2027",
+      donemId: student.donem_id || 113,
+      sinifAdi: student.student_class || "Genel",
+      sozlesmeTarihi: dateStr,
+      tarih: dateStr,
+      durum: 1,
+      durumText: "Aktif",
+      brutTutar: gross,
+      netTutar: Math.round((gross / 1.1) * 100) / 100,
+      kdvTutari: Math.round((gross - (gross / 1.1)) * 100) / 100,
+      odemeTuru: inst > 1 ? 1 : 2,
+      odemeTuruText: inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim",
+      taksitSayisi: inst,
+      imzaDurumu: "İmzalandı",
+      isSigned: true
+    }];
   };
 
   // Pagination
@@ -949,8 +968,8 @@ export default function EdesisOgrenciListesi({
                       <td style={{ padding: "5px 2px", width: "64px", textAlign: "center", whiteSpace: "nowrap" }}>
                         {(() => {
                           const sContracts = getStudentContracts(s);
-                          const isDel = AccountingService.isContractDeleted(s.sozlesme_no) || AccountingService.isContractDeleted(s.student_name);
-                          const hasContract = !isDel && (sContracts.length > 0 || Boolean(s.has_contract && s.sozlesme_no));
+                          const isDel = Boolean(s.contract_deleted || (s.sozlesme_no && AccountingService.isContractDeleted(s.sozlesme_no)));
+                          const hasContract = !isDel && (sContracts.length > 0 || Boolean(s.has_contract || s.sozlesme_no));
                           return (
                             <span
                               onClick={(e) => {
@@ -990,8 +1009,8 @@ export default function EdesisOgrenciListesi({
                       <td style={{ padding: "5px 2px", width: "52px", textAlign: "center", whiteSpace: "nowrap" }}>
                         {(() => {
                           const sContracts = getStudentContracts(s);
-                          const isDel = AccountingService.isContractDeleted(s.sozlesme_no) || AccountingService.isContractDeleted(s.student_name);
-                          const hasContract = !isDel && (sContracts.length > 0 || Boolean(s.has_contract && s.sozlesme_no));
+                          const isDel = Boolean(s.contract_deleted || (s.sozlesme_no && AccountingService.isContractDeleted(s.sozlesme_no)));
+                          const hasContract = !isDel && (sContracts.length > 0 || Boolean(s.has_contract || s.sozlesme_no));
                           if (hasContract) {
                             return (
                               <span

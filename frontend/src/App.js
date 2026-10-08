@@ -4060,7 +4060,32 @@ function Modal({ type, selected, data, close, reload }) {
           photo,
         };
         EXTRA_KEYS.forEach(x => delete payload[`extra_${x.k}`]);
-        await axios.post(`${API}/students`, payload);
+        const res = await axios.post(`${API}/students`, payload);
+        const saved = res.data || {};
+        try {
+          const cRes = AccountingService.addNewIncome({
+            ogrenciAdi: payload.student_name,
+            veliAdi: payload.parent_name,
+            sinifAdi: payload.student_class || "Genel",
+            brutTutar: effective || payload.total_fee || 75000,
+            taksitSayisi: payload.installment_count || 1,
+            vadeTarihi: payload.due_date || new Date().toISOString().slice(0, 10),
+            aciklama: "Kayıt Sözleşmesi",
+            sozlesmeNo: saved.sozlesme_no || saved.sozlesmeNo
+          });
+          const finalSt = {
+            ...saved,
+            ...payload,
+            has_contract: true,
+            sozlesme_no: saved.sozlesme_no || cRes?.contract?.sozlesmeNo || ""
+          };
+          AccountingService.unTombstone(finalSt.student_name, finalSt.sozlesme_no, finalSt.id);
+          StudentService.saveStudent(finalSt);
+        } catch (accErr) {}
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("cozum_accounting_updated"));
+          window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: { ...saved, ...payload } } }));
+        }
       }
       if (type === "payment") {
         await axios.post(`${API}/payments`, {...form, student_id: form.student_id, amount: Number(form.amount)});
