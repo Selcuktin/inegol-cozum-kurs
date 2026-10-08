@@ -84,7 +84,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
       }
     });
     return map;
-  }, [contractsList, students]);
+  }, [students]);  // contractsList excluded: gelirMap only uses students, contractsList dep caused double recompute
   const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027 (Default 64 records), 40: 2025-2026, 142: 2026-2027-YAZ, -1: Tümü
   const [statusFilter, setStatusFilter] = useState("all"); // "all", "active", "draft", "canceled"
   const [customerFilter, setCustomerFilter] = useState("all");

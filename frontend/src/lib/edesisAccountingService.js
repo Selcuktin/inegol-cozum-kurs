@@ -52,6 +52,57 @@ export const AccountingService = {
     return readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
   },
 
+  // ponytail: build Sets once per synthesis call — avoids repeated localStorage reads inside forEach loops
+  _buildDelSets() {
+    const dc = readStorage(STORAGE_KEYS.DELETED_CONTRACTS, []);
+    const di = readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
+    return {
+      delContracts: new Set(dc.map(trNorm)),
+      delIncomes: new Set([...dc, ...di].map(trNorm))
+    };
+  },
+
+  _isContractDeletedFast(contractOrNo, delContracts) {
+    if (!contractOrNo || delContracts.size === 0) return false;
+    if (typeof contractOrNo === "string" || typeof contractOrNo === "number") {
+      return delContracts.has(trNorm(contractOrNo));
+    }
+    const szl = trNorm(contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no);
+    if (szl && delContracts.has(szl)) return true;
+    const id = trNorm(contractOrNo.id);
+    if (id && delContracts.has(id)) return true;
+    if (id && delContracts.has(trNorm(`szl-${id}`))) return true;
+    const oid = trNorm(contractOrNo.ogrenciId || contractOrNo.studentId || contractOrNo.student_id);
+    if (oid && delContracts.has(oid)) return true;
+    if (oid && delContracts.has(trNorm(`szl-${oid}`))) return true;
+    const on = trNorm(contractOrNo.ogrenciNo || contractOrNo.student_no);
+    if (on && delContracts.has(on)) return true;
+    const n1 = trNorm(contractOrNo.ogrenciAdi); if (n1 && delContracts.has(n1)) return true;
+    const n2 = trNorm(contractOrNo.ogrenciAdiSoyadi); if (n2 && delContracts.has(n2)) return true;
+    const n3 = trNorm(contractOrNo.student_name); if (n3 && delContracts.has(n3)) return true;
+    return false;
+  },
+
+  _isIncomeDeletedFast(incomeOrCode, delIncomes) {
+    if (!incomeOrCode || delIncomes.size === 0) return false;
+    if (typeof incomeOrCode === "string" || typeof incomeOrCode === "number") {
+      return delIncomes.has(trNorm(incomeOrCode));
+    }
+    const glr = trNorm(incomeOrCode.gelirKodu || incomeOrCode.gelir_kodu);
+    if (glr && delIncomes.has(glr)) return true;
+    const szl = trNorm(incomeOrCode.sozlesmeNo || incomeOrCode.sozlesme_no);
+    if (szl && delIncomes.has(szl)) return true;
+    const id = trNorm(incomeOrCode.id);
+    if (id && delIncomes.has(id)) return true;
+    if (id && delIncomes.has(trNorm(`inc-${id}`))) return true;
+    const oid = trNorm(incomeOrCode.ogrenciId || incomeOrCode.studentId || incomeOrCode.student_id);
+    if (oid && delIncomes.has(oid)) return true;
+    const n1 = trNorm(incomeOrCode.ogrenciAdi); if (n1 && delIncomes.has(n1)) return true;
+    const n2 = trNorm(incomeOrCode.ogrenciAdiSoyadi); if (n2 && delIncomes.has(n2)) return true;
+    const n3 = trNorm(incomeOrCode.student_name); if (n3 && delIncomes.has(n3)) return true;
+    return false;
+  },
+
   // Remote sync for tombstoned/deleted contracts from D1 database
   async syncDeletedWithRemote() {
     if (typeof fetch === "undefined") return [];
@@ -175,6 +226,9 @@ export const AccountingService = {
     const existingSzl = new Set(list.map(g => trNorm(g.sozlesmeNo)));
     const existingNames = new Set(list.map(g => trNorm(g.ogrenciAdiSoyadi || g.ogrenciAdi)));
 
+    // ponytail: read localStorage once, reuse Sets throughout
+    const { delContracts, delIncomes } = this._buildDelSets();
+
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
       let activeStudents = (remoteStudents && remoteStudents.length > 0) ? remoteStudents : [];
@@ -201,7 +255,7 @@ export const AccountingService = {
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
-        if (this.isIncomeDeleted(cs) || this.isContractDeleted(cs)) return;
+        if (this._isIncomeDeletedFast(cs, delIncomes) || this._isContractDeletedFast(cs, delContracts)) return;
 
         if (cs.id && existingStudentIds.has(String(cs.id))) return;
         if (existingNames.has(sName)) return;
@@ -210,13 +264,13 @@ export const AccountingService = {
 
         let cleanSzl = cs.sozlesme_no;
         let cleanGlr = cs.gelir_kodu;
-        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this.isContractDeleted(cleanSzl)) {
+        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this._isContractDeletedFast(cleanSzl, delContracts)) {
           maxSeqGlr++;
           while (
             existingSzl.has(trNorm(`SZL2026${String(maxSeqGlr).padStart(5, "0")}`)) ||
-            this.isContractDeleted(`SZL2026${String(maxSeqGlr).padStart(5, "0")}`) ||
+            this._isContractDeletedFast(`SZL2026${String(maxSeqGlr).padStart(5, "0")}`, delContracts) ||
             existingGlr.has(trNorm(`GLR2026${String(maxSeqGlr).padStart(5, "0")}`)) ||
-            this.isIncomeDeleted(`GLR2026${String(maxSeqGlr).padStart(5, "0")}`)
+            this._isIncomeDeletedFast(`GLR2026${String(maxSeqGlr).padStart(5, "0")}`, delIncomes)
           ) {
             maxSeqGlr++;
           }
@@ -227,7 +281,7 @@ export const AccountingService = {
           const numPart = cleanSzl.replace(/\D/g, "").slice(-5) || "00155";
           cleanGlr = `GLR2026${numPart}`;
         }
-        if (this.isContractDeleted(cleanSzl) || this.isIncomeDeleted(cleanGlr)) return;
+        if (this._isContractDeletedFast(cleanSzl, delContracts) || this._isIncomeDeletedFast(cleanGlr, delIncomes)) return;
 
         existingNames.add(sName);
         existingSzl.add(trNorm(cleanSzl));
@@ -288,7 +342,7 @@ export const AccountingService = {
       console.warn("Dynamic income error:", e);
     }
 
-    const merged = list.filter(g => !this.isIncomeDeleted(g));
+    const merged = list.filter(g => !this._isIncomeDeletedFast(g, delIncomes));
 
     return merged.map((g) => {
       const ov = overrides[g.gelirKodu];
@@ -325,6 +379,9 @@ export const AccountingService = {
       const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
       const existingStudentIds = new Set(list.map((c) => String(c.studentId || c.student_id || c.ogrenciId || "")).filter(Boolean));
 
+      // ponytail: read localStorage once for whole loop
+      const { delContracts: dc2, delIncomes: di2 } = this._buildDelSets();
+
       let maxSeqSzl = 150;
       list.forEach((c) => {
         const m = (c.sozlesmeNo || "").match(/SZL2026(\d+)/);
@@ -339,24 +396,24 @@ export const AccountingService = {
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
-        if (this.isContractDeleted(cs) || this.isIncomeDeleted(cs)) return;
+        if (this._isContractDeletedFast(cs, dc2) || this._isIncomeDeletedFast(cs, di2)) return;
 
         if (cs.id && existingStudentIds.has(String(cs.id))) return;
         if (existingNames.has(sName)) return;
         if (cs.sozlesme_no && existingNos.has(trNorm(cs.sozlesme_no))) return;
 
         let cleanNo = cs.sozlesme_no;
-        if (!cleanNo || existingNos.has(trNorm(cleanNo)) || this.isContractDeleted(cleanNo)) {
+        if (!cleanNo || existingNos.has(trNorm(cleanNo)) || this._isContractDeletedFast(cleanNo, dc2)) {
           maxSeqSzl++;
           while (
             existingNos.has(trNorm(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`)) ||
-            this.isContractDeleted(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`)
+            this._isContractDeletedFast(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`, dc2)
           ) {
             maxSeqSzl++;
           }
           cleanNo = `SZL2026${String(maxSeqSzl).padStart(5, "0")}`;
         }
-        if (this.isContractDeleted(cleanNo)) return;
+        if (this._isContractDeletedFast(cleanNo, dc2)) return;
 
         existingNames.add(sName);
         existingNos.add(trNorm(cleanNo));
@@ -409,7 +466,7 @@ export const AccountingService = {
     }
 
     // Filter out deleted contracts
-    const activeList = list.filter(c => !this.isContractDeleted(c));
+    const activeList = list.filter(c => !this._isContractDeletedFast(c, dc2));
 
     // Apply overrides (e.g. cancellations)
     return activeList.map(c => {
@@ -443,6 +500,9 @@ export const AccountingService = {
       }
       const allStudentsToInspect = [...activeStudents, ...customStudents];
 
+      // ponytail: read localStorage once for whole loop
+      const { delContracts: dc3, delIncomes: di3 } = this._buildDelSets();
+
       let maxSeqInst = 150;
       list.forEach((t) => {
         const m = (t.sozlesmeNo || "").match(/SZL2026(\d+)/);
@@ -457,7 +517,7 @@ export const AccountingService = {
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
-        if (this.isContractDeleted(cs) || this.isIncomeDeleted(cs)) return;
+        if (this._isContractDeletedFast(cs, dc3) || this._isIncomeDeletedFast(cs, di3)) return;
 
         if (cs.id && existingStudentIds.has(String(cs.id))) return;
         if (existingNames.has(sName)) return;
@@ -465,11 +525,11 @@ export const AccountingService = {
 
         let cleanSzl = cs.sozlesme_no;
         let cleanGlr = cs.gelir_kodu;
-        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this.isContractDeleted(cleanSzl)) {
+        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this._isContractDeletedFast(cleanSzl, dc3)) {
           maxSeqInst++;
           while (
             existingSzl.has(trNorm(`SZL2026${String(maxSeqInst).padStart(5, "0")}`)) ||
-            this.isContractDeleted(`SZL2026${String(maxSeqInst).padStart(5, "0")}`)
+            this._isContractDeletedFast(`SZL2026${String(maxSeqInst).padStart(5, "0")}`, dc3)
           ) {
             maxSeqInst++;
           }
@@ -480,7 +540,7 @@ export const AccountingService = {
           const numPart = cleanSzl.replace(/\D/g, "").slice(-5) || "00155";
           cleanGlr = `GLR2026${numPart}`;
         }
-        if (this.isContractDeleted(cleanSzl) || this.isIncomeDeleted(cleanGlr)) return;
+        if (this._isContractDeletedFast(cleanSzl, dc3) || this._isIncomeDeletedFast(cleanGlr, di3)) return;
 
         existingNames.add(sName);
         existingSzl.add(trNorm(cleanSzl));
@@ -534,7 +594,7 @@ export const AccountingService = {
       console.warn("Dynamic installments error:", e);
     }
 
-    const merged = list.filter(t => !this.isContractDeleted(t) && !this.isIncomeDeleted(t));
+    const merged = list.filter(t => !this._isContractDeletedFast(t, dc3) && !this._isIncomeDeletedFast(t, di3));
 
     return merged.map((t) => {
       const key = `${t.gelirKodu || t.sozlesmeNo}_${t.taksitNo}`;
