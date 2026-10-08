@@ -18,7 +18,6 @@ import {
   Ban,
   FileSpreadsheet,
   ExternalLink,
-  Receipt,
   Coins,
   Clock,
   ArrowLeft,
@@ -1920,28 +1919,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
                               >
                                 <Printer size={14} color="#059669" />
                                 Resmî Sözleşmeyi Yazdır (MEB)
-                              </div>
-
-                              <div
-                                onClick={() => {
-                                  showToast(`🧾 ${c.sozlesmeNo} için e-Fatura taslağı hazırlandı.`);
-                                  setOpenDropdownId(null);
-                                }}
-                                style={{
-                                  padding: "8px 14px",
-                                  fontSize: "12px",
-                                  fontWeight: 500,
-                                  color: "#1e293b",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "8px"
-                                }}
-                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
-                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                              >
-                                <Receipt size={14} color="#0284c7" />
-                                Faturalama Hazırlığı
                               </div>
 
                               <div
