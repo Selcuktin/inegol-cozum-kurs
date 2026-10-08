@@ -2,14 +2,6 @@ import initialStudentsData from "../data/edesisStudentsData.json";
 import edesisAccountingData from "../data/edesisAccountingData.json";
 import AccountingService, { trNorm } from "./edesisAccountingService";
 
-const contractsByNameMap = {
-  get(name, remoteStudents = []) {
-    if (!name) return [];
-    const norm = trNorm(name);
-    const all = AccountingService.getContracts(remoteStudents) || [];
-    return all.filter((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan) === norm);
-  }
-};
 
 const STORAGE_KEYS = {
   CUSTOM_STUDENTS: "cozum_custom_students_v1",
@@ -219,15 +211,37 @@ export const StudentService = {
     const custom = this.getCustomStudents();
     const map = new Map();
 
-    const isDel = (s) => this.isDeleted(s);
+    // ponytail: pre-build deleted student set once
+    const delKeys = this.getDeletedStudentKeys();
+    const delSet = new Set((delKeys || []).map(trNorm));
+    const isDel = (s) => {
+      if (!s || delSet.size === 0) return false;
+      if (typeof s === "string" || typeof s === "number") return delSet.has(trNorm(s));
+      if (s.id && delSet.has(trNorm(s.id))) return true;
+      if (s.student_no && delSet.has(trNorm(s.student_no))) return true;
+      if (s.student_tc && delSet.has(trNorm(s.student_tc))) return true;
+      const nm = trNorm(s.student_name || s.ogrenciAdi || s.ogrenciAdiSoyadi);
+      if (nm && delSet.has(nm)) return true;
+      return false;
+    };
+
+    // ponytail: synthesize contracts ONCE for the entire call instead of 250+ times in inner loops
+    const allContracts = AccountingService.getContracts(remoteStudents) || [];
+    const contractsByName = new Map();
+    allContracts.forEach((c) => {
+      const n = trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan);
+      if (n && !contractsByName.has(n)) contractsByName.set(n, c);
+      if (c.studentId && !contractsByName.has(String(c.studentId))) contractsByName.set(String(c.studentId), c);
+      if (c.id && !contractsByName.has(String(c.id))) contractsByName.set(String(c.id), c);
+      if (c.ogrenciNo && !contractsByName.has(String(c.ogrenciNo))) contractsByName.set(String(c.ogrenciNo), c);
+    });
 
     // 1. Add base students from edesisStudentsData.json
     base.forEach((s) => {
       if (s && (s.id || s.student_name) && !isDel(s)) {
         const idKey = s.id ? String(s.id) : "";
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
-        const cList = contractsByNameMap.get(nameKey) || [];
-        const matched = cList[0] || null;
+        const matched = contractsByName.get(trNorm(nameKey)) || (idKey ? contractsByName.get(idKey) : null) || null;
         const enriched = {
           ...s,
           has_contract: Boolean(s.has_contract || matched),
@@ -259,8 +273,7 @@ export const StudentService = {
         const parentRelation = existing?.parent_relation || s.parent_relation || (s.mother_name && s.parent_name && s.mother_name.trim().toUpperCase() === s.parent_name.trim().toUpperCase() ? "Anne" : (s.primary_parent === "anne" ? "Anne" : (s.primary_parent === "baba" ? "Baba" : "Veli")));
 
         const normName = (s.student_name || "").trim().toUpperCase();
-        const cList = contractsByNameMap.get(normName, remoteStudents) || [];
-        const matchedContract = cList[0] || null;
+        const matchedContract = contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || null;
         const hasContract = Boolean((existing && existing.has_contract) || s.has_contract || matchedContract || s.sozlesme_no);
 
         const merged = {
@@ -292,8 +305,7 @@ export const StudentService = {
         const existing = (idKey && map.get(idKey)) || (nameKey && map.get(nameKey)) || null;
 
         const normName = (s.student_name || "").trim().toUpperCase();
-        const cList = contractsByNameMap.get(normName) || [];
-        const matchedContract = cList[0] || null;
+        const matchedContract = contractsByName.get(trNorm(normName)) || (idKey ? contractsByName.get(idKey) : null) || null;
         const hasContract = Boolean((existing && existing.has_contract) || s.has_contract || matchedContract || s.sozlesme_no);
 
         const merged = {

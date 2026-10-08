@@ -52,14 +52,22 @@ export const AccountingService = {
     return readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
   },
 
-  // ponytail: build Sets once per synthesis call — avoids repeated localStorage reads inside forEach loops
+  _cachedDelSets: null,
+
+  clearDelSetsCache() {
+    this._cachedDelSets = null;
+  },
+
+  // ponytail: cached in-memory Set — 0ms lookups, zero localStorage reads on renders
   _buildDelSets() {
+    if (this._cachedDelSets) return this._cachedDelSets;
     const dc = readStorage(STORAGE_KEYS.DELETED_CONTRACTS, []);
     const di = readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
-    return {
+    this._cachedDelSets = {
       delContracts: new Set(dc.map(trNorm)),
       delIncomes: new Set([...dc, ...di].map(trNorm))
     };
+    return this._cachedDelSets;
   },
 
   _isContractDeletedFast(contractOrNo, delContracts) {
@@ -156,63 +164,17 @@ export const AccountingService = {
 
     const delStudents = readStorage("cozum_deleted_students_v1", []).filter(k => !normKeys.has(trNorm(k)));
     writeStorage("cozum_deleted_students_v1", delStudents);
+    this.clearDelSetsCache();
   },
 
   isContractDeleted(contractOrNo) {
     if (!contractOrNo) return false;
-    const deleted = this.getDeletedContracts();
-    if (!deleted || deleted.length === 0) return false;
-    const delSet = new Set(deleted.map(k => trNorm(k)));
-    if (typeof contractOrNo === "string" || typeof contractOrNo === "number") {
-      return delSet.has(trNorm(contractOrNo));
-    }
-    const szl = trNorm(contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no);
-    if (szl && delSet.has(szl)) return true;
-    const id = trNorm(contractOrNo.id);
-    if (id && delSet.has(id)) return true;
-    if (id && delSet.has(trNorm(`szl-${id}`))) return true;
-    const ogrenciId = trNorm(contractOrNo.ogrenciId || contractOrNo.studentId || contractOrNo.student_id);
-    if (ogrenciId && delSet.has(ogrenciId)) return true;
-    if (ogrenciId && delSet.has(trNorm(`szl-${ogrenciId}`))) return true;
-    const ogrenciNo = trNorm(contractOrNo.ogrenciNo || contractOrNo.student_no);
-    if (ogrenciNo && delSet.has(ogrenciNo)) return true;
-    const name1 = trNorm(contractOrNo.ogrenciAdi);
-    if (name1 && delSet.has(name1)) return true;
-    const name2 = trNorm(contractOrNo.ogrenciAdiSoyadi);
-    if (name2 && delSet.has(name2)) return true;
-    const name3 = trNorm(contractOrNo.student_name);
-    if (name3 && delSet.has(name3)) return true;
-    return false;
+    return this._isContractDeletedFast(contractOrNo, this._buildDelSets().delContracts);
   },
 
   isIncomeDeleted(incomeOrCode) {
     if (!incomeOrCode) return false;
-    const deletedIncomes = this.getDeletedIncomes();
-    const deletedContracts = this.getDeletedContracts();
-    if ((!deletedIncomes || deletedIncomes.length === 0) && (!deletedContracts || deletedContracts.length === 0)) return false;
-    const delSet = new Set([
-      ...deletedIncomes.map(k => trNorm(k)),
-      ...deletedContracts.map(k => trNorm(k))
-    ]);
-    if (typeof incomeOrCode === "string" || typeof incomeOrCode === "number") {
-      return delSet.has(trNorm(incomeOrCode));
-    }
-    const glr = trNorm(incomeOrCode.gelirKodu || incomeOrCode.gelir_kodu);
-    if (glr && delSet.has(glr)) return true;
-    const szl = trNorm(incomeOrCode.sozlesmeNo || incomeOrCode.sozlesme_no);
-    if (szl && delSet.has(szl)) return true;
-    const id = trNorm(incomeOrCode.id);
-    if (id && delSet.has(id)) return true;
-    if (id && delSet.has(trNorm(`inc-${id}`))) return true;
-    const ogrenciId = trNorm(incomeOrCode.ogrenciId || incomeOrCode.studentId || incomeOrCode.student_id);
-    if (ogrenciId && delSet.has(ogrenciId)) return true;
-    const name1 = trNorm(incomeOrCode.ogrenciAdi);
-    if (name1 && delSet.has(name1)) return true;
-    const name2 = trNorm(incomeOrCode.ogrenciAdiSoyadi);
-    if (name2 && delSet.has(name2)) return true;
-    const name3 = trNorm(incomeOrCode.student_name);
-    if (name3 && delSet.has(name3)) return true;
-    return false;
+    return this._isIncomeDeletedFast(incomeOrCode, this._buildDelSets().delIncomes);
   },
 
   // 1. Get all incomes (authentic base + custom additions + payment overrides applied - deleted)
@@ -954,6 +916,7 @@ export const AccountingService = {
     pushIf(studentName);
     pushIf(musteriUnvan);
     writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, newDeleted);
+    this.clearDelSetsCache();
 
     // 2. Remove from custom contracts storage
     const customContracts = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);

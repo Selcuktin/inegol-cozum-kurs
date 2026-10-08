@@ -110,38 +110,39 @@ export default function EdesisOgrenciListesi({
     }
   }, [contractsTick, students]);
 
-  const contractsByStudentName = useMemo(() => {
-    const map = new Map();
+  const contractLookup = useMemo(() => {
+    const byName = new Map();
+    const byId = new Map();
+    const byNo = new Map();
+    const bySzl = new Map();
     (allContracts || []).forEach((c) => {
       const name = trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "");
       if (name) {
-        if (!map.has(name)) map.set(name, []);
-        map.get(name).push(c);
+        if (!byName.has(name)) byName.set(name, []);
+        byName.get(name).push(c);
       }
+      if (c.studentId) byId.set(String(c.studentId), c);
+      if (c.id) byId.set(String(c.id), c);
+      if (c.ogrenciNo) byNo.set(String(c.ogrenciNo), c);
+      if (c.sozlesmeNo) bySzl.set(c.sozlesmeNo, c);
     });
-    return map;
+    return { byName, byId, byNo, bySzl };
   }, [allContracts]);
 
   const getStudentContracts = (student) => {
-    if (!student) return [];
-    if (student.contract_deleted) return [];
+    if (!student || student.contract_deleted) return [];
     const normName = trNorm(student.student_name || "");
-    const direct = (contractsByStudentName.get(normName) || []).filter((c) => !AccountingService.isContractDeleted(c));
-    if (direct.length > 0) return direct;
+    const direct = contractLookup.byName.get(normName);
+    if (direct && direct.length > 0) return direct;
 
-    if (student.student_no) {
-      const byNo = allContracts.filter((c) => String(c.ogrenciNo) === String(student.student_no) && !AccountingService.isContractDeleted(c));
-      if (byNo.length > 0) return byNo;
+    if (student.student_no && contractLookup.byNo.has(String(student.student_no))) {
+      return [contractLookup.byNo.get(String(student.student_no))];
     }
-
-    if (student.id) {
-      const byId = allContracts.filter((c) => (String(c.studentId) === String(student.id) || String(c.id) === String(student.id)) && !AccountingService.isContractDeleted(c));
-      if (byId.length > 0) return byId;
+    if (student.id && contractLookup.byId.has(String(student.id))) {
+      return [contractLookup.byId.get(String(student.id))];
     }
-
-    if (student.sozlesme_no) {
-      const bySzl = allContracts.filter((c) => c.sozlesmeNo === student.sozlesme_no && !AccountingService.isContractDeleted(c));
-      if (bySzl.length > 0) return bySzl;
+    if (student.sozlesme_no && contractLookup.bySzl.has(student.sozlesme_no)) {
+      return [contractLookup.bySzl.get(student.sozlesme_no)];
     }
 
     const cleanNo = student.sozlesme_no || ("SZL2026" + String(student.student_no || student.id || "155").replace(/\D/g, "").padStart(5, "0").slice(-5));
