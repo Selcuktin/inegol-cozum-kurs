@@ -21,6 +21,7 @@ import {
   Info,
   PenTool,
   Check,
+  Trash2,
   X
 } from "lucide-react";
 import studentsData from "../data/edesisStudentsData.json";
