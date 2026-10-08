@@ -104,41 +104,77 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
 
   // Modals & UI States
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const getTargetContractKey = () => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = sessionStorage.getItem("cozum_open_contract_no");
+        if (saved) return saved;
+        const hash = window.location.hash || "";
+        if (hash.includes("?id=")) {
+          const m = hash.match(/\?id=([^&]+)/);
+          if (m && m[1]) return decodeURIComponent(m[1]);
+        }
+        if (hash.includes("?sozlesme=")) {
+          const m = hash.match(/\?sozlesme=([^&]+)/);
+          if (m && m[1]) return decodeURIComponent(m[1]);
+        }
+      }
+    } catch {}
+    return null;
+  };
+
+  const findMatchingContract = (targetKey, list = []) => {
+    if (!targetKey || !Array.isArray(list) || list.length === 0) return null;
+    const norm = (s) => (s != null ? String(s) : "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
+    const normKey = norm(targetKey);
+    return list.find((c) => {
+      if (!c) return false;
+      if (c.sozlesmeNo && String(c.sozlesmeNo) === String(targetKey)) return true;
+      if (c.id != null && String(c.id) === String(targetKey)) return true;
+      if (c.studentId != null && String(c.studentId) === String(targetKey)) return true;
+      if (c.ogrenciNo != null && String(c.ogrenciNo) === String(targetKey)) return true;
+      if (norm(c.sozlesmeNo) === normKey) return true;
+      if (norm(c.id) === normKey) return true;
+      if (norm(c.ogrenciAdi) === normKey) return true;
+      if (norm(c.ogrenciAdiSoyadi) === normKey) return true;
+      if (norm(c.musteriUnvan) === normKey) return true;
+      return false;
+    }) || null;
+  };
+
   const [selectedContract, setSelectedContract] = useState(() => {
     try {
-      const targetNo = sessionStorage.getItem("cozum_open_contract_no");
-      if (targetNo) {
-        sessionStorage.removeItem("cozum_open_contract_no");
-        const all = AccountingService.getContracts();
-        const normTarget = String(targetNo).trim().toUpperCase();
-        const found = all.find((c) => 
-          c.sozlesmeNo === targetNo || 
-          c.id === targetNo ||
-          String(c.ogrenciAdi || "").trim().toUpperCase() === normTarget ||
-          String(c.musteriUnvan || "").trim().toUpperCase() === normTarget
-        );
-        if (found) return found;
+      const targetKey = getTargetContractKey();
+      if (targetKey) {
+        const all = AccountingService.getContracts(students);
+        return findMatchingContract(targetKey, all);
       }
     } catch {}
     return null;
   });
 
+  const handleSelectContract = (c) => {
+    setSelectedContract(c);
+    if (c) {
+      const key = c.sozlesmeNo || c.id;
+      try {
+        sessionStorage.setItem("cozum_open_contract_no", key);
+        window.location.hash = `documents?id=${encodeURIComponent(key)}`;
+      } catch {}
+    }
+  };
+
   useEffect(() => {
     try {
-      const targetNo = sessionStorage.getItem("cozum_open_contract_no");
-      if (targetNo) {
-        sessionStorage.removeItem("cozum_open_contract_no");
-        const normTarget = String(targetNo).trim().toUpperCase();
-        const found = contractsList.find((c) => 
-          c.sozlesmeNo === targetNo || 
-          c.id === targetNo ||
-          String(c.ogrenciAdi || "").trim().toUpperCase() === normTarget ||
-          String(c.musteriUnvan || "").trim().toUpperCase() === normTarget
-        );
-        if (found) setSelectedContract(found);
+      const targetKey = getTargetContractKey();
+      if (targetKey) {
+        const found = findMatchingContract(targetKey, contractsList);
+        if (found) {
+          setSelectedContract(found);
+        }
       }
     } catch {}
-  }, [contractsList]);
+  }, [contractsList, students]);
   const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(null);
   const [showMebPrintModal, setShowMebPrintModal] = useState(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -678,15 +714,32 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
     );
   };
 
+  const pendingTargetKey = !selectedContract ? getTargetContractKey() : null;
+  const isPendingContractFound = pendingTargetKey ? findMatchingContract(pendingTargetKey, contractsList) : null;
+  if (pendingTargetKey && !isPendingContractFound && (!students || students.length === 0)) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc" }}>
+        <div style={{ textAlign: "center", padding: "30px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+          <div style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b", marginBottom: "6px" }}>Sözleşme Detayı Yükleniyor...</div>
+          <div style={{ fontSize: "12px", color: "#64748b" }}>Lütfen bekleyiniz, sözleşme kayıtları senkronize ediliyor.</div>
+        </div>
+      </div>
+    );
+  }
+
   if (selectedContract) {
     return (
       <>
         <EdesisSozlesmeDetay
           contract={selectedContract}
+          students={students}
           onBack={() => {
             setSelectedContract(null);
             try {
               sessionStorage.removeItem("cozum_open_contract_no");
+              if (window.location.hash.includes("?id=")) {
+                window.location.hash = "documents";
+              }
               const prev = sessionStorage.getItem("cozum_contract_prev_page");
               if (prev) {
                 sessionStorage.removeItem("cozum_contract_prev_page");
@@ -1494,7 +1547,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
                             >
                               <div
                                 onClick={() => {
-                                  setSelectedContract(c);
+                                  handleSelectContract(c);
                                   setOpenDropdownId(null);
                                 }}
                                 style={{
@@ -1656,7 +1709,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
                       {/* 2. Sözleşme No (Link) */}
                       <td style={{ padding: "10px 14px" }}>
                         <span
-                          onClick={() => setSelectedContract(c)}
+                          onClick={() => handleSelectContract(c)}
                           style={{
                             color: "#2563eb",
                             fontWeight: 600,

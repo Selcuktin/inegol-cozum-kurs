@@ -576,9 +576,19 @@ function MainApp({ me, onLogout }) {
   const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
-      const hash = window.location.hash.replace(/^#/, "");
-      if (hash === "kasalar" || hash === "kasa") return "payments";
-      if (hash && validPages.includes(hash)) return hash;
+      const fullHash = window.location.hash.replace(/^#/, "");
+      const cleanHash = fullHash.split("?")[0].split("/")[0];
+      if (cleanHash === "kasalar" || cleanHash === "kasa") return "payments";
+      if (cleanHash === "documents") {
+        if (fullHash.includes("?id=")) {
+          const m = fullHash.match(/\?id=([^&]+)/);
+          if (m && m[1]) {
+            try { sessionStorage.setItem("cozum_open_contract_no", decodeURIComponent(m[1])); } catch {}
+          }
+        }
+        return "documents";
+      }
+      if (cleanHash && validPages.includes(cleanHash)) return cleanHash;
       const saved = localStorage.getItem("active_page");
       if (saved && validPages.includes(saved)) return saved;
     }
@@ -595,16 +605,26 @@ function MainApp({ me, onLogout }) {
 
   useEffect(() => {
     const onHashChange = () => {
-      const h = window.location.hash.replace(/^#/, "");
-      if (h === "kasalar" || h === "kasa") {
+      const fullHash = window.location.hash.replace(/^#/, "");
+      const cleanHash = fullHash.split("?")[0].split("/")[0];
+      if (cleanHash === "kasalar" || cleanHash === "kasa") {
         setPageState("payments");
         setAccountingTab("kasalar");
         localStorage.setItem("active_page", "payments");
-      } else if (h && validPages.includes(h)) {
-        setPageState(h);
-        localStorage.setItem("active_page", h);
-        if (h === "vade") setAccountingTab("gecikenler");
-        else if (h === "tahsilat") setAccountingTab("tahsilatlar");
+      } else if (cleanHash === "documents") {
+        if (fullHash.includes("?id=")) {
+          const m = fullHash.match(/\?id=([^&]+)/);
+          if (m && m[1]) {
+            try { sessionStorage.setItem("cozum_open_contract_no", decodeURIComponent(m[1])); } catch {}
+          }
+        }
+        setPageState("documents");
+        localStorage.setItem("active_page", "documents");
+      } else if (cleanHash && validPages.includes(cleanHash)) {
+        setPageState(cleanHash);
+        localStorage.setItem("active_page", cleanHash);
+        if (cleanHash === "vade") setAccountingTab("gecikenler");
+        else if (cleanHash === "tahsilat") setAccountingTab("tahsilatlar");
       }
     };
     window.addEventListener("hashchange", onHashChange);

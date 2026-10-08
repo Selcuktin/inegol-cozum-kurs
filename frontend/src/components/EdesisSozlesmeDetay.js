@@ -31,6 +31,7 @@ import { ReceiptModal } from "./ReceiptModal";
 
 export default function EdesisSozlesmeDetay({
   contract,
+  students = [],
   onBack,
   onOpenGelir,
   onOpenPrintMeb,
@@ -66,13 +67,19 @@ export default function EdesisSozlesmeDetay({
     if (!contract) return null;
     const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
     const name = norm(contract.ogrenciAdi || contract.musteriUnvan || "");
-    return studentsData.find((s) => norm(s.student_name) === name) || studentsData[0];
-  }, [contract]);
+    const allStudents = [...(Array.isArray(students) ? students : []), ...studentsData];
+    return allStudents.find((s) => {
+      if (!s) return false;
+      if (contract.studentId && s.id === contract.studentId) return true;
+      if (contract.ogrenciNo && s.student_no === contract.ogrenciNo) return true;
+      return norm(s.student_name) === name;
+    }) || allStudents[0] || null;
+  }, [contract, students]);
 
   // Find installments for this contract
   const installments = useMemo(() => {
     if (!contract) return [];
-    const allTaksitler = AccountingService.getInstallments() || [];
+    const allTaksitler = AccountingService.getInstallments(students) || [];
     const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
     const cSozlesme = (contract.sozlesmeNo || "").trim();
     const cStudent = norm(contract.ogrenciAdi || contract.musteriUnvan || "");
@@ -133,7 +140,7 @@ export default function EdesisSozlesmeDetay({
       durum: 0, // 0: Vadesi Gelmedi
       durumText: "Vadesi Gelmedi"
     }));
-  }, [contract]);
+  }, [contract, students]);
 
   const [localInstallments, setLocalInstallments] = useState(installments);
 
