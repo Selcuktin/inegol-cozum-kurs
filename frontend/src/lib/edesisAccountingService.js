@@ -51,11 +51,48 @@ export const AccountingService = {
     });
   },
 
-  // 2. Get all contracts (authentic base + custom additions)
+  // 2. Get all contracts (authentic base + custom additions + safety net for students with fees)
   getContracts() {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
     const base = edesisData.sozlesmeler || [];
-    return [...custom, ...base];
+    const list = [...custom, ...base];
+
+    try {
+      const customStudents = readStorage("cozum_custom_students_v1", []);
+      const existingNames = new Set(list.map((c) => (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase()));
+      customStudents.forEach((cs) => {
+        const sName = (cs.student_name || "").trim().toUpperCase();
+        if (sName && !existingNames.has(sName) && (Number(cs.total_fee) > 0 || cs.has_contract)) {
+          existingNames.add(sName);
+          const szl = cs.sozlesme_no || `SZL2026${String(cs.id || Date.now()).replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
+          const gross = Number(cs.total_fee) || 50000;
+          const net = Math.round((gross / 1.1) * 100) / 100;
+          const vat = Math.round((gross - net) * 100) / 100;
+          const inst = Number(cs.installment_count) || 8;
+          list.push({
+            id: Date.now() + Math.random(),
+            sozlesmeNo: szl,
+            tarih: cs.created_at || new Date().toISOString(),
+            musteriUnvan: cs.parent_name || sName,
+            ogrenciAdi: sName,
+            donemId: 113,
+            donemAdi: cs.donem_adi || "2026-2027",
+            sinifAdi: cs.student_class || "Genel",
+            netTutar: net,
+            kdvTutari: vat,
+            brutTutar: gross,
+            odemeTuru: inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim",
+            taksitSayisi: inst,
+            imzaDurumu: "İmzalandı",
+            durum: "Aktif"
+          });
+        }
+      });
+    } catch (e) {
+      console.warn("Dynamic contract error:", e);
+    }
+
+    return list;
   },
 
   // 3. Get all installments (authentic base + custom additions + payment overrides)

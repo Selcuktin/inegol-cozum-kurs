@@ -1,14 +1,23 @@
 import initialStudentsData from "../data/edesisStudentsData.json";
 import edesisAccountingData from "../data/edesisAccountingData.json";
 
-const contractsByNameMap = new Map();
-(edesisAccountingData.sozlesmeler || []).forEach((c) => {
-  const name = (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase();
-  if (name) {
-    if (!contractsByNameMap.has(name)) contractsByNameMap.set(name, []);
-    contractsByNameMap.get(name).push(c);
+const contractsByNameMap = {
+  get(name) {
+    if (!name) return [];
+    const norm = String(name).trim().toUpperCase();
+    const map = new Map();
+    const custom = readStorage("cozum_custom_contracts_v1", []);
+    const base = edesisAccountingData.sozlesmeler || [];
+    [...custom, ...base].forEach((c) => {
+      const n = (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase();
+      if (n) {
+        if (!map.has(n)) map.set(n, []);
+        map.get(n).push(c);
+      }
+    });
+    return map.get(norm) || [];
   }
-});
+};
 
 const STORAGE_KEYS = {
   CUSTOM_STUDENTS: "cozum_custom_students_v1",

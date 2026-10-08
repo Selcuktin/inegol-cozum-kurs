@@ -80,13 +80,25 @@ export default function EdesisOgrenciListesi({
   // Sözleşmeler modal state & helper
   const [contractsModalStudent, setContractsModalStudent] = useState(null);
 
+  const [contractsTick, setContractsTick] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => setContractsTick((t) => t + 1);
+    window.addEventListener("cozum_accounting_updated", handleUpdate);
+    window.addEventListener("cozum_students_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("cozum_accounting_updated", handleUpdate);
+      window.removeEventListener("cozum_students_updated", handleUpdate);
+    };
+  }, []);
+
   const allContracts = useMemo(() => {
     try {
       return AccountingService.getContracts();
     } catch {
       return [];
     }
-  }, []);
+  }, [contractsTick]);
 
   const contractsByStudentName = useMemo(() => {
     const map = new Map();
@@ -111,7 +123,7 @@ export default function EdesisOgrenciListesi({
       if (byNo.length > 0) return byNo;
     }
 
-    if (student.has_contract || student.sozlesme_no) {
+    if (student.has_contract || student.sozlesme_no || Number(student.total_fee) > 0) {
       const cleanNo = student.sozlesme_no || ("SZL2026" + String(student.student_no || student.id || "001").replace(/\D/g, "").padStart(5, "0").slice(-5));
       return [{
         sozlesmeNo: cleanNo,
@@ -918,7 +930,7 @@ export default function EdesisOgrenciListesi({
                       <td style={{ padding: "5px 2px", width: "52px", textAlign: "center", whiteSpace: "nowrap" }}>
                         {(() => {
                           const sContracts = getStudentContracts(s);
-                          const hasContract = Boolean(s.has_contract || sContracts.length > 0 || s.sozlesme_no);
+                          const hasContract = Boolean(s.has_contract || sContracts.length > 0 || s.sozlesme_no || Number(s.total_fee) > 0);
                           if (hasContract) {
                             return (
                               <span
