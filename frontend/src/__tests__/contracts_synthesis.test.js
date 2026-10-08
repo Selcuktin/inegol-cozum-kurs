@@ -180,7 +180,7 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
 
   test("persists contract across reloads even when another contract was deleted and respects remoteContracts", () => {
     // Contract A is deleted
-    AccountingService.deleteContract({ id: "szl-old-deleted", sozlesmeNo: "SZL202600150" });
+    AccountingService.deleteContract({ id: "szl-old-deleted", sozlesmeNo: "SZL202600999" });
 
     // New student B is created with contract
     const studentB = {
@@ -211,5 +211,48 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
     const synth = AccountingService.buildSyntheticContractForStudent(studentB);
     expect(synth.studentId).toBe("stu-b-123");
     expect(synth.sozlesmeNo).toBe("SZL202600154");
+  });
+
+  test("preserves Hatice Kübra Ünalan SZL202600150 contract and total count is exactly 121", () => {
+    const contracts = AccountingService.getContracts();
+    expect(contracts.length).toBe(121);
+
+    const hatice = contracts.find((c) => c.sozlesmeNo === "SZL202600150");
+    expect(hatice).toBeDefined();
+    expect(hatice.ogrenciAdi).toBe("HATİCE KÜBRA ÜNALAN");
+    expect(hatice.brutTutar).toBe(50000);
+    expect(hatice.durum).toBe(1);
+    expect(hatice.donemId).toBe(113);
+
+    const activeAmount = contracts
+      .filter((c) => c.durum === 1)
+      .reduce((sum, c) => sum + (Number(c.brutTutar) || 0), 0);
+    expect(Math.round(activeAmount * 100) / 100).toBe(5204810.48);
+  });
+
+  test("self-heals and restores Hatice if user localStorage previously tombstoned her", () => {
+    // Simulate user having accidentally tombstoned Hatice in previous session
+    localStorage.setItem("cozum_deleted_contracts_v1", JSON.stringify(["SZL202600150", "HATİCE KÜBRA ÜNALAN", "74514"]));
+    localStorage.setItem("cozum_deleted_students_v1", JSON.stringify(["HATİCE KÜBRA ÜNALAN", "8315150"]));
+    AccountingService.clearDelSetsCache();
+
+    const contracts = AccountingService.getContracts();
+    const hatice = contracts.find((c) => c.sozlesmeNo === "SZL202600150");
+    expect(hatice).toBeDefined();
+    expect(hatice.ogrenciAdi).toBe("HATİCE KÜBRA ÜNALAN");
+    expect(contracts.length).toBe(121);
+  });
+
+  test("skips synthesis for students who have has_contract: false even if they have total_fee", () => {
+    const studentWithNoContract = {
+      id: "no-contract-student",
+      student_name: "SOZLESMESIZ OGRENCI",
+      total_fee: 70000,
+      has_contract: false
+    };
+
+    const contracts = AccountingService.getContracts([studentWithNoContract]);
+    const found = contracts.find((c) => c.ogrenciAdi === "SOZLESMESIZ OGRENCI");
+    expect(found).toBeUndefined();
   });
 });

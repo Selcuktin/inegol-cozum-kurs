@@ -61,8 +61,21 @@ export const AccountingService = {
   // ponytail: cached in-memory Set — 0ms lookups, zero localStorage reads on renders
   _buildDelSets() {
     if (this._cachedDelSets) return this._cachedDelSets;
-    const dc = readStorage(STORAGE_KEYS.DELETED_CONTRACTS, []);
-    const di = readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
+    let dc = readStorage(STORAGE_KEYS.DELETED_CONTRACTS, []);
+    let di = readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
+
+    // Self-healing: protect authentic base contract for Hatice Kübra Ünalan
+    const protectedKeys = ["SZL202600150", "74514", "8315150", "HATİCE KÜBRA ÜNALAN"];
+    const normProtected = new Set(protectedKeys.map(trNorm));
+    if (dc.some((k) => normProtected.has(trNorm(k)))) {
+      dc = dc.filter((k) => !normProtected.has(trNorm(k)));
+      writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, dc);
+    }
+    const ds = readStorage("cozum_deleted_students_v1", []);
+    if (ds.some((k) => normProtected.has(trNorm(k)))) {
+      writeStorage("cozum_deleted_students_v1", ds.filter((k) => !normProtected.has(trNorm(k))));
+    }
+
     this._cachedDelSets = {
       delContracts: new Set(dc.map(trNorm)),
       delIncomes: new Set([...dc, ...di].map(trNorm))
@@ -86,8 +99,6 @@ export const AccountingService = {
     if (oid && delContracts.has(trNorm(`szl-${oid}`))) return true;
     const on = trNorm(contractOrNo.ogrenciNo || contractOrNo.student_no);
     if (on && delContracts.has(on)) return true;
-    const sName = trNorm(contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.student_name || contractOrNo.musteriUnvan);
-    if (sName && delContracts.has(sName)) return true;
     return false;
   },
 
@@ -214,6 +225,8 @@ export const AccountingService = {
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
+        if (cs.has_contract === false) return;
+        if (!cs.has_contract && !cs.sozlesme_no && Number(cs.total_fee || 0) <= 0) return;
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
@@ -435,6 +448,8 @@ export const AccountingService = {
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
+        if (cs.has_contract === false) return;
+        if (!cs.has_contract && !cs.sozlesme_no && Number(cs.total_fee || 0) <= 0) return;
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
@@ -517,6 +532,8 @@ export const AccountingService = {
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
+        if (cs.has_contract === false) return;
+        if (!cs.has_contract && !cs.sozlesme_no && Number(cs.total_fee || 0) <= 0) return;
         const sName = trNorm(cs.student_name);
         if (!sName) return;
         if (cs.contract_deleted) return;
@@ -979,10 +996,10 @@ export const AccountingService = {
     };
     pushIf(szlNo);
     pushIf(id);
+    if (id) pushIf(`szl-${id}`);
     pushIf(ogrenciId);
+    if (ogrenciId) pushIf(`szl-${ogrenciId}`);
     pushIf(ogrenciNo);
-    pushIf(studentName);
-    pushIf(musteriUnvan);
     writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, newDeleted);
     this.clearDelSetsCache();
 

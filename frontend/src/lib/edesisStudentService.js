@@ -34,11 +34,23 @@ export const StudentService = {
   },
 
   getCustomStudents() {
-    return readStorage(STORAGE_KEYS.CUSTOM_STUDENTS, []);
+    const list = readStorage(STORAGE_KEYS.CUSTOM_STUDENTS, []);
+    return list.filter((s) => {
+      const name = trNorm(s?.student_name);
+      if (name.startsWith("HATİCE KÜBRA ÜNALAN") && name !== "HATİCE KÜBRA ÜNALAN") return false;
+      return true;
+    });
   },
 
   getDeletedStudentKeys() {
-    return readStorage(STORAGE_KEYS.DELETED_STUDENTS, []);
+    let list = readStorage(STORAGE_KEYS.DELETED_STUDENTS, []);
+    const protectedKeys = ["8315150", "HATİCE KÜBRA ÜNALAN"];
+    const normProtected = new Set(protectedKeys.map(trNorm));
+    if (list.some((k) => normProtected.has(trNorm(k)))) {
+      list = list.filter((k) => !normProtected.has(trNorm(k)));
+      writeStorage(STORAGE_KEYS.DELETED_STUDENTS, list);
+    }
+    return list;
   },
 
   isDeleted(studentOrId) {
