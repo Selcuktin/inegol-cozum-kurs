@@ -778,6 +778,33 @@ export default function EdesisOgrenciListesi({
                                 Gelir Detayı (GLR)
                               </div>
 
+                              <div
+                                onClick={() => {
+                                  const sContracts = getStudentContracts(s);
+                                  const targetContract = sContracts[0] || (s.sozlesme_no ? { sozlesmeNo: s.sozlesme_no } : null);
+                                  const targetNo = targetContract?.sozlesmeNo || s.sozlesme_no || s.student_name;
+                                  if (targetNo) {
+                                    try {
+                                      sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                                    } catch {}
+                                  }
+                                  if (onOpenContract) {
+                                    onOpenContract(targetContract, s);
+                                  } else if (onNavigate) {
+                                    onNavigate("documents");
+                                  } else {
+                                    setContractsModalStudent(s);
+                                  }
+                                  setOpenDropdownId(null);
+                                }}
+                                style={{ padding: "7px 12px", fontSize: "12px", fontWeight: 500, color: "#1e293b", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                              >
+                                <FileText size={13} color="#0284c7" />
+                                Sözleşme Detayı
+                              </div>
+
                               <div style={{ height: "1px", background: "#f1f5f9", margin: "4px 0" }} />
 
                               <div
@@ -954,7 +981,22 @@ export default function EdesisOgrenciListesi({
                           if (hasContract) {
                             return (
                               <span
-                                onClick={() => setContractsModalStudent(s)}
+                                onClick={() => {
+                                  const targetContract = sContracts[0] || (s.sozlesme_no ? { sozlesmeNo: s.sozlesme_no } : null);
+                                  const targetNo = targetContract?.sozlesmeNo || s.sozlesme_no || s.student_name;
+                                  if (targetNo) {
+                                    try {
+                                      sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                                    } catch {}
+                                  }
+                                  if (onOpenContract) {
+                                    onOpenContract(targetContract, s);
+                                  } else if (onNavigate) {
+                                    onNavigate("documents");
+                                  } else {
+                                    setContractsModalStudent(s);
+                                  }
+                                }}
                                 style={{
                                   padding: "2px 5px",
                                   borderRadius: "4px",
@@ -966,7 +1008,7 @@ export default function EdesisOgrenciListesi({
                                   display: "inline-block",
                                   transition: "transform 0.1s ease, filter 0.1s ease"
                                 }}
-                                title="Sözleşmeleri Görüntüle"
+                                title="Sözleşmeyi Aç / Görüntüle"
                                 onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(0.93)"; }}
                                 onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
                               >

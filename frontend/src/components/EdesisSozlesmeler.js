@@ -110,7 +110,13 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
       if (targetNo) {
         sessionStorage.removeItem("cozum_open_contract_no");
         const all = AccountingService.getContracts();
-        const found = all.find((c) => c.sozlesmeNo === targetNo);
+        const normTarget = String(targetNo).trim().toUpperCase();
+        const found = all.find((c) => 
+          c.sozlesmeNo === targetNo || 
+          c.id === targetNo ||
+          String(c.ogrenciAdi || "").trim().toUpperCase() === normTarget ||
+          String(c.musteriUnvan || "").trim().toUpperCase() === normTarget
+        );
         if (found) return found;
       }
     } catch {}
@@ -122,7 +128,13 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
       const targetNo = sessionStorage.getItem("cozum_open_contract_no");
       if (targetNo) {
         sessionStorage.removeItem("cozum_open_contract_no");
-        const found = contractsList.find((c) => c.sozlesmeNo === targetNo);
+        const normTarget = String(targetNo).trim().toUpperCase();
+        const found = contractsList.find((c) => 
+          c.sozlesmeNo === targetNo || 
+          c.id === targetNo ||
+          String(c.ogrenciAdi || "").trim().toUpperCase() === normTarget ||
+          String(c.musteriUnvan || "").trim().toUpperCase() === normTarget
+        );
         if (found) setSelectedContract(found);
       }
     } catch {}

@@ -27,6 +27,7 @@ import studentsData from "../data/edesisStudentsData.json";
 import edesisAccountingData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
+import { ReceiptModal } from "./ReceiptModal";
 
 export default function EdesisSozlesmeDetay({
   contract,
@@ -45,6 +46,7 @@ export default function EdesisSozlesmeDetay({
   const [editDateModal, setEditDateModal] = useState(null);
   const [editAmountsModal, setEditAmountsModal] = useState(false);
   const [showPromissoryModal, setShowPromissoryModal] = useState(false);
+  const [receiptModalPayment, setReceiptModalPayment] = useState(null);
   const [isSignedState, setIsSignedState] = useState(() => !!(contract?.isSigned || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));
   const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || "Semih Seymen (Yönetici)");
 
@@ -633,6 +635,37 @@ export default function EdesisSozlesmeDetay({
                             >
                               <Check size={11} /> Ödendi
                             </span>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReceiptModalPayment({
+                                  id: `THS-${t.taksitNo}-${contract?.sozlesmeNo || Date.now()}`,
+                                  amount: Number(t.tahsilEdilen) || Number(t.taksitTutari) || 0,
+                                  payment_date: t.tahsilatTarihi || t.vadeTarihi || new Date().toISOString(),
+                                  method: t.odemeYontemi || "Nakit",
+                                  bank: t.banka || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
+                                  note: `${contract?.sozlesmeNo || ""} ${t.taksitNo}. Taksit Tahsilat Makbuzu`
+                                });
+                              }}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                padding: "3px 8px",
+                                background: "#f0fdf4",
+                                color: "#16a34a",
+                                border: "1px solid #bbf7d0",
+                                borderRadius: "12px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                transition: "all 0.15s"
+                              }}
+                              title="Tahsilat Makbuzunu Görüntüle ve Yazdır"
+                            >
+                              <Printer size={12} /> Makbuz
+                            </button>
 
                             <button
                               type="button"
@@ -1355,6 +1388,25 @@ export default function EdesisSozlesmeDetay({
             parent_name: student?.parent_name || contract?.musteriUnvan
           }}
           onClose={() => setShowPromissoryModal(false)}
+        />
+      )}
+
+      {/* 5. TAHSİLAT MAKBUZU YAZDIRMA MODAL */}
+      {receiptModalPayment && (
+        <ReceiptModal
+          payment={receiptModalPayment}
+          student={{
+            id: student?.id || contract?.ogrenciId || `stu-${contract?.sozlesmeNo}`,
+            student_name: student?.student_name || contract?.ogrenciAdi || contract?.musteriUnvan || "ÖĞRENCİ",
+            student_class: contract?.sinifAdi || student?.student_class || "Genel",
+            student_tc: student?.student_tc || contract?.ogrenciTc || "",
+            student_phone: student?.student_phone || contract?.ogrenciTelefon || "",
+            parent_name: contract?.musteriUnvan || student?.parent_name || contract?.ogrenciAdi || "VELİ",
+            parent_phone: student?.parent_phone || contract?.veliTelefon || "",
+            total_fee: brutTutar,
+            paid_amount: totalPaid
+          }}
+          onClose={() => setReceiptModalPayment(null)}
         />
       )}
     </div>
