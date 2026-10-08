@@ -91,12 +91,15 @@ export function purgeClientStorage(preserveAuth = true) {
   try {
     console.log("[App] Purging stale client cache across all devices, upgraded to:", CLIENT_STORAGE_VERSION);
 
-    // Preserve critical authentication & persistent tombstones
+    // Preserve critical authentication, persistent tombstones & user edits
     const token = localStorage.getItem("session_token");
     const customApi = localStorage.getItem("custom_api_url");
     const deletedContracts = localStorage.getItem("cozum_deleted_contracts_v1");
     const deletedIncomes = localStorage.getItem("cozum_deleted_incomes_v1");
     const deletedStudents = localStorage.getItem("cozum_deleted_students_v1");
+    const customStudents = localStorage.getItem("cozum_custom_students_v1");
+    const contractOverrides = localStorage.getItem("cozum_contract_overrides_v1");
+    const incomeOverrides = localStorage.getItem("cozum_income_overrides_v1");
 
     // Clear all localStorage
     localStorage.clear();
@@ -109,6 +112,9 @@ export function purgeClientStorage(preserveAuth = true) {
     if (deletedContracts) localStorage.setItem("cozum_deleted_contracts_v1", deletedContracts);
     if (deletedIncomes) localStorage.setItem("cozum_deleted_incomes_v1", deletedIncomes);
     if (deletedStudents) localStorage.setItem("cozum_deleted_students_v1", deletedStudents);
+    if (customStudents) localStorage.setItem("cozum_custom_students_v1", customStudents);
+    if (contractOverrides) localStorage.setItem("cozum_contract_overrides_v1", contractOverrides);
+    if (incomeOverrides) localStorage.setItem("cozum_income_overrides_v1", incomeOverrides);
 
     // Set current version tag
     localStorage.setItem("cozum_app_version", CLIENT_STORAGE_VERSION);

@@ -255,4 +255,38 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
     const found = contracts.find((c) => c.ogrenciAdi === "SOZLESMESIZ OGRENCI");
     expect(found).toBeUndefined();
   });
+
+  test("persists student and parent name edits across getAllStudents and getContracts without duplicates on reload", () => {
+    // 1. Pick a base student: Elif Erva Yeşilyaprak
+    const baseStudents = StudentService.getAllStudents();
+    const original = baseStudents.find((s) => s.student_name.includes("ELİF ERVA YEŞİLYAPRAK"));
+    expect(original).toBeDefined();
+
+    // 2. Edit student name and parent name
+    const editedStudent = {
+      ...original,
+      student_name: "ELİF ERVA YEŞİLYAPRAK GÜNCEL",
+      parent_name: "SENA YEŞİLYAPRAK GÜNCEL"
+    };
+    StudentService.saveStudent(editedStudent);
+
+    // 3. Simulate page reload (F5): calling getAllStudents() fresh
+    const afterReload = StudentService.getAllStudents();
+    const foundEdited = afterReload.find((s) => s.id === original.id);
+    expect(foundEdited).toBeDefined();
+    expect(foundEdited.student_name).toBe("ELİF ERVA YEŞİLYAPRAK GÜNCEL");
+    expect(foundEdited.parent_name).toBe("SENA YEŞİLYAPRAK GÜNCEL");
+
+    // The old name should NOT exist in the list (no duplicate)
+    const oldInstances = afterReload.filter((s) => s.student_name === "ELİF ERVA YEŞİLYAPRAK");
+    expect(oldInstances.length).toBe(0);
+
+    // 4. Contract should reflect updated names and not duplicate
+    const contracts = AccountingService.getContracts();
+    const matchedContract = contracts.find((c) => c.sozlesmeNo === original.sozlesme_no);
+    expect(matchedContract).toBeDefined();
+    expect(matchedContract.ogrenciAdi).toBe("ELİF ERVA YEŞİLYAPRAK GÜNCEL");
+    expect(matchedContract.musteriUnvan).toBe("SENA YEŞİLYAPRAK GÜNCEL");
+    expect(contracts.length).toBe(121); // exactly authentic 121
+  });
 });

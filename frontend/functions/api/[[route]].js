@@ -1413,8 +1413,32 @@ export async function onRequest(context) {
       if (request.method === "PATCH") {
         const user = await getCurrentUser(request, db);
         const patch = await request.json();
-        const existing = await db.prepare("SELECT id FROM students WHERE id = ?").bind(studentId).first();
+        const decodedId = decodeURIComponent(studentId);
+        let existing = await db.prepare("SELECT * FROM students WHERE id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).first();
+        if (!existing) {
+          const insertId = decodedId || `student-${Date.now().toString(36)}`;
+          await db.prepare(`
+            INSERT INTO students (id, student_name, student_phone, school, student_class, student_tc, student_address, parent_name, parent_phone, parent_tc, status, total_fee, installment_count, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          `).bind(
+            insertId,
+            patch.student_name || decodedId,
+            patch.student_phone || "",
+            patch.school || "",
+            patch.student_class || "Genel",
+            patch.student_tc || "",
+            patch.student_address || "",
+            patch.parent_name || "",
+            patch.parent_phone || "",
+            patch.parent_tc || "",
+            patch.status || "Kesin Kayıt",
+            Number(patch.total_fee || 0),
+            parseInt(patch.installment_count || 1)
+          ).run().catch(() => {});
+          existing = await db.prepare("SELECT * FROM students WHERE id = ?").bind(insertId).first();
+        }
         if (!existing) return json({ detail: "Öğrenci bulunamadı" }, 404);
+        const targetId = existing.id;
 
         const allowed = [
           "student_name", "student_phone", "school", "student_class", "student_tc", "student_address",
@@ -1439,13 +1463,13 @@ export async function onRequest(context) {
           }
         }
         if (updates.length > 0) {
-          values.push(studentId);
+          values.push(targetId);
           await db.prepare(`UPDATE students SET ${updates.join(", ")} WHERE id = ?`).bind(...values).run();
-          await logAction(db, user, "student.update", "student", studentId, `Öğrenci güncellendi`);
+          await logAction(db, user, "student.update", "student", targetId, `Öğrenci güncellendi`);
 
           // If total_fee or installment_count changed, sync active contract and income in D1
           if ("total_fee" in patch || "installment_count" in patch) {
-            const st = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
+            const st = await db.prepare("SELECT * FROM students WHERE id = ?").bind(targetId).first();
             if (st) {
               const effectiveFee = getEffectiveTotalFee(st);
               const inst = st.installment_count || 1;
@@ -1454,15 +1478,24 @@ export async function onRequest(context) {
               await db.prepare(`
                 UPDATE contracts SET brut_tutar = ?, net_tutar = ?, kdv_tutari = ?, taksit_sayisi = ?
                 WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 0 OR is_deleted IS NULL)
-              `).bind(effectiveFee, net, vat, inst, studentId, st.student_name).run().catch(() => {});
+              `).bind(effectiveFee, net, vat, inst, targetId, st.student_name).run().catch(() => {});
               await db.prepare(`
                 UPDATE student_incomes SET brut_tutar = ?, net_tutar = ?, kdv_tutari = ?, taksit_sayisi = ?, kalan_alacak = MAX(0, ? - toplam_tahsilat)
                 WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 0 OR is_deleted IS NULL)
-              `).bind(effectiveFee, net, vat, inst, effectiveFee, studentId, st.student_name).run().catch(() => {});
+              `).bind(effectiveFee, net, vat, inst, effectiveFee, targetId, st.student_name).run().catch(() => {});
             }
           }
+
+          // If student_name or parent_name changed, keep D1 contracts and incomes in sync
+          if (patch.student_name) {
+            await db.prepare(`UPDATE contracts SET ogrenci_adi = ?, student_name = ? WHERE student_id = ? OR LOWER(student_name) = LOWER(?)`).bind(patch.student_name, patch.student_name, targetId, existing.student_name || "").run().catch(() => {});
+            await db.prepare(`UPDATE student_incomes SET ogrenci_adi = ?, student_name = ? WHERE student_id = ? OR LOWER(student_name) = LOWER(?)`).bind(patch.student_name, patch.student_name, targetId, existing.student_name || "").run().catch(() => {});
+          }
+          if (patch.parent_name) {
+            await db.prepare(`UPDATE contracts SET musteri_unvan = ?, veli_adi = ? WHERE student_id = ? OR LOWER(student_name) = LOWER(?)`).bind(patch.parent_name, patch.parent_name, targetId, existing.student_name || "").run().catch(() => {});
+          }
         }
-        const updated = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
+        const updated = await db.prepare("SELECT * FROM students WHERE id = ?").bind(targetId).first();
         if (updated) {
           updated.remaining = Math.max(0, getEffectiveTotalFee(updated) - (Number(updated.paid_amount) || 0));
         }

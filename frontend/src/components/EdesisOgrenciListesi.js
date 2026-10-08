@@ -317,44 +317,35 @@ export default function EdesisOgrenciListesi({
     e.preventDefault();
     if (!editingStudent) return;
 
-    let updatedObj = null;
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === editingStudent.id) {
-          updatedObj = {
-            ...s,
-            student_class: editFormData.sube,
-            department: editFormData.bolum,
-            school: editFormData.okul,
-            student_no: editFormData.numara,
-            student_tc: editFormData.tc,
-            birth_date: editFormData.dogumTarihi,
-            gender: editFormData.cinsiyet,
-            status: editFormData.kayitDurumu,
-            din_muaf: editFormData.dinMuaf ? 1 : 0,
-            ing_muaf: editFormData.ingMuaf ? 1 : 0,
-            student_phone: editFormData.studentPhone,
-            student_email: editFormData.studentEmail,
-            parent_name: editFormData.parentName,
-            parent_relation: editFormData.parentRelation,
-            parent_phone: editFormData.parentPhone,
-            parent_tc: editFormData.parentTc,
-            secondary_parent_name: editFormData.secondaryParentName,
-            secondary_parent_relation: editFormData.secondaryParentRelation,
-            secondary_parent_phone: editFormData.secondaryParentPhone,
-            address: editFormData.address
-          };
-          return updatedObj;
-        }
-        return s;
-      })
-    );
+    const newStudentName = editFormData.studentName ? editFormData.studentName.trim() : (editingStudent.student_name || "");
+    const updatedObj = {
+      ...editingStudent,
+      student_name: newStudentName,
+      student_class: editFormData.sube !== undefined ? editFormData.sube : editingStudent.student_class,
+      department: editFormData.bolum !== undefined ? editFormData.bolum : editingStudent.department,
+      school: editFormData.okul !== undefined ? editFormData.okul : editingStudent.school,
+      student_no: editFormData.numara !== undefined ? editFormData.numara : editingStudent.student_no,
+      student_tc: editFormData.tc !== undefined ? editFormData.tc : editingStudent.student_tc,
+      birth_date: editFormData.dogumTarihi !== undefined ? editFormData.dogumTarihi : editingStudent.birth_date,
+      gender: editFormData.cinsiyet !== undefined ? editFormData.cinsiyet : editingStudent.gender,
+      status: editFormData.kayitDurumu !== undefined ? editFormData.kayitDurumu : editingStudent.status,
+      din_muaf: editFormData.dinMuaf ? 1 : 0,
+      ing_muaf: editFormData.ingMuaf ? 1 : 0,
+      student_phone: editFormData.studentPhone !== undefined ? editFormData.studentPhone : editingStudent.student_phone,
+      student_email: editFormData.studentEmail !== undefined ? editFormData.studentEmail : editingStudent.student_email,
+      parent_name: editFormData.parentName !== undefined ? editFormData.parentName.trim() : editingStudent.parent_name,
+      parent_relation: editFormData.parentRelation !== undefined ? editFormData.parentRelation : editingStudent.parent_relation,
+      parent_phone: editFormData.parentPhone !== undefined ? editFormData.parentPhone : editingStudent.parent_phone,
+      parent_tc: editFormData.parentTc !== undefined ? editFormData.parentTc : editingStudent.parent_tc,
+      secondary_parent_name: editFormData.secondaryParentName !== undefined ? editFormData.secondaryParentName : editingStudent.secondary_parent_name,
+      secondary_parent_relation: editFormData.secondaryParentRelation !== undefined ? editFormData.secondaryParentRelation : editingStudent.secondary_parent_relation,
+      secondary_parent_phone: editFormData.secondaryParentPhone !== undefined ? editFormData.secondaryParentPhone : editingStudent.secondary_parent_phone,
+      address: editFormData.address !== undefined ? editFormData.address : editingStudent.address
+    };
 
-    if (updatedObj) {
-      StudentService.saveStudent(updatedObj);
-    }
-
-    showToast(`✅ ${editingStudent.student_name} bilgileri güncellendi.`);
+    StudentService.saveStudent(updatedObj);
+    setStudents(StudentService.getAllStudents(propStudents));
+    showToast(`✅ ${newStudentName} bilgileri güncellendi.`);
     setEditingStudent(null);
   };
 
@@ -1177,6 +1168,17 @@ export default function EdesisOgrenciListesi({
             <form onSubmit={handleSaveEdit} style={{ padding: "20px" }}>
               {editActiveTab === "ogrenci" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {/* Ad Soyad */}
+                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
+                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>AD SOYAD*</label>
+                    <input
+                      required
+                      value={editFormData.studentName || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, studentName: e.target.value })}
+                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                    />
+                  </div>
+
                   {/* Dönem */}
                   <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
                     <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>DÖNEM*</label>

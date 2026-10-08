@@ -34,12 +34,7 @@ export const StudentService = {
   },
 
   getCustomStudents() {
-    const list = readStorage(STORAGE_KEYS.CUSTOM_STUDENTS, []);
-    return list.filter((s) => {
-      const name = trNorm(s?.student_name);
-      if (name.startsWith("HATİCE KÜBRA ÜNALAN") && name !== "HATİCE KÜBRA ÜNALAN") return false;
-      return true;
-    });
+    return readStorage(STORAGE_KEYS.CUSTOM_STUDENTS, []);
   },
 
   getDeletedStudentKeys() {
@@ -204,16 +199,57 @@ export const StudentService = {
     const filteredDeleted = deleted.filter((k) => trNorm(k) !== trNorm(id) && trNorm(k) !== normName);
     writeStorage(STORAGE_KEYS.DELETED_STUDENTS, filteredDeleted);
 
-    const existingIdx = custom.findIndex((s) => s.id === id || s.student_name.trim().toUpperCase() === normName);
+    const existingIdx = custom.findIndex((s) => String(s.id) === String(id) || (s.student_name && trNorm(s.student_name) === normName));
     if (existingIdx >= 0) {
       custom[existingIdx] = { ...custom[existingIdx], ...normalized };
     } else {
       custom.unshift(normalized);
     }
-
     writeStorage(STORAGE_KEYS.CUSTOM_STUDENTS, custom);
+
+    // If student has an associated contract, keep contract names in sync
+    if (normalized.sozlesme_no || normalized.id) {
+      AccountingService.updateContract(normalized.sozlesme_no || normalized.id, {
+        studentId: id,
+        ogrenciAdi: normalized.student_name,
+        musteriUnvan: normalized.parent_name
+      });
+    }
+
+    // Remote sync with Cloudflare D1
+    if (typeof fetch !== "undefined" && id) {
+      try {
+        const baseUrl = (typeof window !== "undefined" && window.__API_BASE__) || "/api";
+        const token = (typeof localStorage !== "undefined" && localStorage.getItem("session_token")) || "";
+        fetch(`${baseUrl}/students/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            student_name: normalized.student_name,
+            parent_name: normalized.parent_name,
+            student_class: normalized.student_class,
+            student_no: normalized.student_no,
+            student_tc: normalized.student_tc,
+            student_phone: normalized.student_phone,
+            student_email: normalized.student_email,
+            parent_phone: normalized.parent_phone,
+            parent_relation: normalized.parent_relation,
+            gender: normalized.gender,
+            status: normalized.status,
+            birth_date: normalized.birth_date,
+            school: normalized.school,
+            department: normalized.department
+          })
+        }).catch((e) => console.warn("[StudentService] Remote PATCH error:", e));
+      } catch (e) {}
+    }
+
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: normalized }));
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
     return normalized;
   },
@@ -350,7 +386,15 @@ export const StudentService = {
         const nameKey = s.student_name ? String(s.student_name).trim().toUpperCase() : "";
         const donemId = String(s.donem_id || "113");
         const periodKey = nameKey ? `${nameKey}__${donemId}` : idKey;
-        const existing = (periodKey && studentRecords.get(periodKey)) || (idKey && idMap.get(idKey)) || null;
+        const existing = (idKey && idMap.get(idKey)) || (periodKey && studentRecords.get(periodKey)) || null;
+
+        // If student name changed from existing base/remote record, clean up old keys
+        if (existing && existing.student_name && trNorm(existing.student_name) !== trNorm(nameKey)) {
+          const oldKey1 = `${existing.student_name.trim().toUpperCase()}__${String(existing.donem_id || donemId)}`;
+          const oldKey2 = `${trNorm(existing.student_name)}__${String(existing.donem_id || donemId)}`;
+          studentRecords.delete(oldKey1);
+          studentRecords.delete(oldKey2);
+        }
 
         const normName = (s.student_name || "").trim().toUpperCase();
         const isContractDel = Boolean(s.contract_deleted || existing?.contract_deleted || AccountingService.isContractDeleted(s));
@@ -375,7 +419,13 @@ export const StudentService = {
       }
     });
 
-    const all = Array.from(studentRecords.values()).filter((s) => !isDel(s));
+    // Deduplicate by student ID so edited students never duplicate
+    const dedupedById = new Map();
+    studentRecords.forEach((st) => {
+      const key = st.id ? String(st.id) : `${trNorm(st.student_name)}__${st.donem_id || "113"}`;
+      dedupedById.set(key, st);
+    });
+    const all = Array.from(dedupedById.values()).filter((s) => !isDel(s));
     all.sort((a, b) => {
       const isNewA = String(a.id || "").startsWith("student-") || (a.created_at && a.created_at >= "2026-10-01");
       const isNewB = String(b.id || "").startsWith("student-") || (b.created_at && b.created_at >= "2026-10-01");

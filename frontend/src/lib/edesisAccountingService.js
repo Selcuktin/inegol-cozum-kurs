@@ -421,7 +421,16 @@ export const AccountingService = {
     const { delContracts, delIncomes } = this._buildDelSets();
 
     // Critical: Filter deleted contracts FIRST so dead tombstones don't block synthesis for active students
-    const activeList = list.filter(c => !this._isContractDeletedFast(c, delContracts));
+    let activeList = list.filter(c => !this._isContractDeletedFast(c, delContracts));
+
+    // Apply overrides FIRST so edited student/parent names are reflected before synthesis
+    activeList = activeList.map(c => {
+      const ov = (c.sozlesmeNo && overrides[c.sozlesmeNo]) || (c.id && overrides[c.id]) || (c.studentId && overrides[c.studentId]) || (c.ogrenciId && overrides[c.ogrenciId]);
+      if (ov) {
+        return { ...c, ...ov };
+      }
+      return c;
+    });
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
@@ -487,14 +496,7 @@ export const AccountingService = {
       console.warn("Dynamic contract error:", e);
     }
 
-    // Apply overrides (e.g. cancellations)
-    return activeList.map(c => {
-      const ov = (c.sozlesmeNo && overrides[c.sozlesmeNo]) || (c.id && overrides[c.id]);
-      if (ov) {
-        return { ...c, ...ov };
-      }
-      return c;
-    });
+    return activeList;
   },
 
   // 3. Get all installments (authentic base + custom additions + remote D1 synthesis - deleted + payment overrides)
@@ -1210,7 +1212,9 @@ export const AccountingService = {
           return {
             ...st,
             total_fee: patchData.brutTutar != null ? patchData.brutTutar : st.total_fee,
-            installment_count: patchData.taksitSayisi != null ? patchData.taksitSayisi : st.installment_count
+            installment_count: patchData.taksitSayisi != null ? patchData.taksitSayisi : st.installment_count,
+            student_name: patchData.ogrenciAdi ? patchData.ogrenciAdi.trim() : st.student_name,
+            parent_name: patchData.musteriUnvan ? patchData.musteriUnvan.trim() : st.parent_name
           };
         }
         return st;
