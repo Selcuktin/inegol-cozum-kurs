@@ -1,15 +1,16 @@
 import initialStudentsData from "../data/edesisStudentsData.json";
 import edesisAccountingData from "../data/edesisAccountingData.json";
+import AccountingService, { trNorm } from "./edesisAccountingService";
 
 const contractsByNameMap = {
   get(name, remoteStudents = []) {
     if (!name) return [];
-    const norm = String(name).trim().toUpperCase();
+    const norm = trNorm(name);
     const map = new Map();
     const custom = readStorage("cozum_custom_contracts_v1", []);
     const base = edesisAccountingData.sozlesmeler || [];
     [...custom, ...base].forEach((c) => {
-      const n = (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase();
+      const n = trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan);
       if (n) {
         if (!map.has(n)) map.set(n, []);
         map.get(n).push(c);
@@ -18,16 +19,18 @@ const contractsByNameMap = {
 
     (remoteStudents || []).forEach((s) => {
       if (!s) return;
-      const n = (s.student_name || "").trim().toUpperCase();
+      const n = trNorm(s.student_name);
       if (!n) return;
       const fee = Number(s.total_fee || 0);
       if ((fee > 0 || s.has_contract || s.sozlesme_no) && !map.has(n)) {
         const cleanNo = s.sozlesme_no || `SZL2026${String(s.student_no || s.id || "001").replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
+        const rawDate = s.created_at || new Date().toISOString();
+        const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
         map.set(n, [{
           sozlesmeNo: cleanNo,
           ogrenciAdi: n,
           donemAdi: s.donem_adi || "2026-2027",
-          sozlesmeTarihi: s.created_at || new Date().toISOString(),
+          sozlesmeTarihi: dateStr,
           durum: 1,
           durumText: "Aktif",
           brutTutar: fee
@@ -81,22 +84,22 @@ export const StudentService = {
     if (!studentOrId) return false;
     const deletedKeys = this.getDeletedStudentKeys();
     if (!deletedKeys || deletedKeys.length === 0) return false;
-    const deletedSet = new Set(deletedKeys.map((k) => String(k).trim().toUpperCase()));
+    const deletedSet = new Set(deletedKeys.map((k) => trNorm(k)));
 
-    if (typeof studentOrId === "string") {
-      return deletedSet.has(studentOrId.trim().toUpperCase());
+    if (typeof studentOrId === "string" || typeof studentOrId === "number") {
+      return deletedSet.has(trNorm(studentOrId));
     }
 
-    if (studentOrId.id && deletedSet.has(String(studentOrId.id).trim().toUpperCase())) {
+    if (studentOrId.id && deletedSet.has(trNorm(studentOrId.id))) {
       return true;
     }
-    if (studentOrId.student_name && deletedSet.has(String(studentOrId.student_name).trim().toUpperCase())) {
+    if (studentOrId.student_name && deletedSet.has(trNorm(studentOrId.student_name))) {
       return true;
     }
-    if (studentOrId.student_tc && deletedSet.has(String(studentOrId.student_tc).trim().toUpperCase())) {
+    if (studentOrId.student_tc && deletedSet.has(trNorm(studentOrId.student_tc))) {
       return true;
     }
-    if (studentOrId.student_no && deletedSet.has(String(studentOrId.student_no).trim().toUpperCase())) {
+    if (studentOrId.student_no && deletedSet.has(trNorm(studentOrId.student_no))) {
       return true;
     }
     return false;
@@ -106,14 +109,14 @@ export const StudentService = {
     if (!Array.isArray(students)) return [];
     const deletedKeys = this.getDeletedStudentKeys();
     if (!deletedKeys || deletedKeys.length === 0) return students;
-    const deletedSet = new Set(deletedKeys.map((k) => String(k).trim().toUpperCase()));
+    const deletedSet = new Set(deletedKeys.map((k) => trNorm(k)));
 
     return students.filter((s) => {
       if (!s) return false;
-      if (s.id && deletedSet.has(String(s.id).trim().toUpperCase())) return false;
-      if (s.student_name && deletedSet.has(String(s.student_name).trim().toUpperCase())) return false;
-      if (s.student_tc && deletedSet.has(String(s.student_tc).trim().toUpperCase())) return false;
-      if (s.student_no && deletedSet.has(String(s.student_no).trim().toUpperCase())) return false;
+      if (s.id && deletedSet.has(trNorm(s.id))) return false;
+      if (s.student_name && deletedSet.has(trNorm(s.student_name))) return false;
+      if (s.student_tc && deletedSet.has(trNorm(s.student_tc))) return false;
+      if (s.student_no && deletedSet.has(trNorm(s.student_no))) return false;
       return true;
     });
   },
@@ -122,12 +125,15 @@ export const StudentService = {
     if (!studentOrId) return false;
     const id = typeof studentOrId === "object" ? studentOrId.id : studentOrId;
     const name = typeof studentOrId === "object" ? studentOrId.student_name : "";
+    const tc = typeof studentOrId === "object" ? studentOrId.student_tc : "";
+    const no = typeof studentOrId === "object" ? studentOrId.student_no : "";
+    const szlNo = typeof studentOrId === "object" ? studentOrId.sozlesme_no : "";
 
     // 1. Remove from local custom students storage
     const custom = this.getCustomStudents();
     const updatedCustom = custom.filter((s) => {
-      if (id && String(s.id).toUpperCase() === String(id).toUpperCase()) return false;
-      if (name && s.student_name && s.student_name.trim().toUpperCase() === name.trim().toUpperCase()) return false;
+      if (id && trNorm(s.id) === trNorm(id)) return false;
+      if (name && s.student_name && trNorm(s.student_name) === trNorm(name)) return false;
       return true;
     });
     writeStorage(STORAGE_KEYS.CUSTOM_STUDENTS, updatedCustom);
@@ -135,14 +141,33 @@ export const StudentService = {
     // 2. Add to deleted keys storage (persists through F5)
     const deleted = this.getDeletedStudentKeys();
     const newKeys = [...deleted];
-    if (id && !newKeys.includes(String(id))) newKeys.push(String(id));
-    if (name) {
-      const normName = name.trim().toUpperCase();
-      if (!newKeys.includes(normName)) newKeys.push(normName);
-    }
+    const pushKey = (v) => {
+      if (!v) return;
+      const n = trNorm(v);
+      if (n && !newKeys.map(trNorm).includes(n)) newKeys.push(n);
+    };
+    pushKey(id);
+    pushKey(name);
+    pushKey(tc);
+    pushKey(no);
     writeStorage(STORAGE_KEYS.DELETED_STUDENTS, newKeys);
 
-    // 3. Call remote backend API to delete from Cloudflare D1
+    // 3. Purge associated contract, incomes, and installments in AccountingService
+    try {
+      AccountingService.deleteContract({
+        id,
+        ogrenciId: id,
+        ogrenciAdi: name,
+        ogrenciAdiSoyadi: name,
+        student_name: name,
+        ogrenciNo: no,
+        sozlesmeNo: szlNo
+      });
+    } catch (accErr) {
+      console.warn("[StudentService] Accounting purge error on student delete:", accErr);
+    }
+
+    // 4. Call remote backend API to delete from Cloudflare D1
     const targetId = id || name;
     if (targetId) {
       const baseUrl = apiBaseUrl || (typeof window !== "undefined" && window.__API_BASE__) || "/api";
@@ -156,7 +181,7 @@ export const StudentService = {
       }
     }
 
-    // 4. Dispatch update event so open views refresh immediately
+    // 5. Dispatch update event so open views refresh immediately
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "delete", id, name } }));
     }

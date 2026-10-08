@@ -26,6 +26,7 @@ import {
 import studentsData from "../data/edesisStudentsData.json";
 import edesisAccountingData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
+import { PromissoryNoteModal } from "./PromissoryNoteModal";
 
 export default function EdesisSozlesmeDetay({
   contract,
@@ -43,10 +44,19 @@ export default function EdesisSozlesmeDetay({
   const [cancelModal, setCancelModal] = useState(null);
   const [editDateModal, setEditDateModal] = useState(null);
   const [editAmountsModal, setEditAmountsModal] = useState(false);
+  const [showPromissoryModal, setShowPromissoryModal] = useState(false);
+  const [isSignedState, setIsSignedState] = useState(() => !!(contract?.isSigned || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));
+  const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || "Semih Seymen (Yönetici)");
 
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const handleSignContract = () => {
+    AccountingService.signContract(contract.id || contract.sozlesmeNo, "kurum", signedByName);
+    setIsSignedState(true);
+    showToast("✅ Sözleşme Kurum Yetkilisi tarafından imzalandı / onaylandı.");
   };
 
   // Find corresponding student in data
@@ -827,14 +837,14 @@ export default function EdesisSozlesmeDetay({
                   fontWeight: 700
                 }}
               >
-                {student?.parent_relation || "Anne"}
+                {student?.parent_relation || "Veli"}
               </span>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", color: "#475569" }}>
-              <div>TC: {student?.parent_tc || "55264671398"}</div>
-              <div>Tel: {student?.parent_phone || "(534) 332 17 81"}</div>
-              <div style={{ color: "#2563eb" }}>{student?.parent_email || "seyhan5343321781@edesis.com"}</div>
+              <div>TC: {student?.parent_tc || "—"}</div>
+              <div>Tel: {student?.parent_phone || "—"}</div>
+              <div style={{ color: "#2563eb" }}>{student?.parent_email || "—"}</div>
             </div>
           </div>
 
@@ -858,21 +868,21 @@ export default function EdesisSozlesmeDetay({
             </div>
 
             <div style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a", marginBottom: "4px" }}>
-              {contract?.ogrenciAdi || contract?.musteriUnvan || "EGEMEN KUŞTUL"}
+              {contract?.ogrenciAdi || contract?.musteriUnvan || student?.student_name || "—"}
             </div>
             <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
-              Müşteri Kodu: {contract?.muH_MusteriKodu || "CRI202600108"}
+              Müşteri Kodu: {contract?.muH_MusteriKodu || `CRI2026${String(contract?.sozlesmeNo || "100").slice(-4)}`}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", color: "#475569" }}>
-              <div>TC KİMLİK NO: {student?.student_tc || "18481666516"}</div>
-              <div>TELEFON: {student?.student_phone || "5343321781"}</div>
-              <div>E-POSTA: {student?.student_email || "egemen@edesis.com"}</div>
-              <div>ADRES: {student?.address || "İnegöl, Bursa"}</div>
+              <div>TC KİMLİK NO: {student?.student_tc || "—"}</div>
+              <div>TELEFON: {student?.student_phone || "—"}</div>
+              <div>E-POSTA: {student?.student_email || "—"}</div>
+              <div>ADRES: {student?.address || student?.student_address || "İnegöl / BURSA"}</div>
             </div>
           </div>
 
-          {/* CARD: BELGELER */}
+          {/* CARD: BELGELER (Dinamik Senetler & Yazdırma) */}
           <div
             style={{
               background: "#fff",
@@ -887,21 +897,53 @@ export default function EdesisSozlesmeDetay({
             </div>
 
             <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", marginBottom: "6px" }}>
-              Senetler (1)
+              Senetler ({contract?.taksitSayisi || localInstallments?.length || 1})
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", padding: "8px 10px", borderRadius: "6px", border: "1px solid #f1f5f9" }}>
-              <div style={{ width: "24px", height: "24px", borderRadius: "4px", background: "#7c3aed", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px" }}>
-                SN
+            <div
+              onClick={() => setShowPromissoryModal(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                background: "#f8fafc",
+                padding: "8px 10px",
+                borderRadius: "6px",
+                border: "1px solid #f1f5f9",
+                cursor: "pointer",
+                transition: "all 0.15s"
+              }}
+              title="Senetleri görüntülemek ve yazdırmak için tıklayın"
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "24px", height: "24px", borderRadius: "4px", background: "#7c3aed", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700 }}>
+                  SN
+                </div>
+                <div style={{ fontSize: "11px" }}>
+                  <div style={{ fontWeight: 600, color: "#0f172a" }}>SN-{contract?.sozlesmeNo || "SENET"} ({contract?.taksitSayisi || localInstallments?.length || 1} adet)</div>
+                  <div style={{ color: "#64748b" }}>{fmtTRY(brutTutar)}</div>
+                </div>
               </div>
-              <div style={{ fontSize: "11px" }}>
-                <div style={{ fontWeight: 600, color: "#0f172a" }}>SN-GLR202600152 (10 adet)</div>
-                <div style={{ color: "#64748b" }}>{fmtTRY(brutTutar)}</div>
-              </div>
+              <button
+                type="button"
+                style={{
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  color: "#1d4ed8",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                Görüntüle
+              </button>
             </div>
           </div>
 
-          {/* CARD: İMZA DURUMU */}
+          {/* CARD: İMZA DURUMU (Gerçek Onay & İmzala Aksiyonu) */}
           <div
             style={{
               background: "#fff",
@@ -911,14 +953,55 @@ export default function EdesisSozlesmeDetay({
               boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px", color: "#64748b", fontSize: "13px", fontWeight: 700 }}>
-              <PenTool size={15} /> İmza Durumu
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#64748b", fontSize: "13px", fontWeight: 700 }}>
+                <PenTool size={15} /> İmza Durumu
+              </div>
+              <span style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "2px 8px",
+                borderRadius: "4px",
+                background: isSignedState ? "#dcfce7" : "#fef9c3",
+                color: isSignedState ? "#15803d" : "#854d0e"
+              }}>
+                {isSignedState ? "✓ İmzalandı" : "İmza Bekliyor"}
+              </span>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fef9c3", padding: "8px 12px", borderRadius: "6px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#854d0e" }}>Kurum Yetkilisi</span>
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#a16207" }}>Bekliyor</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: isSignedState ? "#f0fdf4" : "#fef9c3", padding: "8px 12px", borderRadius: "6px", marginBottom: "10px" }}>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: isSignedState ? "#166534" : "#854d0e" }}>
+                Kurum Yetkilisi: {isSignedState ? signedByName : "Bekliyor"}
+              </span>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: isSignedState ? "#15803d" : "#a16207" }}>
+                {isSignedState ? "Onaylandı" : "Bekliyor"}
+              </span>
             </div>
+
+            {!isSignedState && (
+              <button
+                type="button"
+                onClick={handleSignContract}
+                style={{
+                  width: "100%",
+                  background: "#16a34a",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "8px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                }}
+              >
+                <Check size={14} /> Kurum Yetkilisi Olarak İmzala / Onayla
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1260,6 +1343,19 @@ export default function EdesisSozlesmeDetay({
             </div>
           </div>
         </div>
+      )}
+
+      {showPromissoryModal && (
+        <PromissoryNoteModal
+          student={{
+            ...(student || {}),
+            student_name: contract?.ogrenciAdi || contract?.musteriUnvan || student?.student_name,
+            total_fee: brutTutar,
+            installment_count: contract?.taksitSayisi || localInstallments?.length || 10,
+            parent_name: student?.parent_name || contract?.musteriUnvan
+          }}
+          onClose={() => setShowPromissoryModal(false)}
+        />
       )}
     </div>
   );

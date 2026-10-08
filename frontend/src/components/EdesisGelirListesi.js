@@ -269,11 +269,8 @@ export default function EdesisGelirListesi({
 
   // PRATİK GELİR SİLME İŞLEMİ
   const handleDeleteIncome = (gelir) => {
-    const custom = JSON.parse(localStorage.getItem("cozum_custom_incomes_v1") || "[]");
-    const updated = custom.filter((item) => item.gelirKodu !== gelir.gelirKodu);
-    localStorage.setItem("cozum_custom_incomes_v1", JSON.stringify(updated));
-    if (typeof window !== "undefined") window.dispatchEvent(new Event("cozum_accounting_updated"));
-    setIncomesList(AccountingService.getIncomes());
+    AccountingService.deleteIncome(gelir);
+    setIncomesList((prev) => prev.filter((item) => item.gelirKodu !== gelir.gelirKodu && item.id !== gelir.id));
     setShowDeleteModal(null);
     showToast(`🗑️ ${gelir.gelirKodu} numaralı gelir kaydı silindi.`);
   };

@@ -1093,9 +1093,8 @@ export function MuhasebeV2Dashboard({
   return (
     <div className="muhasebe-v2-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       
-      {/* 1. ÜST BAŞLIK VE HIZLI EYLEM DÜĞMELERİ (SADECE LİSTE SEKMELERİNDE GÖSTERİLİR) */}
-      {activeTab !== "dashboard" && (
-        <div className="page-head" style={{ marginBottom: "4px" }}>
+      {/* 1. ÜST BAŞLIK VE HIZLI EYLEM DÜĞMELERİ */}
+      <div className="page-head" style={{ marginBottom: "4px" }}>
         <div>
           <div className="eyebrow" style={{ color: "#2563eb", fontWeight: "700", display: "flex", alignItems: "center", gap: "6px" }}>
             <ShieldCheck size={16} /> ÖZEL İNEGÖL ÇÖZÜM KURSU · EDESİS MUHASEBE V2
@@ -1210,7 +1209,273 @@ export function MuhasebeV2Dashboard({
           </button>
         </div>
       </div>
-      )}
+
+      {/* 2. MASTER FİNANSAL KPI GÖSTERGE KARTLARI (R1 Paritesi & Taşmayan Sayılar) */}
+      <div className="muhasebe-kpi-grid">
+        {/* Toplam Sözleşme / Kayıt Cirosu */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff" }}>
+          <div className="kpi-title-row" style={{ color: "#64748b" }}>
+            <span>TOPLAM KAYIT CİROSU</span>
+            <Building size={16} color="#3b82f6" />
+          </div>
+          <div className="kpi-value-text" style={{ color: "#0f172a" }} title={`₺${fmtMoney(totalContractRevenue)}`}>
+            ₺{fmtMoney(totalContractRevenue)}
+          </div>
+          <div className="kpi-sub-text" style={{ color: "#64748b" }}>
+            {students.length} Kayıtlı Öğrenci Taahhüdü
+          </div>
+        </div>
+
+        {/* Gerçekleşen Tahsilat */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#bbf7d0" }}>
+          <div className="kpi-title-row" style={{ color: "#166534" }}>
+            <span>GERÇEKLEŞEN TAHSİLAT</span>
+            <CheckCircle2 size={16} color="#16a34a" />
+          </div>
+          <div className="kpi-value-text" style={{ color: "#16a34a" }} title={`₺${fmtMoney(totalCollected)}`}>
+            ₺{fmtMoney(totalCollected)}
+          </div>
+          <div className="kpi-sub-text" style={{ color: "#166534", fontWeight: "600" }}>
+            Tahsilat Oranı: %{collectionRate}
+          </div>
+        </div>
+
+        {/* Bu Ay Vadesi Gelenler (GAP-1) */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fff", borderColor: "#fed7aa" }}>
+          <div className="kpi-title-row" style={{ color: "#c2410c" }}>
+            <span>BU AY VADESİ GELENLER</span>
+            <Calendar size={16} color="#ea580c" />
+          </div>
+          <div className="kpi-value-text" style={{ color: "#ea580c" }} title={`₺${fmtMoney(dueThisMonthData.total)}`}>
+            ₺{fmtMoney(dueThisMonthData.total)}
+          </div>
+          <div className="kpi-sub-text" style={{ color: "#9a3412" }}>
+            {dueThisMonthData.count} Taksit (₺{fmtMoney(dueThisMonthData.collected)} Alındı)
+          </div>
+        </div>
+
+        {/* Gecikmiş Taksitler (Kritik Takip) */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#fef2f2", borderColor: "#fecaca" }}>
+          <div className="kpi-title-row" style={{ color: "#991b1b" }}>
+            <span>GECİKMİŞ TAKSİTLER</span>
+            <AlertTriangle size={16} color="#ef4444" />
+          </div>
+          <div className="kpi-value-text" style={{ color: "#dc2626" }} title={`₺${fmtMoney(totalOverdueDebt)}`}>
+            ₺{fmtMoney(totalOverdueDebt)}
+          </div>
+          <div className="kpi-sub-text" style={{ color: "#b91c1c", fontWeight: "600" }}>
+            {overdueStudents.length} Öğrenci Vadesi Geçti
+          </div>
+        </div>
+
+        {/* Tahsilat Başarı Oranı (Bağımsız Gösterge Kartı) */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
+          <div className="kpi-title-row" style={{ color: "#15803d" }}>
+            <span>TAHSİLAT BAŞARI ORANI</span>
+            <Percent size={16} color="#16a34a" />
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "6px" }}>
+            <span style={{ fontSize: "clamp(18px, 2.5vw, 24px)", fontWeight: "800", color: "#166534" }}>
+              %{collectionRate}
+            </span>
+            <div style={{ flex: 1, background: "#dcfce7", height: "8px", borderRadius: "4px", overflow: "hidden" }}>
+              <div style={{ width: `${Math.min(100, collectionRate)}%`, background: "#16a34a", height: "100%", borderRadius: "4px" }} />
+            </div>
+          </div>
+          <div className="kpi-sub-text" style={{ color: "#15803d", fontWeight: "600" }}>
+            Kalan: ₺{fmtMoney(totalRemaining)}
+          </div>
+        </div>
+
+        {/* Net Likit Mevcut */}
+        <div className="muhasebe-kpi-card stat-card" style={{ background: "#f8fafc", border: "2px solid #2563eb" }}>
+          <div className="kpi-title-row" style={{ color: "#1d4ed8" }}>
+            <span>NET LİKİT MEVCUT</span>
+            <Wallet size={16} color="#2563eb" />
+          </div>
+          <div className="kpi-value-text" style={{ color: "#1d4ed8" }} title={`₺${fmtMoney(netLiquidBalance)}`}>
+            ₺{fmtMoney(netLiquidBalance)}
+          </div>
+          <div className="kpi-sub-text" style={{ color: "#2563eb", fontWeight: "600" }}>
+            Kasa, Banka ve POS Likit Portföyü
+          </div>
+        </div>
+      </div>
+
+      {/* 3. KASA & BANKA PORTFÖY ŞERİDİ (5 Edesis Hesabı) */}
+      <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "14px", padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <div style={{ fontWeight: "700", fontSize: "14px", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Building size={16} color="#2563eb" /> Resmi Kasa & Banka Hesap Defteri
+          </div>
+          <span style={{ fontSize: "12px", color: "#64748b" }}>
+            T.C. Millî Eğitim Bakanlığı Onaylı Kurum Hesapları
+          </span>
+        </div>
+
+        <div className="muhasebe-bank-grid">
+          {/* VakıfBank */}
+          <div 
+            className="bank-acc-card"
+            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("vakif"); }}
+            style={{ 
+              background: "#f0fdf4", 
+              border: "1px solid #bbf7d0",
+              cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <span style={{ fontSize: "10px", fontWeight: "700", background: "#16a34a", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
+                  ANA HESAP
+                </span>
+                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
+                  VakıfBank İnegöl Şb.
+                </div>
+              </div>
+              <CreditCard size={16} color="#16a34a" />
+            </div>
+            <div className="bank-card-val" style={{ color: "#166534" }} title={`₺${fmtMoney(registers.vakifbank)}`}>
+              ₺{fmtMoney(registers.vakifbank)}
+            </div>
+            <div className="bank-card-flow">
+              <span>G: ₺{fmtMoney(registers.vakifbankInflow)}</span>
+              <span>Ç: ₺{fmtMoney(registers.vakifbankExpense)}</span>
+            </div>
+            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", fontFamily: "monospace" }}>
+              TR04 0001 ... 4922 43
+            </div>
+          </div>
+
+          {/* Halkbank */}
+          <div 
+            className="bank-acc-card"
+            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("halk"); }}
+            style={{ 
+              background: "#eff6ff", 
+              border: "1px solid #bfdbfe",
+              cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <span style={{ fontSize: "10px", fontWeight: "700", background: "#2563eb", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
+                  BANKA
+                </span>
+                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
+                  Halkbank İnegöl Şb.
+                </div>
+              </div>
+              <Building size={16} color="#2563eb" />
+            </div>
+            <div className="bank-card-val" style={{ color: "#1d4ed8" }} title={`₺${fmtMoney(registers.halkbank)}`}>
+              ₺{fmtMoney(registers.halkbank)}
+            </div>
+            <div className="bank-card-flow">
+              <span>G: ₺{fmtMoney(registers.halkbankInflow)}</span>
+              <span>Ç: ₺{fmtMoney(registers.halkbankExpense)}</span>
+            </div>
+            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", fontFamily: "monospace" }}>
+              TR87 0001 ... 1016 32
+            </div>
+          </div>
+
+          {/* Nakit Ana Kasa */}
+          <div 
+            className="bank-acc-card"
+            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("nakit"); }}
+            style={{ 
+              background: "#fefce8", 
+              border: "1px solid #fef08a",
+              cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <span style={{ fontSize: "10px", fontWeight: "700", background: "#ca8a04", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
+                  NAKİT
+                </span>
+                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
+                  Nakit Ana Kasa
+                </div>
+              </div>
+              <Wallet size={16} color="#ca8a04" />
+            </div>
+            <div className="bank-card-val" style={{ color: "#854d0e" }} title={`₺${fmtMoney(registers.nakit)}`}>
+              ₺{fmtMoney(registers.nakit)}
+            </div>
+            <div className="bank-card-flow">
+              <span>G: ₺{fmtMoney(registers.nakitInflow)}</span>
+              <span>Ç: ₺{fmtMoney(registers.nakitExpense)}</span>
+            </div>
+            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
+              Ofis Elden Tahsilat Bakiyesi
+            </div>
+          </div>
+
+          {/* POS / Kredi Kartı */}
+          <div 
+            className="bank-acc-card"
+            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("pos"); }}
+            style={{ 
+              background: "#fdf2f8", 
+              border: "1px solid #fbcfe8",
+              cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <span style={{ fontSize: "10px", fontWeight: "700", background: "#db2777", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
+                  POS
+                </span>
+                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
+                  POS / Kredi Kartı
+                </div>
+              </div>
+              <CreditCard size={16} color="#db2777" />
+            </div>
+            <div className="bank-card-val" style={{ color: "#9d174d" }} title={`₺${fmtMoney(registers.pos)}`}>
+              ₺{fmtMoney(registers.pos)}
+            </div>
+            <div className="bank-card-flow">
+              <span>G: ₺{fmtMoney(registers.posInflow)}</span>
+              <span>Ç: ₺{fmtMoney(registers.posExpense)}</span>
+            </div>
+            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
+              Sanal ve Fiziki POS Girişleri
+            </div>
+          </div>
+
+          {/* Senet Portföyü */}
+          <div 
+            className="bank-acc-card"
+            onClick={() => { setActiveTab("senetler"); }}
+            style={{ 
+              background: "#f5f3ff", 
+              border: "1px solid #ddd6fe",
+              cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <span style={{ fontSize: "10px", fontWeight: "700", background: "#7c3aed", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
+                  SENET / BONO
+                </span>
+                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
+                  Senet & Çek Portföyü
+                </div>
+              </div>
+              <FileText size={16} color="#7c3aed" />
+            </div>
+            <div className="bank-card-val" style={{ color: "#6d28d9" }} title={`₺${fmtMoney(registers.senet)}`}>
+              ₺{fmtMoney(registers.senet)}
+            </div>
+            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
+              Matbu Senetli Tahsilatlar
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* MODÜL SEKMELERİ (EDESİS MUHASEBE V2 MENÜSÜ & YATAY KAYDIRMA) */}
       <div className="muhasebe-tabs-scroll" style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "6px", borderBottom: "1px solid var(--border)", flexWrap: "wrap", margin: "16px 0" }}>
@@ -1233,7 +1498,14 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("gecikenler")}
           style={{ fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "6px", color: activeTab === "gecikenler" ? "#fff" : "#dc2626" }}
         >
-          <Calendar size={16} /> 📅 Vade Takvimi ({edesisData.taksitler?.length || 662})
+          <AlertTriangle size={16} /> ⚠️ Geciken Taksitler & Yaşlandırma ({overdueStudents.length})
+        </button>
+        <button
+          className={`btn ${activeTab === "vade_takvimi" ? "" : "secondary"}`}
+          onClick={() => setActiveTab("vade_takvimi")}
+          style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
+        >
+          <Calendar size={16} /> 📅 Vade Takvimi ({edesisData.taksitler?.length || 688})
         </button>
         <button
           className={`btn ${activeTab === "kasalar" ? "" : "secondary"}`}
@@ -1438,8 +1710,141 @@ export function MuhasebeV2Dashboard({
         </div>
       )}
 
-      {/* SEKME 3: EDESİS VADE TAKVİMİ (662 GERÇEK TAKSİT & YAŞLANDIRMA) */}
+      {/* SEKME 3: GECİKEN TAKSİTLER & YAŞLANDIRMA (WHATSAPP HATIRLATMA) */}
       {activeTab === "gecikenler" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button 
+                className={`btn small ${agingFilter === "all" ? "" : "secondary"}`}
+                onClick={() => setAgingFilter("all")}
+              >
+                Tüm Gecikenler ({overdueStudents.length})
+              </button>
+              <button 
+                className={`btn small ${agingFilter === "1-30" ? "" : "secondary"}`}
+                onClick={() => setAgingFilter("1-30")}
+                style={{ color: "#ca8a04" }}
+              >
+                1 - 30 Gün ({agingSummary.c1_30.count})
+              </button>
+              <button 
+                className={`btn small ${agingFilter === "31-60" ? "" : "secondary"}`}
+                onClick={() => setAgingFilter("31-60")}
+                style={{ color: "#ea580c" }}
+              >
+                31 - 60 Gün ({agingSummary.c31_60.count})
+              </button>
+              <button 
+                className={`btn small ${agingFilter === "60+" ? "" : "secondary"}`}
+                onClick={() => setAgingFilter("60+")}
+                style={{ color: "#dc2626" }}
+              >
+                60+ Gün Kritik ({agingSummary.c60plus.count})
+              </button>
+            </div>
+
+            <div className="top-search" style={{ width: "260px", margin: 0 }}>
+              <Search size={14} />
+              <input 
+                placeholder="Öğrenci veya veli ara..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ fontSize: "12px" }}
+              />
+            </div>
+          </div>
+
+          {/* Geciken Taksitler Tablosu (Responsive Yatay Kaydırma) */}
+          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "700px" }}>
+              <thead>
+                <tr style={{ background: "#fef2f2" }}>
+                  <th>Öğrenci Adı Soyadı</th>
+                  <th>Şube / Sınıf</th>
+                  <th>Veli & İletişim</th>
+                  <th>Gecikme Süresi</th>
+                  <th>Toplam Borç</th>
+                  <th style={{ textAlign: "right" }}>Veliye Hatırlatma</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOverdueList.map((s, idx) => (
+                  <tr key={s.id || idx}>
+                    <td>
+                      <b style={{ color: "#0f172a", cursor: "pointer" }} onClick={() => onSelectStudent && onSelectStudent(s)}>
+                        {s.student_name}
+                      </b>
+                      <div style={{ fontSize: "11px", color: "#64748b" }}>#{s.student_no || "—"}</div>
+                    </td>
+                    <td><span style={{ color: "#475569" }}>{s.student_class || s.program || "—"}</span></td>
+                    <td>
+                      <div>
+                        <b>{s.parent_name || "Veli"}</b>
+                        <div style={{ fontSize: "11px", color: "#64748b" }}>{s.parent_phone || "—"}</div>
+                      </div>
+                    </td>
+                    <td>
+                      <span 
+                        className="badge" 
+                        style={{ 
+                          background: s.agingCategory === "60+" ? "#fee2e2" : s.agingCategory === "31-60" ? "#ffedd5" : "#fef9c3",
+                          color: s.agingCategory === "60+" ? "#991b1b" : s.agingCategory === "31-60" ? "#9a3412" : "#854d0e",
+                          padding: "3px 8px", 
+                          borderRadius: "12px", 
+                          fontSize: "11px", 
+                          fontWeight: "700"
+                        }}
+                      >
+                        {s.daysOverdue} Gün Gecikmede
+                      </span>
+                    </td>
+                    <td>
+                      <b style={{ color: "#dc2626", fontSize: "14px" }}>
+                        ₺{fmtMoney(s.remaining)}
+                      </b>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <div style={{ display: "inline-flex", gap: "6px" }}>
+                        <button 
+                          className="btn small"
+                          onClick={() => sendWhatsAppReminder(s)}
+                          style={{ background: "#22c55e", color: "#fff", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
+                        >
+                          <MessageCircle size={13} /> WhatsApp
+                        </button>
+                        <button 
+                          className="btn small secondary"
+                          onClick={() => {
+                            setPayStudentId(s.id);
+                            setPayAmount(String(s.remaining));
+                            setShowQuickPaymentModal(true);
+                          }}
+                          style={{ fontSize: "11px", padding: "4px 8px" }}
+                        >
+                          Tahsil Et
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredOverdueList.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                      Geciken taksit ödemesi bulunamadı.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      )}
+
+      {/* SEKME 3B: EDESİS VADE TAKVİMİ (688 GERÇEK TAKSİT & YAŞLANDIRMA) */}
+      {activeTab === "vade_takvimi" && (
         <EdesisVadeTakvimi
           students={students}
           onSelectStudent={onSelectStudent}

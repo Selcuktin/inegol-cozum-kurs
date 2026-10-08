@@ -33,6 +33,8 @@ import { trIncludes } from "../lib/utils";
 
 export default function EdesisOgrenciListesi({
   students: propStudents = [],
+  globalSearch = "",
+  onSearchChange,
   onNewStudent,
   onSelectStudent,
   onOpenGelir,
@@ -59,6 +61,7 @@ export default function EdesisOgrenciListesi({
   const [periodFilter, setPeriodFilter] = useState("113"); // 113: 2026-2027
   const [classFilter, setClassFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState(() => {
+    if (globalSearch) return globalSearch;
     try {
       const params = new URLSearchParams(window.location.search);
       if (params.get("q")) return params.get("q");
@@ -70,6 +73,13 @@ export default function EdesisOgrenciListesi({
     } catch (e) {}
     return "";
   });
+
+  useEffect(() => {
+    if (globalSearch !== undefined && globalSearch !== null) {
+      setSearchQuery(globalSearch);
+      setCurrentPage(1);
+    }
+  }, [globalSearch]);
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
   // Edit modal state
@@ -94,11 +104,11 @@ export default function EdesisOgrenciListesi({
 
   const allContracts = useMemo(() => {
     try {
-      return AccountingService.getContracts();
+      return AccountingService.getContracts(students);
     } catch {
       return [];
     }
-  }, [contractsTick]);
+  }, [contractsTick, students]);
 
   const contractsByStudentName = useMemo(() => {
     const map = new Map();
@@ -126,13 +136,16 @@ export default function EdesisOgrenciListesi({
       if (byNo.length > 0) return byNo;
     }
 
-    if ((student.has_contract || student.sozlesme_no) && !AccountingService.isContractDeleted(student.sozlesme_no || normName)) {
+    const hasFee = (Number(student.total_fee) || 0) > 0;
+    if ((hasFee || student.has_contract || student.sozlesme_no) && !AccountingService.isContractDeleted(student.sozlesme_no || normName)) {
       const cleanNo = student.sozlesme_no || ("SZL2026" + String(student.student_no || student.id || "001").replace(/\D/g, "").padStart(5, "0").slice(-5));
       if (AccountingService.isContractDeleted(cleanNo)) return [];
+      const rawDate = student.created_at || new Date().toISOString();
+      const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
       return [{
         sozlesmeNo: cleanNo,
         donemAdi: student.donem_adi || "2026-2027",
-        sozlesmeTarihi: student.created_at || "2026-10-06T00:00:00",
+        sozlesmeTarihi: dateStr,
         durum: 1,
         durumText: "Aktif",
         brutTutar: student.total_fee || 60000,
@@ -493,6 +506,7 @@ export default function EdesisOgrenciListesi({
                     setStatusFilter("all");
                     setClassFilter("all");
                     setSearchQuery("");
+                    if (onSearchChange) onSearchChange("");
                   }}
                 >
                   Tümünü temizle
@@ -513,6 +527,7 @@ export default function EdesisOgrenciListesi({
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
+                  if (onSearchChange) onSearchChange(e.target.value);
                   setCurrentPage(1);
                 }}
                 style={{

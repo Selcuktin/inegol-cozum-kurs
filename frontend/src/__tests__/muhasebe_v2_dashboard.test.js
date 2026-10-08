@@ -22,6 +22,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
 
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
     originalOpen = window.open;
     originalAlert = window.alert;
     originalPrint = window.print;
@@ -36,6 +37,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
     window.open = originalOpen;
     window.alert = originalAlert;
     window.print = originalPrint;
+    localStorage.clear();
     await cleanup();
   });
 

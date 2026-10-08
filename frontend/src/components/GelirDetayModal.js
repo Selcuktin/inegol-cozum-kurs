@@ -309,9 +309,9 @@ export function GelirDetayModal({
   };
 
   const handleCopyLink = () => {
-    const fakeLink = `https://inegolcozum.edesis.com/pay/${gCode}?token=${Math.random().toString(36).slice(2, 10)}`;
+    const paymentLink = `https://inegolcozum.edesis.com/pay/${encodeURIComponent(gCode || "GLR")}`;
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(fakeLink);
+      navigator.clipboard.writeText(paymentLink);
     }
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 3000);

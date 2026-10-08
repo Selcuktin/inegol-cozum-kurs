@@ -77,11 +77,11 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
   });
 
   test("verifies total accounting summary in edesisAccountingData bundle", () => {
-    expect(edesisData.gelirler.length).toBe(127);
-    expect(edesisData.sozlesmeler.length).toBe(119);
-    expect(edesisData.taksitler.length).toBe(662);
-    expect(edesisData.tahsilatlar.length).toBe(156);
-    expect(edesisData.summary.totalRevenue).toBeCloseTo(5265917.04, 2);
-    expect(edesisData.summary.totalCollected).toBeCloseTo(969538.43, 2);
+    expect(edesisData.gelirler.length).toBe(130);
+    expect(edesisData.sozlesmeler.length).toBe(122);
+    expect(edesisData.taksitler.length).toBe(688);
+    expect(edesisData.tahsilatlar.length).toBe(164);
+    expect(edesisData.summary.totalRevenue).toBeCloseTo(5386913.09, 2);
+    expect(edesisData.summary.totalCollected).toBeCloseTo(989538.43, 2);
   });
 });

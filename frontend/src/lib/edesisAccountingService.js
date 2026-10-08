@@ -32,6 +32,17 @@ function writeStorage(key, value) {
   }
 }
 
+export function trNorm(str) {
+  if (str == null) return "";
+  return String(str)
+    .trim()
+    .replace(/i/g, "İ")
+    .replace(/ı/g, "I")
+    .toLocaleUpperCase("tr-TR")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ");
+}
+
 export const AccountingService = {
   getDeletedContracts() {
     return readStorage(STORAGE_KEYS.DELETED_CONTRACTS, []);
@@ -45,14 +56,55 @@ export const AccountingService = {
     if (!contractOrNo) return false;
     const deleted = this.getDeletedContracts();
     if (!deleted || deleted.length === 0) return false;
-    const delSet = new Set(deleted.map(k => String(k).trim().toUpperCase()));
-    if (typeof contractOrNo === "string") {
-      return delSet.has(contractOrNo.trim().toUpperCase());
+    const delSet = new Set(deleted.map(k => trNorm(k)));
+    if (typeof contractOrNo === "string" || typeof contractOrNo === "number") {
+      return delSet.has(trNorm(contractOrNo));
     }
-    if (contractOrNo.sozlesmeNo && delSet.has(String(contractOrNo.sozlesmeNo).trim().toUpperCase())) return true;
-    if (contractOrNo.id && delSet.has(String(contractOrNo.id).trim().toUpperCase())) return true;
-    const stName = (contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.musteriUnvan || "").trim().toUpperCase();
-    if (stName && delSet.has(stName)) return true;
+    const szl = trNorm(contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no);
+    if (szl && delSet.has(szl)) return true;
+    const id = trNorm(contractOrNo.id);
+    if (id && delSet.has(id)) return true;
+    const ogrenciId = trNorm(contractOrNo.ogrenciId);
+    if (ogrenciId && delSet.has(ogrenciId)) return true;
+    const ogrenciNo = trNorm(contractOrNo.ogrenciNo || contractOrNo.student_no);
+    if (ogrenciNo && delSet.has(ogrenciNo)) return true;
+    const name1 = trNorm(contractOrNo.ogrenciAdi);
+    if (name1 && delSet.has(name1)) return true;
+    const name2 = trNorm(contractOrNo.ogrenciAdiSoyadi);
+    if (name2 && delSet.has(name2)) return true;
+    const name3 = trNorm(contractOrNo.student_name);
+    if (name3 && delSet.has(name3)) return true;
+    const name4 = trNorm(contractOrNo.musteriUnvan);
+    if (name4 && delSet.has(name4)) return true;
+    return false;
+  },
+
+  isIncomeDeleted(incomeOrCode) {
+    if (!incomeOrCode) return false;
+    const deletedIncomes = this.getDeletedIncomes();
+    const deletedContracts = this.getDeletedContracts();
+    if ((!deletedIncomes || deletedIncomes.length === 0) && (!deletedContracts || deletedContracts.length === 0)) return false;
+    const delSet = new Set([
+      ...deletedIncomes.map(k => trNorm(k)),
+      ...deletedContracts.map(k => trNorm(k))
+    ]);
+    if (typeof incomeOrCode === "string" || typeof incomeOrCode === "number") {
+      return delSet.has(trNorm(incomeOrCode));
+    }
+    const glr = trNorm(incomeOrCode.gelirKodu || incomeOrCode.gelir_kodu);
+    if (glr && delSet.has(glr)) return true;
+    const szl = trNorm(incomeOrCode.sozlesmeNo || incomeOrCode.sozlesme_no);
+    if (szl && delSet.has(szl)) return true;
+    const id = trNorm(incomeOrCode.id);
+    if (id && delSet.has(id)) return true;
+    const name1 = trNorm(incomeOrCode.ogrenciAdi);
+    if (name1 && delSet.has(name1)) return true;
+    const name2 = trNorm(incomeOrCode.ogrenciAdiSoyadi);
+    if (name2 && delSet.has(name2)) return true;
+    const name3 = trNorm(incomeOrCode.student_name);
+    if (name3 && delSet.has(name3)) return true;
+    const name4 = trNorm(incomeOrCode.musteriUnvan);
+    if (name4 && delSet.has(name4)) return true;
     return false;
   },
 
@@ -61,13 +113,11 @@ export const AccountingService = {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_INCOMES, []);
     const overrides = readStorage(STORAGE_KEYS.INCOME_OVERRIDES, {});
     const base = edesisData.gelirler || [];
-    const deletedIncomes = new Set(this.getDeletedIncomes().map(k => String(k).trim().toUpperCase()));
-    const deletedContracts = new Set(this.getDeletedContracts().map(k => String(k).trim().toUpperCase()));
 
     const list = [...custom, ...base];
-    const existingGlr = new Set(list.map(g => (g.gelirKodu || "").trim().toUpperCase()));
-    const existingSzl = new Set(list.map(g => (g.sozlesmeNo || "").trim().toUpperCase()));
-    const existingNames = new Set(list.map(g => (g.ogrenciAdiSoyadi || g.musteriUnvan || "").trim().toUpperCase()));
+    const existingGlr = new Set(list.map(g => trNorm(g.gelirKodu)));
+    const existingSzl = new Set(list.map(g => trNorm(g.sozlesmeNo)));
+    const existingNames = new Set(list.map(g => trNorm(g.ogrenciAdiSoyadi || g.musteriUnvan)));
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
@@ -75,9 +125,10 @@ export const AccountingService = {
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
-        const sName = (cs.student_name || "").trim().toUpperCase();
+        const sName = trNorm(cs.student_name);
         if (!sName) return;
-        if (deletedIncomes.has(sName) || deletedContracts.has(sName)) return;
+        if (cs.contract_deleted) return;
+        if (this.isIncomeDeleted(cs) || this.isContractDeleted(cs)) return;
 
         const fee = Number(cs.total_fee || 0);
         let extraSum = 0;
@@ -91,15 +142,17 @@ export const AccountingService = {
         if (gross <= 0 && !cs.has_contract && !cs.sozlesme_no) return;
         if (existingNames.has(sName)) return;
 
-        const cleanSzl = cs.sozlesme_no || `SZL2026${String(cs.student_no || cs.id || Date.now()).replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
-        if (existingSzl.has(cleanSzl.toUpperCase()) || deletedContracts.has(cleanSzl.toUpperCase())) return;
+        const stableDigits = String(cs.student_no || cs.student_tc || cs.id || sName).replace(/\D/g, "");
+        const numPart = stableDigits ? stableDigits.padStart(5, "0").slice(-5) : "00155";
+        const cleanSzl = cs.sozlesme_no || `SZL2026${numPart}`;
+        if (existingSzl.has(trNorm(cleanSzl)) || this.isContractDeleted(cleanSzl)) return;
 
-        const cleanGlr = cs.gelir_kodu || `GLR2026${String(cs.student_no || cs.id || Date.now()).replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
-        if (existingGlr.has(cleanGlr.toUpperCase()) || deletedIncomes.has(cleanGlr.toUpperCase())) return;
+        const cleanGlr = cs.gelir_kodu || `GLR2026${numPart}`;
+        if (existingGlr.has(trNorm(cleanGlr)) || this.isIncomeDeleted(cleanGlr)) return;
 
         existingNames.add(sName);
-        existingSzl.add(cleanSzl.toUpperCase());
-        existingGlr.add(cleanGlr.toUpperCase());
+        existingSzl.add(trNorm(cleanSzl));
+        existingGlr.add(trNorm(cleanGlr));
 
         const inst = Math.max(1, Number(cs.installment_count) || 8);
         const net = Math.round((gross / 1.1) * 100) / 100;
@@ -107,9 +160,11 @@ export const AccountingService = {
         const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : sName;
         const paid = Number(cs.paid_amount || 0);
         const remaining = Math.max(0, gross - paid);
+        const rawDate = cs.created_at || new Date().toISOString();
+        const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
 
         list.push({
-          id: cs.id || (Date.now() + Math.random()),
+          id: cs.id || `inc-${cleanGlr}`,
           gelirKodu: cleanGlr,
           sozlesmeNo: cleanSzl,
           aciklama: `Sözleşme: ${cleanSzl}`,
@@ -117,8 +172,8 @@ export const AccountingService = {
           kdvOrani: 10,
           kdvTutari: vat,
           brutTutar: gross,
-          gelirTarihi: cs.created_at || new Date().toISOString(),
-          vadeTarihi: cs.due_date ? new Date(cs.due_date).toISOString() : new Date().toISOString(),
+          gelirTarihi: dateStr,
+          vadeTarihi: cs.due_date ? (String(cs.due_date).includes("T") ? String(cs.due_date) : String(cs.due_date).replace(" ", "T")) : dateStr,
           donemId: cs.donem_id || 113,
           donemAdi: cs.donem_adi || "2026-2027",
           muH_GelirKategoriId: 87,
@@ -144,15 +199,7 @@ export const AccountingService = {
       console.warn("Dynamic income error:", e);
     }
 
-    const merged = list.filter(g => {
-      if (!g) return false;
-      if (g.gelirKodu && deletedIncomes.has(String(g.gelirKodu).trim().toUpperCase())) return false;
-      if (g.id && deletedIncomes.has(String(g.id).trim().toUpperCase())) return false;
-      if (g.sozlesmeNo && deletedContracts.has(String(g.sozlesmeNo).trim().toUpperCase())) return false;
-      const stName = (g.ogrenciAdiSoyadi || g.musteriUnvan || "").trim().toUpperCase();
-      if (stName && (deletedIncomes.has(stName) || deletedContracts.has(stName))) return false;
-      return true;
-    });
+    const merged = list.filter(g => !this.isIncomeDeleted(g));
 
     return merged.map((g) => {
       const ov = overrides[g.gelirKodu];
@@ -173,21 +220,20 @@ export const AccountingService = {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
     const base = edesisData.sozlesmeler || [];
     const list = [...custom, ...base];
-    const deleted = new Set(this.getDeletedContracts().map(k => String(k).trim().toUpperCase()));
     const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
       const allStudentsToInspect = [...(remoteStudents || []), ...customStudents];
-      const existingNames = new Set(list.map((c) => (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase()));
-      const existingNos = new Set(list.map((c) => String(c.sozlesmeNo || "").trim().toUpperCase()));
+      const existingNames = new Set(list.map((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan)));
+      const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
-        const sName = (cs.student_name || "").trim().toUpperCase();
+        const sName = trNorm(cs.student_name);
         if (!sName) return;
-        if (deleted.has(sName) || (cs.id && deleted.has(String(cs.id).trim().toUpperCase()))) return;
-        if (cs.sozlesme_no && deleted.has(String(cs.sozlesme_no).trim().toUpperCase())) return;
+        if (cs.contract_deleted) return;
+        if (this.isContractDeleted(cs) || this.isIncomeDeleted(cs)) return;
 
         const fee = Number(cs.total_fee || 0);
         let extraSum = 0;
@@ -199,23 +245,27 @@ export const AccountingService = {
         const gross = Math.max(0, fee + extraSum - disc);
 
         if (gross <= 0 && !cs.has_contract && !cs.sozlesme_no) return;
-        if (existingNames.has(sName) || (cs.sozlesme_no && existingNos.has(String(cs.sozlesme_no).trim().toUpperCase()))) {
+        if (existingNames.has(sName) || (cs.sozlesme_no && existingNos.has(trNorm(cs.sozlesme_no)))) {
           return;
         }
 
+        const stableDigits = String(cs.student_no || cs.student_tc || cs.id || sName).replace(/\D/g, "");
+        const numPart = stableDigits ? stableDigits.padStart(5, "0").slice(-5) : "00155";
+        const cleanNo = cs.sozlesme_no || `SZL2026${numPart}`;
+        if (this.isContractDeleted(cleanNo)) return;
+
         existingNames.add(sName);
-        const cleanNo = cs.sozlesme_no || `SZL2026${String(cs.student_no || cs.id || Date.now()).replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
-        if (deleted.has(cleanNo.toUpperCase())) return;
-        existingNos.add(cleanNo.toUpperCase());
+        existingNos.add(trNorm(cleanNo));
 
         const inst = Math.max(1, Number(cs.installment_count) || 8);
         const net = Math.round((gross / 1.1) * 100) / 100;
         const vat = Math.round((gross - net) * 100) / 100;
         const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : sName;
-        const dateStr = cs.created_at || new Date().toISOString();
+        const rawDate = cs.created_at || new Date().toISOString();
+        const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
 
         list.push({
-          id: cs.id || (Date.now() + Math.random()),
+          id: cs.id || `szl-${cleanNo}`,
           sozlesmeNo: cleanNo,
           sozlesmeTarihi: dateStr,
           tarih: dateStr,
@@ -244,14 +294,7 @@ export const AccountingService = {
     }
 
     // Filter out deleted contracts
-    const activeList = list.filter(c => {
-      if (!c) return false;
-      if (c.sozlesmeNo && deleted.has(String(c.sozlesmeNo).trim().toUpperCase())) return false;
-      if (c.id && deleted.has(String(c.id).trim().toUpperCase())) return false;
-      const stName = (c.ogrenciAdi || c.ogrenciAdiSoyadi || c.musteriUnvan || "").trim().toUpperCase();
-      if (stName && deleted.has(stName)) return false;
-      return true;
-    });
+    const activeList = list.filter(c => !this.isContractDeleted(c));
 
     // Apply overrides (e.g. cancellations)
     return activeList.map(c => {
@@ -268,12 +311,10 @@ export const AccountingService = {
     const custom = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
     const overrides = readStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, {});
     const base = edesisData.taksitler || [];
-    const deletedIncomes = new Set(this.getDeletedIncomes().map(k => String(k).trim().toUpperCase()));
-    const deletedContracts = new Set(this.getDeletedContracts().map(k => String(k).trim().toUpperCase()));
 
     const list = [...custom, ...base];
-    const existingNames = new Set(list.map(t => (t.ogrenciAdiSoyadi || t.musteriUnvan || "").trim().toUpperCase()));
-    const existingSzl = new Set(list.map(t => (t.sozlesmeNo || "").trim().toUpperCase()));
+    const existingNames = new Set(list.map(t => trNorm(t.ogrenciAdiSoyadi || t.musteriUnvan)));
+    const existingSzl = new Set(list.map(t => trNorm(t.sozlesmeNo)));
 
     try {
       const customStudents = readStorage("cozum_custom_students_v1", []);
@@ -281,9 +322,10 @@ export const AccountingService = {
 
       allStudentsToInspect.forEach((cs) => {
         if (!cs) return;
-        const sName = (cs.student_name || "").trim().toUpperCase();
+        const sName = trNorm(cs.student_name);
         if (!sName) return;
-        if (deletedIncomes.has(sName) || deletedContracts.has(sName)) return;
+        if (cs.contract_deleted) return;
+        if (this.isContractDeleted(cs) || this.isIncomeDeleted(cs)) return;
 
         const fee = Number(cs.total_fee || 0);
         let extraSum = 0;
@@ -297,14 +339,18 @@ export const AccountingService = {
         if (gross <= 0 && !cs.has_contract && !cs.sozlesme_no) return;
         if (existingNames.has(sName)) return;
 
-        const cleanSzl = cs.sozlesme_no || `SZL2026${String(cs.student_no || cs.id || Date.now()).replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
-        if (existingSzl.has(cleanSzl.toUpperCase()) || deletedContracts.has(cleanSzl.toUpperCase())) return;
+        const stableDigits = String(cs.student_no || cs.student_tc || cs.id || sName).replace(/\D/g, "");
+        const numPart = stableDigits ? stableDigits.padStart(5, "0").slice(-5) : "00155";
+        const cleanSzl = cs.sozlesme_no || `SZL2026${numPart}`;
+        if (existingSzl.has(trNorm(cleanSzl)) || this.isContractDeleted(cleanSzl)) return;
+
+        const cleanGlr = cs.gelir_kodu || `GLR2026${numPart}`;
+        if (this.isIncomeDeleted(cleanGlr)) return;
 
         existingNames.add(sName);
-        existingSzl.add(cleanSzl.toUpperCase());
+        existingSzl.add(trNorm(cleanSzl));
 
         const inst = Math.max(1, Number(cs.installment_count) || 8);
-        const cleanGlr = cs.gelir_kodu || `GLR2026${String(cs.student_no || cs.id || Date.now()).replace(/\D/g, "").padStart(5, "0").slice(-5)}`;
         const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : sName;
         const className = cs.student_class || "Genel";
 
@@ -343,14 +389,7 @@ export const AccountingService = {
       console.warn("Dynamic installments error:", e);
     }
 
-    const merged = list.filter(t => {
-      if (!t) return false;
-      if (t.sozlesmeNo && deletedContracts.has(String(t.sozlesmeNo).trim().toUpperCase())) return false;
-      if (t.gelirKodu && deletedIncomes.has(String(t.gelirKodu).trim().toUpperCase())) return false;
-      const stName = (t.ogrenciAdiSoyadi || t.musteriUnvan || "").trim().toUpperCase();
-      if (stName && (deletedContracts.has(stName) || deletedIncomes.has(stName))) return false;
-      return true;
-    });
+    const merged = list.filter(t => !this.isContractDeleted(t) && !this.isIncomeDeleted(t));
 
     return merged.map((t) => {
       const key = `${t.gelirKodu || t.sozlesmeNo}_${t.taksitNo}`;
@@ -457,7 +496,7 @@ export const AccountingService = {
       donemAdi: "2026-2027",
       muH_GelirKategoriId: 87,
       gelirKategoriAdi: category,
-      muH_MusteriId: 65000 + Math.floor(Math.random() * 1000),
+      muH_MusteriId: 65000 + (maxNum % 1000),
       musteriUnvan: parentName,
       musteriTuru: 2,
       toplamTahsilat: 0,
@@ -665,73 +704,93 @@ export const AccountingService = {
   // 7. Delete Contract persistently across refreshes and devices
   deleteContract(contractOrNo) {
     if (!contractOrNo) return false;
-    const szlNo = typeof contractOrNo === "object" ? contractOrNo.sozlesmeNo : contractOrNo;
+    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
     const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
-    const studentName = typeof contractOrNo === "object" ? (contractOrNo.ogrenciAdi || contractOrNo.musteriUnvan) : null;
+    const targetKey = szlNo || id;
+
+    // Fire API DELETE to D1 backend
+    if (typeof fetch !== "undefined" && targetKey) {
+      try {
+        const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
+        const token = (typeof localStorage !== "undefined" && localStorage.getItem("session_token")) || "";
+        fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        }).catch((err) => console.warn("[AccountingService] API DELETE error:", err));
+      } catch (e) {}
+    }
+
+    const ogrenciId = typeof contractOrNo === "object" ? contractOrNo.ogrenciId : null;
+    const ogrenciNo = typeof contractOrNo === "object" ? (contractOrNo.ogrenciNo || contractOrNo.student_no) : null;
+    const studentName = typeof contractOrNo === "object" ? (contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.student_name) : null;
+    const musteriUnvan = typeof contractOrNo === "object" ? contractOrNo.musteriUnvan : null;
 
     // 1. Add to DELETED_CONTRACTS
     const deleted = this.getDeletedContracts();
     const newDeleted = [...deleted];
-    if (szlNo && !newDeleted.includes(String(szlNo))) newDeleted.push(String(szlNo));
-    if (id && !newDeleted.includes(String(id))) newDeleted.push(String(id));
-    if (studentName && !newDeleted.includes(String(studentName).trim().toUpperCase())) {
-      newDeleted.push(String(studentName).trim().toUpperCase());
-    }
+    const pushIf = (val) => {
+      if (!val) return;
+      const n = trNorm(val);
+      if (n && !newDeleted.map(trNorm).includes(n)) {
+        newDeleted.push(n);
+      }
+    };
+    pushIf(szlNo);
+    pushIf(id);
+    pushIf(ogrenciId);
+    pushIf(ogrenciNo);
+    pushIf(studentName);
+    pushIf(musteriUnvan);
     writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, newDeleted);
 
     // 2. Remove from custom contracts storage
     const customContracts = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
-    const updatedCustom = customContracts.filter((c) => {
-      if (szlNo && c.sozlesmeNo === szlNo) return false;
-      if (id && c.id === id) return false;
-      return true;
-    });
+    const updatedCustom = customContracts.filter((c) => !this.isContractDeleted(c));
     writeStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, updatedCustom);
 
     // 3. Find and delete corresponding income
     const allIncomes = readStorage(STORAGE_KEYS.CUSTOM_INCOMES, []);
-    const updatedIncomes = allIncomes.filter((g) => {
-      if (szlNo && g.sozlesmeNo === szlNo) return false;
-      return true;
-    });
+    const updatedIncomes = allIncomes.filter((g) => !this.isIncomeDeleted(g));
     writeStorage(STORAGE_KEYS.CUSTOM_INCOMES, updatedIncomes);
 
     // Add matching income code to DELETED_INCOMES
     const deletedIncomes = this.getDeletedIncomes();
     const newDeletedIncomes = [...deletedIncomes];
-    const matchInc = (edesisData.gelirler || []).find((g) => g.sozlesmeNo === szlNo);
-    if (matchInc?.gelirKodu && !newDeletedIncomes.includes(matchInc.gelirKodu)) {
-      newDeletedIncomes.push(matchInc.gelirKodu);
+    const matchInc = (edesisData.gelirler || []).find((g) => this.isIncomeDeleted(g) || (szlNo && trNorm(g.sozlesmeNo) === trNorm(szlNo)));
+    if (matchInc?.gelirKodu && !newDeletedIncomes.map(trNorm).includes(trNorm(matchInc.gelirKodu))) {
+      newDeletedIncomes.push(trNorm(matchInc.gelirKodu));
     }
     writeStorage(STORAGE_KEYS.DELETED_INCOMES, newDeletedIncomes);
 
     // 4. Remove from custom installments
     const customInstallments = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
     const updatedInstallments = customInstallments.filter((t) => {
-      if (szlNo && t.sozlesmeNo === szlNo) return false;
-      if (matchInc?.gelirKodu && t.gelirKodu === matchInc.gelirKodu) return false;
+      if (szlNo && trNorm(t.sozlesmeNo) === trNorm(szlNo)) return false;
+      if (matchInc?.gelirKodu && trNorm(t.gelirKodu) === trNorm(matchInc.gelirKodu)) return false;
+      if (this.isContractDeleted(t) || this.isIncomeDeleted(t)) return false;
       return true;
     });
     writeStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, updatedInstallments);
 
     // 5. Update StudentService if student had this contract
-    if (studentName || szlNo) {
-      try {
-        const customStudents = readStorage("cozum_custom_students_v1", []);
-        const normName = studentName ? studentName.trim().toUpperCase() : "";
-        const updatedStudents = customStudents.map((st) => {
-          if (
-            (normName && st.student_name && st.student_name.trim().toUpperCase() === normName) ||
-            (szlNo && st.sozlesme_no === szlNo)
-          ) {
-            return { ...st, has_contract: false, sozlesme_no: "", gelir_kodu: "" };
-          }
-          return st;
-        });
-        writeStorage("cozum_custom_students_v1", updatedStudents);
-      } catch (e) {
-        console.warn("Student contract unlink error:", e);
-      }
+    try {
+      const customStudents = readStorage("cozum_custom_students_v1", []);
+      const normName = studentName ? trNorm(studentName) : "";
+      const updatedStudents = customStudents.map((st) => {
+        const matchesName = normName && st.student_name && trNorm(st.student_name) === normName;
+        const matchesSzl = szlNo && trNorm(st.sozlesme_no) === trNorm(szlNo);
+        const matchesId = id && trNorm(st.id) === trNorm(id);
+        if (matchesName || matchesSzl || matchesId) {
+          return { ...st, has_contract: false, sozlesme_no: "", gelir_kodu: "", contract_deleted: true };
+        }
+        return st;
+      });
+      writeStorage("cozum_custom_students_v1", updatedStudents);
+    } catch (e) {
+      console.warn("Student contract unlink error:", e);
     }
 
     // 6. Dispatch events
@@ -740,6 +799,36 @@ export const AccountingService = {
       window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "contract_deleted", szlNo, studentName } }));
     }
 
+    return true;
+  },
+
+  deleteIncome(incomeOrCode) {
+    if (!incomeOrCode) return false;
+    const glrCode = typeof incomeOrCode === "object" ? incomeOrCode.gelirKodu : incomeOrCode;
+    const szlNo = typeof incomeOrCode === "object" ? incomeOrCode.sozlesmeNo : null;
+    const id = typeof incomeOrCode === "object" ? incomeOrCode.id : null;
+    const name = typeof incomeOrCode === "object" ? (incomeOrCode.ogrenciAdiSoyadi || incomeOrCode.musteriUnvan) : null;
+
+    const deletedIncomes = this.getDeletedIncomes();
+    const newDeleted = [...deletedIncomes];
+    const pushIf = (val) => {
+      if (!val) return;
+      const n = trNorm(val);
+      if (n && !newDeleted.map(trNorm).includes(n)) newDeleted.push(n);
+    };
+    pushIf(glrCode);
+    pushIf(szlNo);
+    pushIf(id);
+    pushIf(name);
+    writeStorage(STORAGE_KEYS.DELETED_INCOMES, newDeleted);
+
+    if (szlNo || name) {
+      this.deleteContract({ sozlesmeNo: szlNo, id, ogrenciAdi: name });
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+    }
     return true;
   },
 
@@ -766,7 +855,50 @@ export const AccountingService = {
     return true;
   },
 
-  // 9. Reset all custom data to original authentic Edesis dump (100% data integrity safety)
+  // 9. Sign contract action with persistent institution / parent signature
+  signContract(contractOrNo, signerType = "kurum", signerName = "Kurum Yetkilisi") {
+    if (!contractOrNo) return false;
+    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
+    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
+    const targetKey = szlNo || id;
+
+    // Fire API POST to D1 backend
+    if (typeof fetch !== "undefined" && targetKey) {
+      try {
+        const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
+        const token = (typeof localStorage !== "undefined" && localStorage.getItem("session_token")) || "";
+        fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/sign`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ signer_type: signerType, signer_name: signerName })
+        }).catch((err) => console.warn("[AccountingService] API sign error:", err));
+      } catch (e) {}
+    }
+
+    // Apply contract override in local cache
+    const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
+    if (targetKey) {
+      overrides[targetKey] = {
+        ...(overrides[targetKey] || {}),
+        isSigned: true,
+        kurumImzaAlindi: true,
+        kurumImzalayan: signerName,
+        kurumImzalayanUnvan: "Kurum Yetkilisi",
+        signedAt: new Date().toISOString()
+      };
+      writeStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, overrides);
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+    }
+    return true;
+  },
+
+  // 10. Reset all custom data to original authentic Edesis dump (100% data integrity safety)
   resetCustomData() {
     Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
     if (typeof window !== "undefined") {

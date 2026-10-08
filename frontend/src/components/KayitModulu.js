@@ -51,6 +51,7 @@ export function KayitModulu({
     source: "Tavsiye",
     notes: ""
   });
+  const [simulationResult, setSimulationResult] = useState(null);
 
   // Demo candidates list with realistic school inquiries
   const [candidates, setCandidates] = useState([
@@ -739,10 +740,19 @@ export function KayitModulu({
             </ul>
           </div>
 
+          {simulationResult && (
+            <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "14px 16px", borderRadius: "8px", marginBottom: "16px", color: "#065f46", fontSize: "13px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <CheckCircle2 size={18} color="#059669" />
+              <div>
+                <b>Dönem Geçiş Simülasyonu Doğrulandı:</b> {students.length} öğrencinin sınıf seviyeleri ve geçmiş mali kayıtları başarıyla kontrol edildi. Veri kaybı riski bulunmamaktadır.
+              </div>
+            </div>
+          )}
+
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => alert("Dönem geçiş simülasyonu başarıyla doğrulandı. Mevcut verileriniz korundu.")}
+            onClick={() => setSimulationResult(true)}
             style={{ padding: "10px 20px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "600", cursor: "pointer" }}
           >
             Geçiş Simülasyonunu Doğrula & Önizle

@@ -83,4 +83,66 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
     const foundAfter = contractsAfter.find((c) => c.ogrenciAdi === "SILINECEK OGRENCI");
     expect(foundAfter).toBeUndefined();
   });
+
+  test("stats.activeAmount decreases when a contract is deleted", () => {
+    const mockRemote = [
+      { id: "stu-1", student_name: "STUDENT ONE", total_fee: 50000, donem_id: 113 },
+      { id: "stu-2", student_name: "STUDENT TWO", total_fee: 40000, donem_id: 113 }
+    ];
+    const contractsBefore = AccountingService.getContracts(mockRemote);
+    const activeBefore = contractsBefore.filter((c) => String(c.donemId) === "113" && c.durum === 1);
+    const amountBefore = activeBefore.reduce((sum, c) => sum + (Number(c.brutTutar) || 0), 0);
+
+    const toDelete = activeBefore.find(c => c.ogrenciAdi === "STUDENT ONE");
+    AccountingService.deleteContract(toDelete);
+
+    const contractsAfter = AccountingService.getContracts(mockRemote);
+    const activeAfter = contractsAfter.filter((c) => String(c.donemId) === "113" && c.durum === 1);
+    const amountAfter = activeAfter.reduce((sum, c) => sum + (Number(c.brutTutar) || 0), 0);
+
+    console.log("TEST AMOUNTS:", { amountBefore, amountAfter, diff: amountBefore - amountAfter });
+    expect(amountAfter).toBe(amountBefore - 50000);
+  });
+
+  test("correctly normalizes Turkish casing (i/İ) so deleted contract drops from activeAmount", () => {
+    const mockStudent = {
+      id: "stu-tr-1",
+      student_name: "ibrahim ali",
+      total_fee: 75000,
+      donem_id: 113
+    };
+    const before = AccountingService.getContracts([mockStudent]);
+    const found = before.find((c) => c.ogrenciAdi === "İBRAHİM ALİ");
+    expect(found).toBeDefined();
+
+    const sumBefore = before.filter(c => c.donemId === 113 && c.durum === 1).reduce((s, c) => s + (c.brutTutar || 0), 0);
+
+    // Delete with lowercase or mixed case
+    AccountingService.deleteContract(found);
+
+    const after = AccountingService.getContracts([mockStudent]);
+    const sumAfter = after.filter(c => c.donemId === 113 && c.durum === 1).reduce((s, c) => s + (c.brutTutar || 0), 0);
+    expect(sumAfter).toBe(sumBefore - 75000);
+  });
+
+  test("deleting a student via StudentService.deleteStudent purges their contract and reduces activeAmount", async () => {
+    const mockStudent = {
+      id: "stu-del-test",
+      student_name: "OTOMATIK SILINECEK",
+      total_fee: 60000,
+      donem_id: 113
+    };
+
+    const before = AccountingService.getContracts([mockStudent]);
+    const found = before.find((c) => c.ogrenciAdi === "OTOMATIK SILINECEK");
+    expect(found).toBeDefined();
+
+    const sumBefore = before.filter(c => c.donemId === 113 && c.durum === 1).reduce((s, c) => s + (c.brutTutar || 0), 0);
+
+    await StudentService.deleteStudent(mockStudent);
+
+    const after = AccountingService.getContracts([mockStudent]);
+    const sumAfter = after.filter(c => c.donemId === 113 && c.durum === 1).reduce((s, c) => s + (c.brutTutar || 0), 0);
+    expect(sumAfter).toBe(sumBefore - 60000);
+  });
 });

@@ -16,14 +16,14 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
     const installments = AccountingService.getInstallments();
     const collections = AccountingService.getCollections();
 
-    expect(incomes.length).toBe(127);
-    expect(contracts.length).toBe(119);
-    expect(installments.length).toBe(662);
-    expect(collections.length).toBe(159);
+    expect(incomes.length).toBe(130);
+    expect(contracts.length).toBe(122);
+    expect(installments.length).toBe(688);
+    expect(collections.length).toBe(164);
 
-    // Verify first contract SZL202600148
-    expect(contracts[0].sozlesmeNo).toBe("SZL202600148");
-    expect(contracts[0].ogrenciAdi).toBe("EGEMEN KUŞTUL");
+    // Verify first contract SZL202600151
+    expect(contracts[0].sozlesmeNo).toBe("SZL202600151");
+    expect(contracts[0].ogrenciAdi).toBe("cc");
   });
 
   test("2. Income Addition & Installment Splitting: 60.000 TL split into 6 monthly installments", () => {
@@ -54,16 +54,16 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
 
     // Incomes count should increment by 1
     const updatedIncomes = AccountingService.getIncomes();
-    expect(updatedIncomes.length).toBe(128);
+    expect(updatedIncomes.length).toBe(131);
     expect(updatedIncomes[0].ogrenciAdiSoyadi).toBe("BARIŞ MANÇO");
 
     // Installments count should increment by 6
     const updatedInstallments = AccountingService.getInstallments();
-    expect(updatedInstallments.length).toBe(668);
+    expect(updatedInstallments.length).toBe(694);
 
     // Contracts count should increment by 1
     const updatedContracts = AccountingService.getContracts();
-    expect(updatedContracts.length).toBe(120);
+    expect(updatedContracts.length).toBe(123);
   });
 
   test("3. Partial Collection & Debt Amortization: Collection reduces debt and allocates across installments", () => {
@@ -108,7 +108,7 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
 
     // Verify Collections count
     const collections = AccountingService.getCollections();
-    expect(collections.length).toBe(160);
+    expect(collections.length).toBe(165);
     expect(collections[0].tahsilatTutari).toBe(15000);
   });
 
@@ -120,20 +120,20 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
       taksitSayisi: 5
     });
 
-    expect(AccountingService.getIncomes().length).toBe(128);
-    expect(AccountingService.getInstallments().length).toBe(667);
+    expect(AccountingService.getIncomes().length).toBe(131);
+    expect(AccountingService.getInstallments().length).toBe(693);
 
     // Call resetCustomData
     AccountingService.resetCustomData();
 
     // Verify exact original counts restored
-    expect(AccountingService.getIncomes().length).toBe(127);
-    expect(AccountingService.getContracts().length).toBe(119);
-    expect(AccountingService.getInstallments().length).toBe(662);
-    expect(AccountingService.getCollections().length).toBe(159);
+    expect(AccountingService.getIncomes().length).toBe(130);
+    expect(AccountingService.getContracts().length).toBe(122);
+    expect(AccountingService.getInstallments().length).toBe(688);
+    expect(AccountingService.getCollections().length).toBe(164);
 
     // Ensure the underlying authentic file was NEVER mutated
-    expect(edesisData.gelirler.length).toBe(127);
-    expect(edesisData.taksitler.length).toBe(662);
+    expect(edesisData.gelirler.length).toBe(130);
+    expect(edesisData.taksitler.length).toBe(688);
   });
 });

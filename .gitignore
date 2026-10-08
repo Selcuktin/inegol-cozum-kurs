@@ -43,5 +43,7 @@ venv/
 # Wrangler
 .wrangler/
 .agents/
+.testsprite/
+testsprite-plans/
 
 

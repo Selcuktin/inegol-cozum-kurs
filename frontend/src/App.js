@@ -1066,6 +1066,8 @@ function MainApp({ me, onLogout }) {
         {page === "students" && (
           <EdesisOgrenciListesi
             API={API}
+            globalSearch={search}
+            onSearchChange={setSearch}
             students={data.students || []}
             onNewStudent={() => guardedOpen("student")}
             onSelectStudent={setSelected}

@@ -961,7 +961,7 @@ export function EdesisMuhasebeDashboard({
       </div>
 
       {/* 4.1 BÖLÜM: FİNANSAL GÖSTERGELER & 12 AYLIK NAKİT AKIŞ GRAFİKLERİ */}
-      {renderChartsSection("Dönem Finansal Göstergeleri & 12 Aylık Trend Grafiği")}
+      {renderChartsSection("12 Aylık Taksit & Tahsilat Karşılaştırma Grafiği (Edesis Trend Analizi)")}
 
       {/* 5. BÖLÜM: BUGÜN GERÇEKLEŞENLER (İKİ KOLON: TAHSİL EDİLENLER & ÖDENENLER) */}
       <div

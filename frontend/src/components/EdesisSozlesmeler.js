@@ -90,8 +90,8 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  // Sorting
-  const [sortField, setSortField] = useState("sozlesmeNo");
+  // Sorting: Default to latest date descending
+  const [sortField, setSortField] = useState("sozlesmeTarihi");
   const [sortOrder, setSortOrder] = useState("desc");
 
   // Pagination
@@ -248,6 +248,16 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
 
       return true;
     }).sort((a, b) => {
+      if (sortField === "sozlesmeTarihi" || sortField === "tarih") {
+        const timeA = new Date(String(a.sozlesmeTarihi || a.tarih || a.creationTime || 0).replace(" ", "T")).getTime() || 0;
+        const timeB = new Date(String(b.sozlesmeTarihi || b.tarih || b.creationTime || 0).replace(" ", "T")).getTime() || 0;
+        if (timeA !== timeB) {
+          return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
+        }
+        const noA = String(a.sozlesmeNo || "");
+        const noB = String(b.sozlesmeNo || "");
+        return sortOrder === "asc" ? noA.localeCompare(noB) : noB.localeCompare(noA);
+      }
       let valA = a[sortField];
       let valB = b[sortField];
       if (typeof valA === "string") valA = valA.toLowerCase();
@@ -334,7 +344,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
       return;
     }
     AccountingService.cancelContract(showCancelModal, cancelReason);
-    setContractsList(AccountingService.getContracts());
+    setContractsList(AccountingService.getContracts(students));
     showToast(`⚠️ ${showCancelModal.sozlesmeNo} numaralı sözleşme iptal edildi.`);
     setShowCancelModal(null);
     setCancelReason("");
@@ -344,7 +354,10 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
   const handleDeleteContract = (contract) => {
     if (window.confirm(`${contract.sozlesmeNo} sözleşmesini silmek istediğinize emin misiniz?`)) {
       AccountingService.deleteContract(contract);
-      setContractsList(AccountingService.getContracts());
+      // Immediately filter from state so activeAmount and totalCount drop instantly on screen
+      setContractsList((prev) =>
+        prev.filter((c) => c.sozlesmeNo !== contract.sozlesmeNo && c.id !== contract.id)
+      );
       showToast(`🗑️ ${contract.sozlesmeNo} sözleşmesi silindi.`);
     }
     setOpenDropdownId(null);
@@ -1732,7 +1745,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
 
                       {/* 8. İmza Durumu */}
                       <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                        {c.isSigned || c.veliImzaAlindi ? (
+                        {c.isSigned || c.kurumImzaAlindi || c.veliImzaAlindi ? (
                           <span
                             style={{
                               display: "inline-flex",
@@ -2476,7 +2489,7 @@ export default function EdesisSozlesmeler({ students = [], payments = [], onOpen
                   });
                 }
 
-                setContractsList(AccountingService.getContracts());
+                setContractsList(AccountingService.getContracts(students));
                 showToast(`✅ ${res.contract?.sozlesmeNo || "Yeni"} numaralı yeni sözleşme kaydedildi.`);
                 setShowNewContractModal(false);
               }}
