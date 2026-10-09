@@ -4323,11 +4323,16 @@ td[colspan] {
     box-sizing: border-box !important;
     width: 100% !important;
     max-width: 190mm !important;
+    min-height: 246mm !important;
+    height: 246mm !important;
     margin: 0 auto !important;
-    padding: 24px 28px !important;
+    padding: 16mm 16mm !important;
     background: #fff !important;
     color: #000 !important;
     border: 2px solid #000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     page-break-after: avoid !important;
@@ -4392,7 +4397,9 @@ td[colspan] {
   }
 
   body.meb-print-active .meb-contract-sheet {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
     visibility: visible !important;
   }
 

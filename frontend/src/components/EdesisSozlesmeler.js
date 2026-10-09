@@ -935,90 +935,99 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
           <div
             className="meb-contract-sheet"
             style={{
+              boxSizing: "border-box",
               border: "2px solid #000",
-              padding: "24px 28px",
+              padding: "26px 30px",
               backgroundColor: "#fff",
               color: "#000",
-              fontFamily: "'Times New Roman', Times, serif"
+              fontFamily: "'Times New Roman', Times, serif",
+              minHeight: "840px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between"
             }}
           >
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <div style={{ fontSize: "14px", fontWeight: "bold" }}>T.C.</div>
-              <div style={{ fontSize: "14px", fontWeight: "bold" }}>MİLLÎ EĞİTİM BAKANLIĞI</div>
-              <div style={{ fontSize: "13px", fontWeight: "bold" }}>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
-              <h2 style={{ fontSize: "18px", margin: "10px 0 6px 0", textDecoration: "underline", fontWeight: "bold" }}>
-                ÖZEL ÖĞRETİM KURUMLARI ÖĞRENCİ KAYIT SÖZLEŞMESİ
-              </h2>
-              <div style={{ fontSize: "12px", fontStyle: "italic" }}>
-                Sözleşme No: {showMebPrintModal.sozlesmeNo} · Tarih: {fmtDate(showMebPrintModal.sozlesmeTarihi)}
+            <div>
+              <div style={{ textAlign: "center", marginBottom: "18px" }}>
+                <div style={{ fontSize: "14px", fontWeight: "bold" }}>T.C.</div>
+                <div style={{ fontSize: "14px", fontWeight: "bold" }}>MİLLÎ EĞİTİM BAKANLIĞI</div>
+                <div style={{ fontSize: "13px", fontWeight: "bold" }}>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
+                <h2 style={{ fontSize: "18px", margin: "10px 0 6px 0", textDecoration: "underline", fontWeight: "bold" }}>
+                  ÖZEL ÖĞRETİM KURUMLARI ÖĞRENCİ KAYIT SÖZLEŞMESİ
+                </h2>
+                <div style={{ fontSize: "12px", fontStyle: "italic" }}>
+                  Sözleşme No: {showMebPrintModal.sozlesmeNo} · Tarih: {fmtDate(showMebPrintModal.sozlesmeTarihi)}
+                </div>
               </div>
-            </div>
 
-            {/* Institution & Student Info Table */}
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "16px" }}>
-              <tbody>
-                <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold", width: "32%" }}>KURUMUN ADI:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ (MEB Kurum Kodu: 627201)</td>
-                </tr>
-                <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>T.C. KİMLİK NO:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{printStudent?.student_tc || showMebPrintModal.student_tc || "—"}</td>
-                </tr>
-                <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>ÖĞRENCİNİN ADI SOYADI:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || printStudent?.student_name || "—"}</td>
-                </tr>
-                <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>VELİ / VASİ ADI SOYADI:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || "—"}</td>
-                </tr>
-                <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>VELİ İLETİŞİM (TELEFON):</td>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{printStudent?.parent_phone || showMebPrintModal.parent_phone || showMebPrintModal.musteriTelefon || "—"}</td>
-                </tr>
-                <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>SINIFI / PROGRAMI:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{showMebPrintModal.sinifAdi || printStudent?.student_class || "—"} ({showMebPrintModal.donemAdi || "2026-2027"})</td>
-                </tr>
-                <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>ÖĞRENİM ÜCRETİ (BRÜT):</td>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold", fontSize: "13px" }}>{fmtCurrency(showMebPrintModal.brutTutar ?? printStudent?.total_fee)}</td>
-                </tr>
-                <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>ÖDEME ŞEKLİ & VADE:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>
-                    {showMebPrintModal.odemeTuruText || (showMebPrintModal.taksitSayisi > 1 ? `Taksitli (${showMebPrintModal.taksitSayisi} Taksit)` : "Peşin")}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+              {/* Institution & Student Info Table */}
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", marginBottom: "20px" }}>
+                <tbody>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold", width: "32%" }}>KURUMUN ADI:</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px" }}>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ (MEB Kurum Kodu: 627201)</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>T.C. KİMLİK NO:</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{printStudent?.student_tc || showMebPrintModal.student_tc || "—"}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>ÖĞRENCİNİN ADI SOYADI:</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || printStudent?.student_name || "—"}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>VELİ / VASİ ADI SOYADI:</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || "—"}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>VELİ İLETİŞİM (TELEFON):</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{printStudent?.parent_phone || showMebPrintModal.parent_phone || showMebPrintModal.musteriTelefon || "—"}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>SINIFI / PROGRAMI:</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{showMebPrintModal.sinifAdi || printStudent?.student_class || "—"} ({showMebPrintModal.donemAdi || "2026-2027"})</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>ÖĞRENİM ÜCRETİ (BRÜT):</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold", fontSize: "14px" }}>{fmtCurrency(showMebPrintModal.brutTutar ?? printStudent?.total_fee)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>ÖDEME ŞEKLİ & VADE:</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px" }}>
+                      {showMebPrintModal.odemeTuruText || (showMebPrintModal.taksitSayisi > 1 ? `Taksitli (${showMebPrintModal.taksitSayisi} Taksit)` : "Peşin")}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-            {/* Legal Terms Paragraph */}
-            <div style={{ fontSize: "11px", lineHeight: "1.5", textAlign: "justify", marginBottom: "22px" }}>
-              <p style={{ margin: "0 0 6px 0" }}>
-                1. Bu sözleşme; 5580 sayılı Özel Öğretim Kurumları Kanunu ile bu Kanuna dayanılarak çıkarılan Millî Eğitim Bakanlığı Özel Öğretim Kurumları Yönetmeliği hükümlerine uygun olarak düzenlenmiştir.
-              </p>
-              <p style={{ margin: "0 0 6px 0" }}>
-                2. Öğrenci velisi, sözleşmede kararlaştırılan öğrenim ücretini belirtilen vadelerde kuruma tam ve eksiksiz olarak ödemeyi kabul ve taahhüt eder.
-              </p>
-              <p style={{ margin: "0 0 6px 0" }}>
-                3. Kurum, Millî Eğitim Bakanlığı mevzuatı çerçevesinde eğitim-öğretim hizmetlerini eksiksiz yürütmekle yükümlüdür.
-              </p>
+              {/* Legal Terms Paragraph */}
+              <div style={{ fontSize: "12px", lineHeight: "1.6", textAlign: "justify", marginBottom: "20px" }}>
+                <p style={{ margin: "0 0 8px 0" }}>
+                  1. Bu sözleşme; 5580 sayılı Özel Öğretim Kurumları Kanunu ile bu Kanuna dayanılarak çıkarılan Millî Eğitim Bakanlığı Özel Öğretim Kurumları Yönetmeliği hükümlerine uygun olarak düzenlenmiştir.
+                </p>
+                <p style={{ margin: "0 0 8px 0" }}>
+                  2. Öğrenci velisi, sözleşmede kararlaştırılan öğrenim ücretini belirtilen vadelerde kuruma tam ve eksiksiz olarak ödemeyi kabul ve taahhüt eder.
+                </p>
+                <p style={{ margin: "0 0 8px 0" }}>
+                  3. Kurum, Millî Eğitim Bakanlığı mevzuatı çerçevesinde eğitim-öğretim hizmetlerini eksiksiz yürütmekle yükümlüdür.
+                </p>
+              </div>
             </div>
 
             {/* Signatures */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "35px", textAlign: "center" }}>
-              <div style={{ width: "42%" }}>
-                <div style={{ fontWeight: "bold", fontSize: "12px" }}>VELİ / VASİ</div>
-                <div style={{ fontSize: "11px", marginTop: "4px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || showMebPrintModal.ogrenciAdi || "—"}</div>
-                <div style={{ marginTop: "35px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza</div>
-              </div>
+            <div style={{ marginTop: "auto", paddingTop: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", textAlign: "center" }}>
+                <div style={{ width: "42%" }}>
+                  <div style={{ fontWeight: "bold", fontSize: "13px" }}>VELİ / VASİ</div>
+                  <div style={{ fontSize: "12px", marginTop: "4px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || showMebPrintModal.ogrenciAdi || "—"}</div>
+                  <div style={{ marginTop: "50px", borderTop: "1px solid #000", paddingTop: "6px", fontSize: "12px" }}>İmza</div>
+                </div>
 
-              <div style={{ width: "42%" }}>
-                <div style={{ fontWeight: "bold", fontSize: "12px" }}>KURUM YETKİLİSİ</div>
-                <div style={{ fontSize: "11px", marginTop: "4px" }}>Özel İnegöl Çözüm Kurs Merkezi</div>
-                <div style={{ marginTop: "35px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza / Mühür</div>
+                <div style={{ width: "42%" }}>
+                  <div style={{ fontWeight: "bold", fontSize: "13px" }}>KURUM YETKİLİSİ</div>
+                  <div style={{ fontSize: "12px", marginTop: "4px" }}>Özel İnegöl Çözüm Kurs Merkezi</div>
+                  <div style={{ marginTop: "50px", borderTop: "1px solid #000", paddingTop: "6px", fontSize: "12px" }}>İmza / Mühür</div>
+                </div>
               </div>
             </div>
           </div>
