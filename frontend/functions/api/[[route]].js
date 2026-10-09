@@ -439,6 +439,14 @@ export async function onRequest(context) {
   }
 
   try {
+    // Reset cookies and clear site data across all devices
+    if (path === "/system/reset-cookies" || path === "/auth/clear-all-cookies") {
+      return json({ ok: true, message: "Tüm cihaz çerezleri ve önbellek sıfırlandı" }, 200, {
+        "Clear-Site-Data": '"cache", "cookies", "storage"',
+        "Set-Cookie": "session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax",
+      });
+    }
+
     // ---------------- AUTH ROUTES ----------------
     if (path === "/auth/quick-login" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));

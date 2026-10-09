@@ -84,7 +84,7 @@ import StudentService from "./lib/edesisStudentService";
 import AccountingService from "./lib/edesisAccountingService";
 
 // Client storage cache-busting & refresh across all devices
-export const CLIENT_STORAGE_VERSION = "cozum_v3_20261008_purge_all_devices";
+export const CLIENT_STORAGE_VERSION = "cozum_v5_20261009_purge_all_devices";
 
 export function purgeClientStorage(preserveAuth = true) {
   if (typeof window === "undefined") return;
@@ -122,14 +122,29 @@ export function purgeClientStorage(preserveAuth = true) {
     // Clear all sessionStorage
     sessionStorage.clear();
 
-    // Clear non-essential client cookies
-    document.cookie.split(";").forEach((c) => {
-      const eqPos = c.indexOf("=");
-      const name = eqPos > -1 ? c.substring(0, eqPos).trim() : c.trim();
-      if (name && (!preserveAuth || name !== "session_token")) {
-        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+    // Clear client cookies across all path, domain and subdomain variations
+    try {
+      const cookies = document.cookie.split(";");
+      const host = window.location.hostname || "";
+      const domains = ["", host, `.${host}`];
+      if (host.includes(".")) {
+        const parts = host.split(".");
+        if (parts.length >= 2) {
+          domains.push(`.${parts.slice(-2).join(".")}`);
+        }
       }
-    });
+      cookies.forEach((c) => {
+        const eqPos = c.indexOf("=");
+        const name = eqPos > -1 ? c.substring(0, eqPos).trim() : c.trim();
+        if (name && (!preserveAuth || name !== "session_token")) {
+          domains.forEach((d) => {
+            const domAttr = d ? `;domain=${d}` : "";
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/${domAttr};`;
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax;Secure${domAttr};`;
+          });
+        }
+      });
+    } catch (e) {}
 
     // Clear CacheStorage API (PWA / Service Worker caches)
     if ("caches" in window) {
@@ -138,10 +153,13 @@ export function purgeClientStorage(preserveAuth = true) {
       }).catch(() => {});
     }
 
-    // Force service worker update across devices
+    // Force service worker unregister & update across devices
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations.forEach((reg) => reg.update().catch(() => {}));
+        registrations.forEach((reg) => {
+          reg.unregister().catch(() => {});
+          reg.update().catch(() => {});
+        });
       }).catch(() => {});
     }
   } catch (err) {
@@ -152,7 +170,9 @@ export function purgeClientStorage(preserveAuth = true) {
 if (typeof window !== "undefined") {
   window.cozumPurgeAllCaches = purgeClientStorage;
   const currentVersion = localStorage.getItem("cozum_app_version");
-  if (currentVersion !== CLIENT_STORAGE_VERSION) {
+  const params = new URLSearchParams(window.location.search);
+  const forceReset = params.get("reset") || params.get("clear") || params.get("sifirla");
+  if (currentVersion !== CLIENT_STORAGE_VERSION || forceReset) {
     purgeClientStorage(true);
   }
 }
