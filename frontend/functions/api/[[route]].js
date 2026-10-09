@@ -79,7 +79,7 @@ async function logAction(db, user, action, target_type = "", target_id = "", det
     const id = "log_" + crypto.randomUUID().slice(0, 12);
     await db
       .prepare(
-        "INSERT INTO audit_logs (id, user_id, user_name, user_email, user_role, action, target_type, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+        "INSERT INTO audit_logs (id, user_id, user_name, user_email, user_role, action, target_type, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       )
       .bind(
         id,
@@ -90,7 +90,8 @@ async function logAction(db, user, action, target_type = "", target_id = "", det
         action,
         target_type,
         target_id,
-        detail
+        detail,
+        new Date().toISOString()
       )
       .run();
   } catch (err) {
@@ -2787,8 +2788,8 @@ export async function onRequest(context) {
               }
             }
             const bId = "backup_20_00_" + trtDateStr.replace(/-/g, "");
-            await db.prepare("INSERT OR REPLACE INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, datetime('now'), 'scheduled_20_00', ?, ?, 'Otomatik Zamanlayıcı (20:00 TRT)', ?)")
-              .bind(bId, JSON.stringify(snap), JSON.stringify(counts), `${trtDateStr} Saat 20:00 Günlük Otomatik Yedek`)
+            await db.prepare("INSERT OR REPLACE INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'scheduled_20_00', ?, ?, 'Otomatik Zamanlayıcı (20:00 TRT)', ?)")
+              .bind(bId, new Date().toISOString(), JSON.stringify(snap), JSON.stringify(counts), `${trtDateStr} Saat 20:00 Günlük Otomatik Yedek`)
               .run().catch(() => {});
           }
         }
@@ -2803,6 +2804,7 @@ export async function onRequest(context) {
       return json({
         backups: (res.results || []).map(r => ({
           ...r,
+          created_at: r.created_at ? (r.created_at.includes("T") ? r.created_at : r.created_at.replace(" ", "T") + "Z") : null,
           table_counts: typeof r.table_counts === "string" ? JSON.parse(r.table_counts || "{}") : (r.table_counts || {})
         })),
         schedule: "Her gün 20:00 (TRT)",
@@ -2830,8 +2832,8 @@ export async function onRequest(context) {
       const bId = "backup_manual_" + Date.now();
       const notes = body.notes || "Manuel Yönetici Snapshot Yedeği";
       const createdBy = user?.name || "Yönetici";
-      await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, datetime('now'), 'manual', ?, ?, ?, ?)")
-        .bind(bId, JSON.stringify(snap), JSON.stringify(counts), createdBy, notes)
+      await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'manual', ?, ?, ?, ?)")
+        .bind(bId, new Date().toISOString(), JSON.stringify(snap), JSON.stringify(counts), createdBy, notes)
         .run();
       await logAction(db, user, "system.backup_create", "backup", bId, notes);
       return json({ ok: true, backup_id: bId, counts });
@@ -2868,8 +2870,8 @@ export async function onRequest(context) {
         }
       }
       const preId = "backup_prerestore_" + Date.now();
-      await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, datetime('now'), 'pre_restore', ?, ?, 'Sistem Güvenlik', ?)")
-        .bind(preId, JSON.stringify(preSnap), JSON.stringify(preCounts), `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
+      await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'pre_restore', ?, ?, 'Sistem Güvenlik', ?)")
+        .bind(preId, new Date().toISOString(), JSON.stringify(preSnap), JSON.stringify(preCounts), `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
         .run().catch(() => {});
 
       // 2. Tabloları temizle ve seçili snapshot'ı geri yükle

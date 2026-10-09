@@ -54,7 +54,7 @@ import EdesisVadeTakvimi from "./EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./EdesisTahsilatListesi";
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService, { ENABLE_KASA_BANKA } from "../lib/edesisAccountingService";
-import { trIncludes } from "../lib/utils";
+import { trIncludes, formatTrtDateTime } from "../lib/utils";
 
 const CANCELLED_STUDENT_NAMES = [
   "SERHAT SERBEST",
@@ -2240,7 +2240,7 @@ export function MuhasebeV2Dashboard({
                           )}
                         </td>
                         <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>
-                          {b.created_at ? new Date(b.created_at).toLocaleString("tr-TR") : "-"}
+                          {formatTrtDateTime(b.created_at)}
                         </td>
                         <td>
                           <span

@@ -79,7 +79,7 @@ import EdesisOgrenciListesi from "./components/EdesisOgrenciListesi";
 import EdesisGelirListesi from "./components/EdesisGelirListesi";
 import EdesisVadeTakvimi from "./components/EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./components/EdesisTahsilatListesi";
-import { trIncludes } from "./lib/utils";
+import { trIncludes, formatTrtDateTime } from "./lib/utils";
 import StudentService from "./lib/edesisStudentService";
 import AccountingService, { ENABLE_KASA_BANKA } from "./lib/edesisAccountingService";
 
@@ -4039,7 +4039,7 @@ function AuditPage() {
             <tbody>
               {logs.map(l => (
                 <tr key={l.id} data-testid={`audit-row-${l.id}`}>
-                  <td className="muted-cell">{new Date(l.created_at).toLocaleString("tr-TR")}</td>
+                  <td className="muted-cell">{formatTrtDateTime(l.created_at)}</td>
                   <td>
                     <b>{l.user_name || "—"}</b>
                     <br />
@@ -4067,7 +4067,7 @@ function AuditPage() {
               <div className="audit-card-top">
                 <div className="audit-user-info">
                   <b>{l.user_name || "Bilinmeyen Kullanıcı"}</b>
-                  <span className="card-subtext">{new Date(l.created_at).toLocaleString("tr-TR")}</span>
+                  <span className="card-subtext">{formatTrtDateTime(l.created_at)}</span>
                 </div>
                 <span className={`role-pill role-${l.user_role}`}>{ROLE_LABEL[l.user_role] || l.user_role}</span>
               </div>
