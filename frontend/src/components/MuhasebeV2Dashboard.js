@@ -304,6 +304,145 @@ export function MuhasebeV2Dashboard({
     }
   };
 
+  // Excel / CSV Export for system data and snapshots
+  const exportDataToExcel = (customData = null, fileSuffix = "Tum_Sistem") => {
+    try {
+      const srcStudents = customData?.students || data?.students || [];
+      const srcPayments = customData?.payments || data?.payments || [];
+      const srcExpenses = customData?.expenses || data?.expenses || [];
+
+      // Öğrenci Listesi Tablosu
+      const stdHeaders = [
+        "Öğrenci No",
+        "T.C. Kimlik No",
+        "Adı Soyadı",
+        "Sınıfı",
+        "Dönem",
+        "Veli Adı Soyadı",
+        "Veli Telefon",
+        "Kayıt Durumu",
+        "Toplam Ücret (TL)",
+        "Ödenen Tutar (TL)",
+        "Kalan Net Borç (TL)"
+      ];
+
+      const stdRows = srcStudents.map((s) => {
+        const total = Number(s.total_fee || 0);
+        const paid = Number(s.paid_amount || 0);
+        const remaining = Math.max(0, total - paid);
+        return [
+          s.student_no || s.id || "",
+          s.student_tc || "",
+          s.student_name || "",
+          s.student_class || s.class_name || "",
+          s.program || s.donem || "2026-2027",
+          s.parent_name || "",
+          s.parent_phone || "",
+          s.status || "Kesin Kayıt",
+          total,
+          paid,
+          remaining
+        ];
+      });
+
+      // Tahsilatlar Tablosu
+      const pmtHeaders = [
+        "Makbuz/Tahsilat No",
+        "Tarih",
+        "Öğrenci Adı",
+        "Tutar (TL)",
+        "Ödeme Yöntemi",
+        "Kasa / Hesap",
+        "Açıklama"
+      ];
+
+      const pmtRows = srcPayments.map((p) => [
+        p.code || p.receipt_no || p.id || "",
+        p.date || p.payment_date || "",
+        p.student_name || p.studentName || "",
+        Number(p.amount || 0),
+        p.method || p.payment_type || "Nakit",
+        p.account || "Nakit Ana Kasa",
+        p.note || ""
+      ]);
+
+      // Giderler Tablosu
+      const expHeaders = ["Tarih", "Gider Başlığı", "Kategori", "Tutar (TL)", "Hesap"];
+      const expRows = srcExpenses.map((e) => [
+        e.date || "",
+        e.title || "",
+        e.category || "",
+        Number(e.amount || 0),
+        e.account || ""
+      ]);
+
+      let csv = "\uFEFF"; // UTF-8 BOM for Microsoft Excel Turkish locale
+      csv += "=== ÖĞRENCİLER VE BORÇ / BAKİYE TABLOSU ===\r\n";
+      csv += stdHeaders.join(";") + "\r\n";
+      stdRows.forEach((r) => {
+        csv += r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(";") + "\r\n";
+      });
+
+      csv += "\r\n=== GERÇEKLEŞEN TAHSİLATLAR ===\r\n";
+      csv += pmtHeaders.join(";") + "\r\n";
+      pmtRows.forEach((r) => {
+        csv += r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(";") + "\r\n";
+      });
+
+      if (expRows.length > 0) {
+        csv += "\r\n=== KURUM GİDERLERİ ===\r\n";
+        csv += expHeaders.join(";") + "\r\n";
+        expRows.forEach((r) => {
+          csv += r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(";") + "\r\n";
+        });
+      }
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Edesis_${fileSuffix}_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Excel export error:", err);
+      alert("Excel aktarma hatası: " + err.message);
+    }
+  };
+
+  const handleDownloadBackupJson = async (b) => {
+    try {
+      const res = await axios.get(`${API}/backup?download=${b.id}`);
+      const dataStr = typeof res.data === "string" ? res.data : JSON.stringify(res.data, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${b.id}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.open(`${API}/backup?download=${b.id}`, "_blank");
+    }
+  };
+
+  const handleDownloadBackupExcel = async (b) => {
+    try {
+      setLoadingBackups(true);
+      const res = await axios.get(`${API}/backup?download=${b.id}`);
+      const snap = typeof res.data === "string" ? JSON.parse(res.data) : res.data;
+      exportDataToExcel(snap, b.id);
+    } catch (e) {
+      exportDataToExcel(null, b?.id || "Yedek");
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
   // New Expense form
   const [expTitle, setExpTitle] = useState("");
   const [expAmount, setExpAmount] = useState("");
@@ -2009,26 +2148,48 @@ export function MuhasebeV2Dashboard({
               </div>
 
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => exportDataToExcel(null, "Tum_Sistem_Verileri")}
+                  style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700", fontSize: "12px", padding: "8px 14px", borderRadius: "8px", cursor: "pointer" }}
+                  title="Tüm veritabanı kayıtlarını (öğrenciler, tahsilatlar, giderler) Excel formatında bilgisayara indir"
+                >
+                  <Download size={14} /> 📊 Tüm Verileri Excel'e İndir (.csv)
+                </button>
+                {backups.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    onClick={() => handleDownloadBackupJson(backups[0])}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700", fontSize: "12px", padding: "8px 12px", borderRadius: "8px", cursor: "pointer" }}
+                    title="En son alınan sistem yedeğini .json olarak bilgisayara indir"
+                  >
+                    <Download size={14} color="#2563eb" /> 💾 Son Yedeği PC'ye İndir (.json)
+                  </button>
+                )}
                 <input
                   type="text"
                   placeholder="Yedekleme açıklaması (opsiyonel)..."
                   value={backupNote}
                   onChange={(e) => setBackupNote(e.target.value)}
-                  style={{ fontSize: "12px", padding: "7px 10px", borderRadius: "8px", border: "1px solid var(--border)", width: "220px" }}
+                  style={{ fontSize: "12px", padding: "7px 10px", borderRadius: "8px", border: "1px solid var(--border)", width: "190px" }}
                 />
                 <button
+                  type="button"
                   className="btn"
                   onClick={handleTakeManualBackup}
                   disabled={loadingBackups}
-                  style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700" }}
+                  style={{ background: "#2563eb", borderColor: "#2563eb", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700", fontSize: "12px", padding: "8px 12px", borderRadius: "8px", cursor: "pointer" }}
                 >
                   <Plus size={15} /> {loadingBackups ? "Kaydediliyor..." : "📸 Şimdi Manuel Yedek Al"}
                 </button>
                 <button
+                  type="button"
                   className="btn secondary"
                   onClick={loadBackups}
                   disabled={loadingBackups}
-                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "8px 12px", borderRadius: "8px", cursor: "pointer" }}
                 >
                   <RefreshCw size={14} /> Yenile
                 </button>
@@ -2047,19 +2208,18 @@ export function MuhasebeV2Dashboard({
             <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
-                  <th>Yedek ID</th>
-                  <th>Kayıt Tarihi (TRT)</th>
-                  <th>Yedek Türü</th>
-                  <th>Kapsam (Tablo Kayıt Sayıları)</th>
-                  <th>Boyut</th>
-                  <th>Açıklama</th>
-                  <th style={{ textAlign: "right" }}>İşlemler</th>
+                  <th style={{ whiteSpace: "nowrap" }}>Yedek ID & Açıklama</th>
+                  <th style={{ whiteSpace: "nowrap" }}>Kayıt Tarihi (TRT)</th>
+                  <th style={{ whiteSpace: "nowrap" }}>Yedek Türü</th>
+                  <th>Kapsam</th>
+                  <th style={{ whiteSpace: "nowrap" }}>Boyut</th>
+                  <th style={{ textAlign: "center", minWidth: "260px", position: "sticky", right: 0, background: "#f8fafc", zIndex: 2 }}>İndir / Geri Yükle</th>
                 </tr>
               </thead>
               <tbody>
                 {backups.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+                    <td colSpan={6} style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
                       {loadingBackups ? "Yedekler yükleniyor..." : "Henüz manuel veya otomatik yedek kaydı bulunmuyor. 'Şimdi Manuel Yedek Al' butonuna tıklayarak ilk yedeğinizi oluşturabilirsiniz."}
                     </td>
                   </tr>
@@ -2072,9 +2232,14 @@ export function MuhasebeV2Dashboard({
                     return (
                       <tr key={b.id}>
                         <td>
-                          <b style={{ fontFamily: "monospace", color: "#2563eb" }}>{b.id}</b>
+                          <b style={{ fontFamily: "monospace", color: "#2563eb", fontSize: "12px" }}>{b.id}</b>
+                          {b.notes && (
+                            <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+                              {b.notes}
+                            </div>
+                          )}
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>
                           {b.created_at ? new Date(b.created_at).toLocaleString("tr-TR") : "-"}
                         </td>
                         <td>
@@ -2086,10 +2251,11 @@ export function MuhasebeV2Dashboard({
                               fontWeight: "700",
                               fontSize: "11px",
                               padding: "3px 8px",
-                              borderRadius: "6px"
+                              borderRadius: "6px",
+                              whiteSpace: "nowrap"
                             }}
                           >
-                            {isScheduled ? "🕒 20:00 Otomatik" : (isPreRestore ? "🛡️ Güvenlik Yedeği" : "👤 Manuel Snapshot")}
+                            {isScheduled ? "🕒 20:00 Otomatik" : (isPreRestore ? "🛡️ Güvenlik" : "👤 Manuel Snapshot")}
                           </span>
                         </td>
                         <td style={{ fontSize: "12px", color: "#475569" }}>
@@ -2097,26 +2263,34 @@ export function MuhasebeV2Dashboard({
                             Öğr: <b>{counts.students ?? "-"}</b> · Tahsilat: <b>{counts.payments ?? "-"}</b> · Sınav: <b>{counts.exams ?? "-"}</b> · Yoklama: <b>{counts.attendance ?? "-"}</b>
                           </span>
                         </td>
-                        <td style={{ fontSize: "12px", color: "#64748b" }}>
+                        <td style={{ fontSize: "12px", color: "#64748b", whiteSpace: "nowrap" }}>
                           {b.size_bytes ? `${Math.round(b.size_bytes / 1024)} KB` : "—"}
                         </td>
-                        <td style={{ fontSize: "12px", color: "#64748b" }}>
-                          {b.notes || (isScheduled ? "Günlük 20:00 Otomatik Snapshot" : "Snapshot Yedeği")}
-                        </td>
-                        <td style={{ textAlign: "right" }}>
-                          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                            <a
-                              href={`${API}/backup?download=${b.id}`}
-                              className="btn small secondary"
-                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
-                              title="JSON Olarak Bilgisayara İndir"
-                            >
-                              <Download size={12} /> İndir
-                            </a>
+                        <td style={{ textAlign: "center", position: "sticky", right: 0, background: "#fff", zIndex: 2, boxShadow: "-4px 0 8px rgba(0,0,0,0.05)" }}>
+                          <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
                             <button
+                              type="button"
+                              onClick={() => handleDownloadBackupExcel(b)}
+                              className="btn small"
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "5px 9px", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", fontWeight: "700", borderRadius: "6px", cursor: "pointer" }}
+                              title="Bu yedeğin tüm verilerini Excel (CSV) formatında indir"
+                            >
+                              <Download size={12} color="#16a34a" /> Excel İndir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadBackupJson(b)}
+                              className="btn small"
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "5px 9px", background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: "700", borderRadius: "6px", cursor: "pointer" }}
+                              title="Tam sistem yedeğini .json olarak bilgisayara indir"
+                            >
+                              <Download size={12} /> JSON İndir
+                            </button>
+                            <button
+                              type="button"
                               className="btn small"
                               onClick={() => setRestoreModalBackup(b)}
-                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px", background: "#dc2626", borderColor: "#dc2626", color: "#fff", fontWeight: "700" }}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "5px 9px", background: "#dc2626", borderColor: "#dc2626", color: "#fff", fontWeight: "700", borderRadius: "6px", cursor: "pointer" }}
                               title="Bu Yedeğe Geri Dön (Kurtar)"
                             >
                               <RefreshCw size={12} /> Geri Yükle

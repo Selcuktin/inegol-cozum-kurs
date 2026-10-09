@@ -540,6 +540,9 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
       expect(container.textContent).toContain("backup_20261009_200000");
       expect(container.textContent).toContain("Her Akşam 20:00 Otomatik Sistem Yedeği");
       expect(container.textContent).toContain("Şimdi Manuel Yedek Al");
+      expect(container.textContent).toContain("Tüm Verileri Excel'e İndir (.csv)");
+      expect(container.textContent).toContain("Excel İndir");
+      expect(container.textContent).toContain("JSON İndir");
     });
   });
 });
