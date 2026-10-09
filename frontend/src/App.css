@@ -4307,6 +4307,7 @@ td[colspan] {
   .paper-preview,
   .receipt-sheet,
   .promissory-note-sheet,
+  .meb-contract-sheet,
   .edesis-actual-karne-doc {
     box-shadow: none !important;
     border: 1px solid #334155 !important;
@@ -4316,6 +4317,83 @@ td[colspan] {
     max-width: 100% !important;
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+
+  .meb-contract-sheet {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 190mm !important;
+    margin: 0 auto !important;
+    padding: 24px 28px !important;
+    background: #fff !important;
+    color: #000 !important;
+    border: 2px solid #000 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* MEB Resmî Sözleşme ve Modal Baskı İzolasyonu */
+  body.meb-print-active {
+    background: #fff !important;
+    color: #000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.meb-print-active .sidebar,
+  body.meb-print-active .topbar,
+  body.meb-print-active .mobile-bottom-nav,
+  body.meb-print-active .pwa-banner,
+  body.meb-print-active .edesis-subnav-bar,
+  body.meb-print-active .edesis-head,
+  body.meb-print-active .edesis-filter-toolbar,
+  body.meb-print-active .official-karne-toolbar,
+  body.meb-print-active .page-head,
+  body.meb-print-active .document-tools,
+  body.meb-print-active .drawer-backdrop,
+  body.meb-print-active .doc-tips,
+  body.meb-print-active .no-print,
+  body.meb-print-active .edesis-sozlesme-detay-view,
+  body.meb-print-active .edesis-contracts-view,
+  body.meb-print-active .content > *:not(.modal-backdrop):not(.meb-contract-modal-backdrop) {
+    display: none !important;
+  }
+
+  body.meb-print-active .modal-backdrop,
+  body.meb-print-active .meb-contract-modal-backdrop {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    z-index: auto !important;
+  }
+
+  body.meb-print-active .modal,
+  body.meb-print-active .meb-contract-modal-container {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  body.meb-print-active .meb-contract-sheet {
+    display: block !important;
+    visibility: visible !important;
   }
 
   .receipt-sheet {

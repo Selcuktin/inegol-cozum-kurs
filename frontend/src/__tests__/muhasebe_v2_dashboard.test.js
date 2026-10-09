@@ -506,5 +506,41 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
       expect(container.textContent).toContain("982.938 ₺");
     });
   });
+
+  /* =====================================================================
+   * TIER 5: OTOMATİK VE MANUEL YEDEKLEME (BACKUP TAB)
+   * ===================================================================== */
+  describe("Tier 5: Otomatik ve Manuel Yedekleme (Backup Tab)", () => {
+    test("T5.1: renders backup management view with 20:00 auto-backup banner and backup history", async () => {
+      axios.get = jest.fn().mockResolvedValue({
+        data: {
+          backups: [
+            {
+              id: "backup_20261009_200000",
+              filename: "backup_20261009_200000.json",
+              backup_type: "scheduled_20_00",
+              created_at: "2026-10-09T20:00:00.000Z",
+              size_bytes: 1048576,
+              notes: "Her Akşam 20:00 Otomatik Sistem Yedeği"
+            }
+          ]
+        }
+      });
+
+      const { container } = await render(
+        <MuhasebeV2Dashboard
+          me={{ role: "admin" }}
+          data={getDashboardData()}
+          API={API}
+          activeTab="backup"
+        />
+      );
+
+      expect(container.textContent).toContain("Otomatik Yedekleme: Her Akşam Saat 20:00 (TRT) Aktif");
+      expect(container.textContent).toContain("backup_20261009_200000");
+      expect(container.textContent).toContain("Her Akşam 20:00 Otomatik Sistem Yedeği");
+      expect(container.textContent).toContain("Şimdi Manuel Yedek Al");
+    });
+  });
 });
 

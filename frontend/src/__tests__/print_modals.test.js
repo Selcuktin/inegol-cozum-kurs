@@ -399,11 +399,49 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       expect(container.textContent).toContain("SZL202600135");
       expect(container.textContent).toContain("ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ");
 
+      // Verify print isolation classes are activated
+      expect(document.body.classList.contains("meb-print-active")).toBe(true);
+      const detailView = container.querySelector(".edesis-sozlesme-detay-view");
+      expect(detailView).toBeTruthy();
+      expect(detailView.classList.contains("no-print")).toBe(true);
+
+      const contractSheet = container.querySelector(".meb-contract-sheet");
+      expect(contractSheet).toBeTruthy();
+      expect(contractSheet.textContent).toContain("KURUMUN ADI");
+      expect(contractSheet.textContent).toContain("T.C. KİMLİK NO");
+      expect(contractSheet.textContent).toContain("ÖĞRENCİNİN ADI SOYADI");
+
       // Click Yazdır / PDF Kaydet button inside modal
       const modalPrintBtn = container.querySelector('[data-testid="meb-modal-print-btn"]');
       expect(modalPrintBtn).toBeTruthy();
       await fireEvent.click(modalPrintBtn);
       expect(window.print).toHaveBeenCalled();
+    });
+
+    test("T5.3: closing MEB modal cleans up meb-print-active class from document.body", async () => {
+      sessionStorage.setItem("cozum_open_contract_no", "SZL202600135");
+
+      const { container } = await render(
+        <EdesisSozlesmeler
+          students={mockStudents}
+          payments={mockPayments}
+        />
+      );
+
+      const printBtn = container.querySelector('[data-testid="print-meb-contract-btn"]');
+      await fireEvent.click(printBtn);
+      expect(document.body.classList.contains("meb-print-active")).toBe(true);
+
+      // Click Kapat button
+      const buttons = Array.from(container.querySelectorAll("button"));
+      const closeBtn = buttons.find((b) => b.textContent.trim() === "Kapat");
+      expect(closeBtn).toBeTruthy();
+      await fireEvent.click(closeBtn);
+
+      // Verify class cleaned up
+      expect(document.body.classList.contains("meb-print-active")).toBe(false);
+      const detailView = container.querySelector(".edesis-sozlesme-detay-view");
+      expect(detailView.classList.contains("no-print")).toBe(false);
     });
   });
 });

@@ -261,6 +261,18 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const [cancelReason, setCancelReason] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Manage print isolation classes on body
+  useEffect(() => {
+    if (showMebPrintModal) {
+      document.body.classList.add("meb-print-active");
+    } else {
+      document.body.classList.remove("meb-print-active");
+    }
+    return () => {
+      document.body.classList.remove("meb-print-active");
+    };
+  }, [showMebPrintModal]);
+
   const allRegisteredStudents = useMemo(() => {
     try {
       const list = StudentService.getAllStudents(students);
@@ -507,8 +519,13 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     if (!showMebPrintModal) return null;
     const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
     const name = norm(showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || "");
-    return (allRegisteredStudents || []).find((s) => norm(s.student_name) === name) || null;
-  }, [showMebPrintModal, allRegisteredStudents]);
+    const list = Array.isArray(allRegisteredStudents) && allRegisteredStudents.length > 0 ? allRegisteredStudents : (students || []);
+    return list.find((s) =>
+      (s.id && String(s.id) === String(showMebPrintModal.ogrenciId)) ||
+      (s.student_name && norm(s.student_name) === name) ||
+      (s.sozlesme_no && String(s.sozlesme_no) === String(showMebPrintModal.sozlesmeNo))
+    ) || null;
+  }, [showMebPrintModal, allRegisteredStudents, students]);
 
   const renderPaymentPlanModal = () => {
     if (!showPaymentPlanModal) return null;
@@ -836,7 +853,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     if (!showMebPrintModal) return null;
     return (
       <div
-        className="modal-backdrop"
+        className="modal-backdrop meb-contract-modal-backdrop"
         style={{
           position: "fixed",
           top: 0,
@@ -854,6 +871,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
         onClick={() => setShowMebPrintModal(null)}
       >
         <div
+          className="modal meb-contract-modal-container"
           onClick={(e) => e.stopPropagation()}
           style={{
             background: "#fff",
@@ -873,7 +891,12 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
               <button
                 type="button"
                 data-testid="meb-modal-print-btn"
-                onClick={() => window.print()}
+                onClick={() => {
+                  try {
+                    document.body.classList.add("meb-print-active");
+                  } catch {}
+                  window.print();
+                }}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -908,13 +931,22 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
             </button>
           </div>
 
-          {/* Official MEB Contract Printable Paper */}
-          <div style={{ border: "2px solid #000", padding: "30px", backgroundColor: "#fff" }}>
-            <div style={{ textAlign: "center", marginBottom: "20px" }}>
+          {/* Official MEB Contract Printable Paper (Single A4 Page) */}
+          <div
+            className="meb-contract-sheet"
+            style={{
+              border: "2px solid #000",
+              padding: "24px 28px",
+              backgroundColor: "#fff",
+              color: "#000",
+              fontFamily: "'Times New Roman', Times, serif"
+            }}
+          >
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
               <div style={{ fontSize: "14px", fontWeight: "bold" }}>T.C.</div>
               <div style={{ fontSize: "14px", fontWeight: "bold" }}>MİLLÎ EĞİTİM BAKANLIĞI</div>
               <div style={{ fontSize: "13px", fontWeight: "bold" }}>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
-              <h2 style={{ fontSize: "18px", margin: "10px 0", textDecoration: "underline" }}>
+              <h2 style={{ fontSize: "18px", margin: "10px 0 6px 0", textDecoration: "underline", fontWeight: "bold" }}>
                 ÖZEL ÖĞRETİM KURUMLARI ÖĞRENCİ KAYIT SÖZLEŞMESİ
               </h2>
               <div style={{ fontSize: "12px", fontStyle: "italic" }}>
@@ -923,39 +955,39 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
             </div>
 
             {/* Institution & Student Info Table */}
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "15px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "16px" }}>
               <tbody>
                 <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold", width: "30%" }}>KURUMUN ADI:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px" }}>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ (MEB Kurum Kodu: 627201)</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold", width: "32%" }}>KURUMUN ADI:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ (MEB Kurum Kodu: 627201)</td>
                 </tr>
                 <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>T.C. KİMLİK NO:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px" }}>{printStudent?.student_tc || "—"}</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>T.C. KİMLİK NO:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{printStudent?.student_tc || showMebPrintModal.student_tc || "—"}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖĞRENCİNİN ADI SOYADI:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan}</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>ÖĞRENCİNİN ADI SOYADI:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || printStudent?.student_name || "—"}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>VELİ / VASİ ADI SOYADI:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px" }}>{printStudent?.parent_name || showMebPrintModal.musteriUnvan || "—"}</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>VELİ / VASİ ADI SOYADI:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || "—"}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>VELİ İLETİŞİM (TELEFON):</td>
-                  <td style={{ border: "1px solid #000", padding: "6px" }}>{printStudent?.parent_phone || showMebPrintModal.musteriTelefon || "—"}</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>VELİ İLETİŞİM (TELEFON):</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{printStudent?.parent_phone || showMebPrintModal.parent_phone || showMebPrintModal.musteriTelefon || "—"}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>SINIFI / PROGRAMI:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px" }}>{showMebPrintModal.sinifAdi || "—"} ({showMebPrintModal.donemAdi || "2026-2027"})</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>SINIFI / PROGRAMI:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{showMebPrintModal.sinifAdi || printStudent?.student_class || "—"} ({showMebPrintModal.donemAdi || "2026-2027"})</td>
                 </tr>
                 <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖĞRENİM ÜCRETİ (BRÜT):</td>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold", fontSize: "13px" }}>{fmtCurrency(showMebPrintModal.brutTutar)}</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>ÖĞRENİM ÜCRETİ (BRÜT):</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold", fontSize: "13px" }}>{fmtCurrency(showMebPrintModal.brutTutar ?? printStudent?.total_fee)}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold" }}>ÖDEME ŞEKLİ & VADE:</td>
-                  <td style={{ border: "1px solid #000", padding: "6px" }}>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px", fontWeight: "bold" }}>ÖDEME ŞEKLİ & VADE:</td>
+                  <td style={{ border: "1px solid #000", padding: "6px 8px" }}>
                     {showMebPrintModal.odemeTuruText || (showMebPrintModal.taksitSayisi > 1 ? `Taksitli (${showMebPrintModal.taksitSayisi} Taksit)` : "Peşin")}
                   </td>
                 </tr>
@@ -963,30 +995,30 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
             </table>
 
             {/* Legal Terms Paragraph */}
-            <div style={{ fontSize: "11px", lineHeight: "1.5", textAlign: "justify", marginBottom: "25px" }}>
-              <p>
+            <div style={{ fontSize: "11px", lineHeight: "1.5", textAlign: "justify", marginBottom: "22px" }}>
+              <p style={{ margin: "0 0 6px 0" }}>
                 1. Bu sözleşme; 5580 sayılı Özel Öğretim Kurumları Kanunu ile bu Kanuna dayanılarak çıkarılan Millî Eğitim Bakanlığı Özel Öğretim Kurumları Yönetmeliği hükümlerine uygun olarak düzenlenmiştir.
               </p>
-              <p>
+              <p style={{ margin: "0 0 6px 0" }}>
                 2. Öğrenci velisi, sözleşmede kararlaştırılan öğrenim ücretini belirtilen vadelerde kuruma tam ve eksiksiz olarak ödemeyi kabul ve taahhüt eder.
               </p>
-              <p>
+              <p style={{ margin: "0 0 6px 0" }}>
                 3. Kurum, Millî Eğitim Bakanlığı mevzuatı çerçevesinde eğitim-öğretim hizmetlerini eksiksiz yürütmekle yükümlüdür.
               </p>
             </div>
 
             {/* Signatures */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", textAlign: "center" }}>
-              <div style={{ width: "40%" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "35px", textAlign: "center" }}>
+              <div style={{ width: "42%" }}>
                 <div style={{ fontWeight: "bold", fontSize: "12px" }}>VELİ / VASİ</div>
-                <div style={{ fontSize: "11px", marginTop: "4px" }}>{printStudent?.parent_name || showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan}</div>
-                <div style={{ marginTop: "40px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza</div>
+                <div style={{ fontSize: "11px", marginTop: "4px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || showMebPrintModal.ogrenciAdi || "—"}</div>
+                <div style={{ marginTop: "35px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza</div>
               </div>
 
-              <div style={{ width: "40%" }}>
+              <div style={{ width: "42%" }}>
                 <div style={{ fontWeight: "bold", fontSize: "12px" }}>KURUM YETKİLİSİ</div>
                 <div style={{ fontSize: "11px", marginTop: "4px" }}>Özel İnegöl Çözüm Kurs Merkezi</div>
-                <div style={{ marginTop: "40px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza / Mühür</div>
+                <div style={{ marginTop: "35px", borderTop: "1px solid #000", paddingTop: "5px", fontSize: "11px" }}>İmza / Mühür</div>
               </div>
             </div>
           </div>
@@ -1011,38 +1043,40 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   if (selectedContract) {
     return (
       <>
-        <EdesisSozlesmeDetay
-          contract={selectedContract}
-          students={students}
-          onBack={() => {
-            setSelectedContract(null);
-            try {
-              sessionStorage.removeItem("cozum_open_contract_no");
-              if (window.location.hash.includes("?id=")) {
-                window.location.hash = "documents";
-              }
-              const prev = sessionStorage.getItem("cozum_contract_prev_page");
-              if (prev) {
-                sessionStorage.removeItem("cozum_contract_prev_page");
-                if (onNavigate) onNavigate(prev);
-              }
-            } catch {}
-          }}
-          onOpenGelir={onOpenGelir}
-          onOpenPrintMeb={(c) => setShowMebPrintModal(c)}
-          onOpenPaymentPlan={(c) => setShowPaymentPlanModal(c)}
-          onEditStudent={(st) => {
-            const target = st?.id || st?.student_name || selectedContract?.ogrenciAdi || selectedContract?.musteriUnvan;
-            if (target) {
+        <div className={`edesis-sozlesme-detay-view ${showMebPrintModal || showPaymentPlanModal ? "no-print" : ""}`}>
+          <EdesisSozlesmeDetay
+            contract={selectedContract}
+            students={students}
+            onBack={() => {
+              setSelectedContract(null);
               try {
-                sessionStorage.setItem("cozum_open_edit_student_id", String(target));
+                sessionStorage.removeItem("cozum_open_contract_no");
+                if (window.location.hash.includes("?id=")) {
+                  window.location.hash = "documents";
+                }
+                const prev = sessionStorage.getItem("cozum_contract_prev_page");
+                if (prev) {
+                  sessionStorage.removeItem("cozum_contract_prev_page");
+                  if (onNavigate) onNavigate(prev);
+                }
               } catch {}
-            }
-            if (onNavigate) {
-              onNavigate("students");
-            }
-          }}
-        />
+            }}
+            onOpenGelir={onOpenGelir}
+            onOpenPrintMeb={(c) => setShowMebPrintModal(c)}
+            onOpenPaymentPlan={(c) => setShowPaymentPlanModal(c)}
+            onEditStudent={(st) => {
+              const target = st?.id || st?.student_name || selectedContract?.ogrenciAdi || selectedContract?.musteriUnvan;
+              if (target) {
+                try {
+                  sessionStorage.setItem("cozum_open_edit_student_id", String(target));
+                } catch {}
+              }
+              if (onNavigate) {
+                onNavigate("students");
+              }
+            }}
+          />
+        </div>
         {renderPaymentPlanModal()}
         {renderMebPrintModal()}
         {renderQuickEditModal()}
@@ -1052,6 +1086,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   return (
     <div
+      className={`edesis-contracts-view ${showMebPrintModal || showPaymentPlanModal ? "no-print" : ""}`}
       style={{
         backgroundColor: "#f5f8fa",
         minHeight: "100vh",

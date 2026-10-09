@@ -599,12 +599,13 @@ function MainApp({ me, onLogout }) {
     } catch (e) {}
     return { summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] };
   });
-  const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit"];
+  const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const fullHash = window.location.hash.replace(/^#/, "");
       const cleanHash = fullHash.split("?")[0].split("/")[0];
       if (cleanHash === "kasalar" || cleanHash === "kasa") return "payments";
+      if (cleanHash === "backup") return "payments";
       if (cleanHash === "documents") {
         if (fullHash.includes("?id=")) {
           const m = fullHash.match(/\?id=([^&]+)/);
@@ -646,6 +647,10 @@ function MainApp({ me, onLogout }) {
         }
         setPageState("documents");
         localStorage.setItem("active_page", "documents");
+      } else if (cleanHash === "backup") {
+        setPageState("payments");
+        setAccountingTab("backup");
+        localStorage.setItem("active_page", "payments");
       } else if (cleanHash && validPages.includes(cleanHash)) {
         setPageState(cleanHash);
         localStorage.setItem("active_page", cleanHash);
@@ -671,6 +676,7 @@ function MainApp({ me, onLogout }) {
       if (h === "vade") return "gecikenler";
       if (h === "tahsilat") return "tahsilatlar";
       if (h === "kasalar" || h === "kasa") return "kasalar";
+      if (h === "backup") return "backup";
     }
     return "dashboard";
   });
@@ -922,7 +928,18 @@ function MainApp({ me, onLogout }) {
         { id: "reports", label: "Aylık Muhasebe Raporu", icon: FileDown, perm: "page_reports" },
         { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
         { id: "users", label: "Kullanıcılar & Roller", icon: UserCog, perm: "page_users" },
-        { id: "audit", label: "Denetim Kaydı", icon: History, perm: "page_audit" }
+        { id: "audit", label: "Denetim Kaydı", icon: History, perm: "page_audit" },
+        {
+          id: "backup",
+          label: "Otomatik Yedekleme (20:00)",
+          icon: ShieldCheck,
+          perm: "page_payments",
+          activeCheck: () => page === "payments" && accountingTab === "backup",
+          customAction: () => {
+            setPage("payments");
+            setAccountingTab("backup");
+          }
+        }
       ]
     }
   ];
@@ -1070,7 +1087,7 @@ function MainApp({ me, onLogout }) {
 
                 // Normal Flat Item
                 const Icon = item.icon;
-                const isItemActive = page === item.id;
+                const isItemActive = item.activeCheck ? item.activeCheck() : page === item.id;
                 return (
                   <button
                     key={item.id}
