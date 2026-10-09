@@ -188,8 +188,7 @@ export const StudentService = {
       gelir_kodu: student.gelir_kodu || "",
       total_fee: Number(student.total_fee || 0),
       paid_amount: Number(student.paid_amount || 0),
-      remaining: Math.max(0, Number(student.total_fee || 0) - Number(student.paid_amount || 0)),
-      ...student
+      remaining: Math.max(0, Number(student.total_fee || 0) - Number(student.paid_amount || 0))
     };
 
     // Remove from deleted list if re-saving
