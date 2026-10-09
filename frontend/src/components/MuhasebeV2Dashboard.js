@@ -53,7 +53,7 @@ import EdesisGelirListesi from "./EdesisGelirListesi";
 import EdesisVadeTakvimi from "./EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./EdesisTahsilatListesi";
 import edesisData from "../data/edesisAccountingData.json";
-import AccountingService from "../lib/edesisAccountingService";
+import AccountingService, { ENABLE_KASA_BANKA } from "../lib/edesisAccountingService";
 import { trIncludes } from "../lib/utils";
 
 const CANCELLED_STUDENT_NAMES = [
@@ -1208,19 +1208,21 @@ export function MuhasebeV2Dashboard({
           </button>
           <button 
             className="btn secondary" 
-            onClick={() => handleOpenUnifiedContract("GLR202600150")}
+            onClick={() => onNavigate && onNavigate("documents")}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderColor: "#3b82f6", color: "#2563eb", fontWeight: "600" }}
-            title="Edesis Resmi Sözleşme ve Gelir Detay Sayfası"
+            title="Edesis Resmi Sözleşmeler Sayfası"
           >
-            <FileText size={16} /> 📄 Edesis Sözleşme / Gelir Detay
+            <FileText size={16} /> 📄 Edesis Sözleşmeler
           </button>
-          <button 
-            className="btn secondary" 
-            onClick={() => window.print()}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-          >
-            <Printer size={16} /> Kasa Raporu Yazdır
-          </button>
+          {ENABLE_KASA_BANKA && (
+            <button 
+              className="btn secondary" 
+              onClick={() => window.print()}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              <Printer size={16} /> Kasa Raporu Yazdır
+            </button>
+          )}
         </div>
       </div>
 
@@ -1317,6 +1319,7 @@ export function MuhasebeV2Dashboard({
       </div>
 
       {/* 3. KASA & BANKA PORTFÖY ŞERİDİ (5 Edesis Hesabı) */}
+      {ENABLE_KASA_BANKA && (
       <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "14px", padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <div style={{ fontWeight: "700", fontSize: "14px", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1490,6 +1493,7 @@ export function MuhasebeV2Dashboard({
           </div>
         </div>
       </div>
+      )}
 
       {/* MODÜL SEKMELERİ (EDESİS MUHASEBE V2 MENÜSÜ & YATAY KAYDIRMA) */}
       <div className="muhasebe-tabs-scroll" style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "6px", borderBottom: "1px solid var(--border)", flexWrap: "wrap", margin: "16px 0" }}>
@@ -1521,13 +1525,15 @@ export function MuhasebeV2Dashboard({
         >
           <Calendar size={16} /> 📅 Vade Takvimi ({edesisData.taksitler?.length || 688})
         </button>
-        <button
-          className={`btn ${activeTab === "kasalar" ? "" : "secondary"}`}
-          onClick={() => setActiveTab("kasalar")}
-          style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
-        >
-          <Building size={16} /> 💳 Kasa & Banka Defteri
-        </button>
+        {ENABLE_KASA_BANKA && (
+          <button
+            className={`btn ${activeTab === "kasalar" ? "" : "secondary"}`}
+            onClick={() => setActiveTab("kasalar")}
+            style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            <Building size={16} /> 💳 Kasa & Banka Defteri
+          </button>
+        )}
         <button
           className={`btn ${activeTab === "tahsilatlar" ? "" : "secondary"}`}
           onClick={() => setActiveTab("tahsilatlar")}
@@ -1585,7 +1591,7 @@ export function MuhasebeV2Dashboard({
       )}
 
       {/* SEKME 2: KASA & BANKA DEFTERİ (GAP-2: Tahsilat / Kasa Hareketleri & Bakiye) */}
-      {activeTab === "kasalar" && (
+      {ENABLE_KASA_BANKA && activeTab === "kasalar" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           
           {/* Kasa Filtre Seçicisi */}

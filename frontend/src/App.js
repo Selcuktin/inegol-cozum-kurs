@@ -81,10 +81,10 @@ import EdesisVadeTakvimi from "./components/EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./components/EdesisTahsilatListesi";
 import { trIncludes } from "./lib/utils";
 import StudentService from "./lib/edesisStudentService";
-import AccountingService from "./lib/edesisAccountingService";
+import AccountingService, { ENABLE_KASA_BANKA } from "./lib/edesisAccountingService";
 
 // Client storage cache-busting & refresh across all devices
-export const CLIENT_STORAGE_VERSION = "cozum_v5_20261009_purge_all_devices";
+export const CLIENT_STORAGE_VERSION = "cozum_v6_20261009_kasabanka_hatice_heal";
 
 export function purgeClientStorage(preserveAuth = true) {
   if (typeof window === "undefined") return;
@@ -635,7 +635,7 @@ function MainApp({ me, onLogout }) {
       const cleanHash = fullHash.split("?")[0].split("/")[0];
       if (cleanHash === "kasalar" || cleanHash === "kasa") {
         setPageState("payments");
-        setAccountingTab("kasalar");
+        setAccountingTab(ENABLE_KASA_BANKA ? "kasalar" : "dashboard");
         localStorage.setItem("active_page", "payments");
       } else if (cleanHash === "documents") {
         if (fullHash.includes("?id=")) {
@@ -776,7 +776,7 @@ function MainApp({ me, onLogout }) {
                 { id: "gid_add", label: "Yeni Gider Ekle", onClick: () => { guardedOpen("expense"); setMobileOpen(false); } }
               ]
             },
-            {
+            ...(ENABLE_KASA_BANKA ? [{
               id: "p_kasa",
               label: "Kasa ve Banka",
               isAccordion: true,
@@ -790,7 +790,7 @@ function MainApp({ me, onLogout }) {
                 { id: "k_bak", label: "Bakiyeler & Hesaplar", activeCheck: () => page === "payments" && accountingTab === "dashboard", onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); } },
                 { id: "k_backup", label: "💾 Otomatik Yedekleme (20:00)", activeCheck: () => page === "payments" && accountingTab === "backup", onClick: () => { setPage("payments"); setAccountingTab("backup"); setMobileOpen(false); } }
               ]
-            }
+            }] : [])
           ]
         }
       ]

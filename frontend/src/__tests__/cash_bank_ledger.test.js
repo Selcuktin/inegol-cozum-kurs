@@ -13,6 +13,14 @@ import {
 } from "./test_helpers";
 
 jest.mock("axios");
+jest.mock("../lib/edesisAccountingService", () => {
+  const actual = jest.requireActual("../lib/edesisAccountingService");
+  return {
+    __esModule: true,
+    ...actual,
+    ENABLE_KASA_BANKA: true
+  };
+});
 
 describe("R2: Kasa & Banka Defteri Çift Yönlü Entegrasyonu (cash_bank_ledger.test.js)", () => {
   const API = "/api";

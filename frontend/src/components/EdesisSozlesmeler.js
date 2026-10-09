@@ -53,7 +53,9 @@ export function fmtDate(isoStr) {
   }
 }
 
-export default function EdesisSozlesmeler({ contracts: propContracts = [], students = [], payments = [], onOpenGelir, onNavigate }) {
+const EMPTY_ARR = [];
+
+export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR, students = EMPTY_ARR, payments = EMPTY_ARR, onOpenGelir, onNavigate }) {
   const [contractsList, setContractsList] = useState(() => AccountingService.getContracts(students, propContracts));
 
   useEffect(() => {
@@ -226,14 +228,20 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
             const synth = AccountingService.buildSyntheticContractForStudent(st);
             if (synth) {
               found = synth;
-              setContractsList((prev) => [synth, ...prev]);
+              setContractsList((prev) => {
+                if (prev.some((c) => c.sozlesmeNo === synth.sozlesmeNo || c.id === synth.id)) return prev;
+                return [synth, ...prev];
+              });
             }
           }
         }
       }
 
       if (found) {
-        setSelectedContract(found);
+        setSelectedContract((prev) => {
+          if (prev && (prev.sozlesmeNo === found.sozlesmeNo || prev.id === found.id)) return prev;
+          return found;
+        });
         try {
           sessionStorage.removeItem("cozum_open_contract_no");
           sessionStorage.removeItem("cozum_open_contract_student");
@@ -2661,8 +2669,11 @@ export default function EdesisSozlesmeler({ contracts: propContracts = [], stude
               <Ban size={24} />
               <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>Sözleşmeyi İptal Et</h3>
             </div>
-            <p style={{ fontSize: "13px", color: "#475569", marginBottom: "12px" }}>
+            <p style={{ fontSize: "13px", color: "#475569", marginBottom: "8px" }}>
               <b>{showCancelModal.sozlesmeNo}</b> numaralı ({showMebPrintModal?.ogrenciAdi || showCancelModal.ogrenciAdi}) sözleşmesini iptal etmek üzeresiniz. Lütfen iptal gerekçesini yazınız:
+            </p>
+            <p style={{ fontSize: "11px", color: "#dc2626", fontWeight: 600, marginBottom: "12px" }}>
+              ⚠️ Dikkat: Bu işlem öğrencinin SÖZLEŞMESİNİ iptal eder (Tahsilat silme veya geri alma işlemi değildir).
             </p>
             <textarea
               rows={3}

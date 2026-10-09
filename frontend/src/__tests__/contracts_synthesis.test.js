@@ -289,4 +289,34 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
     expect(matchedContract.musteriUnvan).toBe("SENA YEŞİLYAPRAK GÜNCEL");
     expect(contracts.length).toBe(121); // exactly authentic 121
   });
+
+  test("self-heals Hatice Kübra Ünalan from accidental cancellation (durum: 3) and corrupt 20k collection", () => {
+    // Simulate user having accidentally cancelled Hatice's contract and recorded 20k collection
+    localStorage.setItem("cozum_contract_overrides_v1", JSON.stringify({
+      SZL202600150: { durum: 3, durumText: "İptal", durumRenk: "danger" }
+    }));
+    localStorage.setItem("cozum_income_overrides_v1", JSON.stringify({
+      GLR202600154: { toplamTahsilat: 20000, kalanAlacak: 23000 }
+    }));
+    localStorage.setItem("cozum_custom_collections_v1", JSON.stringify([
+      { id: 99999, tahsilatTutari: 20000, sozlesmeNo: "SZL202600150", gelirKodu: "GLR202600150", musteriUnvan: "HATİCE KÜBRA ÜNALAN" }
+    ]));
+
+    // Re-read contracts and incomes
+    const contracts = AccountingService.getContracts();
+    const haticeContract = contracts.find((c) => c.sozlesmeNo === "SZL202600150");
+    expect(haticeContract).toBeDefined();
+    expect(haticeContract.durum).toBe(1);
+    expect(haticeContract.durumText).toBe("Aktif");
+
+    const incomes = AccountingService.getIncomes();
+    const haticeIncome = incomes.find((g) => g.sozlesmeNo === "SZL202600150");
+    expect(haticeIncome).toBeDefined();
+    expect(haticeIncome.toplamTahsilat).toBe(0);
+    expect(haticeIncome.kalanAlacak).toBe(50000);
+
+    const collections = AccountingService.getCollections();
+    const fakeColl = collections.find((c) => c.tahsilatTutari === 20000 && c.sozlesmeNo === "SZL202600150");
+    expect(fakeColl).toBeUndefined();
+  });
 });

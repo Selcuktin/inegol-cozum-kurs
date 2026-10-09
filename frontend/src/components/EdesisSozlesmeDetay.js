@@ -250,6 +250,25 @@ export default function EdesisSozlesmeDetay({
     );
     setLocalInstallments(updated);
     AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
+
+    // Sync income overrides and collections
+    try {
+      const paidSum = updated.reduce((sum, it) => sum + (Number(it.tahsilEdilen) || 0), 0);
+      const gross = Number(contract?.brutTutar) || 0;
+      const targetGlr = taksit.gelirKodu || contract?.gelirKodu || contract?.sozlesmeNo;
+      if (targetGlr && typeof localStorage !== "undefined") {
+        const raw = localStorage.getItem("cozum_income_overrides_v1");
+        const incomeOverrides = raw ? JSON.parse(raw) : {};
+        incomeOverrides[targetGlr] = {
+          toplamTahsilat: paidSum,
+          kalanAlacak: Math.max(0, gross - paidSum)
+        };
+        localStorage.setItem("cozum_income_overrides_v1", JSON.stringify(incomeOverrides));
+      }
+    } catch (syncErr) {
+      console.warn("Income sync error on cancel:", syncErr);
+    }
+
     showToast(`↩️ ${taksit.taksitNo}. Taksit tahsilatı iptal edildi ve geri alındı.`);
     setCancelModal(null);
   };

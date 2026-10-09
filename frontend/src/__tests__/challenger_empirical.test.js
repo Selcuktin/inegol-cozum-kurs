@@ -11,6 +11,14 @@ import {
 } from "./test_helpers";
 
 jest.mock("axios");
+jest.mock("../lib/edesisAccountingService", () => {
+  const actual = jest.requireActual("../lib/edesisAccountingService");
+  return {
+    __esModule: true,
+    ...actual,
+    ENABLE_KASA_BANKA: true
+  };
+});
 
 describe("CHALLENGER EMPIRICAL SUITE: Financial Arithmetic & Schedule Collision Tests", () => {
   const API = "/api";

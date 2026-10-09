@@ -118,9 +118,9 @@ export function GelirDetayModal({
       });
     }
 
-    // Varsayılan / Fallback: Eğer hiçbiri bulunamazsa Aselsare Bilgin (GLR202600150)
+    // Varsayılan / Fallback
     if (!targetGelir && !student) {
-      targetGelir = allGelirler.find(g => g.gelirKodu === "GLR202600150") || allGelirler[0];
+      targetGelir = allGelirler[0] || null;
     }
 
     if (targetGelir && !targetSozlesme) {
@@ -170,9 +170,9 @@ export function GelirDetayModal({
     }
 
     // Temel alanları toparla
-    const gCode = targetGelir?.gelirKodu || (student ? `GLR-STU-${student.id}` : "GLR202600150");
-    const szNo = targetSozlesme?.sozlesmeNo || targetGelir?.sozlesmeNo || "SZL202600146";
-    const stName = targetGelir?.ogrenciAdiSoyadi || targetGelir?.musteriUnvan || student?.student_name || "ASELSARE BİLGİN";
+    const gCode = targetGelir?.gelirKodu || (student ? `GLR-STU-${student.id}` : "");
+    const szNo = targetSozlesme?.sozlesmeNo || targetGelir?.sozlesmeNo || "";
+    const stName = targetGelir?.ogrenciAdiSoyadi || targetGelir?.musteriUnvan || student?.student_name || "Öğrenci";
     const stPhone = taksitler[0]?.musteriTelefon || student?.student_phone || student?.parent_phone || "05458018543";
     const stEmail = taksitler[0]?.musteriEmail || student?.parent_email || "aselsare@edesis.com";
     const stClass = targetGelir?.sinifAdi || targetSozlesme?.sinifAdi || student?.student_class || student?.program || "4-A";
