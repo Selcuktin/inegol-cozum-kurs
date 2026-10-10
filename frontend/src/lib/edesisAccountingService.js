@@ -123,6 +123,49 @@ export function formatContractRecord(r) {
   };
 }
 
+export function formatCollectionRecord(p) {
+  if (!p) return null;
+  const id = p.id || `pay_${Date.now()}`;
+  const numId = String(id).replace(/\D/g, "");
+  const code = p.odemeKodu || (numId ? `ODM-${numId.slice(-6)}` : `ODM-${id}`);
+  const amt = Number(p.amount !== undefined ? p.amount : (p.tahsilatTutari !== undefined ? p.tahsilatTutari : 0));
+  const sName = p.student_name || p.ogrenciAdi || p.musteriUnvan || "Öğrenci";
+  const pName = p.parent_name || p.veliAdiSoyadi || "";
+  const sId = p.student_id || p.ogrenciId || "";
+  const sozNo = p.sozlesme_no || p.sozlesmeNo || "";
+  const incCode = p.gelirKodu || (sozNo ? `GLR${sozNo.replace(/\D/g, "")}` : (numId ? `GLR${numId.slice(-6)}` : "GLR"));
+  const date = p.payment_date || p.tahsilatTarihi || p.created_at || new Date().toISOString().slice(0, 10);
+  const bank = p.bank || p.kasaBankaAdi || p.method || "Nakit Ana Kasa";
+  const note = p.note || p.gelirAciklama || (sozNo ? `Sözleşme: ${sozNo}` : "Tahsilat");
+
+  return {
+    ...p,
+    id,
+    odemeKodu: code,
+    tahsilatTutari: amt,
+    amount: amt,
+    musteriUnvan: sName,
+    ogrenciAdi: sName,
+    ogrenciId: sId,
+    student_id: sId,
+    student_name: sName,
+    parent_name: pName,
+    veliAdiSoyadi: pName,
+    parent_phone: p.parent_phone || "",
+    sozlesmeNo: sozNo,
+    sozlesme_no: sozNo,
+    gelirKodu: incCode,
+    gelirAciklama: note,
+    kasaBankaAdi: bank,
+    bank: bank,
+    method: p.method || bank,
+    tahsilatTarihi: date,
+    payment_date: date,
+    durumText: p.durumText || "Tahsil Edildi",
+    taksitNo: p.taksitNo || p.taksit_no || null
+  };
+}
+
 export const AccountingService = {
   // Backward compatibility stubs
   getDeletedContracts() { return []; },
@@ -423,9 +466,42 @@ export const AccountingService = {
     return list;
   },
 
-  // 4. Collections (Payments)
-  getCollections() {
-    return _memory.collections;
+  // 4. Collections (Payments - SSOT from /api/payments)
+  async fetchCollections() {
+    if (typeof fetch === "undefined") return _memory.collections;
+    try {
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/api/payments`);
+      if (!res || !res.ok) return _memory.collections;
+      const rows = await res.json();
+      const list = Array.isArray(rows) ? rows : (rows?.data || []);
+      const formatted = list.map(formatCollectionRecord);
+      _memory.collections = formatted;
+      writeCache("cozum_ssot_collections_v2", formatted);
+      return formatted;
+    } catch (err) {
+      console.warn("[AccountingService] fetchCollections error:", err);
+      return _memory.collections;
+    }
+  },
+
+  getCollections(propPayments = null) {
+    if (Array.isArray(propPayments) && propPayments.length > 0) {
+      const formatted = propPayments.map(formatCollectionRecord);
+      _memory.collections = formatted;
+      writeCache("cozum_ssot_collections_v2", formatted);
+      return formatted;
+    }
+
+    let list = _memory.collections.map(formatCollectionRecord);
+
+    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
+      this.fetchCollections().then((colls) => {
+        if (colls && colls.length > 0) window.dispatchEvent(new Event("cozum_accounting_updated"));
+      });
+    }
+
+    return list;
   },
 
   // 5. Dynamic Summary (SSOT from /api/accounting/summary)
@@ -935,7 +1011,11 @@ export const AccountingService = {
     if (contracts && contracts.length) _memory.contracts = [...contracts];
     if (incomes && incomes.length) _memory.incomes = [...incomes];
     if (installments && installments.length) _memory.installments = [...installments];
-    if (collections && collections.length) _memory.collections = [...collections];
+    if (collections && collections.length) {
+      const formatted = collections.map(formatCollectionRecord);
+      _memory.collections = formatted;
+      writeCache("cozum_ssot_collections_v2", formatted);
+    }
     if (summary) _memory.summary = summary;
   },
 
@@ -955,6 +1035,7 @@ export const AccountingService = {
     if (typeof window !== "undefined" && typeof fetch === "function") {
       this.fetchContracts().catch(() => {});
       this.fetchInstallments().catch(() => {});
+      this.fetchCollections().catch(() => {});
       this.fetchSummary().catch(() => {});
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }

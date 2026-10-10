@@ -55,8 +55,13 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
   if (path === "/dashboard" && request.method === "GET") {
     const studentsRes = await db.prepare("SELECT * FROM students ORDER BY created_at DESC, id DESC").all();
     const classesRes = await db.prepare("SELECT * FROM classes").all();
-    const paymentsRes = await db.prepare("SELECT * FROM payments ORDER BY payment_date DESC LIMIT 50").all();
-    const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC LIMIT 50").all();
+    const paymentsRes = await db.prepare(`
+      SELECT p.*, s.student_name, s.student_class, s.student_no, s.parent_name, s.parent_phone, s.sozlesme_no
+      FROM payments p
+      LEFT JOIN students s ON p.student_id = s.id
+      ORDER BY p.payment_date DESC, p.created_at DESC
+    `).all().catch(() => ({ results: [] }));
+    const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC LIMIT 100").all();
     const teachersRes = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all();
     const contractsRes = await db.prepare("SELECT * FROM contracts WHERE (is_deleted = 0 OR is_deleted IS NULL) ORDER BY sozlesme_tarihi DESC").all().catch(() => ({ results: [] }));
 
@@ -109,6 +114,17 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
     const students = (studentsRes.results || []).map(enrichStudent);
     const summary = await getDynamicAccountingSummary(db, students);
     return json(summary);
+  }
+
+  // 3. GET /payments
+  if (path === "/payments" && request.method === "GET") {
+    const paymentsRes = await db.prepare(`
+      SELECT p.*, s.student_name, s.student_class, s.student_no, s.parent_name, s.parent_phone, s.sozlesme_no
+      FROM payments p
+      LEFT JOIN students s ON p.student_id = s.id
+      ORDER BY p.payment_date DESC, p.created_at DESC
+    `).all().catch(() => ({ results: [] }));
+    return json(paymentsRes.results || []);
   }
 
   // 3. POST /payments

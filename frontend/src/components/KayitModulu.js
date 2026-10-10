@@ -38,6 +38,7 @@ export function KayitModulu({
   teachers = [],
   onOpenWizard,
   onSelectStudent,
+  onEditStudent,
   onNavigate
 }) {
   const [candidateFilter, setCandidateFilter] = useState("all");
@@ -475,7 +476,23 @@ export function KayitModulu({
                             {s.student_name ? s.student_name.slice(0, 2).toUpperCase() : "ÖG"}
                           </div>
                           <div>
-                            <div style={{ fontWeight: "600", color: "#0f172a" }}>{s.student_name}</div>
+                            <div
+                              style={{ fontWeight: "600", color: "#0f172a", cursor: "pointer" }}
+                              onClick={() => {
+                                const targetNo = s?.sozlesme_no || s?.sozlesmeNo || s?.student_name;
+                                if (targetNo) {
+                                  try {
+                                    sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                                    sessionStorage.setItem("cozum_contract_prev_page", "kayit");
+                                  } catch {}
+                                }
+                                if (onNavigate) onNavigate("documents");
+                                else if (onSelectStudent) onSelectStudent(s);
+                              }}
+                              title="Sözleşme & Yönetim Sayfasına Git"
+                            >
+                              {s.student_name}
+                            </div>
                             <div style={{ fontSize: "11px", color: "#64748b" }}>No: {s.student_no || "2026" + s.id.slice(-3)}</div>
                           </div>
                         </div>
@@ -499,13 +516,55 @@ export function KayitModulu({
                         </span>
                       </td>
                       <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                        <button
-                          type="button"
-                          onClick={() => onSelectStudent && onSelectStudent(s)}
-                          style={{ padding: "6px 12px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: "6px", fontWeight: "600", cursor: "pointer", fontSize: "12px" }}
-                        >
-                          Detay
-                        </button>
+                        <div style={{ display: "inline-flex", gap: "6px" }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onEditStudent) onEditStudent(s);
+                              else if (onSelectStudent) onSelectStudent(s);
+                            }}
+                            style={{
+                              padding: "6px 10px",
+                              background: "#f8fafc",
+                              color: "#334155",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "6px",
+                              fontWeight: "600",
+                              cursor: "pointer",
+                              fontSize: "12px"
+                            }}
+                            title="Öğrenci Bilgilerini Düzenle"
+                          >
+                            Düzenle
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const targetNo = s?.sozlesme_no || s?.sozlesmeNo || s?.student_name;
+                              if (targetNo) {
+                                try {
+                                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                                  sessionStorage.setItem("cozum_contract_prev_page", "kayit");
+                                } catch {}
+                              }
+                              if (onNavigate) onNavigate("documents");
+                              else if (onSelectStudent) onSelectStudent(s);
+                            }}
+                            style={{
+                              padding: "6px 12px",
+                              background: "#eff6ff",
+                              color: "#2563eb",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: "6px",
+                              fontWeight: "600",
+                              cursor: "pointer",
+                              fontSize: "12px"
+                            }}
+                            title="Tek Sayfadan Sözleşme & Muhasebe Yönetimi"
+                          >
+                            Sözleşme
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

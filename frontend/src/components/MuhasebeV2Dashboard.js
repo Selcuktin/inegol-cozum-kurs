@@ -524,7 +524,7 @@ export function MuhasebeV2Dashboard({
     const extraGross = relevantIncomes.reduce((acc, g) => acc + (Number(g.brutTutar) || 0), 0);
     const extraColl = relevantIncomes.reduce((acc, g) => acc + (Number(g.toplamTahsilat) || 0), 0);
 
-    const allCollections = AccountingService.getCollections();
+    const allCollections = AccountingService.getCollections(payments);
     const customCollections = allCollections.filter(c => c.id > 1700000000000);
     const extraDirectColl = customCollections.reduce((acc, c) => acc + (Number(c.tahsilatTutari) || 0), 0);
 
@@ -874,7 +874,7 @@ export function MuhasebeV2Dashboard({
       const tahsilatlarByMonth = {};
 
       const currentInstallments = AccountingService.getInstallments();
-      const currentCollections = AccountingService.getCollections();
+      const currentCollections = AccountingService.getCollections(payments);
 
       currentInstallments.forEach((t) => {
         const date = t.vadeTarihi || "";
@@ -1009,7 +1009,7 @@ export function MuhasebeV2Dashboard({
   }, [students, isRealEdesisData, accountingVersion]);
 
   const paymentMethodData = useMemo(() => {
-    const allCollections = AccountingService.getCollections();
+    const allCollections = AccountingService.getCollections(payments);
     if (isRealEdesisData && allCollections?.length > 0) {
       const methodMap = {};
       allCollections.forEach((th) => {
@@ -1535,7 +1535,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("tahsilatlar")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <Receipt size={16} /> 🧾 Tahsilat Listesi ({AccountingService.getCollections()?.length || 159})
+          <Receipt size={16} /> 🧾 Tahsilat Listesi ({AccountingService.getCollections(payments)?.length || 159})
         </button>
         <button
           className={`btn ${activeTab === "giderler" ? "" : "secondary"}`}

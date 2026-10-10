@@ -443,7 +443,6 @@ function MainApp({ me, onLogout }) {
                 { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { try { sessionStorage.removeItem("cozum_open_contract_no"); } catch {} if (typeof window !== "undefined") window.location.hash = "documents"; setPage("documents"); setMobileOpen(false); } },
                 { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "vade" || (page === "payments" && accountingTab === "gecikenler"), onClick: () => { setPage("vade"); setMobileOpen(false); } },
                 { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "tahsilat" || (page === "payments" && accountingTab === "tahsilatlar"), onClick: () => { setPage("tahsilat"); setMobileOpen(false); } },
-                { id: "g_senet", label: "Fatura Planı", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setAccountingTab("senetler"); setPage("payments"); setMobileOpen(false); } },
                 { id: "g_cust", label: "Müşteriler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } }
               ]
             },
@@ -765,7 +764,26 @@ function MainApp({ me, onLogout }) {
             <DashboardPage me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} onNavigate={setPage} onSelect={setSelected} />
           )}
           {page === "kayit" && (
-            <KayitModulu activeTab={kayitTab} setActiveTab={setKayitTab} students={data.students || []} classes={data.classes || []} teachers={data.teachers || []} onOpenWizard={() => guardedOpen("student")} onSelectStudent={setSelected} onNavigate={setPage} />
+            <KayitModulu
+              activeTab={kayitTab}
+              setActiveTab={setKayitTab}
+              students={data.students || []}
+              classes={data.classes || []}
+              teachers={data.teachers || []}
+              onOpenWizard={() => guardedOpen("student")}
+              onEditStudent={(st) => setEditingStudent(st)}
+              onSelectStudent={(st) => {
+                const targetNo = st?.sozlesme_no || st?.sozlesmeNo || st?.student_name;
+                if (targetNo) {
+                  try {
+                    sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                    sessionStorage.setItem("cozum_contract_prev_page", "kayit");
+                  } catch {}
+                }
+                setPage("documents");
+              }}
+              onNavigate={setPage}
+            />
           )}
           {page === "exams" && (
             <ExamOpticalPage me={me} API={API} students={data.students || []} classes={data.classes || []} showOptikModal={showGlobalOptikModal} onCloseOptikModal={() => setShowGlobalOptikModal(false)} showKarneModal={showGlobalKarne} onCloseKarneModal={() => setShowGlobalKarne(null)} />

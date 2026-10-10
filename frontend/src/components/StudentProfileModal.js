@@ -221,6 +221,28 @@ export function StudentProfileModal({
             >
               <TrendingDown size={14} /> Hata Karnesi
             </button>
+            <button
+              className="btn small"
+              onClick={() => {
+                onClose();
+                if (onOpenGelir) {
+                  onOpenGelir(s);
+                } else {
+                  const targetNo = s?.sozlesme_no || s?.sozlesmeNo || s?.student_name;
+                  if (targetNo) {
+                    try {
+                      sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                      sessionStorage.setItem("cozum_contract_prev_page", "students");
+                    } catch {}
+                  }
+                  if (onNavigate) onNavigate("documents");
+                }
+              }}
+              style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "#4f46e5", color: "#fff" }}
+              title="Tek Sayfadan Yönetim: Sözleşme & Muhasebe Detayı"
+            >
+              <FileText size={14} /> Sözleşme & Muhasebe
+            </button>
             {canEdit && (
               <button
                 className="btn small"
@@ -342,20 +364,20 @@ export function StudentProfileModal({
                   <b className="status-pill success">{s.status || "Kayıtlı"}</b>
                 </div>
                 <div>
-                  <span>Din Kültürü</span>
-                  <b>{s.din_muaf ? "Muaf" : "Dahil"}</b>
+                  <span>Sınıfı / Şubesi</span>
+                  <b>{s.student_class || "—"}</b>
                 </div>
                 <div>
-                  <span>Yabancı Dil</span>
-                  <b>{s.ing_muaf ? "Muaf" : "Dahil"}</b>
+                  <span>Sözleşme No</span>
+                  <b style={{ color: "#2563eb", fontFamily: "monospace" }}>{s.sozlesme_no || "—"}</b>
                 </div>
                 <div>
-                  <span>Servis Kullanımı</span>
-                  <b>{s.uses_service ? "Servis Kullanıyor" : "Kullanmıyor"}</b>
+                  <span>Ödeme Planı</span>
+                  <b>{s.installment_count ? `${s.installment_count} Taksit` : "Peşin"}</b>
                 </div>
                 <div>
-                  <span>Diploma / OBP Notu</span>
-                  <b>{s.diploma_grade || "—"}</b>
+                  <span>Kayıtlı Okulu</span>
+                  <b>{s.school || "İnegöl"}</b>
                 </div>
               </div>
 

@@ -77,6 +77,14 @@ export default function EdesisTahsilatListesi({
   }, [payments]);
 
   useEffect(() => {
+    if ((!payments || payments.length === 0) && AccountingService.getCollections().length === 0) {
+      AccountingService.fetchCollections().then((colls) => {
+        if (colls && colls.length > 0) setTahsilatList(colls);
+      });
+    }
+  }, [payments]);
+
+  useEffect(() => {
     const handleUpdate = () => {
       setTahsilatList(AccountingService.getCollections(payments));
     };
@@ -186,8 +194,19 @@ export default function EdesisTahsilatListesi({
       count++;
       const amt = Number(t.tahsilatTutari) || 0;
       totalCollected += amt;
-      const bName = (t.kasaBankaAdi || "").toLowerCase();
-      if (bName.includes("vakıf") || bName.includes("halk") || bName.includes("bank")) {
+      const bName = (t.kasaBankaAdi || t.bank || "").toLowerCase();
+      const mName = (t.method || "").toLowerCase();
+      if (
+        bName.includes("vakıf") ||
+        bName.includes("halk") ||
+        bName.includes("bank") ||
+        mName.includes("bank") ||
+        mName.includes("pos") ||
+        mName.includes("kart") ||
+        mName.includes("transfer") ||
+        mName.includes("havale") ||
+        mName.includes("eft")
+      ) {
         bankSum += amt;
       } else {
         cashSum += amt;
