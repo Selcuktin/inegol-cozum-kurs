@@ -4625,11 +4625,21 @@ td[colspan] {
   border-collapse: collapse;
   font-size: 13px;
   margin-bottom: 8px;
+  table-layout: fixed;
 }
 
-.receipt-info-table td {
+.receipt-info-table td,
+.meb-contract-sheet td {
   padding: 7px 6px;
   border-bottom: 1px solid #e2e8f0;
+  white-space: normal !important;
+  word-break: break-word;
+}
+
+.receipt-sheet .table-responsive,
+.hata-karnesi-sheet .table-responsive,
+.print-sheet.table-responsive {
+  min-height: 0 !important;
 }
 
 .receipt-amount-box {

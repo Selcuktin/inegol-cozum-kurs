@@ -219,34 +219,34 @@ export function ReceiptModal({ payment, student, onClose }) {
             </div>
 
             {/* Öğrenci & Veli Bilgileri */}
-            <div className="table-responsive" style={{ marginBottom: "16px" }}>
+            <div style={{ marginBottom: "16px", width: "100%" }}>
               <table
                 className="receipt-info-table"
-                style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}
+                style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}
               >
                 <tbody>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ width: "120px", color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Öğrenci Adı:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}><b>{student?.student_name || "—"}</b></td>
-                    <td style={{ width: "100px", color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Sınıf / Şube:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}><b>{student?.student_class || "—"}</b></td>
+                    <td style={{ width: "18%", color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Öğrenci Adı:</td>
+                    <td style={{ width: "34%", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}><b>{student?.student_name || "—"}</b></td>
+                    <td style={{ width: "16%", color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Sınıf / Şube:</td>
+                    <td style={{ width: "32%", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}><b>{student?.student_class || "—"}</b></td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Veli Adı Soyadı:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>{resolvedParentName}</td>
-                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Veli Telefon:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>{resolvedParentPhone}</td>
+                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Veli Adı Soyadı:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}><b>{resolvedParentName}</b></td>
+                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Veli Telefon:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>{resolvedParentPhone}</td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Ödeme Yöntemi:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>
-                      <span style={{ background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Ödeme Yöntemi:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}>
+                      <span style={{ background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: "4px", fontWeight: "600", display: "inline-block" }}>
                         {payment.method || "Nakit Kasa"}
                       </span>
-                      {payment.bank && <span style={{ marginLeft: "8px", color: "#64748b" }}>({payment.bank})</span>}
+                      {payment.bank && <span style={{ marginLeft: "6px", color: "#64748b", fontSize: "11.5px" }}>({payment.bank})</span>}
                     </td>
-                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Açıklama:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>{payment.note || "Eğitim Dönemi Taksit Ödemesi"}</td>
+                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Açıklama:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}>{payment.note || "Eğitim Dönemi Taksit Ödemesi"}</td>
                   </tr>
                 </tbody>
               </table>
