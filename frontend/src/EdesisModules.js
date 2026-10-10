@@ -2366,7 +2366,7 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
     const sampleLines = [
       "001042Eylul Yilmaz        AABDCBCCDBAACDAABDCDBBCADCBACDDBBACDABCB",
       "001089Arda Demir          BADBCBACDBAACDAABDCDBBCADCBACDDBBACDABCB",
-      "001150Semih Seymen        AABDCBCCDBAACDAABDCDBBCADCBACDDBBACDABCB",
+      "001150Osman Seymen        AABDCBCCDBAACDAABDCDBBCADCBACDDBBACDABCB",
       "001205Ayse Kaya           AABDCBCCDBAACDAABDCDBBCADCBACDDBBACDABCB",
       "001340Mehmet Celik        BADBCBACDBAACDAABDCDBBCADCBACDDBBACDABCB"
     ];
@@ -4261,7 +4261,7 @@ export function SchedulesPage({ me, API, classes }) {
                   <label>Öğretmen Adı</label>
                   <input
                     type="text"
-                    placeholder="Semih Seymen, Ayşe Kaya..."
+                    placeholder="Osman Seymen, Ayşe Kaya..."
                     value={formTeacher}
                     onChange={(e) => setFormTeacher(e.target.value)}
                   />

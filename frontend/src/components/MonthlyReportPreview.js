@@ -615,7 +615,7 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
             <div style={{ fontSize: "12px", fontWeight: "700", color: "#0f172a" }}>
               MUHASEBE VE FİNANS YETKİLİSİ
             </div>
-            <div style={{ fontSize: "11px", color: "#64748b" }}>Semih SEYMEN</div>
+            <div style={{ fontSize: "11px", color: "#64748b" }}>Osman SEYMEN</div>
             <div style={{ height: "55px", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>[İmza / Kaşe]</span>
             </div>

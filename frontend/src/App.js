@@ -622,6 +622,18 @@ function MainApp({ me, onLogout }) {
         }
         return "documents";
       }
+      if (cleanHash === "gelir" && fullHash.includes("?id=")) {
+        const m = fullHash.match(/\?id=([^&]+)/);
+        if (m && m[1]) {
+          try { sessionStorage.setItem("cozum_open_income_id", decodeURIComponent(m[1])); } catch {}
+        }
+      }
+      if (cleanHash === "kayit" && fullHash.includes("?tab=")) {
+        const m = fullHash.match(/\?tab=([^&]+)/);
+        if (m && m[1]) {
+          try { sessionStorage.setItem("cozum_kayit_tab", decodeURIComponent(m[1])); } catch {}
+        }
+      }
       if (cleanHash && validPages.includes(cleanHash)) return cleanHash;
       const saved = localStorage.getItem("active_page");
       if (saved && validPages.includes(saved)) return saved;
@@ -632,7 +644,17 @@ function MainApp({ me, onLogout }) {
   const setPage = (p) => {
     setPageState(p);
     if (typeof window !== "undefined") {
-      window.location.hash = p;
+      const currentFullHash = window.location.hash.replace(/^#/, "");
+      if (currentFullHash !== p && !currentFullHash.startsWith(`${p}?`)) {
+        let nextHash = p;
+        try {
+          if (p === "documents") {
+            const openContractNo = sessionStorage.getItem("cozum_open_contract_no");
+            if (openContractNo) nextHash = `documents?id=${encodeURIComponent(openContractNo)}`;
+          }
+        } catch {}
+        window.location.hash = nextHash;
+      }
       localStorage.setItem("active_page", p);
     }
   };
@@ -659,6 +681,18 @@ function MainApp({ me, onLogout }) {
         setAccountingTab("backup");
         localStorage.setItem("active_page", "payments");
       } else if (cleanHash && validPages.includes(cleanHash)) {
+        if (cleanHash === "gelir" && fullHash.includes("?id=")) {
+          const m = fullHash.match(/\?id=([^&]+)/);
+          if (m && m[1]) {
+            try { sessionStorage.setItem("cozum_open_income_id", decodeURIComponent(m[1])); } catch {}
+          }
+        }
+        if (cleanHash === "kayit" && fullHash.includes("?tab=")) {
+          const m = fullHash.match(/\?tab=([^&]+)/);
+          if (m && m[1]) {
+            setKayitTab(decodeURIComponent(m[1]));
+          }
+        }
         setPageState(cleanHash);
         localStorage.setItem("active_page", cleanHash);
         if (cleanHash === "vade") setAccountingTab("gecikenler");
@@ -676,17 +710,51 @@ function MainApp({ me, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Edesis Tree Navigation & Module States
-  const [kayitTab, setKayitTab] = useState("kokpit");
-  const [accountingTab, setAccountingTab] = useState(() => {
+  const [kayitTab, setKayitTabState] = useState(() => {
     if (typeof window !== "undefined") {
-      const h = window.location.hash.replace(/^#/, "");
+      try {
+        const fullHash = window.location.hash.replace(/^#/, "");
+        const tabMatch = fullHash.match(/[?&]tab=([^&]+)/);
+        if (tabMatch && tabMatch[1]) return decodeURIComponent(tabMatch[1]);
+        const saved = sessionStorage.getItem("cozum_kayit_tab") || localStorage.getItem("cozum_kayit_tab");
+        if (saved) return saved;
+      } catch {}
+    }
+    return "kokpit";
+  });
+  const setKayitTab = (tab) => {
+    setKayitTabState(tab);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("cozum_kayit_tab", tab);
+        localStorage.setItem("cozum_kayit_tab", tab);
+      } catch {}
+    }
+  };
+  const [accountingTab, setAccountingTabState] = useState(() => {
+    if (typeof window !== "undefined") {
+      const h = window.location.hash.replace(/^#/, "").split("?")[0];
       if (h === "vade") return "gecikenler";
       if (h === "tahsilat") return "tahsilatlar";
+      if (h === "gelir") return "gelirler";
       if (h === "kasalar" || h === "kasa") return "kasalar";
       if (h === "backup") return "backup";
+      try {
+        const saved = sessionStorage.getItem("cozum_muhasebe_v2_tab") || localStorage.getItem("cozum_muhasebe_v2_tab");
+        if (saved) return saved;
+      } catch {}
     }
     return "dashboard";
   });
+  const setAccountingTab = (tab) => {
+    setAccountingTabState(tab);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("cozum_muhasebe_v2_tab", tab);
+        localStorage.setItem("cozum_muhasebe_v2_tab", tab);
+      } catch {}
+    }
+  };
   const [showTestBench, setShowTestBench] = useState(false);
   const [showGlobalOptikModal, setShowGlobalOptikModal] = useState(false);
   const [showGlobalKarne, setShowGlobalKarne] = useState(null);
@@ -771,7 +839,7 @@ function MainApp({ me, onLogout }) {
               icon: Folder,
               children: [
                 { id: "g_list", label: "Gelir Listesi", activeCheck: () => page === "gelir" || (page === "payments" && accountingTab === "gelirler"), onClick: () => { setPage("gelir"); setAccountingTab("gelirler"); setMobileOpen(false); } },
-                { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { setPage("documents"); setMobileOpen(false); } },
+                { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { try { sessionStorage.removeItem("cozum_open_contract_no"); } catch {} if (typeof window !== "undefined") window.location.hash = "documents"; setPage("documents"); setMobileOpen(false); } },
                 { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "vade" || (page === "payments" && accountingTab === "gecikenler"), onClick: () => { setPage("vade"); setMobileOpen(false); } },
                 { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "tahsilat" || (page === "payments" && accountingTab === "tahsilatlar"), onClick: () => { setPage("tahsilat"); setMobileOpen(false); } },
                 { id: "g_senet", label: "Fatura Planı", activeCheck: () => page === "payments" && accountingTab === "senetler", onClick: () => { setAccountingTab("senetler"); setPage("payments"); setMobileOpen(false); } },

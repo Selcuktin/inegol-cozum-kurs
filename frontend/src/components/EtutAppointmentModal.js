@@ -19,7 +19,7 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
     },
     {
       id: "etut-2",
-      teacher_name: "Semih Seymen (Fizik)",
+      teacher_name: "Osman Seymen (Fizik)",
       student_id: "student-002",
       student_name: "Arda Demir",
       subject: "Fizik",
@@ -45,7 +45,7 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
 
   const teachersList = [
     "Ayşe Kaya (Matematik)",
-    "Semih Seymen (Fizik)",
+    "Osman Seymen (Fizik)",
     "Mehmet Çelik (Geometri)",
     "Zeynep Şahin (Türkçe/Edebiyat)",
     "Burak Demir (Kimya)",

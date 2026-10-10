@@ -77,13 +77,13 @@ describe("MonthlyReportPreview Component", () => {
     expect(container.textContent).toContain("4. Dönem Kurum Giderleri Dökümü");
   });
 
-  test("renders authorized signatures and seals for Semih Seymen & Nevin Çakmak", async () => {
+  test("renders authorized signatures and seals for Osman Seymen & Nevin Çakmak", async () => {
     const { container } = await render(
       <MonthlyReportPreview month="2026-10" data={mockData} />
     );
 
     expect(container.textContent).toContain("MUHASEBE VE FİNANS YETKİLİSİ");
-    expect(container.textContent).toContain("Semih SEYMEN");
+    expect(container.textContent).toContain("Osman SEYMEN");
     expect(container.textContent).toContain("KURUM MÜDÜRÜ");
     expect(container.textContent).toContain("Nevin ÇAKMAK");
   });

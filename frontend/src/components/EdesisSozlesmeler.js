@@ -643,38 +643,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
             </tbody>
           </table>
 
-          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-            <button
-              type="button"
-              onClick={() => {
-                const target = showPaymentPlanModal;
-                setShowPaymentPlanModal(null);
-                setShowQuickEditModal({
-                  ...target,
-                  editBrut: target.brutTutar,
-                  editCount: target.taksitSayisi || planItems.length || 1,
-                  editDate: target.sozlesmeTarihi ? String(target.sozlesmeTarihi).slice(0, 10) : new Date().toISOString().slice(0, 10),
-                  rebalance: true
-                });
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "8px 14px",
-                background: "#f0fdf4",
-                color: "#16a34a",
-                border: "1px solid #bbf7d0",
-                borderRadius: "6px",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer"
-              }}
-            >
-              <Edit2 size={14} />
-              Tutarları / Planı Düzenle
-            </button>
-
+          <div className="no-print" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px" }}>
             <div style={{ display: "flex", gap: "8px" }}>
               <button
                 type="button"
@@ -943,97 +912,125 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
             style={{
               boxSizing: "border-box",
               border: "2px solid #000",
-              padding: "12px 16px",
+              padding: "18px 24px",
               backgroundColor: "#fff",
               color: "#000",
               fontFamily: "'Times New Roman', Times, serif",
-              minHeight: "0",
-              height: "auto",
+              minHeight: "255mm",
+              maxHeight: "268mm",
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between"
             }}
           >
             <div>
-              <div style={{ textAlign: "center", marginBottom: "10px" }}>
-                <div style={{ fontSize: "13px", fontWeight: "bold" }}>T.C.</div>
-                <div style={{ fontSize: "13px", fontWeight: "bold" }}>MİLLÎ EĞİTİM BAKANLIĞI</div>
-                <div style={{ fontSize: "12px", fontWeight: "bold" }}>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
-                <h2 style={{ fontSize: "15px", margin: "6px 0 3px 0", textDecoration: "underline", fontWeight: "bold" }}>
+              <div style={{ textAlign: "center", marginBottom: "16px", borderBottom: "1.5px solid #000", paddingBottom: "10px" }}>
+                <div style={{ fontSize: "14px", fontWeight: "bold", letterSpacing: "0.5px" }}>T.C.</div>
+                <div style={{ fontSize: "14px", fontWeight: "bold", letterSpacing: "0.5px" }}>MİLLÎ EĞİTİM BAKANLIĞI</div>
+                <div style={{ fontSize: "13px", fontWeight: "bold" }}>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
+                <h2 style={{ fontSize: "17px", margin: "8px 0 4px 0", textDecoration: "underline", fontWeight: "bold" }}>
                   ÖZEL ÖĞRETİM KURUMLARI ÖĞRENCİ KAYIT SÖZLEŞMESİ
                 </h2>
-                <div style={{ fontSize: "11px", fontStyle: "italic" }}>
-                  Sözleşme No: {showMebPrintModal.sozlesmeNo} · Tarih: {fmtDate(showMebPrintModal.sozlesmeTarihi)}
+                <div style={{ fontSize: "12px", fontStyle: "italic" }}>
+                  Sözleşme No: {showMebPrintModal.sozlesmeNo} · Düzenleme Tarihi: {fmtDate(showMebPrintModal.sozlesmeTarihi)}
                 </div>
               </div>
 
               {/* Institution & Student Info Table */}
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px", marginBottom: "10px" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px", marginBottom: "16px" }}>
                 <tbody>
                   <tr>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold", width: "32%" }}>KURUMUN ADI:</td>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px" }}>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ (MEB Kurum Kodu: 627201)</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", width: "34%", background: "#f8fafc" }}>KURUMUN ADI VE KODU:</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold" }}>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ (MEB Kurum Kodu: 627201)</td>
                   </tr>
                   <tr>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold" }}>T.C. KİMLİK NO:</td>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px" }}>{showMebPrintModal.student_tc || printStudent?.student_tc || "—"}</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", background: "#f8fafc" }}>KURUM ADRESİ & TELEFON:</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px" }}>Kemalpaşa Mah. Ilıca Sk. No:31/33A İnegöl / BURSA · Tel: 0224 715 00 02</td>
                   </tr>
                   <tr>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold" }}>ÖĞRENCİNİN ADI SOYADI:</td>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || printStudent?.student_name || "—"}</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", background: "#f8fafc" }}>T.C. KİMLİK NO:</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px" }}>{showMebPrintModal.student_tc || printStudent?.student_tc || "—"}</td>
                   </tr>
                   <tr>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold" }}>VELİ / VASİ ADI SOYADI:</td>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || "—"}</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", background: "#f8fafc" }}>ÖĞRENCİNİN ADI SOYADI:</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold" }}>{showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || printStudent?.student_name || "—"}</td>
                   </tr>
                   <tr>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold" }}>VELİ İLETİŞİM (TELEFON):</td>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px" }}>{printStudent?.parent_phone || showMebPrintModal.parent_phone || showMebPrintModal.musteriTelefon || "—"}</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", background: "#f8fafc" }}>VELİ / VASİ ADI SOYADI:</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || "—"}</td>
                   </tr>
                   <tr>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold" }}>SINIFI / PROGRAMI:</td>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px" }}>{showMebPrintModal.sinifAdi || printStudent?.student_class || "—"} ({showMebPrintModal.donemAdi || "2026-2027"})</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", background: "#f8fafc" }}>VELİ İLETİŞİM (TELEFON):</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px" }}>{printStudent?.parent_phone || showMebPrintModal.parent_phone || showMebPrintModal.musteriTelefon || printStudent?.student_phone || "—"}</td>
                   </tr>
                   <tr>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold" }}>ÖĞRENİM ÜCRETİ (BRÜT):</td>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold", fontSize: "12.5px" }}>{fmtCurrency(showMebPrintModal.brutTutar ?? printStudent?.total_fee)}</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", background: "#f8fafc" }}>SINIFI / ÖĞRETİM PROGRAMI:</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px" }}>{showMebPrintModal.sinifAdi || printStudent?.student_class || "—"} ({showMebPrintModal.donemAdi || "2026-2027 Eğitim-Öğretim Dönemi"})</td>
                   </tr>
                   <tr>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px", fontWeight: "bold" }}>ÖDEME ŞEKLİ & VADE:</td>
-                    <td style={{ border: "1px solid #000", padding: "4px 7px" }}>
-                      {showMebPrintModal.odemeTuruText || (showMebPrintModal.taksitSayisi > 1 ? `Taksitli (${showMebPrintModal.taksitSayisi} Taksit)` : "Peşin")}
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", background: "#f8fafc" }}>ÖĞRENİM ÜCRETİ (BRÜT):</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", fontSize: "13.5px" }}>{fmtCurrency(showMebPrintModal.brutTutar ?? printStudent?.total_fee)} (KDV Dahil)</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px", fontWeight: "bold", background: "#f8fafc" }}>ÖDEME ŞEKLİ & VADE PLANI:</td>
+                    <td style={{ border: "1px solid #000", padding: "7px 10px" }}>
+                      {showMebPrintModal.odemeTuruText || (showMebPrintModal.taksitSayisi > 1 ? `Taksitli (${showMebPrintModal.taksitSayisi} Taksit)` : "Peşin")} · Başlangıç: {fmtDate(showMebPrintModal.baslamaTarihi || "2026-10-01")} - Bitiş: {fmtDate(showMebPrintModal.bitisTarihi || "2027-06-30")}
                     </td>
                   </tr>
                 </tbody>
               </table>
 
+              {/* Ödeme ve Taksit Planı Özeti */}
+              <div style={{ border: "1px solid #000", padding: "8px 12px", marginBottom: "14px", backgroundColor: "#fafafa", fontSize: "11.5px" }}>
+                <div style={{ fontWeight: "bold", marginBottom: "4px", textDecoration: "underline" }}>
+                  ÖDEME VE TAKSİT PLANI ÖZETİ
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                  <span><b>Toplam Sözleşme Bedeli:</b> {fmtCurrency(showMebPrintModal.brutTutar ?? printStudent?.total_fee)}</span>
+                  <span><b>Taksit Sayısı:</b> {showMebPrintModal.taksitSayisi || 1} Taksit</span>
+                  <span><b>Aylık Ortalama Taksit:</b> {fmtCurrency((Number(showMebPrintModal.brutTutar ?? printStudent?.total_fee) || 0) / Math.max(1, Number(showMebPrintModal.taksitSayisi) || 1))}</span>
+                </div>
+              </div>
+
               {/* Legal Terms Paragraph */}
-              <div style={{ fontSize: "10.5px", lineHeight: "1.35", textAlign: "justify", marginBottom: "10px" }}>
-                <p style={{ margin: "0 0 4px 0" }}>
-                  1. Bu sözleşme; 5580 sayılı Özel Öğretim Kurumları Kanunu ile bu Kanuna dayanılarak çıkarılan Millî Eğitim Bakanlığı Özel Öğretim Kurumları Yönetmeliği hükümlerine uygun olarak düzenlenmiştir.
+              <div style={{ fontSize: "11.5px", lineHeight: "1.55", textAlign: "justify", marginBottom: "16px" }}>
+                <div style={{ fontWeight: "bold", marginBottom: "6px", textDecoration: "underline" }}>
+                  SÖZLEŞME HÜKÜMLERİ VE GENEL ŞARTLAR
+                </div>
+                <p style={{ margin: "0 0 6px 0" }}>
+                  <b>Madde 1 (Dayanak):</b> Bu sözleşme; 5580 sayılı Özel Öğretim Kurumları Kanunu ile bu Kanuna dayanılarak çıkarılan Millî Eğitim Bakanlığı Özel Öğretim Kurumları Yönetmeliği hükümlerine uygun olarak taraflar arasında iki nüsha halinde düzenlenmiştir.
                 </p>
-                <p style={{ margin: "0 0 4px 0" }}>
-                  2. Öğrenci velisi, sözleşmede kararlaştırılan öğrenim ücretini belirtilen vadelerde kuruma tam ve eksiksiz olarak ödemeyi kabul ve taahhüt eder.
+                <p style={{ margin: "0 0 6px 0" }}>
+                  <b>Madde 2 (Mali Yükümlülükler):</b> Öğrenci velisi/vasisi, sözleşmede kararlaştırılan toplam öğrenim ücretini yukarıda belirtilen ödeme planı ve taksit vadelerinde kuruma tam ve eksiksiz olarak ödemeyi kabul ve taahhüt eder. Vadelerinde ödenmeyen taksitler için yasal gecikme hükümleri uygulanır.
                 </p>
-                <p style={{ margin: "0 0 4px 0" }}>
-                  3. Kurum, Millî Eğitim Bakanlığı mevzuatı çerçevesinde eğitim-öğretim hizmetlerini eksiksiz yürütmekle yükümlüdür.
+                <p style={{ margin: "0 0 6px 0" }}>
+                  <b>Madde 3 (Eğitim Hizmeti):</b> Kurum, Millî Eğitim Bakanlığı mevzuatı ve onaylı öğretim programı çerçevesinde ders, deneme sınavı, soru çözümü, birebir etüt ve rehberlik hizmetlerini eksiksiz yürütmekle yükümlüdür.
+                </p>
+                <p style={{ margin: "0 0 6px 0" }}>
+                  <b>Madde 4 (Kayıt İptali ve Ayrılma):</b> Öğrencinin kurumdan ayrılması veya kaydının iptal edilmesi durumunda; MEB Özel Öğretim Kurumları Yönetmeliği'nin ücret iadesine ilişkin hükümleri uyarınca öğrenim gördüğü gün ve ders saatleri hesaplanarak mahsup işlemi yapılır.
+                </p>
+                <p style={{ margin: "0 0 6px 0" }}>
+                  <b>Madde 5 (Kurum Kuralları ve Devam):</b> Öğrenci, kurumun iç işleyiş, disiplin ve devam-devamsızlık kurallarına uymakla yükümlüdür. Devamsızlık ve akademik gelişim bilgileri veliye SMS/WhatsApp ve sistem üzerinden düzenli olarak bildirilir.
+                </p>
+                <p style={{ margin: "0" }}>
+                  <b>Madde 6 (Uyuşmazlıkların Çözümü):</b> İşbu sözleşmeden doğabilecek her türlü hukuki uyuşmazlığın çözümünde İnegöl Mahkemeleri ve İcra Daireleri yetkilidir.
                 </p>
               </div>
             </div>
 
             {/* Signatures */}
-            <div style={{ marginTop: "18px", paddingTop: "8px", pageBreakInside: "avoid", breakInside: "avoid" }}>
+            <div style={{ marginTop: "auto", paddingTop: "20px", borderTop: "1px solid #000", pageBreakInside: "avoid", breakInside: "avoid" }}>
               <div style={{ display: "flex", justifyContent: "space-between", textAlign: "center" }}>
-                <div style={{ width: "42%" }}>
-                  <div style={{ fontWeight: "bold", fontSize: "11.5px" }}>VELİ / VASİ</div>
-                  <div style={{ fontSize: "10.5px", marginTop: "2px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || showMebPrintModal.ogrenciAdi || "—"}</div>
-                  <div style={{ marginTop: "26px", borderTop: "1px solid #000", paddingTop: "4px", fontSize: "10.5px" }}>İmza</div>
+                <div style={{ width: "44%" }}>
+                  <div style={{ fontWeight: "bold", fontSize: "12px" }}>VELİ / VASİ</div>
+                  <div style={{ fontSize: "11.5px", marginTop: "4px" }}>{printStudent?.parent_name || showMebPrintModal.parent_name || showMebPrintModal.musteriUnvan || showMebPrintModal.ogrenciAdi || "—"}</div>
+                  <div style={{ marginTop: "36px", borderTop: "1px solid #000", paddingTop: "4px", fontSize: "11px" }}>Okudum, Bir Nüshasını Teslim Aldım (İmza)</div>
                 </div>
 
-                <div style={{ width: "42%" }}>
-                  <div style={{ fontWeight: "bold", fontSize: "11.5px" }}>KURUM YETKİLİSİ</div>
-                  <div style={{ fontSize: "10.5px", marginTop: "2px" }}>Özel İnegöl Çözüm Kurs Merkezi</div>
-                  <div style={{ marginTop: "26px", borderTop: "1px solid #000", paddingTop: "4px", fontSize: "10.5px" }}>İmza / Mühür</div>
+                <div style={{ width: "44%" }}>
+                  <div style={{ fontWeight: "bold", fontSize: "12px" }}>KURUM YETKİLİSİ</div>
+                  <div style={{ fontSize: "11.5px", marginTop: "4px" }}>Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi</div>
+                  <div style={{ marginTop: "36px", borderTop: "1px solid #000", paddingTop: "4px", fontSize: "11px" }}>Kaşe / Mühür ve İmza</div>
                 </div>
               </div>
             </div>
@@ -1825,13 +1822,15 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                 </tr>
               ) : (
                 paginatedContracts.map((c, idx) => {
-                  const isMenuOpen = openDropdownId === c.id;
+                  const dropdownKey = c.id || c.sozlesmeNo || idx;
+                  const isMenuOpen = openDropdownId === dropdownKey;
+                  const openUpwards = idx >= paginatedContracts.length - 2 && paginatedContracts.length > 3;
                   const instCount = parseInt(c.taksitSayisi !== undefined ? c.taksitSayisi : (c.taksit_sayisi !== undefined ? c.taksit_sayisi : 1), 10) || 1;
                   const isInstallment = instCount > 1;
 
                   return (
                     <tr
-                      key={c.id || c.sozlesmeNo}
+                      key={c.id || c.sozlesmeNo || idx}
                       style={{
                         borderBottom: "1px solid #f1f5f9",
                         transition: "background-color 0.15s",
@@ -1846,12 +1845,12 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                     >
                       {/* 1. İşlemler Dropdown Button */}
                       <td style={{ padding: "10px 14px", textAlign: "center", position: "relative" }}>
-                        <div data-sozlesme-dropdown={c.id} style={{ position: "relative", display: "inline-block" }}>
+                        <div data-sozlesme-dropdown={dropdownKey} style={{ position: "relative", display: "inline-block" }}>
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setOpenDropdownId(isMenuOpen ? null : c.id);
+                              setOpenDropdownId(isMenuOpen ? null : dropdownKey);
                             }}
                             style={{
                               display: "inline-flex",
@@ -1870,35 +1869,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                           >
                             <Settings size={12} />
                             <span>▾</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            title="Hızlı Düzenle (Tutar / Taksit)"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowQuickEditModal({
-                                ...c,
-                                editBrut: c.brutTutar,
-                                editCount: c.taksitSayisi || 1,
-                                editDate: c.sozlesmeTarihi ? String(c.sozlesmeTarihi).slice(0, 10) : new Date().toISOString().slice(0, 10),
-                                rebalance: true
-                              });
-                            }}
-                            style={{
-                              marginLeft: "4px",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              padding: "4px 6px",
-                              background: "#f1f5f9",
-                              color: "#2563eb",
-                              border: "1px solid #cbd5e1",
-                              borderRadius: "4px",
-                              fontSize: "11px",
-                              cursor: "pointer"
-                            }}
-                          >
-                            <Edit2 size={12} />
                           </button>
 
                           {/* Action Menu Dropdown */}
@@ -1939,34 +1909,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                               >
                                 <Eye size={14} color="#64748b" />
                                 Detay Görüntüle
-                              </div>
-
-                              <div
-                                onClick={() => {
-                                  setShowQuickEditModal({
-                                    ...c,
-                                    editBrut: c.brutTutar,
-                                    editCount: c.taksitSayisi || 1,
-                                    editDate: c.sozlesmeTarihi ? String(c.sozlesmeTarihi).slice(0, 10) : new Date().toISOString().slice(0, 10),
-                                    rebalance: true
-                                  });
-                                  setOpenDropdownId(null);
-                                }}
-                                style={{
-                                  padding: "8px 14px",
-                                  fontSize: "12px",
-                                  fontWeight: 500,
-                                  color: "#1e293b",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "8px"
-                                }}
-                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
-                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                              >
-                                <Edit2 size={14} color="#2563eb" />
-                                Hızlı Düzenle (Tutar / Taksit)
                               </div>
 
                               <div

@@ -212,12 +212,25 @@ export function MuhasebeV2Dashboard({
   onTabChange,
   onNavigate
 }) {
-  const [internalTab, setInternalTab] = useState(propActiveTab || "dashboard");
+  const [internalTab, setInternalTab] = useState(() => {
+    if (propActiveTab) return propActiveTab;
+    try {
+      if (typeof window !== "undefined" && window.location.hash.includes("payments")) {
+        const saved = sessionStorage.getItem("cozum_muhasebe_v2_tab") || localStorage.getItem("cozum_muhasebe_v2_tab");
+        if (saved) return saved;
+      }
+    } catch {}
+    return "dashboard";
+  });
   const [statusQuickFilter, setStatusQuickFilter] = useState("all"); // 'all' | 'paid' | 'unpaid' | 'overdue'
 
   useEffect(() => {
     if (propActiveTab !== undefined) {
       setInternalTab(propActiveTab);
+      try {
+        sessionStorage.setItem("cozum_muhasebe_v2_tab", propActiveTab);
+        localStorage.setItem("cozum_muhasebe_v2_tab", propActiveTab);
+      } catch {}
     }
   }, [propActiveTab]);
 
@@ -231,6 +244,10 @@ export function MuhasebeV2Dashboard({
   const activeTab = propActiveTab !== undefined ? propActiveTab : internalTab;
   const setActiveTab = (tab) => {
     setInternalTab(tab);
+    try {
+      sessionStorage.setItem("cozum_muhasebe_v2_tab", tab);
+      localStorage.setItem("cozum_muhasebe_v2_tab", tab);
+    } catch {}
     if (onTabChange) onTabChange(tab);
   };
   const [searchQuery, setSearchQuery] = useState("");
@@ -2196,13 +2213,34 @@ export function MuhasebeV2Dashboard({
       )}
 
       {/* MODAL 1: RESMİ TAHSİLAT MAKBUZU */}
-      {receiptPayment && (
-        <ReceiptModal 
-          payment={receiptPayment}
-          student={students.find(s => s.id === receiptPayment.student_id)}
-          onClose={() => setReceiptPayment(null)}
-        />
-      )}
+      {receiptPayment && (() => {
+        const s = allStudents.find(
+          (st) =>
+            (receiptPayment.student_id && String(st.id) === String(receiptPayment.student_id)) ||
+            (receiptPayment.student_name && st.student_name && trIncludes(st.student_name, receiptPayment.student_name))
+        );
+        const stName = s?.student_name || receiptPayment.student_name || "";
+        const rawParent = s?.parent_name || receiptPayment.parent_name || "";
+        const cleanParent =
+          rawParent && rawParent.trim().toLocaleUpperCase("tr-TR") !== stName.trim().toLocaleUpperCase("tr-TR")
+            ? rawParent
+            : "";
+        return (
+          <ReceiptModal 
+            payment={{
+              ...receiptPayment,
+              payment_date: receiptPayment.payment_date || receiptPayment.date || new Date().toISOString().slice(0, 10)
+            }}
+            student={{
+              ...(s || {}),
+              student_name: stName,
+              parent_name: cleanParent,
+              parent_phone: s?.parent_phone || s?.student_phone || receiptPayment.parent_phone || ""
+            }}
+            onClose={() => setReceiptPayment(null)}
+          />
+        );
+      })()}
 
       {/* MODAL 2: RESMİ MATBU SENET (BONO) */}
       {promissoryStudent && (

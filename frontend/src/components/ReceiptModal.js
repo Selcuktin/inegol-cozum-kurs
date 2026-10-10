@@ -1,6 +1,34 @@
 import React, { useState } from "react";
 import { Printer, X, Receipt, CheckCircle2, Edit3 } from "lucide-react";
 import { numberToTurkishWords } from "./PromissoryNoteModal";
+import { StudentService } from "../lib/edesisService";
+
+function normTr(str) {
+  return String(str || "")
+    .trim()
+    .replace(/i/g, "İ")
+    .replace(/ı/g, "I")
+    .toLocaleUpperCase("tr-TR")
+    .replace(/\s+/g, " ");
+}
+
+export function formatPaymentDate(raw) {
+  if (!raw) return new Date().toLocaleDateString("tr-TR");
+  const str = String(raw).trim();
+  if (/^\d{2}\.\d{2}\.\d{4}/.test(str)) {
+    return str.slice(0, 10);
+  }
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[3]}.${isoMatch[2]}.${isoMatch[1]}`;
+  }
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) {
+    const formatted = d.toLocaleDateString("tr-TR");
+    if (formatted && !formatted.includes("Invalid")) return formatted;
+  }
+  return new Date().toLocaleDateString("tr-TR");
+}
 
 export function ReceiptModal({ payment, student, onClose }) {
   const [editableAmount, setEditableAmount] = useState(() => Number(payment?.amount || 0));
@@ -9,9 +37,54 @@ export function ReceiptModal({ payment, student, onClose }) {
   const LOGO = "/assets/logo.jpeg";
   const amount = editableAmount;
   const amountWords = numberToTurkishWords(amount);
-  const paymentDate = payment.payment_date 
-    ? new Date(payment.payment_date).toLocaleDateString("tr-TR") 
-    : new Date().toLocaleDateString("tr-TR");
+  const paymentDate = formatPaymentDate(payment.payment_date || payment.tahsilatTarihi || payment.date);
+
+  const sNameNorm = normTr(student?.student_name);
+  const rawParentNorm = normTr(student?.parent_name);
+  const isInvalidParent = (pNorm) =>
+    !pNorm ||
+    pNorm === "—" ||
+    pNorm === "-" ||
+    pNorm === "VELİ" ||
+    pNorm === "VELI" ||
+    pNorm === "BELİRTİLMEDİ" ||
+    (sNameNorm && pNorm === sNameNorm);
+
+  let matchedStudent = null;
+  if (isInvalidParent(rawParentNorm) || !student?.parent_phone || student?.parent_phone === "—") {
+    try {
+      const allStudents = StudentService?.getAllStudents ? StudentService.getAllStudents() : [];
+      const cleanId = String(student?.id || "").replace(/^stu-/, "");
+      const sTc = String(student?.student_tc || "").trim();
+      matchedStudent =
+        allStudents.find((s) => {
+          if (!s) return false;
+          if (cleanId && (String(s.id) === String(student?.id) || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
+          if (sTc && String(s.student_tc || "").trim() === sTc) return true;
+          if (sNameNorm && normTr(s.student_name) === sNameNorm) return true;
+          return false;
+        }) || null;
+    } catch {}
+  }
+
+  const candidateParent = !isInvalidParent(rawParentNorm)
+    ? student.parent_name
+    : !isInvalidParent(normTr(matchedStudent?.parent_name))
+    ? matchedStudent.parent_name
+    : "";
+
+  const resolvedParentName =
+    candidateParent ||
+    (student?.parent_name && normTr(student.parent_name) !== sNameNorm && normTr(student.parent_name) !== "VELİ"
+      ? student.parent_name
+      : "—");
+
+  const resolvedParentPhone =
+    (student?.parent_phone && student.parent_phone !== "—" ? student.parent_phone : "") ||
+    (matchedStudent?.parent_phone && matchedStudent.parent_phone !== "—" ? matchedStudent.parent_phone : "") ||
+    (student?.student_phone && student.student_phone !== "—" ? student.student_phone : "") ||
+    (matchedStudent?.student_phone && matchedStudent.student_phone !== "—" ? matchedStudent.student_phone : "") ||
+    "—";
 
   let extraSum = 0;
   try {
@@ -109,14 +182,27 @@ export function ReceiptModal({ payment, student, onClose }) {
               background: "#fff",
               border: "2px solid #334155",
               borderRadius: "6px",
-              padding: "24px 28px",
+              padding: "28px 32px",
               color: "#0f172a",
               boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-              fontFamily: "system-ui, -apple-system, sans-serif"
+              fontFamily: "system-ui, -apple-system, sans-serif",
+              maxWidth: "210mm",
+              margin: "0 auto",
+              boxSizing: "border-box"
             }}
           >
             {/* Makbuz Başlığı */}
-            <div className="receipt-header-row">
+            <div
+              className="receipt-header-row"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                borderBottom: "2px solid #0f172a",
+                paddingBottom: "14px",
+                marginBottom: "16px"
+              }}
+            >
               <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
                 <img src={LOGO} alt="Logo" style={{ width: "50px", height: "50px", objectFit: "contain", borderRadius: "4px" }} />
                 <div>
@@ -134,37 +220,52 @@ export function ReceiptModal({ payment, student, onClose }) {
 
             {/* Öğrenci & Veli Bilgileri */}
             <div className="table-responsive" style={{ marginBottom: "16px" }}>
-              <table className="receipt-info-table">
+              <table
+                className="receipt-info-table"
+                style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}
+              >
                 <tbody>
-                  <tr>
-                    <td style={{ width: "120px", color: "#64748b" }}>Öğrenci Adı:</td>
-                    <td><b>{student?.student_name || "—"}</b></td>
-                    <td style={{ width: "100px", color: "#64748b" }}>Sınıf / Şube:</td>
-                    <td><b>{student?.student_class || "—"}</b></td>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ width: "120px", color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Öğrenci Adı:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}><b>{student?.student_name || "—"}</b></td>
+                    <td style={{ width: "100px", color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Sınıf / Şube:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}><b>{student?.student_class || "—"}</b></td>
                   </tr>
-                  <tr>
-                    <td style={{ color: "#64748b" }}>Veli Adı Soyadı:</td>
-                    <td>{student?.parent_name || "—"}</td>
-                    <td style={{ color: "#64748b" }}>Veli Telefon:</td>
-                    <td>{student?.parent_phone || "—"}</td>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Veli Adı Soyadı:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>{resolvedParentName}</td>
+                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Veli Telefon:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>{resolvedParentPhone}</td>
                   </tr>
-                  <tr>
-                    <td style={{ color: "#64748b" }}>Ödeme Yöntemi:</td>
-                    <td>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Ödeme Yöntemi:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>
                       <span style={{ background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
                         {payment.method || "Nakit Kasa"}
                       </span>
                       {payment.bank && <span style={{ marginLeft: "8px", color: "#64748b" }}>({payment.bank})</span>}
                     </td>
-                    <td style={{ color: "#64748b" }}>Açıklama:</td>
-                    <td>{payment.note || "Eğitim Dönemi Taksit Ödemesi"}</td>
+                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>Açıklama:</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0" }}>{payment.note || "Eğitim Dönemi Taksit Ödemesi"}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
             {/* Tahsilat Tutarı Gösterim Kutusu */}
-            <div className="receipt-amount-box">
+            <div
+              className="receipt-amount-box"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "#f0fdf4",
+                border: "1.5px solid #86efac",
+                borderRadius: "8px",
+                padding: "16px 20px",
+                margin: "18px 0"
+              }}
+            >
               <div>
                 <span style={{ fontSize: "11px", color: "#166534", textTransform: "uppercase", fontWeight: "600", display: "block" }}>
                   TAHSİL EDİLEN TUTAR (YAZIYLA)
@@ -182,7 +283,20 @@ export function ReceiptModal({ payment, student, onClose }) {
             </div>
 
             {/* Finansal Durum Özeti */}
-            <div className="receipt-financial-grid">
+            <div
+              className="receipt-financial-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "12px",
+                background: "#f8fafc",
+                padding: "14px",
+                borderRadius: "8px",
+                border: "1px solid #e2e8f0",
+                marginBottom: "24px",
+                textAlign: "center"
+              }}
+            >
               <div>
                 <span style={{ color: "#64748b", display: "block" }}>Toplam Kayıt Ücreti</span>
                 <b>₺{totalFee.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</b>
@@ -203,13 +317,13 @@ export function ReceiptModal({ payment, student, onClose }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", marginTop: "30px", textAlign: "center" }}>
               <div>
                 <div style={{ fontSize: "11px", fontWeight: "bold", color: "#475569" }}>ÖDEMEYİ YAPAN (VELİ)</div>
-                <div style={{ fontSize: "12px", marginTop: "4px" }}>{student?.parent_name || student?.student_name}</div>
+                <div style={{ fontSize: "12px", marginTop: "4px" }}>{resolvedParentName !== "—" ? resolvedParentName : (student?.student_name || "—")}</div>
                 <div style={{ height: "45px", borderBottom: "1px solid #cbd5e1", marginTop: "15px" }}></div>
                 <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px" }}>İmza</div>
               </div>
               <div>
                 <div style={{ fontSize: "11px", fontWeight: "bold", color: "#475569" }}>TAHSİLAT YETKİLİSİ (KURUM)</div>
-                <div style={{ fontSize: "12px", marginTop: "4px" }}>Nevin ÇAKMAK / Semih SEYMEN</div>
+                <div style={{ fontSize: "12px", marginTop: "4px" }}>Nevin ÇAKMAK / Osman SEYMEN</div>
                 <div style={{ height: "45px", borderBottom: "1px solid #cbd5e1", marginTop: "15px" }}></div>
                 <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px" }}>Kaşe / İmza</div>
               </div>

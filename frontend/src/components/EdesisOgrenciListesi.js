@@ -320,7 +320,7 @@ export default function EdesisOgrenciListesi({
       studentEmail: student.student_email,
       parentName: student.parent_name || "",
       parentRelation: student.parent_relation || "Anne",
-      parentPhone: student.parent_phone || "",
+      parentPhone: student.parent_phone || student.student_phone || "",
       parentTc: student.parent_tc || "",
       secondaryParentName: student.secondary_parent_name || "",
       secondaryParentRelation: student.secondary_parent_relation || "Baba",
@@ -394,9 +394,9 @@ export default function EdesisOgrenciListesi({
       s.birth_date || "",
       s.student_class || "",
       s.department || "",
-      s.student_phone || "",
+      s.student_phone || s.parent_phone || "",
       s.parent_name || "",
-      s.parent_phone || "",
+      s.parent_phone || s.student_phone || "",
       s.status || ""
     ]);
 
@@ -414,6 +414,7 @@ export default function EdesisOgrenciListesi({
 
   return (
     <div
+      className="edesis-students-view"
       style={{
         backgroundColor: "#f5f8fa",
         minHeight: "100vh",
@@ -448,6 +449,7 @@ export default function EdesisOgrenciListesi({
 
       {/* TOP CONTROLS & FILTER ROW */}
       <div
+        className="edesis-filter-toolbar"
         style={{
           background: "#fff",
           borderRadius: "8px",
@@ -568,8 +570,8 @@ export default function EdesisOgrenciListesi({
           </div>
 
           {/* Right: Search & Action buttons */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ position: "relative", display: "flex", alignItems: "center", width: "240px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center", width: "240px", maxWidth: "100%" }}>
               <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "10px" }} aria-hidden="true" />
               <input
                 type="search"
@@ -673,7 +675,7 @@ export default function EdesisOgrenciListesi({
           overflow: "visible"
         }}
       >
-        <div style={{ overflowX: "auto", minHeight: "360px" }}>
+        <div className="table-responsive" style={{ overflowX: "auto", minHeight: "360px", WebkitOverflowScrolling: "touch" }}>
           <table aria-label="Öğrenci Kayıt Listesi" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "11px" }}>
             <thead>
               <tr style={{ background: "#fafafa", borderBottom: "2px solid #f1f5f9", color: "#64748b", fontSize: "10px", fontWeight: 700, textTransform: "uppercase" }}>
@@ -711,6 +713,8 @@ export default function EdesisOgrenciListesi({
                   const isMenuOpen = openDropdownId === s.id;
                   const openUpwards = (idx >= paginatedStudents.length - 2 && paginatedStudents.length > 3);
                   const isChecked = selectedIds.has(s.id);
+                  const displayPhone = s.parent_phone || s.student_phone || s.phone || "";
+                  const emailPrefix = s.student_no || String(s.id || "").replace(/\D/g, "").slice(-4) || "ogrenci";
                   const initials = (s.student_name || "Ö")
                     .split(" ")
                     .map((w) => w[0])
@@ -939,8 +943,8 @@ export default function EdesisOgrenciListesi({
 
                       {/* 8. İletişim */}
                       <td style={{ padding: "5px 3px", width: "105px", whiteSpace: "nowrap" }}>
-                        <div style={{ fontSize: "10px", color: "#334155" }}>{s.student_phone || "—"}</div>
-                        <div style={{ fontSize: "9px", color: "#94a3b8" }}>{s.student_email || `${s.student_no}@edesis.com`}</div>
+                        <div style={{ fontSize: "10px", color: "#334155" }}>{s.student_phone || s.parent_phone || "—"}</div>
+                        <div style={{ fontSize: "9px", color: "#94a3b8" }}>{s.student_email || `${emailPrefix}@edesis.com`}</div>
                       </td>
 
                       {/* 9. Veli */}
@@ -972,10 +976,10 @@ export default function EdesisOgrenciListesi({
                           )}
                         </div>
                         <div style={{ fontSize: "9px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <span>{s.parent_phone || "—"}</span>
-                          {s.parent_phone && (
+                          <span>{displayPhone || "—"}</span>
+                          {displayPhone && (
                             <a
-                              href={`https://wa.me/90${s.parent_phone.replace(/\D/g, "").replace(/^0/, "")}`}
+                              href={`https://wa.me/90${displayPhone.replace(/\D/g, "").replace(/^0/, "")}`}
                               target="_blank"
                               rel="noreferrer"
                               title="WhatsApp"

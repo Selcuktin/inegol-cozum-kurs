@@ -260,7 +260,7 @@ describe("R3: Haftalık Ders Programı Matrisi (schedules_matrix.test.js)", () =
       const selects = container.querySelectorAll("select");
       const daySelect = selects[2]; // In modal
       const slotSelect = selects[3];
-      const teacherInput = container.querySelector("input[placeholder*='Semih']");
+      const teacherInput = container.querySelector("input[placeholder*='Osman']");
 
       await fireEvent.change(daySelect, { target: { value: "1" } });
       await fireEvent.change(slotSelect, { target: { value: "09:00 - 09:45" } });
@@ -294,7 +294,7 @@ describe("R3: Haftalık Ders Programı Matrisi (schedules_matrix.test.js)", () =
       const slotSelect = selects[3];
       const classSelect = selects[4];
       const roomInput = container.querySelector("input[placeholder*='Derslik 1, VIP']");
-      const teacherInput = container.querySelector("input[placeholder*='Semih']");
+      const teacherInput = container.querySelector("input[placeholder*='Osman']");
 
       await fireEvent.change(daySelect, { target: { value: "1" } });
       await fireEvent.change(slotSelect, { target: { value: "09:00 - 09:45" } });
@@ -418,7 +418,7 @@ describe("R3: Haftalık Ders Programı Matrisi (schedules_matrix.test.js)", () =
       expect(container.textContent).toContain("Programa Ders Ekle");
 
       // Step 2: Fill form with new unique subject and teacher
-      const teacherInput = container.querySelector("input[placeholder*='Semih']");
+      const teacherInput = container.querySelector("input[placeholder*='Osman']");
       await fireEvent.change(teacherInput, { target: { value: "Hakan Hoca" } });
 
       const form = container.querySelector("form");

@@ -167,7 +167,7 @@ export function HataKarnesiModal({ student, onClose }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", marginTop: "30px", textAlign: "center" }}>
               <div>
                 <div style={{ fontSize: "11px", fontWeight: "bold", color: "#475569" }}>REHBERLİK & ÖĞRENCİ KOÇU</div>
-                <div style={{ fontSize: "12px", marginTop: "4px" }}>Semih SEYMEN / Ayşe KAYA</div>
+                <div style={{ fontSize: "12px", marginTop: "4px" }}>Osman SEYMEN / Ayşe KAYA</div>
                 <div style={{ height: "40px", borderBottom: "1px solid #cbd5e1", marginTop: "10px" }}></div>
                 <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px" }}>İmza</div>
               </div>

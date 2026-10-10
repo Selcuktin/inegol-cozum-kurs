@@ -51,7 +51,7 @@ export default function EdesisSozlesmeDetay({
   const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [receiptModalPayment, setReceiptModalPayment] = useState(null);
   const [isSignedState, setIsSignedState] = useState(() => !!(contract?.isSigned || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));
-  const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || "Semih Seymen (Yönetici)");
+  const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || "Osman Seymen (Yönetici)");
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -137,6 +137,8 @@ export default function EdesisSozlesmeDetay({
           id: t.id,
           taksitNo: Number(t.taksitNo) || (idx + 1),
           vadeTarihi: dueStr,
+          odemeTarihi: t.odemeTarihi,
+          tahsilatTarihi: t.tahsilatTarihi,
           taksitTutari: amt,
           tahsilEdilen: paid,
           kalanTutar: rem,
@@ -798,7 +800,7 @@ export default function EdesisSozlesmeDetay({
                                 setReceiptModalPayment({
                                   id: `THS-${t.taksitNo}-${contract?.sozlesmeNo || Date.now()}`,
                                   amount: Number(t.tahsilEdilen) || Number(t.taksitTutari) || 0,
-                                  payment_date: t.tahsilatTarihi || t.vadeTarihi || new Date().toISOString(),
+                                  payment_date: t.odemeTarihi || t.tahsilatTarihi || t.vadeTarihi || new Date().toISOString().slice(0, 10),
                                   method: t.odemeYontemi || "Nakit",
                                   bank: t.banka || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
                                   note: `${contract?.sozlesmeNo || ""} ${t.taksitNo}. Taksit Tahsilat Makbuzu`
@@ -1856,8 +1858,8 @@ export default function EdesisSozlesmeDetay({
             student_class: contract?.sinifAdi || student?.student_class || "Genel",
             student_tc: student?.student_tc || contract?.ogrenciTc || "",
             student_phone: student?.student_phone || contract?.ogrenciTelefon || "",
-            parent_name: contract?.musteriUnvan || student?.parent_name || contract?.ogrenciAdi || "VELİ",
-            parent_phone: student?.parent_phone || contract?.veliTelefon || "",
+            parent_name: (student?.parent_name && student.parent_name !== student.student_name ? student.parent_name : "") || (contract?.parent_name && contract.parent_name !== contract.ogrenciAdi ? contract.parent_name : "") || (contract?.musteriUnvan && contract.musteriUnvan !== (student?.student_name || contract?.ogrenciAdi) ? contract.musteriUnvan : "") || student?.parent_name || "VELİ",
+            parent_phone: student?.parent_phone || contract?.parent_phone || contract?.veliTelefon || student?.student_phone || "",
             total_fee: brutTutar,
             paid_amount: totalPaid
           }}

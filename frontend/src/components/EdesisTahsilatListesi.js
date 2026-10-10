@@ -891,13 +891,28 @@ export default function EdesisTahsilatListesi({
                         <button
                           type="button"
                           onClick={() => {
+                            const matchedStudent = (students || []).find(
+                              (s) =>
+                                (t.ogrenciId && String(s.id) === String(t.ogrenciId)) ||
+                                (t.musteriUnvan && s.student_name && trIncludes(s.student_name, t.musteriUnvan))
+                            );
+                            const stName = matchedStudent?.student_name || t.musteriUnvan || "";
+                            const rawParent = matchedStudent?.parent_name || t.veliAdiSoyadi || "";
+                            const safeParentName =
+                              rawParent && rawParent.trim().toLocaleUpperCase("tr-TR") !== stName.trim().toLocaleUpperCase("tr-TR")
+                                ? rawParent
+                                : "";
                             const paymentObj = {
                               id: t.odemeKodu || `MAK-${t.id}`,
-                              student_name: t.musteriUnvan,
+                              student_id: matchedStudent?.id || t.ogrenciId,
+                              student_name: stName,
+                              parent_name: safeParentName,
+                              parent_phone: matchedStudent?.parent_phone || matchedStudent?.student_phone || t.telefon || "",
                               amount: t.tahsilatTutari,
-                              payment_date: t.tahsilatTarihi,
+                              payment_date: t.tahsilatTarihi || new Date().toISOString().slice(0, 10),
                               method: t.kasaBankaAdi || "Banka Havalesi / EFT",
-                              bank: t.kasaBankaAdi || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB."
+                              bank: t.kasaBankaAdi || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
+                              taksit_no: t.taksitNo
                             };
                             setSelectedReceiptPayment(paymentObj);
                           }}
@@ -1012,13 +1027,34 @@ export default function EdesisTahsilatListesi({
       </div>
 
       {/* MAKBUZ MODAL */}
-      {selectedReceiptPayment && (
-        <ReceiptModal
-          payment={selectedReceiptPayment}
-          student={{ student_name: selectedReceiptPayment.student_name }}
-          onClose={() => setSelectedReceiptPayment(null)}
-        />
-      )}
+      {selectedReceiptPayment && (() => {
+        const s = (students || []).find(
+          (st) =>
+            (selectedReceiptPayment.student_id && String(st.id) === String(selectedReceiptPayment.student_id)) ||
+            (selectedReceiptPayment.student_name && st.student_name && trIncludes(st.student_name, selectedReceiptPayment.student_name))
+        );
+        const stName = s?.student_name || selectedReceiptPayment.student_name || "";
+        const rawParent = s?.parent_name || selectedReceiptPayment.parent_name || "";
+        const cleanParent =
+          rawParent && rawParent.trim().toLocaleUpperCase("tr-TR") !== stName.trim().toLocaleUpperCase("tr-TR")
+            ? rawParent
+            : "";
+        return (
+          <ReceiptModal
+            payment={{
+              ...selectedReceiptPayment,
+              payment_date: selectedReceiptPayment.payment_date || selectedReceiptPayment.date || new Date().toISOString().slice(0, 10)
+            }}
+            student={{
+              ...(s || {}),
+              student_name: stName,
+              parent_name: cleanParent,
+              parent_phone: s?.parent_phone || s?.student_phone || selectedReceiptPayment.parent_phone || ""
+            }}
+            onClose={() => setSelectedReceiptPayment(null)}
+          />
+        );
+      })()}
 
       {/* YENİ TAHSİLAT EKLE MODAL */}
       {showNewPaymentModal && (

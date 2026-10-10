@@ -428,7 +428,7 @@ describe("CHALLENGER EMPIRICAL SUITE: Financial Arithmetic & Schedule Collision 
       const quickAddBtn = container.querySelector(".head-actions button:last-child");
       await fireEvent.click(quickAddBtn);
 
-      const teacherInput = container.querySelector("input[placeholder*='Semih Seymen']");
+      const teacherInput = container.querySelector("input[placeholder*='Osman Seymen']");
       await fireEvent.change(teacherInput, { target: { value: "Mehmet Çelik" } });
 
       // User cancels confirm
@@ -483,7 +483,7 @@ describe("CHALLENGER EMPIRICAL SUITE: Financial Arithmetic & Schedule Collision 
       await fireEvent.change(slotSelect, { target: { value: "10:00 - 10:45" } });
       await fireEvent.change(classSelect, { target: { value: "cls-2" } });
 
-      const teacherInput = modal.querySelector("input[placeholder*='Semih Seymen']");
+      const teacherInput = modal.querySelector("input[placeholder*='Osman Seymen']");
       const roomInput = modal.querySelector("input[placeholder*='Derslik 1']");
 
       await fireEvent.change(teacherInput, { target: { value: "Farklı Hoca" } });

@@ -300,7 +300,7 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       expect(container.textContent).toContain("₺25.000,00");
 
       // Verify signers
-      expect(container.textContent).toContain("Nevin ÇAKMAK / Semih SEYMEN");
+      expect(container.textContent).toContain("Nevin ÇAKMAK / Osman SEYMEN");
 
       // Print receipt
       const receiptPrintBtn = Array.from(container.querySelectorAll("button"))
@@ -410,6 +410,8 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       expect(contractSheet.textContent).toContain("KURUMUN ADI");
       expect(contractSheet.textContent).toContain("T.C. KİMLİK NO");
       expect(contractSheet.textContent).toContain("ÖĞRENCİNİN ADI SOYADI");
+      expect(contractSheet.textContent).toContain("Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi");
+      expect(contractSheet.style.minHeight).toBe("255mm");
 
       // Click Yazdır / PDF Kaydet button inside modal
       const modalPrintBtn = container.querySelector('[data-testid="meb-modal-print-btn"]');
@@ -477,7 +479,7 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       expect(sheet.textContent).toContain("KURUM YETKİLİSİ");
     });
 
-    test("T5.5: In list view, MEB print modal is rendered outside edesis-contracts-view to avoid being hidden", async () => {
+    test("T5.5: In list view, MEB print modal is rendered outside edesis-contracts-view to avoid being hidden, and blue gear dropdown opens cleanly without crash", async () => {
       sessionStorage.removeItem("cozum_open_contract_no");
       window.location.hash = "documents";
 
@@ -496,9 +498,20 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       const listView = container.querySelector(".edesis-contracts-view");
       expect(listView).toBeTruthy();
 
+      // Click the blue gear button to open dropdown
+      const gearWrapper = container.querySelector("[data-sozlesme-dropdown]");
+      expect(gearWrapper).toBeTruthy();
+      const gearBtn = gearWrapper.querySelector("button");
+      await fireEvent.click(gearBtn);
+
+      // Verify dropdown opened without crashing and does NOT contain Hızlı Düzenle
+      expect(container.textContent).toContain("Detay Görüntüle");
+      expect(container.textContent).toContain("Resmî Sözleşmeyi Yazdır (MEB)");
+      expect(container.textContent).not.toContain("Hızlı Düzenle (Tutar / Taksit)");
+
       // Find any Resmî Sözleşmeyi Yazdır button
       const allText = Array.from(container.querySelectorAll("div, button"));
-      const printRowBtn = allText.find(el => el.textContent && el.textContent.includes("Resmî Sözleşmeyi Yazdır (MEB)"));
+      const printRowBtn = allText.find(el => el.textContent && el.textContent.trim() === "Resmî Sözleşmeyi Yazdır (MEB)");
       if (printRowBtn) {
         await fireEvent.click(printRowBtn);
         const modalBackdrop = container.querySelector(".meb-contract-modal-backdrop");
@@ -506,6 +519,19 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
         // Crucial test: modal backdrop must NOT be inside the hidden edesis-contracts-view
         expect(listView.contains(modalBackdrop)).toBe(false);
       }
+    });
+
+    test("T5.6: ReceiptModal never displays Invalid Date for DD.MM.YYYY or malformed dates", async () => {
+      const { container } = await render(
+        <ReceiptModal
+          payment={{ ...mockPayments[0], payment_date: "31.10.2026" }}
+          student={{ ...mockStudents[0], parent_name: "Ahmet Yılmaz" }}
+          onClose={jest.fn()}
+        />
+      );
+
+      expect(container.textContent).not.toContain("Invalid Date");
+      expect(container.textContent).toContain("31.10.2026");
     });
   });
 });

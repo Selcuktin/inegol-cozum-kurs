@@ -110,8 +110,34 @@ export default function EdesisGelirListesi({
   }, [openDropdownId]);
   const [showNewIncomeModal, setShowNewIncomeModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
-  const [showQuickCollectModal, setShowQuickCollectModal] = useState(null);
+  const [showQuickCollectModal, setShowQuickCollectModalState] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+
+  const setShowQuickCollectModal = (val) => {
+    setShowQuickCollectModalState(val);
+    try {
+      if (val && (val.gelirKodu || val.id)) {
+        sessionStorage.setItem("cozum_open_income_id", String(val.gelirKodu || val.id));
+      } else {
+        sessionStorage.removeItem("cozum_open_income_id");
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    try {
+      const savedIncomeId = sessionStorage.getItem("cozum_open_income_id");
+      if (savedIncomeId && incomesList && incomesList.length > 0 && !showQuickCollectModal) {
+        const found = incomesList.find(
+          (g) => String(g.gelirKodu) === String(savedIncomeId) || String(g.id) === String(savedIncomeId)
+        );
+        if (found) {
+          setShowQuickCollectModalState(found);
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomesList]);
 
   const handleOpenUnifiedContract = (g) => {
     const targetNo = g?.sozlesmeNo || g?.gelirKodu || g?.ogrenciAdiSoyadi;
