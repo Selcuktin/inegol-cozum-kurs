@@ -822,7 +822,19 @@ export function MainApp({ me, onLogout }) {
             <AcademicPage me={me} mode="schedules" classes={data.classes || []} students={data.students || []} teachers={data.teachers || []} API={API} reload={load} guardedOpen={guardedOpen} setSelected={setSelected} onNavigate={setPage} />
           )}
           {page === "students" && (
-            <StudentsPage me={me} API={API} search={search} setSearch={setSearch} students={data.students || []} guardedOpen={guardedOpen} setSelected={setSelected} setPage={setPage} setShowGlobalKarne={setShowGlobalKarne} />
+            <StudentsPage
+              me={me}
+              API={API}
+              search={search}
+              setSearch={setSearch}
+              students={data.students || []}
+              classes={data.classes || []}
+              guardedOpen={guardedOpen}
+              setSelected={setSelected}
+              setPage={setPage}
+              setShowGlobalKarne={setShowGlobalKarne}
+              onEditStudent={(st) => setEditingStudent(st)}
+            />
           )}
           {page === "payments" && (
             <AccountingPage me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} onNavigate={setPage} />

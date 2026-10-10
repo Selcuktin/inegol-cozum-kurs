@@ -8,10 +8,12 @@ export function StudentsPage({
   search = "",
   setSearch = () => {},
   students = [],
+  classes = [],
   guardedOpen = () => {},
   setSelected = () => {},
   setPage = () => {},
-  setShowGlobalKarne = () => {}
+  setShowGlobalKarne = () => {},
+  onEditStudent = () => {}
 }) {
   const handleSelectOrOpenContract = (st, contract) => {
     const targetNo = contract?.sozlesmeNo || contract?.id || st?.sozlesme_no || st?.id || st?.student_name;
@@ -40,10 +42,12 @@ export function StudentsPage({
           globalSearch={search}
           onSearchChange={setSearch}
           students={students}
+          classes={classes}
           onNewStudent={() => guardedOpen("student")}
           onSelectStudent={(st) => handleSelectOrOpenContract(st)}
           onOpenGelir={(st) => handleSelectOrOpenContract(st)}
           onOpenContract={(contract, st) => handleSelectOrOpenContract(st, contract)}
+          onEditStudent={onEditStudent}
           onOpenKarne={(st) =>
             setShowGlobalKarne({
               student_name: st.student_name,

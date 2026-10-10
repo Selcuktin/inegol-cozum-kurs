@@ -30,9 +30,11 @@ import {
 import { StudentService } from "../lib/edesisStudentService";
 import AccountingService, { trNorm } from "../lib/edesisAccountingService";
 import { trIncludes } from "../lib/utils";
+import { EdesisStudentModal } from "./EdesisStudentModal";
 
 export default function EdesisOgrenciListesi({
   students: propStudents = [],
+  classes = [],
   globalSearch = "",
   onSearchChange,
   onNewStudent,
@@ -41,6 +43,7 @@ export default function EdesisOgrenciListesi({
   onOpenContract,
   onOpenKarne,
   onNavigate,
+  onEditStudent,
   API
 }) {
   const [students, setStudents] = useState(() => StudentService.getAllStudents(propStudents));
@@ -95,8 +98,6 @@ export default function EdesisOgrenciListesi({
 
   // Edit modal state
   const [editingStudent, setEditingStudent] = useState(null);
-  const [editActiveTab, setEditActiveTab] = useState("ogrenci"); // 'ogrenci' | 'kullanici' | 'adres' | 'ogretmen' | 'tarihce'
-  const [editFormData, setEditFormData] = useState({});
 
   // Sözleşmeler modal state & helper
   const [contractsModalStudent, setContractsModalStudent] = useState(null);
@@ -298,36 +299,14 @@ export default function EdesisOgrenciListesi({
     }
   };
 
-  // Open Edit Modal (1:1 with media_1791229810136.png)
+  // Open Edit Modal (1:1 with EdesisStudentModal - 3rd image)
   const handleOpenEdit = (student) => {
-    setEditingStudent(student);
-    setEditActiveTab("ogrenci");
-    setEditFormData({
-      donem: student.donem_adi || "2026-2027",
-      sube: student.student_class || "",
-      bolum: student.department || "ARA SINIF",
-      okul: student.school || "",
-      numara: student.student_no || "",
-      tc: student.student_tc || "",
-      dogumTarihi: student.birth_date || "",
-      diplomaNotu: student.diploma_grade || "",
-      cinsiyet: student.gender || "Erkek",
-      kayitDurumu: student.status || "Kesin Kayıt",
-      dinMuaf: !!student.din_muaf,
-      ingMuaf: !!student.ing_muaf,
-      studentName: student.student_name,
-      studentPhone: student.student_phone,
-      studentEmail: student.student_email,
-      parentName: student.parent_name || "",
-      parentRelation: student.parent_relation || "Anne",
-      parentPhone: student.parent_phone || student.student_phone || "",
-      parentTc: student.parent_tc || "",
-      secondaryParentName: student.secondary_parent_name || "",
-      secondaryParentRelation: student.secondary_parent_relation || "Baba",
-      secondaryParentPhone: student.secondary_parent_phone || "",
-      address: student.address || ""
-    });
     setOpenDropdownId(null);
+    if (onEditStudent) {
+      onEditStudent(student);
+      return;
+    }
+    setEditingStudent(student);
   };
 
   // Auto-open edit modal if requested via sessionStorage (e.g. from Sözleşme Detay)
@@ -346,43 +325,6 @@ export default function EdesisOgrenciListesi({
       }
     } catch (e) {}
   }, [students]);
-
-  // Save Edit Form
-  const handleSaveEdit = (e) => {
-    e.preventDefault();
-    if (!editingStudent) return;
-
-    const newStudentName = editFormData.studentName ? editFormData.studentName.trim() : (editingStudent.student_name || "");
-    const updatedObj = {
-      ...editingStudent,
-      student_name: newStudentName,
-      student_class: editFormData.sube !== undefined ? editFormData.sube : editingStudent.student_class,
-      department: editFormData.bolum !== undefined ? editFormData.bolum : editingStudent.department,
-      school: editFormData.okul !== undefined ? editFormData.okul : editingStudent.school,
-      student_no: editFormData.numara !== undefined ? editFormData.numara : editingStudent.student_no,
-      student_tc: editFormData.tc !== undefined ? editFormData.tc : editingStudent.student_tc,
-      birth_date: editFormData.dogumTarihi !== undefined ? editFormData.dogumTarihi : editingStudent.birth_date,
-      gender: editFormData.cinsiyet !== undefined ? editFormData.cinsiyet : editingStudent.gender,
-      status: editFormData.kayitDurumu !== undefined ? editFormData.kayitDurumu : editingStudent.status,
-      din_muaf: editFormData.dinMuaf ? 1 : 0,
-      ing_muaf: editFormData.ingMuaf ? 1 : 0,
-      student_phone: editFormData.studentPhone !== undefined ? editFormData.studentPhone : editingStudent.student_phone,
-      student_email: editFormData.studentEmail !== undefined ? editFormData.studentEmail : editingStudent.student_email,
-      parent_name: editFormData.parentName !== undefined ? editFormData.parentName.trim() : editingStudent.parent_name,
-      parent_relation: editFormData.parentRelation !== undefined ? editFormData.parentRelation : editingStudent.parent_relation,
-      parent_phone: editFormData.parentPhone !== undefined ? editFormData.parentPhone : editingStudent.parent_phone,
-      parent_tc: editFormData.parentTc !== undefined ? editFormData.parentTc : editingStudent.parent_tc,
-      secondary_parent_name: editFormData.secondaryParentName !== undefined ? editFormData.secondaryParentName : editingStudent.secondary_parent_name,
-      secondary_parent_relation: editFormData.secondaryParentRelation !== undefined ? editFormData.secondaryParentRelation : editingStudent.secondary_parent_relation,
-      secondary_parent_phone: editFormData.secondaryParentPhone !== undefined ? editFormData.secondaryParentPhone : editingStudent.secondary_parent_phone,
-      address: editFormData.address !== undefined ? editFormData.address : editingStudent.address
-    };
-
-    StudentService.saveStudent(updatedObj);
-    setStudents(StudentService.getAllStudents(propStudents));
-    showToast(`✅ ${newStudentName} bilgileri güncellendi.`);
-    setEditingStudent(null);
-  };
 
   // Export CSV
   const handleExportCSV = () => {
@@ -1121,358 +1063,18 @@ export default function EdesisOgrenciListesi({
         </div>
       </div>
 
-      {/* EDESIS 5-TAB DÜZENLE MODALI (Matches media_1791229810136.png 100%) */}
-      {editingStudent && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100050,
-            padding: "16px"
-          }}
-          onClick={() => setEditingStudent(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: "10px",
-              maxWidth: "680px",
-              width: "100%",
-              maxHeight: "92vh",
-              overflowY: "auto",
-              boxShadow: "0 25px 50px rgba(0,0,0,0.25)",
-              display: "flex",
-              flexDirection: "column"
-            }}
-          >
-            {/* Modal Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid #e2e8f0" }}>
-              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>DÜZENLE</h2>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <button
-                  type="button"
-                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", border: "none", background: "none", fontSize: "12px", color: "#64748b", cursor: "pointer" }}
-                >
-                  <Camera size={14} /> Resim Yükle
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingStudent(null)}
-                  style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8" }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            {/* 5 Edesis Tabs */}
-            <div style={{ display: "flex", gap: "16px", borderBottom: "1px solid #e2e8f0", padding: "0 20px" }}>
-              {[
-                { id: "ogrenci", label: "ÖĞRENCİ BİLGİLERİ" },
-                { id: "kullanici", label: "KULLANICI BİLGİLERİ" },
-                { id: "adres", label: "ADRES" },
-                { id: "ogretmen", label: "ÖĞRETMEN" },
-                { id: "tarihce", label: "DÖNEM TARİHÇESİ" }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setEditActiveTab(tab.id)}
-                  style={{
-                    padding: "12px 4px",
-                    border: "none",
-                    background: "none",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: editActiveTab === tab.id ? "#2563eb" : "#64748b",
-                    borderBottom: editActiveTab === tab.id ? "3px solid #2563eb" : "3px solid transparent",
-                    cursor: "pointer"
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Form Content */}
-            <form onSubmit={handleSaveEdit} style={{ padding: "20px" }}>
-              {editActiveTab === "ogrenci" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {/* Ad Soyad */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>AD SOYAD*</label>
-                    <input
-                      required
-                      value={editFormData.studentName || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, studentName: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-
-                  {/* Dönem */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>DÖNEM*</label>
-                    <input
-                      disabled
-                      value={editFormData.donem || "2026-2027"}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px", background: "#f8fafc" }}
-                    />
-                  </div>
-
-                  {/* Şube */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>ŞUBE*</label>
-                    <input
-                      value={editFormData.sube || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, sube: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-
-                  {/* Bölüm */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>BÖLÜM*</label>
-                    <input
-                      value={editFormData.bolum || "ARA SINIF"}
-                      onChange={(e) => setEditFormData({ ...editFormData, bolum: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-
-                  {/* Okul */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>OKUL</label>
-                    <input
-                      value={editFormData.okul || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, okul: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-
-                  {/* Numara */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>NUMARA</label>
-                    <input
-                      value={editFormData.numara || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, numara: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-
-                  {/* TC Numarası */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>TC NUMARASI</label>
-                    <input
-                      value={editFormData.tc || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, tc: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-
-                  {/* Doğum Tarihi */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>DOGUM TARIHI</label>
-                    <input
-                      type="date"
-                      value={editFormData.dogumTarihi || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, dogumTarihi: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-
-                  {/* Diploma Notu */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>DİPLOMA NOTU</label>
-                    <input
-                      value={editFormData.diplomaNotu || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, diplomaNotu: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-
-                  {/* Cinsiyet */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>CİNSİYET</label>
-                    <select
-                      value={editFormData.cinsiyet || "Erkek"}
-                      onChange={(e) => setEditFormData({ ...editFormData, cinsiyet: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    >
-                      <option value="Erkek">Erkek</option>
-                      <option value="Kız">Kız</option>
-                    </select>
-                  </div>
-
-                  {/* Kayıt Durumu */}
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>KAYIT DURUMU*</label>
-                    <select
-                      value={editFormData.kayitDurumu || "Kesin Kayıt"}
-                      onChange={(e) => setEditFormData({ ...editFormData, kayitDurumu: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    >
-                      <option value="Kesin Kayıt">Kesin Kayıt</option>
-                      <option value="Aday Kayıt">Aday Kayıt</option>
-                      <option value="Yaz Kursu">Yaz Kursu</option>
-                      <option value="Mezun / Geçmiş">Mezun / Geçmiş</option>
-                      <option value="İptal">İptal</option>
-                    </select>
-                  </div>
-
-                  {/* Muafiyetler */}
-                  <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#475569" }}>
-                      <input
-                        type="checkbox"
-                        checked={editFormData.dinMuaf}
-                        onChange={(e) => setEditFormData({ ...editFormData, dinMuaf: e.target.checked })}
-                      />
-                      Din Kültürü ve Ahlak Bilgisi dersinden muaf
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#475569" }}>
-                      <input
-                        type="checkbox"
-                        checked={editFormData.ingMuaf}
-                        onChange={(e) => setEditFormData({ ...editFormData, ingMuaf: e.target.checked })}
-                      />
-                      İngilizce dersinden muaf
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {editActiveTab === "kullanici" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>ÖĞRENCİ TELEFON</label>
-                    <input
-                      value={editFormData.studentPhone || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, studentPhone: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>E-POSTA</label>
-                    <input
-                      value={editFormData.studentEmail || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, studentEmail: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>VELİ ADI</label>
-                    <input
-                      value={editFormData.parentName || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, parentName: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>VELİ YAKINLIK</label>
-                    <select
-                      value={editFormData.parentRelation || "Anne"}
-                      onChange={(e) => setEditFormData({ ...editFormData, parentRelation: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    >
-                      <option value="Anne">Anne (♀)</option>
-                      <option value="Baba">Baba (♂)</option>
-                      <option value="Veli">Veli (👤)</option>
-                    </select>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>VELİ TELEFON</label>
-                    <input
-                      value={editFormData.parentPhone || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, parentPhone: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>2. VELİ ADI</label>
-                    <input
-                      value={editFormData.secondaryParentName || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, secondaryParentName: e.target.value })}
-                      placeholder="Varsa 2. veli adı"
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>2. VELİ YAKINLIK</label>
-                    <select
-                      value={editFormData.secondaryParentRelation || "Baba"}
-                      onChange={(e) => setEditFormData({ ...editFormData, secondaryParentRelation: e.target.value })}
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    >
-                      <option value="Baba">Baba (♂)</option>
-                      <option value="Anne">Anne (♀)</option>
-                      <option value="Veli">Veli (👤)</option>
-                    </select>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center" }}>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>2. VELİ TELEFON</label>
-                    <input
-                      value={editFormData.secondaryParentPhone || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, secondaryParentPhone: e.target.value })}
-                      placeholder="Varsa 2. veli telefonu"
-                      style={{ padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {editActiveTab === "adres" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>İKAMETGÂH ADRESİ</label>
-                  <textarea
-                    rows={4}
-                    value={editFormData.address || ""}
-                    onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
-                    style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
-                  />
-                </div>
-              )}
-
-              {editActiveTab === "ogretmen" && (
-                <div style={{ padding: "20px", textAlign: "center", color: "#64748b", fontSize: "12px" }}>
-                  Danışman öğretmen ve rehberlik ataması bu sekmeden yönetilir.
-                </div>
-              )}
-
-              {editActiveTab === "tarihce" && (
-                <div style={{ padding: "20px", textAlign: "center", color: "#64748b", fontSize: "12px" }}>
-                  Öğrencinin geçmiş dönem kayıt ve devam bilgileri.
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
-                <button
-                  type="button"
-                  onClick={() => setEditingStudent(null)}
-                  style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, color: "#475569", cursor: "pointer" }}
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 20px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
-                >
-                  <Lock size={13} /> Kaydet
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* RESMÎ EDESİS ÖĞRENCİ DÜZENLEME MODALI (1:1 with EdesisStudentModal) */}
+      <EdesisStudentModal
+        isOpen={!!editingStudent}
+        onClose={() => setEditingStudent(null)}
+        initialData={editingStudent}
+        classes={classes}
+        API={API}
+        onStudentAdded={() => {
+          setEditingStudent(null);
+          setStudents(StudentService.getAllStudents(propStudents));
+        }}
+      />
 
       {/* MODAL: SÖZLEŞMELER POPUP (1:1 with Edesis) */}
       {contractsModalStudent && (

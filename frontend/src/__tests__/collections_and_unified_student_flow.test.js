@@ -1,7 +1,8 @@
 import React, { act } from "react";
-import { render } from "./test_helpers";
+import { render, fireEvent } from "./test_helpers";
 import AccountingService, { formatCollectionRecord } from "../lib/edesisAccountingService";
 import { KayitModulu } from "../components/KayitModulu";
+import EdesisOgrenciListesi from "../components/EdesisOgrenciListesi";
 
 describe("Tahsilatlar & Tek Sayfadan Yönetim Testleri", () => {
   test("formatCollectionRecord D1 ödeme nesnesini eksiksiz ve hatasız formatlar", () => {
@@ -100,4 +101,53 @@ describe("Tahsilatlar & Tek Sayfadan Yönetim Testleri", () => {
 
     await unmount();
   });
+
+  test("EdesisOgrenciListesi satırındaki Düzenle işlemi onEditStudent propunu tetikler ve 3. modal olan EdesisStudentModal kullanılır", async () => {
+    const mockStudent = {
+      id: "stu-99",
+      student_name: "Test Öğrenci",
+      student_no: "1099",
+      student_class: "8-A",
+      donem_id: "113",
+      status: "Kesin Kayıt",
+      parent_name: "Test Veli",
+      parent_phone: "05550001122",
+      total_fee: 60000
+    };
+
+    const onEditMock = jest.fn();
+
+    const { container, getByText, queryByText, unmount } = await render(
+      <EdesisOgrenciListesi
+        students={[mockStudent]}
+        classes={[{ name: "8-A" }]}
+        onEditStudent={onEditMock}
+      />
+    );
+
+    // Dropdown / İşlemler açma
+    const dropdownWrapper = container.querySelector("[data-edesis-dropdown]");
+    expect(dropdownWrapper).toBeTruthy();
+    const gearBtn = dropdownWrapper.querySelector("button");
+    await fireEvent.click(gearBtn);
+
+    // "Düzenle" menü elemanını bulma ve tıklama
+    const menuEl = container.querySelector("[role='menu']");
+    expect(menuEl).toBeTruthy();
+    const editRowBtn = Array.from(menuEl.querySelectorAll("div")).find(
+      (el) => el.textContent && el.textContent.trim().includes("Düzenle")
+    );
+    expect(editRowBtn).toBeTruthy();
+    await fireEvent.click(editRowBtn);
+
+    // onEditStudent fonksiyonu ilgili öğrenci ile çağrılmalı
+    expect(onEditMock).toHaveBeenCalledWith(expect.objectContaining({ student_name: "Test Öğrenci" }));
+
+    // Eski 5 sekmeli DÜZENLE modalı (ÖĞRENCİ BİLGİLERİ / KULLANICI BİLGİLERİ) DOM'da bulunmamalı
+    expect(queryByText("ÖĞRENCİ BİLGİLERİ")).toBeNull();
+    expect(queryByText("DÖNEM TARİHÇESİ")).toBeNull();
+
+    await unmount();
+  });
 });
+
