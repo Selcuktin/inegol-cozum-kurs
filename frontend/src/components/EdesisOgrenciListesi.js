@@ -132,8 +132,20 @@ export default function EdesisOgrenciListesi({
         if (!byName.has(name)) byName.set(name, []);
         byName.get(name).push(c);
       }
-      if (c.studentId) byId.set(String(c.studentId), c);
-      if (c.id) byId.set(String(c.id), c);
+      if (c.studentId) {
+        const sid = String(c.studentId);
+        const cleanId = sid.replace(/^stu-/, "");
+        byId.set(sid, c);
+        byId.set(cleanId, c);
+        byId.set(`stu-${cleanId}`, c);
+      }
+      if (c.id) {
+        const cid = String(c.id);
+        const cleanId = cid.replace(/^stu-/, "");
+        byId.set(cid, c);
+        byId.set(cleanId, c);
+        byId.set(`stu-${cleanId}`, c);
+      }
       if (c.ogrenciNo) byNo.set(String(c.ogrenciNo), c);
       if (c.sozlesmeNo) bySzl.set(c.sozlesmeNo, c);
     });
@@ -142,18 +154,28 @@ export default function EdesisOgrenciListesi({
 
   const getStudentContracts = (student) => {
     if (!student || student.contract_deleted || AccountingService.isContractDeleted(student)) return [];
+
+    // 1. Direct sozlesme_no match (SSOT)
+    if (student.sozlesme_no && contractLookup.bySzl.has(student.sozlesme_no)) {
+      return [contractLookup.bySzl.get(student.sozlesme_no)];
+    }
+
+    // 2. Student ID match (with and without 'stu-' prefix)
+    if (student.id) {
+      const sid = String(student.id);
+      const cleanId = sid.replace(/^stu-/, "");
+      if (contractLookup.byId.has(sid)) return [contractLookup.byId.get(sid)];
+      if (contractLookup.byId.has(cleanId)) return [contractLookup.byId.get(cleanId)];
+    }
+
+    // 3. Name match
     const normName = trNorm(student.student_name || "");
     const direct = contractLookup.byName.get(normName);
     if (direct && direct.length > 0) return direct;
 
+    // 4. Student school number match
     if (student.student_no && contractLookup.byNo.has(String(student.student_no))) {
       return [contractLookup.byNo.get(String(student.student_no))];
-    }
-    if (student.id && contractLookup.byId.has(String(student.id))) {
-      return [contractLookup.byId.get(String(student.id))];
-    }
-    if (student.sozlesme_no && contractLookup.bySzl.has(student.sozlesme_no)) {
-      return [contractLookup.bySzl.get(student.sozlesme_no)];
     }
 
     return [];

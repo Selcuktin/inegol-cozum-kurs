@@ -8,39 +8,58 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
     const status = url.searchParams.get("status");
     const search = url.searchParams.get("search");
 
-    let query = "SELECT * FROM contracts WHERE (is_deleted = 0 OR is_deleted IS NULL)";
+    let query = `
+      SELECT c.*,
+        s.student_tc,
+        s.parent_tc,
+        s.id as student_full_id
+      FROM contracts c
+      LEFT JOIN students s ON (
+        c.student_id = s.id
+        OR c.student_id = REPLACE(s.id, 'stu-', '')
+        OR ('stu-' || c.student_id) = s.id
+        OR c.sozlesme_no = s.sozlesme_no
+        OR c.student_name = s.student_name
+      )
+      WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)
+    `;
     const params = [];
     if (period && period !== "-1") {
-      query += " AND period_id = ?";
+      query += " AND c.period_id = ?";
       params.push(parseInt(period) || 113);
     }
     if (studentId) {
-      query += " AND student_id = ?";
-      params.push(studentId);
+      query += " AND (c.student_id = ? OR c.student_id = REPLACE(?, 'stu-', '') OR s.id = ?)";
+      params.push(studentId, studentId, studentId);
     }
     if (status === "active") {
-      query += " AND durum = 1";
+      query += " AND c.durum = 1";
     } else if (status === "draft") {
-      query += " AND durum = 0";
+      query += " AND c.durum = 0";
     } else if (status === "cancelled") {
-      query += " AND durum = 3";
+      query += " AND c.durum = 3";
     }
     if (search) {
-      query += " AND (sozlesme_no LIKE ? OR student_name LIKE ? OR student_class LIKE ?)";
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      query += " AND (c.sozlesme_no LIKE ? OR c.student_name LIKE ? OR c.student_class LIKE ? OR s.student_tc LIKE ?)";
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
-    query += " ORDER BY sozlesme_tarihi DESC, id DESC";
+    query += " ORDER BY c.sozlesme_tarihi DESC, c.id DESC";
 
     try {
       const res = await db.prepare(query).bind(...params).all();
       const rows = (res.results || []).map(r => ({
         ...r,
+        student_tc: r.student_tc || "",
+        studentTc: r.student_tc || "",
+        parent_tc: r.parent_tc || "",
+        parentTc: r.parent_tc || "",
+        studentId: r.student_full_id || r.student_id,
+        ogrenciId: r.student_full_id || r.student_id,
         sozlesmeNo: r.sozlesme_no,
         sozlesmeTarihi: r.sozlesme_tarihi,
         ogrenciAdi: r.student_name,
         ogrenciAdiSoyadi: r.student_name,
         ogrenciNo: r.student_no,
-        ogrenciId: r.student_id,
         sinifAdi: r.student_class,
         veliAdi: r.parent_name,
         veliTelefon: r.parent_phone,

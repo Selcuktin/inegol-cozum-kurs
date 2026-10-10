@@ -26,7 +26,7 @@ import {
   UserCheck,
   Edit2
 } from "lucide-react";
-import AccountingService from "../lib/edesisAccountingService";
+import AccountingService, { trNorm } from "../lib/edesisAccountingService";
 import { StudentService } from "../lib/edesisStudentService";
 import EdesisSozlesmeDetay from "./EdesisSozlesmeDetay";
 import { trIncludes } from "../lib/utils";
@@ -137,19 +137,21 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   const findMatchingContract = (targetKey, list = []) => {
     if (!targetKey || !Array.isArray(list) || list.length === 0) return null;
-    const norm = (s) => (s != null ? String(s) : "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
-    const normKey = norm(targetKey);
+    const cleanKey = String(targetKey).trim();
+    const cleanId = cleanKey.replace(/^stu-/, "");
+    const normKey = trNorm(cleanKey);
     return list.find((c) => {
       if (!c) return false;
-      if (c.sozlesmeNo && String(c.sozlesmeNo) === String(targetKey)) return true;
-      if (c.id != null && String(c.id) === String(targetKey)) return true;
-      if (c.studentId != null && String(c.studentId) === String(targetKey)) return true;
-      if (c.ogrenciNo != null && String(c.ogrenciNo) === String(targetKey)) return true;
-      if (norm(c.sozlesmeNo) === normKey) return true;
-      if (norm(c.id) === normKey) return true;
-      if (norm(c.ogrenciAdi) === normKey) return true;
-      if (norm(c.ogrenciAdiSoyadi) === normKey) return true;
-      if (norm(c.musteriUnvan) === normKey) return true;
+      if (c.sozlesmeNo && String(c.sozlesmeNo) === cleanKey) return true;
+      if (c.id != null && (String(c.id) === cleanKey || String(c.id).replace(/^stu-/, "") === cleanId)) return true;
+      if (c.studentId != null && (String(c.studentId) === cleanKey || String(c.studentId).replace(/^stu-/, "") === cleanId)) return true;
+      if (c.ogrenciId != null && (String(c.ogrenciId) === cleanKey || String(c.ogrenciId).replace(/^stu-/, "") === cleanId)) return true;
+      if (c.ogrenciNo != null && String(c.ogrenciNo) === cleanKey) return true;
+      if (trNorm(c.sozlesmeNo) === normKey) return true;
+      if (trNorm(c.id) === normKey) return true;
+      if (trNorm(c.ogrenciAdi) === normKey) return true;
+      if (trNorm(c.ogrenciAdiSoyadi) === normKey) return true;
+      if (trNorm(c.musteriUnvan) === normKey) return true;
       return false;
     }) || null;
   };
@@ -516,14 +518,19 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   const printStudent = useMemo(() => {
     if (!showMebPrintModal) return null;
-    const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
-    const name = norm(showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || "");
+    const name = trNorm(showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || "");
+    const sId = String(showMebPrintModal.ogrenciId || showMebPrintModal.studentId || "");
+    const cleanId = sId.replace(/^stu-/, "");
+    const szlNo = showMebPrintModal.sozlesmeNo || showMebPrintModal.sozlesme_no || "";
+    const ogrNo = String(showMebPrintModal.ogrenciNo || "");
     const list = Array.isArray(allRegisteredStudents) && allRegisteredStudents.length > 0 ? allRegisteredStudents : (students || []);
-    return list.find((s) =>
-      (s.id && String(s.id) === String(showMebPrintModal.ogrenciId)) ||
-      (s.student_name && norm(s.student_name) === name) ||
-      (s.sozlesme_no && String(s.sozlesme_no) === String(showMebPrintModal.sozlesmeNo))
-    ) || null;
+    return list.find((s) => {
+      if (!s) return false;
+      if (szlNo && s.sozlesme_no === szlNo) return true;
+      if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
+      if (ogrNo && String(s.student_no) === ogrNo) return true;
+      return trNorm(s.student_name) === name;
+    }) || null;
   }, [showMebPrintModal, allRegisteredStudents, students]);
 
   const renderPaymentPlanModal = () => {

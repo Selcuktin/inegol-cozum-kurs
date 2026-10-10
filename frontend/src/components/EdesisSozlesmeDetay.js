@@ -24,7 +24,7 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import AccountingService from "../lib/edesisAccountingService";
+import AccountingService, { trNorm } from "../lib/edesisAccountingService";
 import { StudentService } from "../lib/edesisStudentService";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { ReceiptModal } from "./ReceiptModal";
@@ -67,23 +67,26 @@ export default function EdesisSozlesmeDetay({
   // Find corresponding student in data
   const baseStudent = useMemo(() => {
     if (!contract) return null;
-    const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
-    const name = norm(contract.ogrenciAdi || contract.musteriUnvan || "");
+    const name = trNorm(contract.ogrenciAdi || contract.ogrenciAdiSoyadi || contract.musteriUnvan || "");
+    const sId = String(contract.studentId || contract.student_id || contract.ogrenciId || "");
+    const cleanId = sId.replace(/^stu-/, "");
+    const szlNo = contract.sozlesmeNo || contract.sozlesme_no || "";
+    const ogrNo = String(contract.ogrenciNo || contract.student_no || "");
     const allStudents = [...(Array.isArray(students) ? students : []), ...StudentService.getAllStudents()];
     return allStudents.find((s) => {
       if (!s) return false;
-      if (contract.studentId && (s.id === contract.studentId || String(s.id) === String(contract.studentId))) return true;
-      if (contract.ogrenciId && (s.id === contract.ogrenciId || String(s.id) === String(contract.ogrenciId))) return true;
-      if (contract.ogrenciNo && s.student_no === contract.ogrenciNo) return true;
-      return norm(s.student_name) === name;
+      if (szlNo && s.sozlesme_no === szlNo) return true;
+      if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
+      if (ogrNo && String(s.student_no) === ogrNo) return true;
+      return trNorm(s.student_name) === name;
     }) || {
-      id: contract.studentId || contract.ogrenciId,
+      id: contract.studentId || contract.student_id || contract.ogrenciId,
       student_name: contract.ogrenciAdi || contract.musteriUnvan || "Öğrenci",
-      student_class: contract.sinifAdi || "Genel",
+      student_class: contract.sinifAdi || contract.student_class || "Genel",
       parent_name: contract.musteriUnvan || contract.parent_name || "",
       parent_phone: contract.musteriTelefon || contract.parent_phone || "",
-      student_tc: contract.student_tc || "",
-      student_no: contract.ogrenciNo || ""
+      student_tc: contract.student_tc || contract.studentTc || "",
+      student_no: contract.ogrenciNo || contract.student_no || ""
     };
   }, [contract, students]);
 

@@ -80,6 +80,10 @@ export function formatContractRecord(r) {
     studentId: r.student_id || r.studentId,
     student_id: r.student_id || r.studentId,
     ogrenciId: r.student_id || r.studentId,
+    student_tc: r.student_tc || r.studentTc || "",
+    studentTc: r.student_tc || r.studentTc || "",
+    parent_tc: r.parent_tc || r.parentTc || "",
+    parentTc: r.parent_tc || r.parentTc || "",
     ogrenciAdi: name,
     student_name: name,
     ogrenciAdiSoyadi: name,
@@ -193,14 +197,18 @@ export const AccountingService = {
     if (Array.isArray(remoteStudents) && remoteStudents.length > 0) {
       const existingNames = new Set(list.map((c) => trNorm(c.ogrenciAdi || c.student_name)));
       const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
-      const existingIds = new Set(list.map((c) => String(c.studentId || c.student_id || "")));
+      const existingIds = new Set(list.flatMap((c) => {
+        const sid = String(c.studentId || c.student_id || "");
+        return [sid, sid.replace(/^stu-/, "")];
+      }));
 
       remoteStudents.forEach((st) => {
         if (!st || st.has_contract === false || st.contract_deleted) return;
         if (!st.has_contract && !st.sozlesme_no && Number(st.total_fee || 0) <= 0) return;
         const sName = trNorm(st.student_name);
         if (!sName || existingNames.has(sName)) return;
-        if (st.id && existingIds.has(String(st.id))) return;
+        const cleanId = String(st.id || "").replace(/^stu-/, "");
+        if (st.id && (existingIds.has(String(st.id)) || existingIds.has(cleanId))) return;
         if (st.sozlesme_no && existingNos.has(trNorm(st.sozlesme_no))) return;
 
         const synth = this.buildSyntheticContractForStudent(st);

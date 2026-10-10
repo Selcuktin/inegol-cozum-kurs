@@ -62,13 +62,19 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
     let query = `
       SELECT s.*, 
         c.id as contract_id,
-        c.sozlesme_no as sozlesme_no,
+        COALESCE(c.sozlesme_no, s.sozlesme_no) as sozlesme_no,
         c.durum as contract_status,
         c.is_signed as contract_is_signed,
         c.sozlesme_tarihi as contract_date,
         c.brut_tutar as contract_amount
       FROM students s
-      LEFT JOIN contracts c ON (s.id = c.student_id OR LOWER(s.student_name) = LOWER(c.student_name)) AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
+      LEFT JOIN contracts c ON (
+        s.id = c.student_id 
+        OR s.id = ('stu-' || c.student_id)
+        OR ('stu-' || s.id) = c.student_id
+        OR (s.sozlesme_no IS NOT NULL AND s.sozlesme_no != '' AND s.sozlesme_no = c.sozlesme_no)
+        OR s.student_name = c.student_name
+      ) AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
       WHERE 1=1
     `;
     const params = [];
@@ -223,6 +229,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
       if (!sozlesmeNo) {
         sozlesmeNo = await getNextSequence(db, "SZL_2026", "SZL2026", 5, 153);
       }
+      await db.prepare("UPDATE students SET sozlesme_no = ? WHERE id = ?").bind(sozlesmeNo, id).run().catch(() => {});
 
       const gross = Math.max(0, Number(s.total_fee) || 75000);
       const inst = Math.max(1, parseInt(s.installment_count) || 10);
