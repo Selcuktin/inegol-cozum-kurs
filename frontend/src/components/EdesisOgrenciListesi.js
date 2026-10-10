@@ -205,20 +205,39 @@ export default function EdesisOgrenciListesi({
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
       // Period filter
-      if (periodFilter !== "all" && String(s.donem_id) !== String(periodFilter)) {
-        return false;
+      if (periodFilter !== "all") {
+        const pId = String(s.donem_id || "");
+        const dName = String(s.donem_adi || "");
+        const prog = String(s.program || "");
+        if (periodFilter === "113") {
+          const is2026 = pId === "113" || dName.includes("2026") || prog.includes("2026") || !pId;
+          if (!is2026) return false;
+        } else if (periodFilter === "40") {
+          const is2025 = pId === "40" || dName.includes("2025") || prog.includes("2025");
+          if (!is2025) return false;
+        } else if (pId !== String(periodFilter)) {
+          return false;
+        }
       }
       // Status filter
       if (statusFilter !== "all") {
         if (statusFilter === "Kesin Kayıt") {
           const isKesin = s.status === "Kesin Kayıt" || s.status === "Aktif" || s.status === "Kayitli" || s.is_kesin_kayit;
           if (!isKesin) return false;
+        } else if (statusFilter === "Aday Kayıt") {
+          if (s.status !== "Aday Kayıt" && s.status !== "Aday") return false;
+        } else if (statusFilter === "Yaz Kursu") {
+          if (s.status !== "Yaz Kursu" && !String(s.program || "").includes("YAZ")) return false;
+        } else if (statusFilter === "Mezun / Geçmiş") {
+          if (s.status !== "Mezun / Geçmiş" && s.status !== "Mezun") return false;
+        } else if (statusFilter === "İptal") {
+          if (s.status !== "İptal" && s.status !== "İptal / Ayrılan" && !s.is_deleted && s.durum !== 3) return false;
         } else if (s.status !== statusFilter) {
           return false;
         }
       }
       // Class filter
-      if (classFilter !== "all" && s.student_class !== classFilter) {
+      if (classFilter !== "all" && String(s.student_class || "").trim() !== String(classFilter).trim()) {
         return false;
       }
       // Search
@@ -253,7 +272,14 @@ export default function EdesisOgrenciListesi({
   const kesinCount = useMemo(() => {
     return students.filter((s) => {
       const isKesin = s.status === "Kesin Kayıt" || s.status === "Aktif" || s.status === "Kayitli" || s.is_kesin_kayit;
-      return isKesin && (periodFilter === "all" || String(s.donem_id) === String(periodFilter));
+      if (!isKesin) return false;
+      if (periodFilter === "all") return true;
+      const pId = String(s.donem_id || "");
+      const dName = String(s.donem_adi || "");
+      const prog = String(s.program || "");
+      if (periodFilter === "113") return pId === "113" || dName.includes("2026") || prog.includes("2026") || !pId;
+      if (periodFilter === "40") return pId === "40" || dName.includes("2025") || prog.includes("2025");
+      return pId === String(periodFilter);
     }).length;
   }, [students, periodFilter]);
 
@@ -443,6 +469,23 @@ export default function EdesisOgrenciListesi({
                   {cls}
                 </option>
               ))}
+            </select>
+
+            {/* Durum Seçimi */}
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              style={{ padding: "5px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "12px", background: "#fff", outline: "none", cursor: "pointer" }}
+            >
+              <option value="all">Tüm Kayıt Durumları</option>
+              <option value="Kesin Kayıt">Kesin Kayıt ({kesinCount})</option>
+              <option value="Aday Kayıt">Aday Kayıt</option>
+              <option value="Yaz Kursu">Yaz Kursu</option>
+              <option value="Mezun / Geçmiş">Mezun / Geçmiş</option>
+              <option value="İptal">İptal / Ayrılan</option>
             </select>
 
             {/* FİLTRELER Active Tag (Matches media_1791229777810.png) */}
@@ -750,18 +793,7 @@ export default function EdesisOgrenciListesi({
                                 Düzenle
                               </div>
 
-                              <div
-                                onClick={() => {
-                                  if (onOpenKarne) onOpenKarne(s);
-                                  setOpenDropdownId(null);
-                                }}
-                                style={{ padding: "7px 12px", fontSize: "12px", fontWeight: 500, color: "#1e293b", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
-                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                              >
-                                <Award size={13} color="#7c3aed" />
-                                Öğrenci Karnesi
-                              </div>
+                              
 
                                <div
                                 onClick={() => {

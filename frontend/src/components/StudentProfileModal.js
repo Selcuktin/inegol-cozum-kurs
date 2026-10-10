@@ -213,14 +213,7 @@ export function StudentProfileModal({
             >
               <FileText size={14} /> Matbu Senet
             </button>
-            <button
-              className="btn small secondary"
-              onClick={() => setShowHataKarnesiModal(true)}
-              style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#dc2626", borderColor: "#dc2626" }}
-              title="Öğrencinin kazanım analizli hata karnesini aç"
-            >
-              <TrendingDown size={14} /> Hata Karnesi
-            </button>
+
             <button
               className="btn small"
               onClick={() => {

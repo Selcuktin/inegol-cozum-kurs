@@ -143,9 +143,40 @@ describe("Tahsilatlar & Tek Sayfadan Yönetim Testleri", () => {
     // onEditStudent fonksiyonu ilgili öğrenci ile çağrılmalı
     expect(onEditMock).toHaveBeenCalledWith(expect.objectContaining({ student_name: "Test Öğrenci" }));
 
+    // Öğrenci Karnesi kaldırılmış olmalı
+    expect(queryByText("Öğrenci Karnesi")).toBeNull();
+
     // Eski 5 sekmeli DÜZENLE modalı (ÖĞRENCİ BİLGİLERİ / KULLANICI BİLGİLERİ) DOM'da bulunmamalı
     expect(queryByText("ÖĞRENCİ BİLGİLERİ")).toBeNull();
     expect(queryByText("DÖNEM TARİHÇESİ")).toBeNull();
+
+    await unmount();
+  });
+
+  test("EdesisOgrenciListesi filtreleme çubuğunda durum seçimi bulunur ve sınıflara göre filtreler", async () => {
+    const mockStudents = [
+      { id: "s1", student_name: "Öğrenci 1", student_class: "8-A", status: "Kesin Kayıt", donem_id: "113" },
+      { id: "s2", student_name: "Öğrenci 2", student_class: "7-B", status: "Kesin Kayıt", donem_id: "113" }
+    ];
+
+    const { getByText, queryByText, container, unmount } = await render(
+      <EdesisOgrenciListesi
+        students={mockStudents}
+        classes={[{ name: "8-A" }, { name: "7-B" }]}
+      />
+    );
+
+    expect(getByText("Öğrenci 1")).toBeDefined();
+    expect(getByText("Öğrenci 2")).toBeDefined();
+
+    // Sınıf filtresi değiştirme (8-A)
+    const selects = container.querySelectorAll("select");
+    const classSelect = Array.from(selects).find(s => Array.from(s.options).some(o => o.value === "8-A"));
+    expect(classSelect).toBeDefined();
+    await fireEvent.change(classSelect, { target: { value: "8-A" } });
+
+    expect(queryByText("Öğrenci 1")).not.toBeNull();
+    expect(queryByText("Öğrenci 2")).toBeNull();
 
     await unmount();
   });

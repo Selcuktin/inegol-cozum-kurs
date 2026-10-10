@@ -129,8 +129,27 @@ export default function EdesisTahsilatListesi({
   const filteredTahsilatlar = useMemo(() => {
     return tahsilatList.filter((t) => {
       // Banka / Kasa filtresi
-      if (bankFilter !== "all" && t.kasaBankaAdi !== bankFilter) {
-        return false;
+      if (bankFilter !== "all") {
+        const bName = (t.kasaBankaAdi || t.bank || "").toLowerCase();
+        const mName = (t.method || "").toLowerCase();
+        const isBank =
+          bName.includes("vakıf") ||
+          bName.includes("vakif") ||
+          bName.includes("halk") ||
+          bName.includes("bank") ||
+          mName.includes("bank") ||
+          mName.includes("pos") ||
+          mName.includes("kart") ||
+          mName.includes("transfer") ||
+          mName.includes("havale") ||
+          mName.includes("eft");
+        if (bankFilter === "bank") {
+          if (!isBank) return false;
+        } else if (bankFilter === "cash") {
+          if (isBank) return false;
+        } else if (t.kasaBankaAdi !== bankFilter) {
+          return false;
+        }
       }
 
       // Tarih aralığı
@@ -436,6 +455,7 @@ export default function EdesisTahsilatListesi({
       >
         {/* Kart 1: TOPLAM TAHSİLAT ADEDİ */}
         <div
+          onClick={() => { setBankFilter("all"); setCurrentPage(1); }}
           style={{
             background: "#fff",
             borderRadius: "8px",
@@ -444,8 +464,13 @@ export default function EdesisTahsilatListesi({
             boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center"
+            alignItems: "center",
+            cursor: "pointer",
+            outline: bankFilter === "all" ? "2px solid #16a34a" : "none",
+            outlineOffset: "2px",
+            transition: "all 0.15s ease"
           }}
+          title="Tüm tahsilatları listele"
         >
           <div>
             <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>
@@ -516,6 +541,7 @@ export default function EdesisTahsilatListesi({
 
         {/* Kart 3: VAKIFBANK & BANKA TAHSİLATI */}
         <div
+          onClick={() => { setBankFilter(bankFilter === "bank" ? "all" : "bank"); setCurrentPage(1); }}
           style={{
             background: "#fff",
             borderRadius: "8px",
@@ -524,8 +550,13 @@ export default function EdesisTahsilatListesi({
             boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center"
+            alignItems: "center",
+            cursor: "pointer",
+            outline: bankFilter === "bank" ? "2px solid #2563eb" : "none",
+            outlineOffset: "2px",
+            transition: "all 0.15s ease"
           }}
+          title={bankFilter === "bank" ? "Filtreyi kaldır (Tümünü göster)" : "Sadece banka hesaplarını filtrele"}
         >
           <div>
             <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>
@@ -556,6 +587,7 @@ export default function EdesisTahsilatListesi({
 
         {/* Kart 4: NAKİT & DİĞER KASA */}
         <div
+          onClick={() => { setBankFilter(bankFilter === "cash" ? "all" : "cash"); setCurrentPage(1); }}
           style={{
             background: "#fff",
             borderRadius: "8px",
@@ -564,8 +596,13 @@ export default function EdesisTahsilatListesi({
             boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center"
+            alignItems: "center",
+            cursor: "pointer",
+            outline: bankFilter === "cash" ? "2px solid #f59e0b" : "none",
+            outlineOffset: "2px",
+            transition: "all 0.15s ease"
           }}
+          title={bankFilter === "cash" ? "Filtreyi kaldır (Tümünü göster)" : "Sadece nakit & bireysel kasayı filtrele"}
         >
           <div>
             <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>
@@ -648,6 +685,8 @@ export default function EdesisTahsilatListesi({
                 }}
               >
                 <option value="all">Tüm Hesaplar ({tahsilatList.length})</option>
+                <option value="bank">🏦 Banka Hesapları (VakıfBank / POS / EFT)</option>
+                <option value="cash">💵 Bireysel Kasa & Nakit</option>
                 {bankOptions.map((name) => (
                   <option key={name} value={name}>
                     {name}

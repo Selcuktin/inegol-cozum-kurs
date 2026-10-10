@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import {
   ShieldCheck,
@@ -7,13 +7,14 @@ import {
   Phone,
   MessageCircle,
   Download,
-  FileDown
+  FileDown,
+  Search
 } from "lucide-react";
 import { PageHead, Button, Stat } from "./DashboardPage";
 import { can } from "./AuthGuard";
 import { MonthlyReportPreview } from "../components/MonthlyReportPreview";
 import { openWhatsApp } from "../EdesisModules";
-import { formatTrtDateTime } from "../lib/utils";
+import { formatTrtDateTime, trIncludes } from "../lib/utils";
 import { API, ROLE_LABEL } from "../components/layout/AuthAndNav";
 
 const money = (n) =>
@@ -177,6 +178,9 @@ export function Reminders() {
   const [items, setItems] = useState([]);
   const [days, setDays] = useState(7);
   const [msg, setMsg] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all"); // "all" | "overdue" | "upcoming"
+  const [search, setSearch] = useState("");
+
   useEffect(() => {
     (async () => {
       try {
@@ -188,8 +192,26 @@ export function Reminders() {
       }
     })();
   }, [days]);
-  const overdue = items.filter((i) => i.status === "overdue");
-  const upcoming = items.filter((i) => i.status === "upcoming");
+
+  const overdue = useMemo(() => items.filter((i) => i.status === "overdue"), [items]);
+  const upcoming = useMemo(() => items.filter((i) => i.status === "upcoming"), [items]);
+
+  const filteredItems = useMemo(() => {
+    return items.filter((it) => {
+      if (filterStatus === "overdue" && it.status !== "overdue") return false;
+      if (filterStatus === "upcoming" && it.status !== "upcoming") return false;
+      if (search.trim()) {
+        const q = search.trim();
+        const match =
+          trIncludes(it.student_name, q) ||
+          trIncludes(it.parent_name, q) ||
+          trIncludes(it.parent_phone, q) ||
+          trIncludes(String(it.installment_no), q);
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [items, filterStatus, search]);
 
   return (
     <>
@@ -209,20 +231,138 @@ export function Reminders() {
         </div>
       </div>
       <div className="stats-grid compact">
-        <Stat icon={BellRing} label="Geciken ödeme" value={overdue.length} note="Vadesi geçti" color="red" trend="Acil" />
-        <Stat icon={Bell} label="Yaklaşan taksit" value={upcoming.length} note={`Önümüzdeki ${days} gün`} color="amber" trend="Takip" />
+        <div
+          onClick={() => setFilterStatus((prev) => (prev === "overdue" ? "all" : "overdue"))}
+          style={{
+            cursor: "pointer",
+            borderRadius: "10px",
+            outline: filterStatus === "overdue" ? "2px solid #ef4444" : "none",
+            outlineOffset: "2px",
+            transition: "all 0.15s ease"
+          }}
+          title={filterStatus === "overdue" ? "Filtreyi kaldır (Tümünü göster)" : "Sadece geciken ödemeleri filtrele"}
+        >
+          <Stat
+            icon={BellRing}
+            label="Geciken ödeme"
+            value={overdue.length}
+            note="Vadesi geçti"
+            color="red"
+            trend={filterStatus === "overdue" ? "Filtrelendi ✓" : "Acil"}
+          />
+        </div>
+        <div
+          onClick={() => setFilterStatus((prev) => (prev === "upcoming" ? "all" : "upcoming"))}
+          style={{
+            cursor: "pointer",
+            borderRadius: "10px",
+            outline: filterStatus === "upcoming" ? "2px solid #f59e0b" : "none",
+            outlineOffset: "2px",
+            transition: "all 0.15s ease"
+          }}
+          title={filterStatus === "upcoming" ? "Filtreyi kaldır (Tümünü göster)" : "Sadece yaklaşan taksitleri filtrele"}
+        >
+          <Stat
+            icon={Bell}
+            label="Yaklaşan taksit"
+            value={upcoming.length}
+            note={`Önümüzdeki ${days} gün`}
+            color="amber"
+            trend={filterStatus === "upcoming" ? "Filtrelendi ✓" : "Takip"}
+          />
+        </div>
       </div>
       <section className="panel table-panel">
-        <div className="panel-head">
+        <div className="panel-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
           <div>
-            <h2>Aramaya hazır liste</h2>
+            <h2>Aramaya hazır liste ({filteredItems.length})</h2>
             <p>Numaraya tıklayın · WhatsApp/SMS gönderimi entegrasyon sonrası açılır</p>
           </div>
-          {msg && (
-            <span className="text-btn" data-testid="reminders-msg">
-              {msg}
-            </span>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            {/* Durum Filtreleme Sekmeleri */}
+            <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "3px", borderRadius: "8px", gap: "4px" }}>
+              <button
+                type="button"
+                data-testid="filter-all"
+                onClick={() => setFilterStatus("all")}
+                style={{
+                  padding: "5px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  borderRadius: "6px",
+                  border: "none",
+                  cursor: "pointer",
+                  background: filterStatus === "all" ? "#fff" : "transparent",
+                  color: filterStatus === "all" ? "#0f172a" : "#64748b",
+                  boxShadow: filterStatus === "all" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+                }}
+              >
+                Tümü ({items.length})
+              </button>
+              <button
+                type="button"
+                data-testid="filter-overdue"
+                onClick={() => setFilterStatus("overdue")}
+                style={{
+                  padding: "5px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  borderRadius: "6px",
+                  border: "none",
+                  cursor: "pointer",
+                  background: filterStatus === "overdue" ? "#fee2e2" : "transparent",
+                  color: filterStatus === "overdue" ? "#dc2626" : "#64748b",
+                  boxShadow: filterStatus === "overdue" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+                }}
+              >
+                🚨 Gecikenler ({overdue.length})
+              </button>
+              <button
+                type="button"
+                data-testid="filter-upcoming"
+                onClick={() => setFilterStatus("upcoming")}
+                style={{
+                  padding: "5px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  borderRadius: "6px",
+                  border: "none",
+                  cursor: "pointer",
+                  background: filterStatus === "upcoming" ? "#fef3c7" : "transparent",
+                  color: filterStatus === "upcoming" ? "#b45309" : "#64748b",
+                  boxShadow: filterStatus === "upcoming" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+                }}
+              >
+                ⏰ Yaklaşanlar ({upcoming.length})
+              </button>
+            </div>
+
+            {/* Arama Kutusu */}
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "10px" }} />
+              <input
+                type="search"
+                data-testid="reminders-search-input"
+                placeholder="Öğrenci veya veli ara..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  padding: "6px 12px 6px 30px",
+                  fontSize: "12px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "6px",
+                  width: "190px",
+                  outline: "none"
+                }}
+              />
+            </div>
+
+            {msg && (
+              <span className="text-btn" data-testid="reminders-msg">
+                {msg}
+              </span>
+            )}
+          </div>
         </div>
         <div className="desktop-only-table table-responsive">
           <table>
@@ -238,7 +378,7 @@ export function Reminders() {
               </tr>
             </thead>
             <tbody>
-              {items.map((it, i) => (
+              {filteredItems.map((it, i) => (
                 <tr key={`${it.student_id}-${i}`} data-testid={`reminder-row-${it.student_id}`}>
                   <td>
                     <span className={`status-pill ${it.status === "overdue" ? "danger" : "warning"}`}>
@@ -292,10 +432,10 @@ export function Reminders() {
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && !msg && (
+              {filteredItems.length === 0 && (
                 <tr>
                   <td colSpan="7" className="muted-cell" style={{ textAlign: "center", padding: "30px" }}>
-                    Bu dönemde bekleyen ödeme yok. 🎉
+                    {search.trim() ? "Aramaya uygun ödeme kaydı bulunamadı." : "Bu dönemde bekleyen ödeme yok. 🎉"}
                   </td>
                 </tr>
               )}
@@ -304,7 +444,7 @@ export function Reminders() {
         </div>
 
         <div className="mobile-only-cards reminders-mobile-list">
-          {items.map((it, i) => (
+          {filteredItems.map((it, i) => (
             <div key={`${it.student_id}-${i}`} className="mobile-data-card reminder-card" data-testid={`reminder-card-${it.student_id}`}>
               <div className="reminder-card-top">
                 <div>
@@ -343,7 +483,11 @@ export function Reminders() {
               </div>
             </div>
           ))}
-          {items.length === 0 && !msg && <div className="empty-card-msg">Bu dönemde bekleyen ödeme yok. 🎉</div>}
+          {filteredItems.length === 0 && (
+            <div className="empty-card-msg">
+              {search.trim() ? "Aramaya uygun ödeme kaydı bulunamadı." : "Bu dönemde bekleyen ödeme yok. 🎉"}
+            </div>
+          )}
         </div>
       </section>
     </>
