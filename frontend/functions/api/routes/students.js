@@ -504,16 +504,29 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
     }
 
     if (request.method === "DELETE") {
-      const student = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
+      const decodedId = decodeURIComponent(studentId);
+      const student = await db.prepare(
+        "SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ? OR LOWER(student_name) = LOWER(?)"
+      ).bind(decodedId, decodedId, decodedId, decodedId).first();
+
       if (!student) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
 
-      await db.prepare("DELETE FROM students WHERE id = ?").bind(studentId).run();
-      await db.prepare("UPDATE contracts SET is_deleted = 1 WHERE student_id = ?").bind(studentId).run();
-      await db.prepare("UPDATE student_incomes SET is_deleted = 1 WHERE student_id = ?").bind(studentId).run();
-      await db.prepare("DELETE FROM installments WHERE student_id = ?").bind(studentId).run().catch(() => {});
+      const targetId = student.id;
+      const targetName = student.student_name;
 
-      await logAction(db, user, "student.delete", "student", studentId, `${student.student_name} silindi`);
-      return json({ ok: true, deleted_id: studentId });
+      await db.prepare("DELETE FROM students WHERE id = ?").bind(targetId).run();
+      await db.prepare(
+        "UPDATE contracts SET is_deleted = 1 WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')"
+      ).bind(targetId, targetId, targetId, targetName).run();
+      await db.prepare(
+        "UPDATE student_incomes SET is_deleted = 1 WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')"
+      ).bind(targetId, targetId, targetId, targetName).run();
+      await db.prepare(
+        "DELETE FROM installments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE LOWER(student_name) = LOWER(?))"
+      ).bind(targetId, targetId, targetId, targetName).run().catch(() => {});
+
+      await logAction(db, user, "student.delete", "student", targetId, `${targetName} silindi`);
+      return json({ ok: true, deleted_id: targetId, deleted_name: targetName });
     }
   }
 

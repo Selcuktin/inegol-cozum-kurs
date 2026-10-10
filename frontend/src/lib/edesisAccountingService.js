@@ -574,25 +574,44 @@ export const AccountingService = {
   },
 
   deleteContract(contractOrNo) {
+    if (!contractOrNo) return false;
     const targetKey = typeof contractOrNo === "object" ? (contractOrNo.id || contractOrNo.sozlesmeNo || contractOrNo.ogrenciAdi || contractOrNo.student_name) : contractOrNo;
+    const studentName = typeof contractOrNo === "object" ? (contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.student_name) : null;
+    const studentId = typeof contractOrNo === "object" ? (contractOrNo.studentId || contractOrNo.student_id || contractOrNo.id) : null;
+
     if (!targetKey) return false;
 
-    const norm = trNorm(targetKey);
+    const normTarget = trNorm(targetKey);
+    const normName = studentName ? trNorm(studentName) : null;
+    const normStudentId = studentId ? trNorm(studentId) : null;
+
     _memory.contracts = _memory.contracts.map((c) => {
-      if (trNorm(c.id) === norm || trNorm(c.sozlesmeNo) === norm || trNorm(c.studentId) === norm || trNorm(c.ogrenciAdi) === norm) {
+      const matchId = (c.id && trNorm(c.id) === normTarget) || (c.sozlesmeNo && trNorm(c.sozlesmeNo) === normTarget);
+      const matchStudent = (normStudentId && c.studentId && (trNorm(c.studentId) === normStudentId || trNorm(String(c.studentId).replace(/^stu-/, "")) === normStudentId.replace(/^stu-/, "")))
+        || (normName && c.ogrenciAdi && trNorm(c.ogrenciAdi) === normName);
+
+      if (matchId || matchStudent) {
         return { ...c, durum: 3, durumText: "İptal Edildi", is_deleted: true };
       }
       return c;
     });
 
     _memory.incomes = _memory.incomes.map((i) => {
-      if (trNorm(i.id) === norm || trNorm(i.sozlesmeNo) === norm || trNorm(i.gelirKodu) === norm || trNorm(i.ogrenciAdiSoyadi) === norm) {
+      const matchId = (i.id && trNorm(i.id) === normTarget) || (i.sozlesmeNo && trNorm(i.sozlesmeNo) === normTarget) || (i.gelirKodu && trNorm(i.gelirKodu) === normTarget);
+      const matchStudent = (normStudentId && i.studentId && (trNorm(i.studentId) === normStudentId || trNorm(String(i.studentId).replace(/^stu-/, "")) === normStudentId.replace(/^stu-/, "")))
+        || (normName && i.ogrenciAdiSoyadi && trNorm(i.ogrenciAdiSoyadi) === normName);
+
+      if (matchId || matchStudent) {
         return { ...i, durum: 3, is_deleted: true };
       }
       return i;
     });
 
-    _memory.installments = _memory.installments.filter((t) => trNorm(t.contractId) !== norm && trNorm(t.sozlesmeNo) !== norm && trNorm(t.ogrenciAdi) !== norm);
+    _memory.installments = _memory.installments.filter((t) => {
+      const matchId = (t.contractId && trNorm(t.contractId) === normTarget) || (t.sozlesmeNo && trNorm(t.sozlesmeNo) === normTarget);
+      const matchStudent = (normName && t.ogrenciAdi && trNorm(t.ogrenciAdi) === normName);
+      return !matchId && !matchStudent;
+    });
 
     writeCache("cozum_ssot_contracts_v2", _memory.contracts);
     writeCache("cozum_ssot_incomes_v2", _memory.incomes);
@@ -603,8 +622,9 @@ export const AccountingService = {
     }
 
     if (typeof fetch === "function") {
-      const apiUrl = getApiUrl();
-      fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}`, {
+      const rawBase = getApiUrl() || "";
+      const base = rawBase.replace(/\/api\/?$/, "").replace(/\/+$/, "");
+      fetch(`${base}/api/contracts/${encodeURIComponent(targetKey)}`, {
         method: "DELETE"
       }).catch((err) => console.warn("[AccountingService] Remote contract DELETE error:", err));
     }

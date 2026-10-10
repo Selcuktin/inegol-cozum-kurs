@@ -124,4 +124,24 @@ describe("Single Contract Creation & Duplicate Prevention Guarantee", () => {
     expect(data.id).toBe("cnt_existing_123");
     expect(data.sozlesme_no).toBe("SZL202600154");
   });
+
+  it("StudentService.deleteStudent normalizes URL and calls /api/students/:id without double /api even when API is '/api'", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockImplementation(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) })
+    );
+
+    await StudentService.deleteStudent(
+      { id: "student-del-123", student_name: "Silinecek Öğrenci" },
+      "/api"
+    );
+
+    const deleteCall = fetchSpy.mock.calls.find(
+      (c) => c[1]?.method === "DELETE" && typeof c[0] === "string" && c[0].includes("students")
+    );
+
+    expect(deleteCall).toBeDefined();
+    expect(deleteCall[0]).toBe("/api/students/student-del-123");
+    expect(deleteCall[0]).not.toContain("/api/api");
+    fetchSpy.mockRestore();
+  });
 });

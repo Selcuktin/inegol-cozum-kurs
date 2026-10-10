@@ -113,9 +113,10 @@ export const StudentService = {
 
     if (!options?.skipRemoteSync && !student?.skipRemoteSync) {
       try {
-        const apiUrl = apiBaseUrl || getApiUrl();
+        const rawBase = apiBaseUrl || getApiUrl() || "";
+        const base = rawBase.replace(/\/api\/?$/, "").replace(/\/+$/, "");
         const isExisting = _memory.students.some((s) => s.id === id);
-        const url = isExisting ? `${apiUrl}/api/students/${encodeURIComponent(id)}` : `${apiUrl}/api/students`;
+        const url = isExisting ? `${base}/api/students/${encodeURIComponent(id)}` : `${base}/api/students`;
         const method = isExisting ? "PUT" : "POST";
 
         await fetch(url, {
@@ -145,22 +146,57 @@ export const StudentService = {
 
   async deleteStudent(studentOrId, apiBaseUrl = "") {
     const id = typeof studentOrId === "object" ? studentOrId.id : studentOrId;
-    if (!id) return false;
+    const studentName = typeof studentOrId === "object" ? studentOrId.student_name : null;
+    if (!id && !studentName) return false;
 
+    const targetKey = id || studentName;
     try {
-      const apiUrl = apiBaseUrl || getApiUrl();
-      await fetch(`${apiUrl}/api/students/${encodeURIComponent(id)}`, {
+      const rawBase = apiBaseUrl || getApiUrl() || "";
+      const base = rawBase.replace(/\/api\/?$/, "").replace(/\/+$/, "");
+      const res = await fetch(`${base}/api/students/${encodeURIComponent(targetKey)}`, {
         method: "DELETE"
       });
+      if (!res.ok && res.status !== 404) {
+        console.warn("[StudentService] Remote student DELETE non-ok status:", res.status);
+      }
     } catch (err) {
       console.warn("[StudentService] Remote student DELETE error:", err);
     }
 
-    const norm = trNorm(id);
-    _memory.students = _memory.students.filter((s) => trNorm(s.id) !== norm && trNorm(s.student_name) !== norm);
+    const normId = trNorm(id || "");
+    const normName = trNorm(studentName || "");
+    _memory.students = _memory.students.filter((s) => {
+      if (!s) return false;
+      const sId = trNorm(s.id || "");
+      const sName = trNorm(s.student_name || "");
+      if (normId && (sId === normId || sId === `stu-${normId}` || `stu-${sId}` === normId)) return false;
+      if (normName && sName === normName) return false;
+      return true;
+    });
     writeCache("cozum_ssot_students_v2", _memory.students);
 
     AccountingService.deleteContract(studentOrId);
+
+    // Also update cached dashboard data if present so App.js load() doesn't restore old student
+    if (typeof localStorage !== "undefined") {
+      try {
+        const cachedDash = localStorage.getItem("cozum_dashboard_data_v1");
+        if (cachedDash) {
+          const parsed = JSON.parse(cachedDash);
+          if (parsed && Array.isArray(parsed.students)) {
+            parsed.students = parsed.students.filter((s) => {
+              if (!s) return false;
+              const sId = trNorm(s.id || "");
+              const sName = trNorm(s.student_name || "");
+              if (normId && (sId === normId || sId === `stu-${normId}` || `stu-${sId}` === normId)) return false;
+              if (normName && sName === normName) return false;
+              return true;
+            });
+            localStorage.setItem("cozum_dashboard_data_v1", JSON.stringify(parsed));
+          }
+        }
+      } catch (e) {}
+    }
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_students_updated"));

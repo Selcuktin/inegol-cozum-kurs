@@ -289,12 +289,33 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
     const contractId = contractIdMatch[1];
 
     if (request.method === "DELETE") {
-      const row = await db.prepare("SELECT * FROM contracts WHERE (id = ? OR sozlesme_no = ?)").bind(contractId, contractId).first();
-      if (!row) return errorResponse("Sözleşme bulunamadı", 404, "NOT_FOUND");
+      const decodedKey = decodeURIComponent(contractId);
+      const row = await db.prepare(`
+        SELECT * FROM contracts 
+        WHERE (id = ? OR sozlesme_no = ? OR student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != ''))
+          AND (is_deleted = 0 OR is_deleted IS NULL)
+        LIMIT 1
+      `).bind(decodedKey, decodedKey, decodedKey, decodedKey, decodedKey, decodedKey).first();
 
-      await db.prepare("UPDATE contracts SET is_deleted = 1 WHERE id = ?").bind(row.id).run();
-      await db.prepare("UPDATE student_incomes SET is_deleted = 1 WHERE contract_id = ? OR sozlesme_no = ?").bind(row.id, row.sozlesme_no).run();
-      await db.prepare("DELETE FROM installments WHERE contract_id = ?").bind(row.id).run().catch(() => {});
+      if (!row) {
+        // Idempotent: already deleted or not found
+        return json({ success: true, ok: true, already_deleted: true });
+      }
+
+      await db.prepare(`
+        UPDATE contracts SET is_deleted = 1 
+        WHERE id = ? OR student_id = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')
+      `).bind(row.id, row.student_id || decodedKey, row.student_name).run();
+
+      await db.prepare(`
+        UPDATE student_incomes SET is_deleted = 1 
+        WHERE contract_id = ? OR sozlesme_no = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')
+      `).bind(row.id, row.sozlesme_no, row.student_name).run();
+
+      await db.prepare(`
+        DELETE FROM installments 
+        WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE LOWER(student_name) = LOWER(?))
+      `).bind(row.id, row.student_name).run().catch(() => {});
 
       await logAction(db, user, "contract.delete", "contract", row.id, `${row.sozlesme_no} sözleşmesi silindi`);
       return json({ success: true, ok: true, deleted_id: row.id, deleted_sozlesme: row.sozlesme_no });

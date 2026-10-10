@@ -30,7 +30,10 @@ export async function onRequest(context) {
 
   // 2. Parse & Normalize Path
   const url = new URL(request.url);
-  let path = url.pathname.replace(/^\/api\/?/, "/");
+  let path = url.pathname.replace(/^(\/api)+/, "") || "/";
+  if (!path.startsWith("/")) {
+    path = "/" + path;
+  }
   if (path.length > 1 && path.endsWith("/")) {
     path = path.slice(0, -1);
   }
