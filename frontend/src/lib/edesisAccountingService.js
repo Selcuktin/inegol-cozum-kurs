@@ -1,39 +1,10 @@
-import edesisData from "../data/edesisAccountingData.json";
+// Cloudflare Pages SSOT REST Client - AccountingService
+// Single Source of Truth (SSOT) connected directly to Cloudflare D1 via /api/*
+// NO static JSON imports, NO localStorage tombstones, NO protectedKeys hack lists.
 
-// Feature Flag: Kasa ve Banka modülünün görünürlüğü (İstendiğinde kod ile true yapılabilir)
+import { roundKurus } from "./installmentService.js";
+
 export const ENABLE_KASA_BANKA = false;
-
-const STORAGE_KEYS = {
-  CUSTOM_INCOMES: "cozum_custom_incomes_v1",
-  CUSTOM_CONTRACTS: "cozum_custom_contracts_v1",
-  CUSTOM_INSTALLMENTS: "cozum_custom_installments_v1",
-  CUSTOM_COLLECTIONS: "cozum_custom_collections_v1",
-  INCOME_OVERRIDES: "cozum_income_overrides_v1",
-  INSTALLMENT_OVERRIDES: "cozum_installment_overrides_v1",
-  CONTRACT_OVERRIDES: "cozum_contract_overrides_v1",
-  DELETED_CONTRACTS: "cozum_deleted_contracts_v1",
-  DELETED_INCOMES: "cozum_deleted_incomes_v1"
-};
-
-function readStorage(key, fallback = []) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return parsed != null ? parsed : fallback;
-  } catch (err) {
-    console.warn(`[AccountingService] Storage read error for ${key}:`, err);
-    return fallback;
-  }
-}
-
-function writeStorage(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (err) {
-    console.warn(`[AccountingService] Storage write error for ${key}:`, err);
-  }
-}
 
 export function trNorm(str) {
   if (str == null) return "";
@@ -46,1406 +17,892 @@ export function trNorm(str) {
     .replace(/\s+/g, " ");
 }
 
+function getApiUrl() {
+  if (typeof localStorage !== "undefined") {
+    const custom = localStorage.getItem("custom_api_url");
+    if (custom) return custom.replace(/\/$/, "");
+  }
+  return "";
+}
+
+function readCache(key, fallback = []) {
+  if (typeof localStorage === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed != null ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeCache(key, value) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.warn(`[AccountingService] Storage write error for ${key}:`, err);
+  }
+}
+
+// In-memory cache for ultra-fast render lookups
+const _memory = {
+  contracts: readCache("cozum_ssot_contracts_v2", []),
+  incomes: readCache("cozum_ssot_incomes_v2", []),
+  installments: readCache("cozum_ssot_installments_v2", []),
+  collections: readCache("cozum_ssot_collections_v2", []),
+  summary: readCache("cozum_ssot_summary_v2", null),
+  isFetching: false,
+};
+
 export const AccountingService = {
-  getDeletedContracts() {
-    return readStorage(STORAGE_KEYS.DELETED_CONTRACTS, []);
-  },
-
-  getDeletedIncomes() {
-    return readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
-  },
-
-  _cachedDelSets: null,
-
-  clearDelSetsCache() {
-    this._cachedDelSets = null;
-  },
-
-  // ponytail: cached in-memory Set — 0ms lookups, zero localStorage reads on renders
-  _buildDelSets() {
-    if (this._cachedDelSets) return this._cachedDelSets;
-    let dc = readStorage(STORAGE_KEYS.DELETED_CONTRACTS, []);
-    let di = readStorage(STORAGE_KEYS.DELETED_INCOMES, []);
-
-    // Self-healing: protect authentic base contract for Hatice Kübra Ünalan
-    const protectedKeys = ["SZL202600150", "74514", "8315150", "HATİCE KÜBRA ÜNALAN"];
-    const normProtected = new Set(protectedKeys.map(trNorm));
-    if (dc.some((k) => normProtected.has(trNorm(k)))) {
-      dc = dc.filter((k) => !normProtected.has(trNorm(k)));
-      writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, dc);
-    }
-    const ds = readStorage("cozum_deleted_students_v1", []);
-    if (ds.some((k) => normProtected.has(trNorm(k)))) {
-      writeStorage("cozum_deleted_students_v1", ds.filter((k) => !normProtected.has(trNorm(k))));
-    }
-
-    // Self-healing: heal accidental cancel / corrupt payment overrides for Hatice Kübra Ünalan
-    const cov = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
-    if (cov["SZL202600150"]?.durum === 3) {
-      delete cov["SZL202600150"].durum;
-      delete cov["SZL202600150"].durumText;
-      delete cov["SZL202600150"].durumRenk;
-      delete cov["SZL202600150"].iptalNedeni;
-      delete cov["SZL202600150"].iptalTarihi;
-      writeStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, cov);
-    }
-    const iov = readStorage(STORAGE_KEYS.INCOME_OVERRIDES, {});
-    let iovChanged = false;
-    ["GLR202600154", "GLR202600150", "SZL202600150"].forEach((k) => {
-      if (iov[k]?.toplamTahsilat === 20000 || iov[k]?.kalanAlacak === 23000 || iov[k]?.toplamTahsilat === 27000) {
-        delete iov[k];
-        iovChanged = true;
-      }
-    });
-    if (iovChanged) writeStorage(STORAGE_KEYS.INCOME_OVERRIDES, iov);
-
-    const instOv = readStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, {});
-    let instChanged = false;
-    Object.keys(instOv).forEach((k) => {
-      if (k.startsWith("SZL202600150") || k.startsWith("GLR202600154") || k.startsWith("GLR202600150")) {
-        delete instOv[k];
-        instChanged = true;
-      }
-    });
-    if (instChanged) writeStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, instOv);
-
-    const cColl = readStorage(STORAGE_KEYS.CUSTOM_COLLECTIONS, []);
-    const filteredColl = cColl.filter((c) => !(
-      (c.tahsilatTutari === 20000 || Number(c.amount) === 20000) &&
-      (c.sozlesmeNo === "SZL202600150" || c.gelirKodu === "GLR202600150" || c.gelirKodu === "GLR202600154" || trNorm(c.musteriUnvan || "") === "HATICE KUBRA UNALAN" || trNorm(c.musteriUnvan || "") === "DA")
-    ));
-    if (filteredColl.length !== cColl.length) {
-      writeStorage(STORAGE_KEYS.CUSTOM_COLLECTIONS, filteredColl);
-    }
-
-    this._cachedDelSets = {
-      delContracts: new Set(dc.map(trNorm)),
-      delIncomes: new Set([...dc, ...di].map(trNorm))
-    };
-    return this._cachedDelSets;
-  },
-
-  _isContractDeletedFast(contractOrNo, delContracts) {
-    if (!contractOrNo || delContracts.size === 0) return false;
-    if (typeof contractOrNo === "string" || typeof contractOrNo === "number") {
-      return delContracts.has(trNorm(contractOrNo));
-    }
-    if (contractOrNo.contract_deleted) return true;
-    const szl = trNorm(contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no);
-    if (szl && delContracts.has(szl)) return true;
-    const id = trNorm(contractOrNo.id);
-    if (id && delContracts.has(id)) return true;
-    if (id && delContracts.has(trNorm(`szl-${id}`))) return true;
-    const oid = trNorm(contractOrNo.ogrenciId || contractOrNo.studentId || contractOrNo.student_id);
-    if (oid && delContracts.has(oid)) return true;
-    if (oid && delContracts.has(trNorm(`szl-${oid}`))) return true;
-    const on = trNorm(contractOrNo.ogrenciNo || contractOrNo.student_no);
-    if (on && delContracts.has(on)) return true;
-    return false;
-  },
-
-  _isIncomeDeletedFast(incomeOrCode, delIncomes) {
-    if (!incomeOrCode || delIncomes.size === 0) return false;
-    if (typeof incomeOrCode === "string" || typeof incomeOrCode === "number") {
-      return delIncomes.has(trNorm(incomeOrCode));
-    }
-    const glr = trNorm(incomeOrCode.gelirKodu || incomeOrCode.gelir_kodu);
-    if (glr && delIncomes.has(glr)) return true;
-    const szl = trNorm(incomeOrCode.sozlesmeNo || incomeOrCode.sozlesme_no);
-    if (szl && delIncomes.has(szl)) return true;
-    const id = trNorm(incomeOrCode.id);
-    if (id && delIncomes.has(id)) return true;
-    if (id && delIncomes.has(trNorm(`inc-${id}`))) return true;
-    const oid = trNorm(incomeOrCode.ogrenciId || incomeOrCode.studentId || incomeOrCode.student_id);
-    if (oid && delIncomes.has(oid)) return true;
-    const n1 = trNorm(incomeOrCode.ogrenciAdi); if (n1 && delIncomes.has(n1)) return true;
-    const n2 = trNorm(incomeOrCode.ogrenciAdiSoyadi); if (n2 && delIncomes.has(n2)) return true;
-    const n3 = trNorm(incomeOrCode.student_name); if (n3 && delIncomes.has(n3)) return true;
-    return false;
-  },
-
-  // Remote sync for tombstoned/deleted contracts from D1 database
-  async syncDeletedWithRemote() {
-    if (typeof fetch === "undefined") return [];
-    try {
-      const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
-      const res = await fetch(`${apiUrl}/api/contracts/deleted-keys`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      if (data && Array.isArray(data.deletedKeys) && data.deletedKeys.length > 0) {
-        const localDeleted = this.getDeletedContracts();
-        const merged = Array.from(new Set([...localDeleted, ...data.deletedKeys]));
-        if (merged.length > localDeleted.length) {
-          writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, merged);
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(new Event("cozum_accounting_updated"));
-          }
-        }
-        return data.deletedKeys;
-      }
-    } catch (e) {
-      // quiet fail
-    }
-    return [];
-  },
-
-  unTombstone(studentOrName, sozlesmeNo, id) {
-    const rawKeys = [];
-    if (typeof studentOrName === "object" && studentOrName) {
-      if (studentOrName.id) rawKeys.push(studentOrName.id);
-      if (studentOrName.student_name) rawKeys.push(studentOrName.student_name);
-      if (studentOrName.ogrenciAdi) rawKeys.push(studentOrName.ogrenciAdi);
-      if (studentOrName.ogrenciAdiSoyadi) rawKeys.push(studentOrName.ogrenciAdiSoyadi);
-      if (studentOrName.student_no) rawKeys.push(studentOrName.student_no);
-      if (studentOrName.student_tc) rawKeys.push(studentOrName.student_tc);
-      if (studentOrName.sozlesme_no) rawKeys.push(studentOrName.sozlesme_no);
-      if (studentOrName.sozlesmeNo) rawKeys.push(studentOrName.sozlesmeNo);
-    } else if (studentOrName) {
-      rawKeys.push(studentOrName);
-    }
-    if (sozlesmeNo) rawKeys.push(sozlesmeNo);
-    if (id) rawKeys.push(id);
-
-    const normKeys = new Set(rawKeys.filter(Boolean).map(trNorm));
-    if (normKeys.size === 0) return;
-
-    const delContracts = this.getDeletedContracts().filter(k => !normKeys.has(trNorm(k)));
-    writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, delContracts);
-
-    const delIncomes = this.getDeletedIncomes().filter(k => !normKeys.has(trNorm(k)));
-    writeStorage(STORAGE_KEYS.DELETED_INCOMES, delIncomes);
-
-    const delStudents = readStorage("cozum_deleted_students_v1", []).filter(k => !normKeys.has(trNorm(k)));
-    writeStorage("cozum_deleted_students_v1", delStudents);
-    this.clearDelSetsCache();
-  },
+  // Backward compatibility stubs
+  getDeletedContracts() { return []; },
+  getDeletedIncomes() { return []; },
+  clearDelSetsCache() {},
+  syncDeletedWithRemote() { return Promise.resolve([]); },
+  unTombstone() {},
 
   isContractDeleted(contractOrNo) {
     if (!contractOrNo) return false;
-    return this._isContractDeletedFast(contractOrNo, this._buildDelSets().delContracts);
+    if (typeof contractOrNo === "object") {
+      return Boolean(contractOrNo.is_deleted || contractOrNo.contract_deleted || contractOrNo.durum === 3);
+    }
+    const norm = trNorm(contractOrNo);
+    const found = _memory.contracts.find((c) => trNorm(c.id) === norm || trNorm(c.sozlesmeNo) === norm || trNorm(c.ogrenciAdi) === norm);
+    if (found) return Boolean(found.is_deleted || found.durum === 3);
+    return false;
   },
 
   isIncomeDeleted(incomeOrCode) {
     if (!incomeOrCode) return false;
-    return this._isIncomeDeletedFast(incomeOrCode, this._buildDelSets().delIncomes);
+    if (typeof incomeOrCode === "object") {
+      return Boolean(incomeOrCode.is_deleted || incomeOrCode.durum === 3);
+    }
+    const norm = trNorm(incomeOrCode);
+    const found = _memory.incomes.find((i) => trNorm(i.id) === norm || trNorm(i.gelirKodu) === norm || trNorm(i.sozlesmeNo) === norm);
+    if (found) return Boolean(found.is_deleted || found.durum === 3);
+    return false;
   },
 
-  // 1. Get all incomes (authentic base + custom additions + payment overrides applied - deleted)
-  getIncomes(remoteStudents = []) {
-    const custom = readStorage(STORAGE_KEYS.CUSTOM_INCOMES, []);
-    const overrides = readStorage(STORAGE_KEYS.INCOME_OVERRIDES, {});
-    const base = edesisData.gelirler || [];
-
-    const list = [...custom, ...base];
-    const existingGlr = new Set(list.map(g => trNorm(g.gelirKodu)));
-    const existingSzl = new Set(list.map(g => trNorm(g.sozlesmeNo)));
-    const existingNames = new Set(list.map(g => trNorm(g.ogrenciAdiSoyadi || g.ogrenciAdi)));
-
-    // ponytail: read localStorage once, reuse Sets throughout
-    const { delContracts, delIncomes } = this._buildDelSets();
-
+  // 1. Fetch & Get Contracts (SSOT from /api/contracts)
+  async fetchContracts() {
+    if (typeof fetch === "undefined") return _memory.contracts;
     try {
-      const customStudents = readStorage("cozum_custom_students_v1", []);
-      let activeStudents = (remoteStudents && remoteStudents.length > 0) ? remoteStudents : [];
-      if (activeStudents.length === 0) {
-        const cachedDash = readStorage("cozum_dashboard_data_v1", null);
-        if (cachedDash && Array.isArray(cachedDash.students) && cachedDash.students.length > 0) {
-          activeStudents = cachedDash.students;
-        }
-      }
-      const allStudentsToInspect = [...activeStudents, ...customStudents];
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/api/contracts`);
+      if (!res || !res.ok) return _memory.contracts;
+      const rows = await res.json();
+      const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
-      const existingStudentIds = new Set(list.map((g) => String(g.studentId || g.student_id || g.ogrenciId || "")).filter(Boolean));
-      let maxSeqGlr = 150;
-      list.forEach((g) => {
-        const m = (g.gelirKodu || "").match(/GLR2026(\d+)/);
-        if (m) {
-          const val = parseInt(m[1], 10);
-          if (val > maxSeqGlr) maxSeqGlr = val;
-        }
-      });
+      const formatted = list.map((r) => ({
+        ...r,
+        id: r.id,
+        sozlesmeNo: r.sozlesme_no || r.sozlesmeNo,
+        sozlesme_no: r.sozlesme_no || r.sozlesmeNo,
+        studentId: r.student_id,
+        student_id: r.student_id,
+        ogrenciId: r.student_id,
+        ogrenciAdi: r.student_name || r.ogrenciAdi,
+        student_name: r.student_name || r.ogrenciAdi,
+        ogrenciAdiSoyadi: r.student_name || r.ogrenciAdi,
+        ogrenciNo: r.student_no,
+        musteriUnvan: r.parent_name || r.musteriUnvan || r.student_name,
+        parentName: r.parent_name || r.parentName || "",
+        parent_name: r.parent_name || r.parentName || "",
+        parentPhone: r.parent_phone || r.parentPhone || "",
+        parent_phone: r.parent_phone || r.parentPhone || "",
+        sinifAdi: r.student_class || r.sinifAdi || "8-A",
+        student_class: r.student_class || r.sinifAdi || "8-A",
+        period_id: r.period_id || 113,
+        period_name: r.period_name || "2026-2027",
+        donemId: r.period_id || 113,
+        donemAdi: r.period_name || "2026-2027",
+        netTutar: Number(r.net_tutar) || 0,
+        kdvTutari: Number(r.kdv_tutari) || 0,
+        brutTutar: Number(r.brut_tutar) || 0,
+        taksitSayisi: parseInt(r.taksit_sayisi) || 8,
+        odemeTuru: r.odeme_turu || 1,
+        odemeTuruText: r.odeme_turu_text || `Taksitli (${r.taksit_sayisi || 8} Taksit)`,
+        sozlesmeTarihi: r.sozlesme_tarihi || r.sozlesmeTarihi,
+        durum: r.durum != null ? r.durum : 1,
+        durumText: r.durum === 3 ? "İptal Edildi" : r.durum === 0 ? "Taslak" : "Aktif",
+        isSigned: !!(r.is_signed || r.kurum_imza_alindi || r.veli_imza_alindi),
+        is_signed: !!(r.is_signed || r.kurum_imza_alindi || r.veli_imza_alindi),
+        veliImzaAlindi: !!r.veli_imza_alindi,
+        kurumImzaAlindi: !!r.kurum_imza_alindi,
+        kurumImzalayan: r.kurum_imzalayan || "",
+        signedAt: r.signed_at,
+        sozlesmeUrl: r.sozlesme_url
+      }));
 
-      allStudentsToInspect.forEach((cs) => {
-        if (!cs) return;
-        if (cs.has_contract === false) return;
-        if (!cs.has_contract && !cs.sozlesme_no && Number(cs.total_fee || 0) <= 0) return;
-        const sName = trNorm(cs.student_name);
-        if (!sName) return;
-        if (cs.contract_deleted) return;
-        if (this._isIncomeDeletedFast(cs, delIncomes) || this._isContractDeletedFast(cs, delContracts)) return;
+      _memory.contracts = formatted;
+      writeCache("cozum_ssot_contracts_v2", formatted);
+      return formatted;
+    } catch (err) {
+      console.warn("[AccountingService] fetchContracts error:", err);
+      return _memory.contracts;
+    }
+  },
 
-        if (cs.id && existingStudentIds.has(String(cs.id))) return;
-        if (existingNames.has(sName)) return;
-        if (cs.sozlesme_no && existingSzl.has(trNorm(cs.sozlesme_no))) return;
-        if (cs.gelir_kodu && existingGlr.has(trNorm(cs.gelir_kodu))) return;
-
-        let cleanSzl = cs.sozlesme_no;
-        let cleanGlr = cs.gelir_kodu;
-        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl)) || this._isContractDeletedFast(cleanSzl, delContracts)) {
-          maxSeqGlr++;
-          while (
-            existingSzl.has(trNorm(`SZL2026${String(maxSeqGlr).padStart(5, "0")}`)) ||
-            this._isContractDeletedFast(`SZL2026${String(maxSeqGlr).padStart(5, "0")}`, delContracts) ||
-            existingGlr.has(trNorm(`GLR2026${String(maxSeqGlr).padStart(5, "0")}`)) ||
-            this._isIncomeDeletedFast(`GLR2026${String(maxSeqGlr).padStart(5, "0")}`, delIncomes)
-          ) {
-            maxSeqGlr++;
-          }
-          cleanSzl = `SZL2026${String(maxSeqGlr).padStart(5, "0")}`;
-          cleanGlr = `GLR2026${String(maxSeqGlr).padStart(5, "0")}`;
-        }
-        if (!cleanGlr) {
-          const numPart = cleanSzl.replace(/\D/g, "").slice(-5) || "00155";
-          cleanGlr = `GLR2026${numPart}`;
-        }
-        if (this._isContractDeletedFast(cleanSzl, delContracts) || this._isIncomeDeletedFast(cleanGlr, delIncomes)) return;
-
-        existingNames.add(sName);
-        existingSzl.add(trNorm(cleanSzl));
-        existingGlr.add(trNorm(cleanGlr));
-        if (cs.id) existingStudentIds.add(String(cs.id));
-
-        const fee = Number(cs.total_fee || 0);
-        let extraSum = 0;
-        try {
-          const extras = typeof cs.extra_fees === "string" ? JSON.parse(cs.extra_fees || "{}") : (cs.extra_fees || {});
-          extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
-        } catch {}
-        const disc = Number(cs.discount_amount || 0);
-        const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
-
-        const inst = Math.max(1, Number(cs.installment_count) || 8);
-        const net = Math.round((gross / 1.1) * 100) / 100;
-        const vat = Math.round((gross - net) * 100) / 100;
-        const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : sName;
-        const paid = Number(cs.paid_amount || 0);
-        const remaining = Math.max(0, gross - paid);
-        const rawDate = cs.created_at || new Date().toISOString();
-        const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
-
-        list.push({
-          id: cs.id || `inc-${cleanGlr}`,
-          gelirKodu: cleanGlr,
-          sozlesmeNo: cleanSzl,
-          aciklama: `Sözleşme: ${cleanSzl}`,
-          netTutar: net,
-          kdvOrani: 10,
-          kdvTutari: vat,
-          brutTutar: gross,
-          gelirTarihi: dateStr,
-          vadeTarihi: cs.due_date ? (String(cs.due_date).includes("T") ? String(cs.due_date) : String(cs.due_date).replace(" ", "T")) : dateStr,
-          donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
-          donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
-          muH_GelirKategoriId: 87,
-          gelirKategoriAdi: "Öğrenci Sözleşmesi",
-          musteriUnvan: parentName,
-          musteriTuru: 2,
-          toplamTahsilat: paid,
-          kalanAlacak: remaining,
-          tamTahsilEdildiMi: remaining <= 0,
-          durum: 1,
-          durumText: "Enum_GelirDurumu_1",
-          taksitliMi: inst > 1,
-          taksitSayisi: inst,
-          kalanTaksitSayisi: inst,
-          vadesiGectiMi: false,
-          gecikmeGunSayisi: 0,
-          ogrenciAdiSoyadi: cs.student_name ? cs.student_name.trim() : sName,
-          sinifAdi: cs.student_class || "Genel",
-          gradeAdi: (cs.student_class || "").split("-")[0] || "Genel"
-        });
-      });
-    } catch (e) {
-      console.warn("Dynamic income error:", e);
+  getContracts(remoteStudents = [], propContracts = null) {
+    if (Array.isArray(propContracts) && propContracts.length > 0) {
+      _memory.contracts = propContracts;
+      writeCache("cozum_ssot_contracts_v2", propContracts);
+      return propContracts;
     }
 
-    const merged = list.filter(g => !this._isIncomeDeletedFast(g, delIncomes));
+    let list = [..._memory.contracts];
 
-    return merged.map((g) => {
-      const ov = overrides[g.gelirKodu] || (g.sozlesmeNo && overrides[g.sozlesmeNo]);
-      if (ov) {
-        if ((g.sozlesmeNo === "SZL202600150" || g.gelirKodu === "GLR202600154") && (ov.toplamTahsilat === 20000 || ov.kalanAlacak === 23000 || ov.toplamTahsilat === 27000)) {
-          return g;
-        }
-        return {
-          ...g,
-          brutTutar: ov.brutTutar != null ? ov.brutTutar : g.brutTutar,
-          netTutar: ov.netTutar != null ? ov.netTutar : g.netTutar,
-          kdvTutari: ov.kdvTutari != null ? ov.kdvTutari : g.kdvTutari,
-          taksitSayisi: ov.taksitSayisi != null ? ov.taksitSayisi : g.taksitSayisi,
-          toplamTahsilat: ov.toplamTahsilat != null ? ov.toplamTahsilat : g.toplamTahsilat,
-          kalanAlacak: ov.kalanAlacak != null ? ov.kalanAlacak : g.kalanAlacak,
-          tamTahsilEdildiMi: (ov.kalanAlacak != null ? ov.kalanAlacak : g.kalanAlacak) <= 0
-        };
-      }
-      return g;
-    });
-  },
-
-  buildSyntheticContractForStudent(cs) {
-    if (!cs) return null;
-    const sName = trNorm(cs.student_name);
-    const fee = Number(cs.total_fee || 0);
-    let extraSum = 0;
-    try {
-      const extras = typeof cs.extra_fees === "string" ? JSON.parse(cs.extra_fees || "{}") : (cs.extra_fees || {});
-      extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
-    } catch {}
-    const disc = Number(cs.discount_amount || 0);
-    const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
-    const inst = Math.max(1, Number(cs.installment_count) || 10);
-    const net = Math.round((gross / 1.1) * 100) / 100;
-    const vat = Math.round((gross - net) * 100) / 100;
-    const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : (cs.student_name || sName);
-    const rawDate = cs.created_at || new Date().toISOString();
-    const dateStr = String(rawDate).includes("T") ? String(rawDate) : String(rawDate).replace(" ", "T");
-    const cleanNo = cs.sozlesme_no || `SZL2026${String(Date.now()).slice(-5)}`;
-    return {
-      id: cs.id ? `szl-${cs.id}` : `szl-${cleanNo}`,
-      studentId: cs.id,
-      ogrenciId: cs.id,
-      sozlesmeNo: cleanNo,
-      sozlesmeTarihi: dateStr,
-      tarih: dateStr,
-      musteriUnvan: parentName,
-      ogrenciAdi: cs.student_name ? cs.student_name.trim().toLocaleUpperCase("tr-TR") : sName,
-      ogrenciNo: cs.student_no || "",
-      donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
-      donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
-      sinifAdi: cs.student_class || "Genel",
-      netTutar: net,
-      kdvTutari: vat,
-      brutTutar: gross,
-      odemeTuru: inst > 1 ? 1 : 2,
-      odemeTuruText: inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim",
-      taksitSayisi: inst,
-      imzaDurumu: "İmzalandı",
-      isSigned: true,
-      durum: 1,
-      durumText: "Aktif",
-      durumRenk: "success",
-      silinebilirMi: true
-    };
-  },
-
-  // 2. Get all contracts (authentic base + custom additions + remote D1 synthesis - deleted + overrides applied)
-  getContracts(remoteStudents = [], remoteContracts = []) {
-    const custom = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
-    const base = edesisData.sozlesmeler || [];
-    let rContracts = Array.isArray(remoteContracts) && remoteContracts.length > 0 ? remoteContracts : [];
-    if (rContracts.length === 0) {
-      try {
-        const cachedDash = readStorage("cozum_dashboard_data_v1", null);
-        if (cachedDash && Array.isArray(cachedDash.contracts) && cachedDash.contracts.length > 0) {
-          rContracts = cachedDash.contracts;
-        }
-      } catch {}
-    }
-    // Deduplicate by sozlesmeNo / id across base, remote, and custom
-    const contractMap = new Map();
-    base.forEach((c) => {
-      if (!c) return;
-      const key = (c.sozlesmeNo || "").trim().toUpperCase() || (c.id ? String(c.id) : "");
-      if (key) contractMap.set(key, c);
-    });
-
-    rContracts.forEach((c) => {
-      if (!c) return;
-      const key = (c.sozlesmeNo || "").trim().toUpperCase() || (c.id ? String(c.id) : "");
-      if (key) {
-        contractMap.set(key, { ...(contractMap.get(key) || {}), ...c });
-      }
-    });
-
-    custom.forEach((c) => {
-      if (!c) return;
-      const key = (c.sozlesmeNo || "").trim().toUpperCase() || (c.id ? String(c.id) : "");
-      if (key) {
-        contractMap.set(key, { ...(contractMap.get(key) || {}), ...c });
-      }
-    });
-
-    const list = Array.from(contractMap.values());
-    const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
-    const { delContracts, delIncomes } = this._buildDelSets();
-
-    // Critical: Filter deleted contracts FIRST so dead tombstones don't block synthesis for active students
-    let activeList = list.filter(c => !this._isContractDeletedFast(c, delContracts));
-
-    const applyOverrides = (c) => {
-      const ov = (c.sozlesmeNo && overrides[c.sozlesmeNo]) || (c.id && overrides[c.id]) || (c.studentId && overrides[c.studentId]) || (c.ogrenciId && overrides[c.ogrenciId]);
-      if (ov) {
-        const merged = { ...c, ...ov };
-        if (c.sozlesmeNo === "SZL202600150" || c.id === "SZL202600150" || c.ogrenciId === 8315150) {
-          merged.durum = 1;
-          merged.durumText = "Aktif";
-          delete merged.durumRenk;
-          delete merged.iptalNedeni;
-          delete merged.iptalTarihi;
-        }
-        return merged;
-      }
-      return c;
-    };
-
-    // Apply overrides FIRST so edited student/parent names are reflected before synthesis
-    activeList = activeList.map(applyOverrides);
-
-    try {
-      const customStudents = readStorage("cozum_custom_students_v1", []);
-      let activeStudents = (remoteStudents && remoteStudents.length > 0) ? remoteStudents : [];
-      if (activeStudents.length === 0) {
-        const cachedDash = readStorage("cozum_dashboard_data_v1", null);
-        if (cachedDash && Array.isArray(cachedDash.students) && cachedDash.students.length > 0) {
-          activeStudents = cachedDash.students;
-        }
-      }
-      const allStudentsToInspect = [...activeStudents, ...customStudents];
-      const existingNames = new Set(activeList.map((c) => trNorm(c.ogrenciAdi || c.ogrenciAdiSoyadi)));
-      const existingNos = new Set(activeList.map((c) => trNorm(c.sozlesmeNo)));
-      const existingStudentIds = new Set(activeList.map((c) => String(c.studentId || c.student_id || c.ogrenciId || "")).filter(Boolean));
-
-      let maxSeqSzl = 150;
-      activeList.forEach((c) => {
-        const m = (c.sozlesmeNo || "").match(/SZL2026(\d+)/);
-        if (m) {
-          const val = parseInt(m[1], 10);
-          if (val > maxSeqSzl) maxSeqSzl = val;
-        }
+    // Trigger background fetch if memory is empty
+    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
+      _memory.isFetching = true;
+      this.fetchContracts().finally(() => {
+        _memory.isFetching = false;
+        window.dispatchEvent(new Event("cozum_accounting_updated"));
       });
+    }
 
-      allStudentsToInspect.forEach((cs) => {
-        if (!cs) return;
-        if (cs.has_contract === false) return;
-        if (!cs.has_contract && !cs.sozlesme_no && Number(cs.total_fee || 0) <= 0) return;
-        const sName = trNorm(cs.student_name);
-        if (!sName) return;
-        if (cs.contract_deleted) return;
-        if (this._isContractDeletedFast(cs, delContracts) || this._isIncomeDeletedFast(cs, delIncomes)) return;
+    // Dynamic synthesis for any freshly added remote students without contracts yet
+    if (Array.isArray(remoteStudents) && remoteStudents.length > 0) {
+      const existingNames = new Set(list.map((c) => trNorm(c.ogrenciAdi || c.student_name)));
+      const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
+      const existingIds = new Set(list.map((c) => String(c.studentId || c.student_id || "")));
 
-        if (cs.id && existingStudentIds.has(String(cs.id))) return;
-        if (existingNames.has(sName)) return;
-        if (cs.sozlesme_no && existingNos.has(trNorm(cs.sozlesme_no))) return;
+      remoteStudents.forEach((st) => {
+        if (!st || st.has_contract === false || st.contract_deleted) return;
+        if (!st.has_contract && !st.sozlesme_no && Number(st.total_fee || 0) <= 0) return;
+        const sName = trNorm(st.student_name);
+        if (!sName || existingNames.has(sName)) return;
+        if (st.id && existingIds.has(String(st.id))) return;
+        if (st.sozlesme_no && existingNos.has(trNorm(st.sozlesme_no))) return;
 
-        let cleanNo = cs.sozlesme_no;
-        if (cleanNo && this._isContractDeletedFast(cleanNo, delContracts)) return;
-
-        if (!cleanNo || existingNos.has(trNorm(cleanNo))) {
-          maxSeqSzl++;
-          while (
-            existingNos.has(trNorm(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`)) ||
-            this._isContractDeletedFast(`SZL2026${String(maxSeqSzl).padStart(5, "0")}`, delContracts)
-          ) {
-            maxSeqSzl++;
-          }
-          cleanNo = `SZL2026${String(maxSeqSzl).padStart(5, "0")}`;
-        }
-        if (this._isContractDeletedFast(cleanNo, delContracts)) return;
-
-        existingNames.add(sName);
-        existingNos.add(trNorm(cleanNo));
-        if (cs.id) existingStudentIds.add(String(cs.id));
-
-        const synth = this.buildSyntheticContractForStudent({ ...cs, sozlesme_no: cleanNo });
+        const synth = this.buildSyntheticContractForStudent(st);
         if (synth) {
-          activeList.push(applyOverrides(synth));
+          list.push(synth);
+          _memory.contracts.push(synth);
+          existingNames.add(sName);
+          existingNos.add(trNorm(synth.sozlesmeNo));
+
+          // Also populate default installments for this student contract in memory
+          const count = Math.max(1, synth.taksitSayisi || 8);
+          const total = Number(synth.brutTutar) || 75000;
+          const baseAmt = Math.floor((total / count) * 100) / 100;
+          const remainder = roundKurus(total - (baseAmt * count));
+          const baseDate = new Date(synth.sozlesmeTarihi || new Date());
+          for (let i = 1; i <= count; i++) {
+            const isLast = (i === count);
+            const amt = isLast ? roundKurus(baseAmt + remainder) : baseAmt;
+            const d = new Date(baseDate);
+            d.setMonth(d.getMonth() + i - 1);
+            d.setDate(15);
+            const dueStr = d.toISOString().split("T")[0];
+            _memory.installments.push({
+              id: `inst_${synth.id}_${i}`,
+              contractId: synth.id,
+              sozlesmeNo: synth.sozlesmeNo,
+              ogrenciAdi: synth.ogrenciAdi,
+              ogrenciAdiSoyadi: synth.ogrenciAdi,
+              taksitNo: i,
+              installment_no: i,
+              taksitTutari: amt,
+              amount: amt,
+              toplamTutar: amt,
+              tahsilEdilen: 0,
+              kalanTutar: amt,
+              vadeTarihi: dueStr,
+              due_date: dueStr,
+              durumText: "Bekliyor"
+            });
+          }
         }
       });
-    } catch (e) {
-      console.warn("Dynamic contract error:", e);
     }
 
-    return activeList;
+    return list.filter((c) => !c.is_deleted);
   },
 
-  // 3. Get all installments (authentic base + custom additions + remote D1 synthesis - deleted + payment overrides)
-  getInstallments(remoteStudents = []) {
-    const custom = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
-    const overrides = readStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, {});
-    const base = edesisData.taksitler || [];
-    const { delContracts, delIncomes } = this._buildDelSets();
-
-    const list = [...custom, ...base];
-    const existingNames = new Set(list.map(t => trNorm(t.ogrenciAdiSoyadi || t.ogrenciAdi)));
-    const existingSzl = new Set(list.map(t => trNorm(t.sozlesmeNo)));
-    const existingStudentIds = new Set(list.map((t) => String(t.studentId || t.student_id || t.ogrenciId || "")).filter(Boolean));
-
+  // 2. Fetch & Get Installments (SSOT from /api/installments with Peşinat taksitNo: 0 support)
+  async fetchInstallments(contractId = null) {
+    if (typeof fetch === "undefined") return _memory.installments;
     try {
-      const customStudents = readStorage("cozum_custom_students_v1", []);
-      let activeStudents = (remoteStudents && remoteStudents.length > 0) ? remoteStudents : [];
-      if (activeStudents.length === 0) {
-        const cachedDash = readStorage("cozum_dashboard_data_v1", null);
-        if (cachedDash && Array.isArray(cachedDash.students) && cachedDash.students.length > 0) {
-          activeStudents = cachedDash.students;
-        }
-      }
-      const allStudentsToInspect = [...activeStudents, ...customStudents];
+      const apiUrl = getApiUrl();
+      const q = contractId ? `?contract_id=${encodeURIComponent(contractId)}` : "";
+      const res = await fetch(`${apiUrl}/api/installments${q}`);
+      if (!res || !res.ok) return _memory.installments;
+      const rows = await res.json();
+      const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
+      const formatted = list.map((r) => {
+        const no = (r.taksitNo !== undefined && r.taksitNo !== null) 
+          ? Number(r.taksitNo) 
+          : ((r.installment_no !== undefined && r.installment_no !== null) ? Number(r.installment_no) : 1);
+        const amt = Number(r.taksitTutari || r.amount || 0);
+        const paid = Number(r.tahsilEdilen || r.paid_amount || 0);
+        const rem = Math.max(0, amt - paid);
 
-      let maxSeqInst = 150;
-      list.forEach((t) => {
-        const m = (t.sozlesmeNo || "").match(/SZL2026(\d+)/);
-        if (m) {
-          const val = parseInt(m[1], 10);
-          if (val > maxSeqInst) maxSeqInst = val;
-        }
+        return {
+          ...r,
+          id: r.id,
+          contractId: r.contract_id || r.contractId,
+          contract_id: r.contract_id || r.contractId,
+          incomeId: r.income_id || r.incomeId,
+          studentId: r.student_id || r.studentId,
+          sozlesmeNo: r.sozlesme_no || r.sozlesmeNo,
+          ogrenciAdi: r.student_name || r.ogrenciAdi,
+          ogrenciAdiSoyadi: r.student_name || r.ogrenciAdi,
+          taksitNo: no,
+          installment_no: no,
+          isPesinat: no === 0,
+          taksitTutari: amt,
+          amount: amt,
+          toplamTutar: amt,
+          tahsilEdilen: paid,
+          paid_amount: paid,
+          kalanTutar: rem,
+          vadeTarihi: r.due_date || r.vadeTarihi,
+          due_date: r.due_date || r.vadeTarihi,
+          durumText: r.status || (paid >= amt && amt > 0 ? "Tam Ödendi" : paid > 0 ? "Kısmi Ödendi" : no === 0 ? "Peşinat" : "Bekliyor"),
+          receiptNo: r.receipt_no,
+          paymentDate: r.payment_date
+        };
       });
 
-      allStudentsToInspect.forEach((cs) => {
-        if (!cs) return;
-        if (cs.has_contract === false) return;
-        if (!cs.has_contract && !cs.sozlesme_no && Number(cs.total_fee || 0) <= 0) return;
-        const sName = trNorm(cs.student_name);
-        if (!sName) return;
-        if (cs.contract_deleted) return;
-        if (this._isContractDeletedFast(cs, delContracts) || this._isIncomeDeletedFast(cs, delIncomes)) return;
+      if (!contractId) {
+        _memory.installments = formatted;
+        writeCache("cozum_ssot_installments_v2", formatted);
+      }
+      return formatted;
+    } catch (err) {
+      console.warn("[AccountingService] fetchInstallments error:", err);
+      return _memory.installments;
+    }
+  },
 
-        if (cs.id && existingStudentIds.has(String(cs.id))) return;
-        if (existingNames.has(sName)) return;
-        if (cs.sozlesme_no && existingSzl.has(trNorm(cs.sozlesme_no))) return;
+  getInstallments(remoteStudents = []) {
+    let list = [..._memory.installments];
 
-        let cleanSzl = cs.sozlesme_no;
-        let cleanGlr = cs.gelir_kodu;
-        if (cleanSzl && this._isContractDeletedFast(cleanSzl, delContracts)) return;
+    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
+      this.fetchInstallments().then((insts) => {
+        if (insts.length > 0) window.dispatchEvent(new Event("cozum_accounting_updated"));
+      });
+    }
 
-        if (!cleanSzl || existingSzl.has(trNorm(cleanSzl))) {
-          maxSeqInst++;
-          while (
-            existingSzl.has(trNorm(`SZL2026${String(maxSeqInst).padStart(5, "0")}`)) ||
-            this._isContractDeletedFast(`SZL2026${String(maxSeqInst).padStart(5, "0")}`, delContracts)
-          ) {
-            maxSeqInst++;
-          }
-          cleanSzl = `SZL2026${String(maxSeqInst).padStart(5, "0")}`;
-          cleanGlr = `GLR2026${String(maxSeqInst).padStart(5, "0")}`;
-        }
-        if (!cleanGlr) {
-          const numPart = cleanSzl.replace(/\D/g, "").slice(-5) || "00155";
-          cleanGlr = `GLR2026${numPart}`;
-        }
-        if (this._isContractDeletedFast(cleanSzl, delContracts) || this._isIncomeDeletedFast(cleanGlr, delIncomes)) return;
+    // Synthesize installments from active contracts if installments not yet cached
+    if (list.length === 0 && _memory.contracts.length > 0) {
+      _memory.contracts.forEach((cnt) => {
+        const count = Math.max(1, cnt.taksitSayisi || 8);
+        const total = Number(cnt.brutTutar) || 75000;
+        const baseAmt = Math.floor((total / count) * 100) / 100;
+        const remainder = roundKurus(total - (baseAmt * count));
+        const baseDate = new Date(cnt.sozlesmeTarihi || new Date());
 
-        existingNames.add(sName);
-        existingSzl.add(trNorm(cleanSzl));
-        if (cs.id) existingStudentIds.add(String(cs.id));
-
-        const fee = Number(cs.total_fee || 0);
-        let extraSum = 0;
-        try {
-          const extras = typeof cs.extra_fees === "string" ? JSON.parse(cs.extra_fees || "{}") : (cs.extra_fees || {});
-          extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
-        } catch {}
-        const disc = Number(cs.discount_amount || 0);
-        const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
-
-        const contractOverrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
-        const ovContract = (cleanSzl && contractOverrides[cleanSzl]) || (cs.id && contractOverrides[cs.id]);
-        const ovCount = ovContract?.taksitSayisi ? Number(ovContract.taksitSayisi) : null;
-        const inst = ovCount || Math.max(1, Number(cs.installment_count) || 10);
-        const parentName = cs.parent_name && cs.parent_name !== "Belirtilmedi" ? cs.parent_name : sName;
-        const className = cs.student_class || "Genel";
-
-        const perInst = Math.floor((gross / inst) * 100) / 100;
-        const remainder = Math.round((gross - perInst * inst) * 100) / 100;
-        const baseDate = cs.due_date ? new Date(cs.due_date) : (cs.created_at ? new Date(cs.created_at) : new Date());
-
-        for (let i = 1; i <= inst; i++) {
-          const isLast = i === inst;
-          const instAmt = isLast ? Math.round((perInst + remainder) * 100) / 100 : perInst;
-          const due = new Date(baseDate);
-          due.setMonth(due.getMonth() + (i - 1));
+        for (let i = 1; i <= count; i++) {
+          const isLast = (i === count);
+          const amt = isLast ? roundKurus(baseAmt + remainder) : baseAmt;
+          const d = new Date(baseDate);
+          d.setMonth(d.getMonth() + i - 1);
+          d.setDate(15);
+          const dueStr = d.toISOString().split("T")[0];
 
           list.push({
-            id: `inst-${cleanSzl}-${i}`,
+            id: `inst_${cnt.id}_${i}`,
+            contractId: cnt.id,
+            sozlesmeNo: cnt.sozlesmeNo,
+            ogrenciAdi: cnt.ogrenciAdi,
+            ogrenciAdiSoyadi: cnt.ogrenciAdi,
             taksitNo: i,
-            gelirKodu: cleanGlr,
-            sozlesmeNo: cleanSzl,
-            ogrenciAdiSoyadi: cs.student_name ? cs.student_name.trim() : sName,
-            musteriUnvan: parentName,
-            sinifAdi: className,
-            taksitTutari: instAmt,
-            toplamTutar: instAmt,
+            installment_no: i,
+            taksitTutari: amt,
+            amount: amt,
+            toplamTutar: amt,
             tahsilEdilen: 0,
-            kalanTutar: instAmt,
-            vadeTarihi: due.toISOString(),
-            durum: 0,
-            durumText: "Vadesi Gelmedi",
-            donemId: cs.donem_id || (cs.program === "2025-2026" ? 40 : cs.program === "2026-2027-YAZ" ? 142 : 113),
-            donemAdi: cs.donem_adi || (cs.program === "2025-2026" ? "2025-2026" : cs.program === "2026-2027-YAZ" ? "2026-2027-YAZ" : "2026-2027"),
-            notlar: `${i}. Taksit`
+            kalanTutar: amt,
+            vadeTarihi: dueStr,
+            due_date: dueStr,
+            durumText: "Bekliyor"
           });
         }
       });
-    } catch (e) {
-      console.warn("Dynamic installments error:", e);
     }
 
-    const merged = list.filter(t => !this._isContractDeletedFast(t, delContracts) && !this._isIncomeDeletedFast(t, delIncomes));
-
-    return merged.map((t) => {
-      const key1 = t.gelirKodu ? `${t.gelirKodu}_${t.taksitNo}` : null;
-      const key2 = t.sozlesmeNo ? `${t.sozlesmeNo}_${t.taksitNo}` : null;
-      const key3 = t.id;
-      const ov = (key1 && overrides[key1]) || (key2 && overrides[key2]) || (key3 && overrides[key3]);
-      if (ov) {
-        const amt = ov.taksitTutari != null ? Number(ov.taksitTutari) : t.taksitTutari;
-        const paid = ov.tahsilEdilen != null ? Number(ov.tahsilEdilen) : (t.tahsilEdilen || 0);
-        const rem = ov.kalanTutar != null ? Number(ov.kalanTutar) : Math.max(0, amt - paid);
-        return {
-          ...t,
-          ...ov,
-          taksitTutari: amt,
-          toplamTutar: amt,
-          tahsilEdilen: paid,
-          kalanTutar: rem,
-          vadeTarihi: ov.vadeTarihi || t.vadeTarihi,
-          durum: ov.durum != null ? ov.durum : (paid >= amt && amt > 0 ? 1 : t.durum),
-          durumText: ov.durumText || (rem <= 0 ? "Tam Ödendi" : t.durumText)
-        };
-      }
-      return t;
-    });
+    return list;
   },
 
-  // 4. Get all collections (authentic base + custom collections + remote payments from D1)
-  getCollections(remotePayments = []) {
-    const custom = readStorage(STORAGE_KEYS.CUSTOM_COLLECTIONS, []);
-    const base = edesisData.tahsilatlar || [];
+  // 3. Fetch & Get Incomes (SSOT from /api/student-incomes)
+  async fetchIncomes() {
+    if (typeof fetch === "undefined") return _memory.incomes;
+    try {
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/api/student-incomes`);
+      if (!res || !res.ok) return _memory.incomes;
+      const rows = await res.json();
+      const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
-    const map = new Map();
-
-    // 1. Base collections
-    base.forEach((c) => {
-      const key = c.odemeKodu || String(c.id);
-      map.set(key, c);
-    });
-
-    // 2. Remote payments from D1
-    (remotePayments || []).forEach((p) => {
-      if (p && (p.amount || p.tahsilatTutari)) {
-        const id = p.id || `pmt-${p.payment_date}-${p.amount}`;
-        const code = p.odemeKodu || p.code || (String(id).startsWith("THS") ? id : `THS-${String(id).slice(-6)}`);
-        const existing = map.get(code) || map.get(String(id));
-        map.set(code, {
-          ...(existing || {}),
-          id: p.id || existing?.id || Date.now(),
-          odemeKodu: code,
-          gelirKodu: p.gelir_kodu || existing?.gelirKodu || (p.student_id ? `GLR-STU-${p.student_id}` : ""),
-          gelirAciklama: p.note || existing?.gelirAciklama || "Taksit Tahsilatı",
-          musteriUnvan: p.student_name || existing?.musteriUnvan || "Öğrenci",
-          tahsilatTutari: Number(p.amount || p.tahsilatTutari || 0),
-          kasaBankaAdi: p.bank || existing?.kasaBankaAdi || (p.method === "Nakit" ? "Nakit Ana Kasa" : "T.C. VAKIFLAR BANKASI İNEGÖL ŞB."),
-          odemeYontemi: p.method || existing?.odemeYontemi || "Nakit",
-          tahsilatTarihi: p.payment_date || p.tahsilatTarihi || existing?.tahsilatTarihi || new Date().toISOString(),
-          aciklama: p.note || existing?.aciklama || "Tahsilat",
-          durum: 1,
-          durumText: "Tahsil Edildi"
-        });
-      }
-    });
-
-    // 3. Custom collections (local additions take precedence)
-    custom.forEach((c) => {
-      if ((Number(c.tahsilatTutari) === 20000 || Number(c.amount) === 20000) &&
-          (c.sozlesmeNo === "SZL202600150" || c.gelirKodu === "GLR202600150" || c.gelirKodu === "GLR202600154" || trNorm(c.musteriUnvan || "") === "HATICE KUBRA UNALAN" || trNorm(c.musteriUnvan || "") === "DA")) {
-        return;
-      }
-      const key = c.odemeKodu || String(c.id);
-      map.set(key, { ...(map.get(key) || {}), ...c });
-    });
-
-    const result = Array.from(map.values());
-    result.sort((a, b) => (b.tahsilatTarihi || "").localeCompare(a.tahsilatTarihi || ""));
-    return result;
+      _memory.incomes = list;
+      writeCache("cozum_ssot_incomes_v2", list);
+      return list;
+    } catch (err) {
+      console.warn("[AccountingService] fetchIncomes error:", err);
+      return _memory.incomes;
+    }
   },
 
-  // 5. Add new income with automatic installment generation and contract creation
-  addNewIncome(payload) {
-    const allIncomes = this.getIncomes();
-    const maxNum = allIncomes.reduce((max, g) => {
-      const m = (g.gelirKodu || "").match(/GLR\d{4}(\d+)/);
-      if (m) {
-        const val = parseInt(m[1], 10);
-        return val > max ? val : max;
-      }
-      return max;
-    }, 152);
+  getIncomes(remoteStudents = []) {
+    if (Array.isArray(remoteStudents) && remoteStudents.length > 0) {
+      this.getContracts(remoteStudents);
+    }
+    let list = [..._memory.incomes];
 
-    const nextCode = payload.gelirKodu || `GLR2026${String(maxNum + 1).padStart(5, "0")}`;
-    const { delContracts } = this._buildDelSets();
-    let nextSzlCode = payload.sozlesmeNo || `SZL2026${String(maxNum + 1).padStart(5, "0")}`;
-    while (delContracts.has(trNorm(nextSzlCode))) {
-      maxNum++;
-      nextSzlCode = `SZL2026${String(maxNum + 1).padStart(5, "0")}`;
+    if (list.length === 0 && typeof window !== "undefined") {
+      this.fetchIncomes().then((incs) => {
+        if (incs.length > 0) window.dispatchEvent(new Event("cozum_accounting_updated"));
+      });
     }
 
-    const gross = Number(payload.brutTutar) || 0;
-    const vatRate = Number(payload.kdvOrani) || 10;
-    const net = Math.round((gross / (1 + vatRate / 100)) * 100) / 100;
-    const vat = Math.round((gross - net) * 100) / 100;
-    const installments = Math.max(1, Number(payload.taksitSayisi) || 1);
+    // Synthesize income objects from contracts if empty
+    if (list.length === 0 && _memory.contracts.length > 0) {
+      list = _memory.contracts.map((c) => ({
+        id: c.id,
+        gelirKodu: `GLR${(c.sozlesmeNo || "SZL202600150").replace(/\D/g, "")}`,
+        sozlesmeNo: c.sozlesmeNo,
+        ogrenciAdi: c.ogrenciAdi,
+        ogrenciAdiSoyadi: c.ogrenciAdi,
+        musteriUnvan: c.musteriUnvan || c.ogrenciAdi,
+        sinifAdi: c.sinifAdi || "8-A",
+        netTutar: c.netTutar,
+        kdvTutari: c.kdvTutari,
+        brutTutar: c.brutTutar,
+        toplamTahsilat: 0,
+        kalanAlacak: c.brutTutar,
+        tamTahsilEdildiMi: false,
+        gelirTarihi: c.sozlesmeTarihi,
+        vadeTarihi: c.sozlesmeTarihi,
+        taksitSayisi: c.taksitSayisi,
+        kalanTaksitSayisi: c.taksitSayisi,
+        aciklama: `Sözleşme: ${c.sozlesmeNo}`,
+        donemId: c.donemId || 113,
+        donemAdi: c.donemAdi || "2026-2027"
+      }));
+    }
 
-    const stName = (payload.ogrenciAdi || "").trim().toUpperCase();
-    this.unTombstone(stName, nextSzlCode, nextCode);
-    const parentName = (payload.veliAdi || stName).trim().toUpperCase();
-    const className = payload.sinifAdi || "Genel";
-    const category = payload.gelirKategoriAdi || "Öğrenci Sözleşmesi";
-    const baseDate = payload.gelirTarihi ? new Date(payload.gelirTarihi) : new Date();
+    return list;
+  },
 
-    // 5.1 Create new Income record
-    const newIncome = {
-      id: Date.now(),
-      gelirKodu: nextCode,
-      aciklama: payload.aciklama || `Sözleşme: ${nextSzlCode}`,
+  // 4. Collections (Payments)
+  getCollections() {
+    return _memory.collections;
+  },
+
+  // 5. Dynamic Summary (SSOT from /api/accounting/summary)
+  async fetchSummary() {
+    if (typeof fetch === "undefined") return _memory.summary;
+    try {
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/api/accounting/summary`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const summary = await res.json();
+      _memory.summary = summary;
+      writeCache("cozum_ssot_summary_v2", summary);
+      return summary;
+    } catch (err) {
+      console.warn("[AccountingService] fetchSummary error:", err);
+      return _memory.summary;
+    }
+  },
+
+  getSummary() {
+    if (_memory.summary) return _memory.summary;
+    const contracts = this.getContracts();
+    const insts = this.getInstallments();
+    const rev = contracts.reduce((a, b) => a + (Number(b.brutTutar) || 0), 0);
+    const paid = insts.reduce((a, b) => a + (Number(b.tahsilEdilen) || 0), 0);
+
+    return {
+      totalRevenue: rev,
+      totalCollected: paid,
+      totalRemaining: Math.max(0, rev - paid),
+      sozlesmelerCount: contracts.length,
+      taksitlerCount: insts.length,
+      gelirlerCount: contracts.length,
+      tahsilatlarCount: _memory.collections.length,
+      overdueInstallmentsCount: 0,
+      overdueAmount: 0
+    };
+  },
+
+  // 6. Action Handlers (Mutations sync directly to Cloudflare Pages API)
+  addNewIncome(incomeData) {
+    const gross = Number(incomeData.brutTutar || 60000);
+    const count = parseInt(incomeData.taksitSayisi) || 6;
+    const net = roundKurus(gross / 1.1);
+    const vat = roundKurus(gross - net);
+    const studentName = String(incomeData.ogrenciAdi || incomeData.ogrenciAdiSoyadi || "Öğrenci").trim();
+    const szlNo = incomeData.sozlesmeNo || `SZL2026${String(Date.now()).slice(-5)}`;
+    const glrNo = incomeData.gelirKodu || `GLR${szlNo.replace(/\D/g, "")}`;
+    const id = `cnt_${Date.now()}`;
+
+    if (typeof fetch === "function") {
+      const apiUrl = getApiUrl();
+      fetch(`${apiUrl}/api/contracts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_name: studentName,
+          parent_name: incomeData.veliAdi || studentName,
+          student_class: incomeData.sinifAdi || "8-A",
+          total_amount: gross,
+          installment_count: count,
+          contract_date: new Date().toISOString()
+        })
+      }).catch((err) => console.warn("[AccountingService] Remote contract POST error:", err));
+    }
+
+    const newContract = {
+      id,
+      sozlesmeNo: szlNo,
+      sozlesme_no: szlNo,
+      ogrenciAdi: studentName,
+      student_name: studentName,
+      ogrenciAdiSoyadi: studentName,
+      sinifAdi: incomeData.sinifAdi || "8-A",
       netTutar: net,
-      kdvOrani: vatRate,
       kdvTutari: vat,
       brutTutar: gross,
-      gelirTarihi: baseDate.toISOString(),
-      vadeTarihi: payload.vadeTarihi ? new Date(payload.vadeTarihi).toISOString() : new Date(baseDate.getTime() + 30 * 86400000).toISOString(),
-      donemId: 113,
-      donemAdi: "2026-2027",
-      muH_GelirKategoriId: 87,
-      gelirKategoriAdi: category,
-      muH_MusteriId: 65000 + (maxNum % 1000),
-      musteriUnvan: parentName,
-      musteriTuru: 2,
+      taksitSayisi: count,
+      durum: 1,
+      durumText: "Aktif",
+      isSigned: false,
+      sozlesmeTarihi: new Date().toISOString()
+    };
+
+    const newIncome = {
+      id: `glr_${id}`,
+      gelirKodu: glrNo,
+      sozlesmeNo: szlNo,
+      ogrenciAdiSoyadi: studentName,
+      sinifAdi: incomeData.sinifAdi || "8-A",
+      brutTutar: gross,
+      netTutar: net,
+      kdvTutari: vat,
       toplamTahsilat: 0,
       kalanAlacak: gross,
       tamTahsilEdildiMi: false,
-      durum: 1,
-      durumText: "Enum_GelirDurumu_1",
-      taksitliMi: installments > 1,
-      taksitSayisi: installments,
-      kalanTaksitSayisi: installments,
-      vadesiGectiMi: false,
-      gecikmeGunSayisi: 0,
-      sozlesmeNo: nextSzlCode,
-      ogrenciAdiSoyadi: stName,
-      sinifAdi: className,
-      gradeAdi: className.split("-")[0] || "Genel"
+      taksitSayisi: count,
+      gelirTarihi: new Date().toISOString()
     };
 
-    // 5.2 Split into Installments (Taksit Bölme)
-    const perInst = Math.floor((gross / installments) * 100) / 100;
-    const remainder = Math.round((gross - perInst * installments) * 100) / 100;
-    const generatedInstallments = [];
+    // Generate installment entries with exact rounding
+    const baseAmt = Math.floor((gross / count) * 100) / 100;
+    const remainder = roundKurus(gross - (baseAmt * count));
+    const newInstallments = [];
 
-    for (let i = 1; i <= installments; i++) {
-      const isLast = i === installments;
-      const instAmt = isLast ? Math.round((perInst + remainder) * 100) / 100 : perInst;
-
-      // Set monthly due date (e.g. 30th of each following month)
-      const due = new Date(baseDate);
-      due.setMonth(due.getMonth() + i);
-      due.setDate(Math.min(30, due.getDate()));
-
-      generatedInstallments.push({
-        id: Date.now() + i,
+    for (let i = 1; i <= count; i++) {
+      const isLast = (i === count);
+      const amt = isLast ? roundKurus(baseAmt + remainder) : baseAmt;
+      newInstallments.push({
+        id: `inst_${id}_${i}`,
+        contractId: id,
+        gelirKodu: glrNo,
+        sozlesmeNo: szlNo,
+        ogrenciAdi: studentName,
         taksitNo: i,
-        muH_GelirV2Id: newIncome.id,
-        gelirKodu: nextCode,
-        sozlesmeNo: nextSzlCode,
-        ogrenciAdiSoyadi: stName,
-        musteriUnvan: parentName,
-        sinifAdi: className,
-        taksitTutari: instAmt,
-        toplamTutar: instAmt,
+        installment_no: i,
+        taksitTutari: amt,
+        amount: amt,
         tahsilEdilen: 0,
-        kalanTutar: instAmt,
-        vadeTarihi: due.toISOString(),
-        durum: 1,
-        durumText: "Vadesi Gelmedi",
-        iptalMi: false,
-        notlar: `${i}. Taksit`
+        kalanTutar: amt,
+        durumText: "Vadesi Gelmedi"
       });
     }
 
-    // 5.3 Create Contract record
-    const newContract = {
-      id: payload.contract_id || payload.contractId || (Date.now() + 100),
-      studentId: payload.studentId || payload.student_id || payload.id || null,
-      ogrenciId: payload.studentId || payload.student_id || payload.id || null,
-      ogrenciNo: payload.student_no || payload.ogrenciNo || "",
-      sozlesmeNo: nextSzlCode,
-      sozlesmeTarihi: baseDate.toISOString(),
-      tarih: baseDate.toISOString(),
-      musteriUnvan: parentName,
-      ogrenciAdi: stName,
-      donemId: 113,
-      donemAdi: "2026-2027",
-      sinifAdi: className,
-      netTutar: net,
-      kdvTutari: vat,
-      brutTutar: gross,
-      odemeTuru: installments > 1 ? 1 : 2,
-      odemeTuruText: installments > 1 ? `Taksitli (${installments} Taksit)` : "Peşin / Tek Çekim",
-      taksitSayisi: installments,
-      imzaDurumu: "İmzalandı",
-      isSigned: true,
-      durum: 1,
-      durumText: "Aktif",
-      durumRenk: "success",
-      silinebilirMi: true
-    };
+    const nameNorm = trNorm(studentName);
+    _memory.contracts = [newContract, ..._memory.contracts.filter((c) => trNorm(c.ogrenciAdi) !== nameNorm)];
+    _memory.incomes = [newIncome, ..._memory.incomes.filter((i) => trNorm(i.ogrenciAdiSoyadi) !== nameNorm)];
+    _memory.installments = [...newInstallments, ..._memory.installments.filter((t) => trNorm(t.ogrenciAdi) !== nameNorm)];
 
-    // Save all to custom storage
-    const customIncomes = readStorage(STORAGE_KEYS.CUSTOM_INCOMES, []);
-    writeStorage(STORAGE_KEYS.CUSTOM_INCOMES, [newIncome, ...customIncomes]);
-
-    const customInstallments = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
-    writeStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, [...generatedInstallments, ...customInstallments]);
-
-    const customContracts = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []).filter(
-      (c) => c && c.sozlesmeNo !== nextSzlCode && (!newContract.studentId || c.studentId !== newContract.studentId)
-    );
-    writeStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, [newContract, ...customContracts]);
+    writeCache("cozum_ssot_contracts_v2", _memory.contracts);
+    writeCache("cozum_ssot_incomes_v2", _memory.incomes);
+    writeCache("cozum_ssot_installments_v2", _memory.installments);
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
 
-    return { income: newIncome, installments: generatedInstallments, contract: newContract };
-  },
-
-  // 6. Record payment / collection and update debts
-  recordCollection({ gelirKodu, sozlesmeNo, amount, bank, method, note, studentName, studentId, apiBaseUrl }) {
-    const amt = Number(amount) || 0;
-    if (amt <= 0) return null;
-
-    const allIncomes = this.getIncomes();
-    const targetIncome = allIncomes.find((g) => g.gelirKodu === gelirKodu || (sozlesmeNo && g.sozlesmeNo === sozlesmeNo));
-
-    const curPaid = targetIncome ? Number(targetIncome.toplamTahsilat) || 0 : 0;
-    const gross = targetIncome ? Number(targetIncome.brutTutar) || amt : amt;
-    const newPaid = Math.min(gross, curPaid + amt);
-    const newRemaining = Math.max(0, gross - newPaid);
-
-    // Save Income Override
-    const incomeOverrides = readStorage(STORAGE_KEYS.INCOME_OVERRIDES, {});
-    const key = gelirKodu || targetIncome?.gelirKodu;
-    if (key) {
-      incomeOverrides[key] = {
-        toplamTahsilat: newPaid,
-        kalanAlacak: newRemaining
-      };
-      writeStorage(STORAGE_KEYS.INCOME_OVERRIDES, incomeOverrides);
-    }
-
-    // Allocate payment across installments
-    const allInstallments = this.getInstallments();
-    const instList = allInstallments
-      .filter((t) => (key && t.gelirKodu === key) || (sozlesmeNo && t.sozlesmeNo === sozlesmeNo))
-      .sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0));
-
-    let remPay = amt;
-    const instOverrides = readStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, {});
-    instList.forEach((inst) => {
-      if (remPay <= 0) return;
-      const instRem = Number(inst.kalanTutar) || Number(inst.taksitTutari) || 0;
-      if (instRem > 0) {
-        const payForInst = Math.min(remPay, instRem);
-        const newInstPaid = (Number(inst.tahsilEdilen) || 0) + payForInst;
-        const newInstRem = Math.max(0, instRem - payForInst);
-        remPay -= payForInst;
-
-        const instKey = `${inst.gelirKodu || inst.sozlesmeNo}_${inst.taksitNo}`;
-        instOverrides[instKey] = {
-          tahsilEdilen: newInstPaid,
-          kalanTutar: newInstRem
-        };
-      }
-    });
-    writeStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, instOverrides);
-
-    // Create Collection record
-    const maxCollectionNum = this.getCollections().reduce((max, c) => {
-      const m = (c.odemeKodu || "").match(/THS\d{4}(\d+)/);
-      if (m) {
-        const val = parseInt(m[1], 10);
-        return val > max ? val : max;
-      }
-      return max;
-    }, 159);
-
-    const nextThsCode = `THS2026${String(maxCollectionNum + 1).padStart(5, "0")}`;
-    const newCollection = {
-      id: Date.now(),
-      odemeKodu: nextThsCode,
-      gelirKodu: key || (studentId ? `GLR-STU-${studentId}` : `GLR-CUSTOM-${Date.now()}`),
-      gelirAciklama: sozlesmeNo || targetIncome?.sozlesmeNo || "Öğrenci Sözleşmesi",
-      musteriUnvan: studentName || targetIncome?.ogrenciAdiSoyadi || "ÖĞRENCİ",
-      tahsilatTutari: amt,
-      kasaBankaAdi: bank || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
-      odemeYontemi: method || "Nakit",
-      tahsilatTarihi: new Date().toISOString(),
-      aciklama: note || "Taksit Tahsilatı",
-      durum: 1,
-      durumText: "Tahsil Edildi"
+    return {
+      contract: newContract,
+      income: newIncome,
+      installments: newInstallments
     };
-
-    const customCollections = readStorage(STORAGE_KEYS.CUSTOM_COLLECTIONS, []);
-    writeStorage(STORAGE_KEYS.CUSTOM_COLLECTIONS, [newCollection, ...customCollections]);
-
-    // Remote sync with Cloudflare D1
-    const baseUrl = apiBaseUrl || (typeof window !== "undefined" && window.__API_BASE__) || "/api";
-    if (studentId || studentName) {
-      try {
-        fetch(`${baseUrl}/payments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            student_id: studentId || "stu-" + Date.now(),
-            student_name: studentName,
-            amount: amt,
-            method: method || "Nakit",
-            bank: bank || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
-            payment_date: new Date().toISOString().slice(0, 10),
-            note: note || `Tahsilat (${nextThsCode})`
-          })
-        }).catch((e) => console.warn("[AccountingService] Remote payment post error:", e));
-      } catch (err) {
-        console.warn("[AccountingService] Remote fetch error:", err);
-      }
-    }
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("cozum_accounting_updated"));
-      window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "collection", amount: amt } }));
-    }
-
-    return newCollection;
   },
 
-  // 7. Delete Contract persistently across refreshes and devices
   deleteContract(contractOrNo) {
-    if (!contractOrNo) return false;
-    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
-    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
-    const targetKey = szlNo || id;
+    const targetKey = typeof contractOrNo === "object" ? (contractOrNo.id || contractOrNo.sozlesmeNo || contractOrNo.ogrenciAdi || contractOrNo.student_name) : contractOrNo;
+    if (!targetKey) return false;
 
-    const ogrenciId = typeof contractOrNo === "object" ? contractOrNo.ogrenciId : null;
-    const ogrenciNo = typeof contractOrNo === "object" ? (contractOrNo.ogrenciNo || contractOrNo.student_no) : null;
-    const studentName = typeof contractOrNo === "object" ? (contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.student_name) : null;
-    const musteriUnvan = typeof contractOrNo === "object" ? contractOrNo.musteriUnvan : null;
-
-    // Fire API DELETE to D1 backend with tombstone metadata
-    if (typeof fetch !== "undefined" && targetKey) {
-      try {
-        const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
-        const token = (typeof localStorage !== "undefined" && localStorage.getItem("session_token")) || "";
-        fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}`, {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({
-            student_name: studentName || musteriUnvan,
-            sozlesme_no: szlNo,
-            id: id
-          })
-        }).catch((err) => console.warn("[AccountingService] API DELETE error:", err));
-      } catch (e) {}
-    }
-
-    // 1. Add to DELETED_CONTRACTS
-    const deleted = this.getDeletedContracts();
-    const newDeleted = [...deleted];
-    const pushIf = (val) => {
-      if (!val) return;
-      const n = trNorm(val);
-      if (n && !newDeleted.map(trNorm).includes(n)) {
-        newDeleted.push(n);
+    const norm = trNorm(targetKey);
+    _memory.contracts = _memory.contracts.map((c) => {
+      if (trNorm(c.id) === norm || trNorm(c.sozlesmeNo) === norm || trNorm(c.studentId) === norm || trNorm(c.ogrenciAdi) === norm) {
+        return { ...c, durum: 3, durumText: "İptal Edildi", is_deleted: true };
       }
-    };
-    pushIf(szlNo);
-    pushIf(id);
-    if (id) pushIf(`szl-${id}`);
-    pushIf(ogrenciId);
-    if (ogrenciId) pushIf(`szl-${ogrenciId}`);
-    pushIf(ogrenciNo);
-    writeStorage(STORAGE_KEYS.DELETED_CONTRACTS, newDeleted);
-    this.clearDelSetsCache();
-
-    // 2. Remove from custom contracts storage
-    const customContracts = readStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, []);
-    const updatedCustom = customContracts.filter((c) => !this.isContractDeleted(c));
-    writeStorage(STORAGE_KEYS.CUSTOM_CONTRACTS, updatedCustom);
-
-    // 3. Find and delete corresponding income
-    const allIncomes = readStorage(STORAGE_KEYS.CUSTOM_INCOMES, []);
-    const updatedIncomes = allIncomes.filter((g) => !this.isIncomeDeleted(g));
-    writeStorage(STORAGE_KEYS.CUSTOM_INCOMES, updatedIncomes);
-
-    // Add matching income code to DELETED_INCOMES
-    const deletedIncomes = this.getDeletedIncomes();
-    const newDeletedIncomes = [...deletedIncomes];
-    const matchInc = (edesisData.gelirler || []).find((g) => this.isIncomeDeleted(g) || (szlNo && trNorm(g.sozlesmeNo) === trNorm(szlNo)));
-    if (matchInc?.gelirKodu && !newDeletedIncomes.map(trNorm).includes(trNorm(matchInc.gelirKodu))) {
-      newDeletedIncomes.push(trNorm(matchInc.gelirKodu));
-    }
-    writeStorage(STORAGE_KEYS.DELETED_INCOMES, newDeletedIncomes);
-
-    // 4. Remove from custom installments
-    const customInstallments = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
-    const updatedInstallments = customInstallments.filter((t) => {
-      if (szlNo && trNorm(t.sozlesmeNo) === trNorm(szlNo)) return false;
-      if (matchInc?.gelirKodu && trNorm(t.gelirKodu) === trNorm(matchInc.gelirKodu)) return false;
-      if (this.isContractDeleted(t) || this.isIncomeDeleted(t)) return false;
-      return true;
+      return c;
     });
-    writeStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, updatedInstallments);
 
-    // 5. Update StudentService if student had this contract
-    try {
-      const customStudents = readStorage("cozum_custom_students_v1", []);
-      const normName = studentName ? trNorm(studentName) : "";
-      const updatedStudents = customStudents.map((st) => {
-        const matchesName = normName && st.student_name && trNorm(st.student_name) === normName;
-        const matchesSzl = szlNo && trNorm(st.sozlesme_no) === trNorm(szlNo);
-        const matchesId = id && trNorm(st.id) === trNorm(id);
-        if (matchesName || matchesSzl || matchesId) {
-          return { ...st, has_contract: false, sozlesme_no: "", gelir_kodu: "", contract_deleted: true };
-        }
-        return st;
-      });
-      writeStorage("cozum_custom_students_v1", updatedStudents);
-    } catch (e) {
-      console.warn("Student contract unlink error:", e);
-    }
+    _memory.incomes = _memory.incomes.map((i) => {
+      if (trNorm(i.id) === norm || trNorm(i.sozlesmeNo) === norm || trNorm(i.gelirKodu) === norm || trNorm(i.ogrenciAdiSoyadi) === norm) {
+        return { ...i, durum: 3, is_deleted: true };
+      }
+      return i;
+    });
 
-    // 6. Dispatch events
+    _memory.installments = _memory.installments.filter((t) => trNorm(t.contractId) !== norm && trNorm(t.sozlesmeNo) !== norm && trNorm(t.ogrenciAdi) !== norm);
+
+    writeCache("cozum_ssot_contracts_v2", _memory.contracts);
+    writeCache("cozum_ssot_incomes_v2", _memory.incomes);
+    writeCache("cozum_ssot_installments_v2", _memory.installments);
+
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
-      window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "contract_deleted", szlNo, studentName } }));
+    }
+
+    if (typeof fetch === "function") {
+      const apiUrl = getApiUrl();
+      fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}`, {
+        method: "DELETE"
+      }).catch((err) => console.warn("[AccountingService] Remote contract DELETE error:", err));
     }
 
     return true;
   },
 
   deleteIncome(incomeOrCode) {
-    if (!incomeOrCode) return false;
-    const glrCode = typeof incomeOrCode === "object" ? incomeOrCode.gelirKodu : incomeOrCode;
-    const szlNo = typeof incomeOrCode === "object" ? incomeOrCode.sozlesmeNo : null;
-    const id = typeof incomeOrCode === "object" ? incomeOrCode.id : null;
-    const name = typeof incomeOrCode === "object" ? (incomeOrCode.ogrenciAdiSoyadi || incomeOrCode.musteriUnvan) : null;
-
-    const deletedIncomes = this.getDeletedIncomes();
-    const newDeleted = [...deletedIncomes];
-    const pushIf = (val) => {
-      if (!val) return;
-      const n = trNorm(val);
-      if (n && !newDeleted.map(trNorm).includes(n)) newDeleted.push(n);
-    };
-    pushIf(glrCode);
-    pushIf(szlNo);
-    pushIf(id);
-    pushIf(name);
-    writeStorage(STORAGE_KEYS.DELETED_INCOMES, newDeleted);
-
-    if (szlNo || name) {
-      this.deleteContract({ sozlesmeNo: szlNo, id, ogrenciAdi: name });
-    }
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("cozum_accounting_updated"));
-    }
-    return true;
+    return this.deleteContract(incomeOrCode);
   },
 
-  cancelContract(contractOrNo, reason = "") {
-    if (!contractOrNo) return false;
-    const szlNo = typeof contractOrNo === "object" ? contractOrNo.sozlesmeNo : contractOrNo;
-    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
-    if (szlNo === "SZL202600150" || id === "SZL202600150" || String(id) === "74514" || String(id) === "8315150") {
-      console.warn("[AccountingService] Protected contract SZL202600150 cannot be cancelled.");
-      return false;
-    }
-    const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
-    const key = szlNo || id;
-    if (key) {
-      overrides[key] = {
-        durum: 3,
-        durumText: "İptal",
-        durumRenk: "danger",
-        iptalNedeni: reason || "Kullanıcı talebiyle iptal edildi",
-        iptalTarihi: new Date().toISOString()
-      };
-      writeStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, overrides);
-    }
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("cozum_accounting_updated"));
-    }
-    return true;
-  },
-
-  // 9. Sign contract action with persistent institution / parent signature
-  signContract(contractOrNo, signerType = "kurum", signerName = "Kurum Yetkilisi") {
-    if (!contractOrNo) return false;
-    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
-    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
-    const targetKey = szlNo || id;
-
-    // Fire API POST to D1 backend
-    if (typeof fetch !== "undefined" && targetKey) {
-      try {
-        const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
-        const token = (typeof localStorage !== "undefined" && localStorage.getItem("session_token")) || "";
-        fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/sign`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({ signer_type: signerType, signer_name: signerName })
-        }).catch((err) => console.warn("[AccountingService] API sign error:", err));
-      } catch (e) {}
-    }
-
-    // Apply contract override in local cache
-    const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
-    if (targetKey) {
-      overrides[targetKey] = {
-        ...(overrides[targetKey] || {}),
-        isSigned: true,
-        kurumImzaAlindi: true,
-        kurumImzalayan: signerName,
-        kurumImzalayanUnvan: "Kurum Yetkilisi",
-        signedAt: new Date().toISOString()
-      };
-      writeStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, overrides);
-    }
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("cozum_accounting_updated"));
-    }
-    return true;
-  },
-
-  // 10. Update contract details (brutTutar, netTutar, installments count, etc.)
-  updateContract(contractOrNo, patchData = {}) {
-    if (!contractOrNo) return null;
-    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
-    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
-    const targetKey = szlNo || id;
-    if (!targetKey) return null;
-
-    const overrides = readStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, {});
-    const existing = overrides[targetKey] || (szlNo && overrides[szlNo]) || (id && overrides[id]) || {};
-
-    const updatedPatch = {
-      ...existing,
-      ...patchData,
-      updatedAt: new Date().toISOString()
-    };
-
-    if (szlNo) overrides[szlNo] = updatedPatch;
-    if (id) overrides[id] = updatedPatch;
-    writeStorage(STORAGE_KEYS.CONTRACT_OVERRIDES, overrides);
-
-    // If brutTutar changed, sync corresponding student income in INCOME_OVERRIDES
-    if (patchData.brutTutar != null) {
-      const incomeOverrides = readStorage(STORAGE_KEYS.INCOME_OVERRIDES, {});
-      const glrKey = patchData.gelirKodu || (szlNo ? `GLR2026${szlNo.replace(/\D/g, "").slice(-5)}` : null);
-      if (glrKey) {
-        const curInc = incomeOverrides[glrKey] || {};
-        const paid = curInc.toplamTahsilat || 0;
-        const newGross = Number(patchData.brutTutar) || 0;
-        const newNet = patchData.netTutar != null ? Number(patchData.netTutar) : Math.round((newGross / 1.1) * 100) / 100;
-        const newVat = patchData.kdvTutari != null ? Number(patchData.kdvTutari) : Math.round((newGross - newNet) * 100) / 100;
-        incomeOverrides[glrKey] = {
-          ...curInc,
-          brutTutar: newGross,
-          netTutar: newNet,
-          kdvTutari: newVat,
-          kalanAlacak: Math.max(0, newGross - paid)
-        };
-        writeStorage(STORAGE_KEYS.INCOME_OVERRIDES, incomeOverrides);
-      }
-    }
-
-    // Sync student total_fee and installment_count in custom students
+  async signContract(targetKey, signerType = "kurum", signerName = "Kurum Yetkilisi") {
     try {
-      const customStudents = readStorage("cozum_custom_students_v1", []);
-      let stModified = false;
-      const updatedStudents = customStudents.map((st) => {
-        const match = (szlNo && st.sozlesme_no === szlNo) || (st.id && id && String(st.id) === String(id)) ||
-          (patchData.studentId && String(st.id) === String(patchData.studentId)) ||
-          (patchData.ogrenciAdi && trNorm(st.student_name) === trNorm(patchData.ogrenciAdi));
-        if (match) {
-          stModified = true;
-          return {
-            ...st,
-            total_fee: patchData.brutTutar != null ? patchData.brutTutar : st.total_fee,
-            installment_count: patchData.taksitSayisi != null ? patchData.taksitSayisi : st.installment_count,
-            student_name: patchData.ogrenciAdi ? patchData.ogrenciAdi.trim() : st.student_name,
-            parent_name: patchData.musteriUnvan ? patchData.musteriUnvan.trim() : st.parent_name
-          };
-        }
-        return st;
+      const apiUrl = getApiUrl();
+      await fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signer_type: signerType, signer_name: signerName })
       });
-      if (stModified) {
-        writeStorage("cozum_custom_students_v1", updatedStudents);
+    } catch (err) {
+      console.warn("[AccountingService] Remote contract SIGN error:", err);
+    }
+
+    const norm = trNorm(targetKey);
+    _memory.contracts = _memory.contracts.map((c) => {
+      if (trNorm(c.id) === norm || trNorm(c.sozlesmeNo) === norm) {
+        return {
+          ...c,
+          isSigned: true,
+          is_signed: true,
+          kurumImzaAlindi: true,
+          kurumImzalayan: signerName,
+          signedAt: new Date().toISOString()
+        };
       }
-    } catch (e) {
-      console.warn("Student sync error:", e);
-    }
+      return c;
+    });
 
-    // Remote sync with backend D1 API if reachable
-    if (typeof fetch !== "undefined") {
-      try {
-        const apiUrl = (typeof localStorage !== "undefined" && localStorage.getItem("custom_api_url")) || "";
-        const token = (typeof localStorage !== "undefined" && localStorage.getItem("session_token")) || "";
-        const remoteId = id || szlNo;
-        fetch(`${apiUrl}/api/contracts/${encodeURIComponent(remoteId)}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify(patchData)
-        }).catch(() => {});
-      } catch (e) {}
-    }
-
+    writeCache("cozum_ssot_contracts_v2", _memory.contracts);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
-
-    return updatedPatch;
+    return true;
   },
 
-  // 11. Save customized installments and automatically recalculate/update contract total
-  saveInstallments(contractOrNo, installmentsList = []) {
-    if (!contractOrNo || !Array.isArray(installmentsList)) return null;
-    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
-    const id = typeof contractOrNo === "object" ? contractOrNo.id : null;
-
-    // 1. Calculate new contract price from installments
-    const newBrut = installmentsList.reduce((acc, t) => acc + (Number(t.taksitTutari) || 0), 0);
-    const newNet = Math.round((newBrut / 1.1) * 100) / 100;
-    const newKdv = Math.round((newBrut - newNet) * 100) / 100;
-
-    // 2. Persist installment overrides
-    const instOverrides = readStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, {});
-    installmentsList.forEach((t) => {
-      const num = t.taksitNo;
-      const amt = Number(t.taksitTutari) || 0;
-      const paid = Number(t.tahsilEdilen) || 0;
-      const rem = Math.max(0, amt - paid);
-      const isPaid = paid >= amt && amt > 0;
-      const data = {
-        taksitNo: num,
-        taksitTutari: amt,
-        toplamTutar: amt,
-        vadeTarihi: t.vadeTarihi,
-        tahsilEdilen: paid,
-        kalanTutar: rem,
-        durum: isPaid ? 1 : (t.durum || 0),
-        durumText: isPaid ? "Tahsil Edildi" : (t.durumText || "Vadesi Gelmedi"),
-        odemeYontemi: t.odemeYontemi || null,
-        tahsilatTarihi: t.tahsilatTarihi || null
-      };
-      if (t.gelirKodu) instOverrides[`${t.gelirKodu}_${num}`] = data;
-      if (szlNo) instOverrides[`${szlNo}_${num}`] = data;
-      if (t.id) instOverrides[t.id] = data;
-    });
-    writeStorage(STORAGE_KEYS.INSTALLMENT_OVERRIDES, instOverrides);
-
-    // Persist to CUSTOM_INSTALLMENTS so count and details are 100% stable
-    const customInst = readStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, []);
-    const filteredCustom = customInst.filter((t) => t.sozlesmeNo !== szlNo && (id ? t.sozlesmeNo !== id : true));
-    writeStorage(STORAGE_KEYS.CUSTOM_INSTALLMENTS, [...filteredCustom, ...installmentsList]);
-
-    // 3. Update contract total & installment count
-    this.updateContract(contractOrNo, {
-      brutTutar: newBrut,
-      netTutar: newNet,
-      kdvTutari: newKdv,
-      taksitSayisi: installmentsList.length,
-      sozlesmeNo: szlNo
+  updateContract(idOrSzl, patch = {}) {
+    const norm = trNorm(idOrSzl);
+    _memory.contracts = _memory.contracts.map((c) => {
+      if (trNorm(c.id) === norm || trNorm(c.sozlesmeNo) === norm) {
+        return { ...c, ...patch };
+      }
+      return c;
     });
 
+    writeCache("cozum_ssot_contracts_v2", _memory.contracts);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
 
+    if (typeof fetch === "function") {
+      const apiUrl = getApiUrl();
+      fetch(`${apiUrl}/api/contracts/${encodeURIComponent(idOrSzl)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      }).catch((err) => console.warn("[AccountingService] Remote contract PATCH error:", err));
+    }
+
+    return true;
+  },
+
+  // 7. Installment Management with Peşinat (taksitNo: 0) Support
+  saveInstallments(contractIdOrNo, installments = []) {
+    const targetKey = typeof contractIdOrNo === "object" ? (contractIdOrNo.id || contractIdOrNo.sozlesmeNo) : contractIdOrNo;
+    const norm = trNorm(targetKey);
+    const newBrut = installments.reduce((s, t) => s + Number(t.taksitTutari != null ? t.taksitTutari : (t.amount || 0)), 0);
+
+    // Update contract brutTutar & taksitSayisi in memory
+    _memory.contracts = _memory.contracts.map((c) => {
+      if (trNorm(c.id) === norm || trNorm(c.sozlesmeNo) === norm) {
+        return { ...c, brutTutar: newBrut, taksitSayisi: installments.length };
+      }
+      return c;
+    });
+
+    // Replace installments for this contract
+    _memory.installments = [
+      ..._memory.installments.filter((t) => trNorm(t.contractId) !== norm && trNorm(t.sozlesmeNo) !== norm),
+      ...installments.map((t) => {
+        const amt = Number(t.taksitTutari != null ? t.taksitTutari : (t.amount || 0));
+        const paid = Number(t.tahsilEdilen != null ? t.tahsilEdilen : (t.paid_amount || 0));
+        const no = (t.taksitNo !== undefined && t.taksitNo !== null) 
+          ? Number(t.taksitNo) 
+          : ((t.installment_no !== undefined && t.installment_no !== null) ? Number(t.installment_no) : 1);
+        return {
+          ...t,
+          contractId: t.contractId || targetKey,
+          sozlesmeNo: t.sozlesmeNo || targetKey,
+          taksitNo: no,
+          installment_no: no,
+          isPesinat: no === 0,
+          amount: amt,
+          taksitTutari: amt,
+          tahsilEdilen: paid,
+          paid_amount: paid,
+          kalanTutar: Math.max(0, amt - paid),
+          due_date: t.due_date || t.vadeTarihi,
+          vadeTarihi: t.vadeTarihi || t.due_date,
+          durumText: t.durumText || (paid >= amt && amt > 0 ? "Tam Ödendi" : paid > 0 ? "Kısmi Ödendi" : no === 0 ? "Peşinat" : "Bekliyor")
+        };
+      })
+    ];
+
+    writeCache("cozum_ssot_contracts_v2", _memory.contracts);
+    writeCache("cozum_ssot_installments_v2", _memory.installments);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+    }
     return {
-      ok: true,
       newBrut,
-      newNet,
-      newKdv,
-      count: installmentsList.length
+      count: installments.length,
+      installments
     };
   },
 
-  // 12. Practical rebalance: Distribute total fee across installments preserving paid installments
-  rebalanceInstallments(contractOrNo, targetTotal, targetCount = null, baseDateStr = null) {
-    const szlNo = typeof contractOrNo === "object" ? (contractOrNo.sozlesmeNo || contractOrNo.sozlesme_no) : contractOrNo;
-    const all = this.getInstallments();
-    const existing = all.filter(t => t.sozlesmeNo === szlNo).sort((a, b) => a.taksitNo - b.taksitNo);
-    const count = Math.max(1, parseInt(targetCount, 10) || (existing.length > 0 ? existing.length : 10));
-    const total = Number(targetTotal) || 0;
+  rebalanceInstallments(contractIdOrList, totalAmount = 0, count = null, startDate = null) {
+    if (typeof contractIdOrList === "string") {
+      const szlNo = contractIdOrList;
+      const targetCnt = _memory.contracts.find((c) => trNorm(c.sozlesmeNo) === trNorm(szlNo) || trNorm(c.id) === trNorm(szlNo));
+      const total = Number(totalAmount) || 0;
+      const cntCount = count || (targetCnt ? targetCnt.taksitSayisi : 5) || 5;
+      const baseAmt = Math.floor((total / cntCount) * 100) / 100;
+      const remainder = roundKurus(total - (baseAmt * cntCount));
+      const baseDate = new Date(startDate || targetCnt?.sozlesmeTarihi || new Date());
 
-    const paidSum = existing.filter(t => t.durum === 1).reduce((acc, t) => acc + (Number(t.tahsilEdilen) || Number(t.taksitTutari) || 0), 0);
-    const remainingToDistribute = Math.max(0, total - paidSum);
-    const unpaidCount = Math.max(1, count - existing.filter(t => t.durum === 1).length);
-
-    const perInst = Math.floor((remainingToDistribute / unpaidCount) * 100) / 100;
-    const diff = Math.round((remainingToDistribute - perInst * unpaidCount) * 100) / 100;
-
-    const baseDate = baseDateStr ? new Date(baseDateStr) : (existing[0]?.vadeTarihi ? new Date(existing[0].vadeTarihi) : new Date());
-
-    let unpaidIndex = 0;
-    const newList = [];
-    for (let i = 1; i <= count; i++) {
-      const prev = existing.find(t => t.taksitNo === i);
-      if (prev && prev.durum === 1) {
-        newList.push(prev);
-      } else {
-        unpaidIndex++;
-        const isLastUnpaid = unpaidIndex === unpaidCount;
-        const amt = isLastUnpaid ? Math.round((perInst + diff) * 100) / 100 : perInst;
+      const newInsts = [];
+      for (let i = 1; i <= cntCount; i++) {
+        const isLast = (i === cntCount);
+        const amt = isLast ? roundKurus(baseAmt + remainder) : baseAmt;
         const d = new Date(baseDate);
-        d.setMonth(d.getMonth() + (i - 1));
-        const dateFormatted = d.toISOString().slice(0, 10);
-        newList.push({
-          id: prev?.id || `inst-${szlNo}-${i}`,
-          taksitNo: i,
-          gelirKodu: prev?.gelirKodu || (szlNo ? `GLR2026${szlNo.replace(/\D/g, "").slice(-5)}` : ""),
+        d.setMonth(d.getMonth() + i - 1);
+        d.setDate(15);
+        const dueStr = d.toISOString().split("T")[0];
+        newInsts.push({
+          id: `inst_${szlNo}_${i}`,
+          contractId: targetCnt ? targetCnt.id : szlNo,
           sozlesmeNo: szlNo,
-          ogrenciAdiSoyadi: prev?.ogrenciAdiSoyadi || (typeof contractOrNo === "object" ? contractOrNo.ogrenciAdi : ""),
-          musteriUnvan: prev?.musteriUnvan || (typeof contractOrNo === "object" ? contractOrNo.musteriUnvan : ""),
-          sinifAdi: prev?.sinifAdi || (typeof contractOrNo === "object" ? contractOrNo.sinifAdi : "Genel"),
+          ogrenciAdi: targetCnt?.ogrenciAdi || "",
+          taksitNo: i,
+          installment_no: i,
           taksitTutari: amt,
+          amount: amt,
           toplamTutar: amt,
           tahsilEdilen: 0,
           kalanTutar: amt,
-          vadeTarihi: dateFormatted,
-          durum: 0,
-          durumText: "Vadesi Gelmedi"
+          vadeTarihi: dueStr,
+          due_date: dueStr,
+          durumText: "Bekliyor"
         });
       }
+
+      this.saveInstallments(szlNo, newInsts);
+      return {
+        newBrut: total,
+        count: cntCount,
+        installments: newInsts
+      };
     }
 
-    return this.saveInstallments(contractOrNo, newList);
+    // Array form
+    const installments = contractIdOrList;
+    if (!Array.isArray(installments) || installments.length === 0) return [];
+    const total = Number(totalAmount) || 0;
+
+    // Separate peşinat (taksitNo: 0) if exists
+    const pesinat = installments.find((t) => t.taksitNo === 0);
+    const pesinatAmt = pesinat ? Number(pesinat.amount || pesinat.taksitTutari || 0) : 0;
+    const remainingToDistribute = Math.max(0, total - pesinatAmt);
+
+    const regular = installments.filter((t) => t.taksitNo !== 0);
+    const regCount = regular.length || 1;
+    const baseAmt = Math.floor((remainingToDistribute / regCount) * 100) / 100;
+    const remainder = roundKurus(remainingToDistribute - (baseAmt * regCount));
+
+    const rebalancedRegular = regular.map((t, idx) => {
+      const isLast = (idx === regCount - 1);
+      const amt = isLast ? roundKurus(baseAmt + remainder) : baseAmt;
+      return {
+        ...t,
+        amount: amt,
+        taksitTutari: amt,
+        kalanTutar: Math.max(0, amt - (Number(t.tahsilEdilen) || 0))
+      };
+    });
+
+    return pesinat ? [pesinat, ...rebalancedRegular] : rebalancedRegular;
   },
 
-  // 13. Reset all custom data to original authentic Edesis dump (100% data integrity safety)
-  resetCustomData() {
-    Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
+  recordCollection(paymentData = {}) {
+    const amount = Number(paymentData.amount || paymentData.tahsilatTutari || 0);
+    const incomeCode = paymentData.gelirKodu;
+    const newColl = {
+      id: `pay_${Date.now()}`,
+      tahsilatTutari: amount,
+      amount,
+      gelirKodu: incomeCode,
+      sozlesmeNo: paymentData.sozlesmeNo,
+      tahsilatTarihi: paymentData.date || new Date().toISOString().slice(0, 10),
+      kasaBankaAdi: paymentData.bank || "Nakit Ana Kasa"
+    };
+
+    _memory.collections = [newColl, ..._memory.collections];
+
+    // Amortize against installments
+    if (incomeCode) {
+      let unapplied = amount;
+      _memory.installments = _memory.installments.map((t) => {
+        if (t.gelirKodu === incomeCode && unapplied > 0) {
+          const due = Number(t.taksitTutari || t.amount || 0);
+          const currentPaid = Number(t.tahsilEdilen || 0);
+          const need = Math.max(0, due - currentPaid);
+          const apply = Math.min(need, unapplied);
+          unapplied -= apply;
+          const updatedPaid = roundKurus(currentPaid + apply);
+          const updatedRem = Math.max(0, due - updatedPaid);
+
+          return {
+            ...t,
+            tahsilEdilen: updatedPaid,
+            kalanTutar: updatedRem,
+            durumText: updatedRem <= 0 ? "Tam Ödendi" : "Kısmi Ödendi"
+          };
+        }
+        return t;
+      });
+
+      // Update income
+      _memory.incomes = _memory.incomes.map((inc) => {
+        if (inc.gelirKodu === incomeCode) {
+          const updatedTotalPaid = roundKurus((Number(inc.toplamTahsilat) || 0) + amount);
+          const updatedRem = Math.max(0, (Number(inc.brutTutar) || 0) - updatedTotalPaid);
+          return {
+            ...inc,
+            toplamTahsilat: updatedTotalPaid,
+            kalanAlacak: updatedRem,
+            tamTahsilEdildiMi: updatedRem <= 0
+          };
+        }
+        return inc;
+      });
+    }
+
+    writeCache("cozum_ssot_collections_v2", _memory.collections);
+    writeCache("cozum_ssot_installments_v2", _memory.installments);
+    writeCache("cozum_ssot_incomes_v2", _memory.incomes);
+
     if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+    }
+    return newColl;
+  },
+
+  buildSyntheticContractForStudent(st) {
+    if (!st) return null;
+    const fee = Number(st.total_fee || 0);
+    let extraSum = 0;
+    try {
+      const extras = typeof st.extra_fees === "string" ? JSON.parse(st.extra_fees || "{}") : (st.extra_fees || {});
+      extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
+    } catch {}
+    const disc = Number(st.discount_amount || 0);
+    const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
+    const count = Math.max(1, parseInt(st.installment_count) || 8);
+    const net = roundKurus(gross / 1.1);
+    const vat = roundKurus(gross - net);
+    const sName = trNorm(st.student_name) || "ÖĞRENCİ";
+    const szlNo = st.sozlesme_no || `SZL2026${String(Date.now()).slice(-5)}`;
+
+    return {
+      id: st.id ? `cnt_${st.id}` : `cnt_${Date.now()}`,
+      sozlesmeNo: szlNo,
+      sozlesme_no: szlNo,
+      studentId: st.id,
+      student_id: st.id,
+      ogrenciId: st.id,
+      ogrenciAdi: sName,
+      student_name: sName,
+      ogrenciAdiSoyadi: sName,
+      sinifAdi: st.student_class || "8-A",
+      parentName: st.parent_name ? trNorm(st.parent_name) : sName,
+      musteriUnvan: st.parent_name ? trNorm(st.parent_name) : sName,
+      netTutar: net,
+      kdvTutari: vat,
+      brutTutar: gross,
+      taksitSayisi: count,
+      odemeTuru: 1,
+      odemeTuruText: `Taksitli (${count} Taksit)`,
+      donemId: st.donem_id || 113,
+      donemAdi: "2026-2027",
+      durum: 1,
+      durumText: "Aktif",
+      isSigned: false,
+      sozlesmeTarihi: st.created_at || new Date().toISOString()
+    };
+  },
+
+  setInitialData({ contracts = [], incomes = [], installments = [], collections = [], summary = null } = {}) {
+    if (contracts && contracts.length) _memory.contracts = [...contracts];
+    if (incomes && incomes.length) _memory.incomes = [...incomes];
+    if (installments && installments.length) _memory.installments = [...installments];
+    if (collections && collections.length) _memory.collections = [...collections];
+    if (summary) _memory.summary = summary;
+  },
+
+  resetCustomData() {
+    _memory.contracts = [];
+    _memory.incomes = [];
+    _memory.installments = [];
+    _memory.collections = [];
+    _memory.summary = null;
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem("cozum_ssot_contracts_v2");
+      localStorage.removeItem("cozum_ssot_incomes_v2");
+      localStorage.removeItem("cozum_ssot_installments_v2");
+      localStorage.removeItem("cozum_ssot_collections_v2");
+      localStorage.removeItem("cozum_ssot_summary_v2");
+    }
+    if (typeof window !== "undefined" && typeof fetch === "function") {
+      this.fetchContracts().catch(() => {});
+      this.fetchInstallments().catch(() => {});
+      this.fetchSummary().catch(() => {});
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
   }
 };
-
-if (typeof window !== "undefined") {
-  // Sync D1 deleted tombstones on startup to prevent resurrection across cookie wipes
-  setTimeout(() => {
-    AccountingService.syncDeletedWithRemote().catch(() => {});
-  }, 100);
-}
 
 export default AccountingService;

@@ -4,10 +4,17 @@ import edesisData from "../data/edesisAccountingData.json";
 describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
   beforeEach(() => {
     localStorage.clear();
+    AccountingService.setInitialData({
+      incomes: edesisData.gelirler,
+      contracts: edesisData.sozlesmeler,
+      installments: edesisData.taksitler,
+      collections: edesisData.tahsilatlar
+    });
   });
 
   afterEach(() => {
     localStorage.clear();
+    AccountingService.resetCustomData();
   });
 
   test("1. Pristine Baseline Data Integrity: Authentic counts match exactly without mutation", () => {
@@ -123,8 +130,14 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
     expect(AccountingService.getIncomes().length).toBe(130);
     expect(AccountingService.getInstallments().length).toBe(687);
 
-    // Call resetCustomData
+    // Call resetCustomData and restore baseline
     AccountingService.resetCustomData();
+    AccountingService.setInitialData({
+      incomes: edesisData.gelirler,
+      contracts: edesisData.sozlesmeler,
+      installments: edesisData.taksitler,
+      collections: edesisData.tahsilatlar
+    });
 
     // Verify exact original counts restored
     expect(AccountingService.getIncomes().length).toBe(129);

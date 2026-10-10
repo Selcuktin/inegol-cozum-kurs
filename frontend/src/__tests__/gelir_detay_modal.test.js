@@ -2,8 +2,18 @@ import React from "react";
 import { render, cleanup, fireEvent } from "./test_helpers";
 import { GelirDetayModal } from "../components/GelirDetayModal";
 import edesisData from "../data/edesisAccountingData.json";
+import AccountingService from "../lib/edesisAccountingService";
 
 describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
+  beforeEach(() => {
+    AccountingService.setInitialData({
+      incomes: edesisData.gelirler,
+      contracts: edesisData.sozlesmeler,
+      installments: edesisData.taksitler,
+      collections: edesisData.tahsilatlar
+    });
+  });
+
   afterEach(async () => {
     await cleanup();
   });

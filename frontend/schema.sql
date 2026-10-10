@@ -169,6 +169,35 @@ CREATE TABLE IF NOT EXISTS student_incomes (
   is_deleted INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS installments (
+  id TEXT PRIMARY KEY,
+  contract_id TEXT NOT NULL,
+  income_id TEXT DEFAULT '',
+  student_id TEXT NOT NULL,
+  installment_no INTEGER NOT NULL,
+  total_installments INTEGER NOT NULL,
+  due_date TEXT NOT NULL,
+  amount REAL NOT NULL,
+  paid_amount REAL DEFAULT 0,
+  status TEXT DEFAULT 'Bekliyor',
+  payment_date TEXT DEFAULT '',
+  receipt_no TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(contract_id, installment_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_installments_contract ON installments(contract_id);
+CREATE INDEX IF NOT EXISTS idx_installments_student ON installments(student_id);
+CREATE INDEX IF NOT EXISTS idx_installments_due ON installments(due_date);
+
+CREATE TABLE IF NOT EXISTS system_sequences (
+  name TEXT PRIMARY KEY,
+  current_val INTEGER NOT NULL,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contracts_sozlesme_no ON contracts(sozlesme_no);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_incomes_gelir_kodu ON student_incomes(gelir_kodu);
 
 CREATE TABLE IF NOT EXISTS users (
   user_id TEXT PRIMARY KEY,

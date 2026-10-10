@@ -24,7 +24,6 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import studentsData from "../data/edesisStudentsData.json";
 import AccountingService from "../lib/edesisAccountingService";
 import { StudentService } from "../lib/edesisStudentService";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
@@ -73,10 +72,19 @@ export default function EdesisSozlesmeDetay({
     const allStudents = [...(Array.isArray(students) ? students : []), ...StudentService.getAllStudents()];
     return allStudents.find((s) => {
       if (!s) return false;
-      if (contract.studentId && s.id === contract.studentId) return true;
+      if (contract.studentId && (s.id === contract.studentId || String(s.id) === String(contract.studentId))) return true;
+      if (contract.ogrenciId && (s.id === contract.ogrenciId || String(s.id) === String(contract.ogrenciId))) return true;
       if (contract.ogrenciNo && s.student_no === contract.ogrenciNo) return true;
       return norm(s.student_name) === name;
-    }) || allStudents[0] || null;
+    }) || {
+      id: contract.studentId || contract.ogrenciId,
+      student_name: contract.ogrenciAdi || contract.musteriUnvan || "Öğrenci",
+      student_class: contract.sinifAdi || "Genel",
+      parent_name: contract.musteriUnvan || contract.parent_name || "",
+      parent_phone: contract.musteriTelefon || contract.parent_phone || "",
+      student_tc: contract.student_tc || "",
+      student_no: contract.ogrenciNo || ""
+    };
   }, [contract, students]);
 
   const student = baseStudent;
@@ -90,8 +98,11 @@ export default function EdesisSozlesmeDetay({
     const cStudent = norm(contract.ogrenciAdi || contract.musteriUnvan || "");
 
     const matched = allTaksitler.filter((t) => {
-      if (cSozlesme && t.sozlesmeNo && t.sozlesmeNo === cSozlesme) return true;
-      if (cSozlesme && t.gelirAciklama && t.gelirAciklama.includes(cSozlesme)) return true;
+      if (cSozlesme) {
+        if (t.sozlesmeNo && t.sozlesmeNo === cSozlesme) return true;
+        if (t.gelirAciklama && t.gelirAciklama.includes(cSozlesme)) return true;
+        return false;
+      }
       if (cStudent) {
         const tStudent = norm(t.ogrenciAdiSoyadi || t.musteriUnvan || "");
         if (tStudent === cStudent) return true;
@@ -100,7 +111,17 @@ export default function EdesisSozlesmeDetay({
     });
 
     if (matched.length > 0) {
-      return [...matched].sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0)).map((t, idx) => {
+      // Deduplicate by taksitNo to prevent cloned rows (1, 1, 2, 2, ...)
+      const uniqueMap = new Map();
+      matched.forEach((t) => {
+        const no = Number(t.taksitNo) || 1;
+        if (!uniqueMap.has(no)) {
+          uniqueMap.set(no, t);
+        }
+      });
+      const uniqueList = Array.from(uniqueMap.values());
+
+      return uniqueList.sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0)).map((t, idx) => {
         const amt = Number(t.taksitTutari) || 0;
         const paid = Number(t.tahsilEdilen) || 0;
         const rem = Number(t.kalanTutar) !== undefined ? Number(t.kalanTutar) : Math.max(0, amt - paid);

@@ -161,6 +161,7 @@ export const mockStudents = [
   {
     id: "stu-1",
     student_name: "Ahmet Yılmaz",
+    sozlesme_no: "SZL202600135",
     student_no: "101",
     student_class: "12-SAY-A",
     parent_name: "Mehmet Yılmaz",

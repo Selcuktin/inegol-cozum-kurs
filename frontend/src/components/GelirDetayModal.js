@@ -26,7 +26,6 @@ import {
   History,
   FileSpreadsheet
 } from "lucide-react";
-import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
 import { ReceiptModal } from "./ReceiptModal";
 
@@ -90,10 +89,10 @@ export function GelirDetayModal({
   const accountingInfo = useMemo(() => {
     if (!isOpen) return null;
 
-    const allGelirler = edesisData.gelirler || [];
-    const allSozlesmeler = edesisData.sozlesmeler || [];
-    const allTaksitler = edesisData.taksitler || [];
-    const allTahsilatlar = edesisData.tahsilatlar || [];
+    const allGelirler = AccountingService.getIncomes() || [];
+    const allSozlesmeler = AccountingService.getContracts() || [];
+    const allTaksitler = AccountingService.getInstallments() || [];
+    const allTahsilatlar = AccountingService.getCollections() || [];
 
     let targetGelir = null;
     let targetSozlesme = null;

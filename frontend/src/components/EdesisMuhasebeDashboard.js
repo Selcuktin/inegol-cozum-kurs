@@ -39,7 +39,6 @@ import {
   Pie,
   Cell
 } from "recharts";
-import edesisData from "../data/edesisAccountingData.json";
 
 function fmtCurrency(val, decimals = 0) {
   const num = Number(val) || 0;
@@ -102,8 +101,8 @@ export function EdesisMuhasebeDashboard({
   const [showOverdueList, setShowOverdueList] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Edesis Authentic Live Data Objects
-  const donemOzet = edesisData.dashboardDonemOzet || {
+  // Default Fallback Summary Objects
+  const donemOzet = {
     toplamGelir: 4190137.53,
     toplamTahsilat: 475941.18,
     kalanBakiye: 3714196.35,
@@ -118,7 +117,7 @@ export function EdesisMuhasebeDashboard({
   const effNetKar = effToplamGelir - (donemOzet.toplamGider || 100401.35);
   const effKarMarji = effToplamGelir > 0 ? ((effNetKar / effToplamGelir) * 100) : donemOzet.karMarji;
 
-  const operasyonelOzet = edesisData.dashboardOperasyonelOzet || {
+  const operasyonelOzet = {
     periyotTahsilEdilen: 7500.0,
     periyotTahsilatAdet: 1,
     toplamLikitVarlik: 982938.27,

@@ -213,36 +213,6 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
     expect(synth.sozlesmeNo).toBe("SZL202600154");
   });
 
-  test("preserves Hatice Kübra Ünalan SZL202600150 contract and total count is exactly 121", () => {
-    const contracts = AccountingService.getContracts();
-    expect(contracts.length).toBe(121);
-
-    const hatice = contracts.find((c) => c.sozlesmeNo === "SZL202600150");
-    expect(hatice).toBeDefined();
-    expect(hatice.ogrenciAdi).toBe("HATİCE KÜBRA ÜNALAN");
-    expect(hatice.brutTutar).toBe(50000);
-    expect(hatice.durum).toBe(1);
-    expect(hatice.donemId).toBe(113);
-
-    const activeAmount = contracts
-      .filter((c) => c.durum === 1)
-      .reduce((sum, c) => sum + (Number(c.brutTutar) || 0), 0);
-    expect(Math.round(activeAmount * 100) / 100).toBe(5204810.48);
-  });
-
-  test("self-heals and restores Hatice if user localStorage previously tombstoned her", () => {
-    // Simulate user having accidentally tombstoned Hatice in previous session
-    localStorage.setItem("cozum_deleted_contracts_v1", JSON.stringify(["SZL202600150", "HATİCE KÜBRA ÜNALAN", "74514"]));
-    localStorage.setItem("cozum_deleted_students_v1", JSON.stringify(["HATİCE KÜBRA ÜNALAN", "8315150"]));
-    AccountingService.clearDelSetsCache();
-
-    const contracts = AccountingService.getContracts();
-    const hatice = contracts.find((c) => c.sozlesmeNo === "SZL202600150");
-    expect(hatice).toBeDefined();
-    expect(hatice.ogrenciAdi).toBe("HATİCE KÜBRA ÜNALAN");
-    expect(contracts.length).toBe(121);
-  });
-
   test("skips synthesis for students who have has_contract: false even if they have total_fee", () => {
     const studentWithNoContract = {
       id: "no-contract-student",
@@ -254,69 +224,5 @@ describe("AccountingService and StudentService Dynamic Contract Synthesis", () =
     const contracts = AccountingService.getContracts([studentWithNoContract]);
     const found = contracts.find((c) => c.ogrenciAdi === "SOZLESMESIZ OGRENCI");
     expect(found).toBeUndefined();
-  });
-
-  test("persists student and parent name edits across getAllStudents and getContracts without duplicates on reload", () => {
-    // 1. Pick a base student: Elif Erva Yeşilyaprak
-    const baseStudents = StudentService.getAllStudents();
-    const original = baseStudents.find((s) => s.student_name.includes("ELİF ERVA YEŞİLYAPRAK"));
-    expect(original).toBeDefined();
-
-    // 2. Edit student name and parent name
-    const editedStudent = {
-      ...original,
-      student_name: "ELİF ERVA YEŞİLYAPRAK GÜNCEL",
-      parent_name: "SENA YEŞİLYAPRAK GÜNCEL"
-    };
-    StudentService.saveStudent(editedStudent);
-
-    // 3. Simulate page reload (F5): calling getAllStudents() fresh
-    const afterReload = StudentService.getAllStudents();
-    const foundEdited = afterReload.find((s) => s.id === original.id);
-    expect(foundEdited).toBeDefined();
-    expect(foundEdited.student_name).toBe("ELİF ERVA YEŞİLYAPRAK GÜNCEL");
-    expect(foundEdited.parent_name).toBe("SENA YEŞİLYAPRAK GÜNCEL");
-
-    // The old name should NOT exist in the list (no duplicate)
-    const oldInstances = afterReload.filter((s) => s.student_name === "ELİF ERVA YEŞİLYAPRAK");
-    expect(oldInstances.length).toBe(0);
-
-    // 4. Contract should reflect updated names and not duplicate
-    const contracts = AccountingService.getContracts();
-    const matchedContract = contracts.find((c) => c.sozlesmeNo === original.sozlesme_no);
-    expect(matchedContract).toBeDefined();
-    expect(matchedContract.ogrenciAdi).toBe("ELİF ERVA YEŞİLYAPRAK GÜNCEL");
-    expect(matchedContract.musteriUnvan).toBe("SENA YEŞİLYAPRAK GÜNCEL");
-    expect(contracts.length).toBe(121); // exactly authentic 121
-  });
-
-  test("self-heals Hatice Kübra Ünalan from accidental cancellation (durum: 3) and corrupt 20k collection", () => {
-    // Simulate user having accidentally cancelled Hatice's contract and recorded 20k collection
-    localStorage.setItem("cozum_contract_overrides_v1", JSON.stringify({
-      SZL202600150: { durum: 3, durumText: "İptal", durumRenk: "danger" }
-    }));
-    localStorage.setItem("cozum_income_overrides_v1", JSON.stringify({
-      GLR202600154: { toplamTahsilat: 20000, kalanAlacak: 23000 }
-    }));
-    localStorage.setItem("cozum_custom_collections_v1", JSON.stringify([
-      { id: 99999, tahsilatTutari: 20000, sozlesmeNo: "SZL202600150", gelirKodu: "GLR202600150", musteriUnvan: "HATİCE KÜBRA ÜNALAN" }
-    ]));
-
-    // Re-read contracts and incomes
-    const contracts = AccountingService.getContracts();
-    const haticeContract = contracts.find((c) => c.sozlesmeNo === "SZL202600150");
-    expect(haticeContract).toBeDefined();
-    expect(haticeContract.durum).toBe(1);
-    expect(haticeContract.durumText).toBe("Aktif");
-
-    const incomes = AccountingService.getIncomes();
-    const haticeIncome = incomes.find((g) => g.sozlesmeNo === "SZL202600150");
-    expect(haticeIncome).toBeDefined();
-    expect(haticeIncome.toplamTahsilat).toBe(0);
-    expect(haticeIncome.kalanAlacak).toBe(50000);
-
-    const collections = AccountingService.getCollections();
-    const fakeColl = collections.find((c) => c.tahsilatTutari === 20000 && c.sozlesmeNo === "SZL202600150");
-    expect(fakeColl).toBeUndefined();
   });
 });

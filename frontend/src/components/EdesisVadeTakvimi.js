@@ -21,7 +21,6 @@ import {
   Check,
   Filter
 } from "lucide-react";
-import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
 import { trIncludes } from "../lib/utils";
 

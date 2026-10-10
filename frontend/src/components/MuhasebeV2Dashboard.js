@@ -52,7 +52,6 @@ import { EdesisMuhasebeDashboard } from "./EdesisMuhasebeDashboard";
 import EdesisGelirListesi from "./EdesisGelirListesi";
 import EdesisVadeTakvimi from "./EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./EdesisTahsilatListesi";
-import edesisData from "../data/edesisAccountingData.json";
 import AccountingService, { ENABLE_KASA_BANKA } from "../lib/edesisAccountingService";
 import { trIncludes, formatTrtDateTime } from "../lib/utils";
 
@@ -1648,7 +1647,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("gelirler")}
           style={{ fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <FileText size={16} /> 📑 Gelir Yönetimi (Gelir Listesi) ({edesisData.gelirler?.length || 127})
+          <FileText size={16} /> 📑 Gelir Yönetimi (Gelir Listesi) ({AccountingService.getIncomes()?.length || 71})
         </button>
         <button
           className={`btn ${activeTab === "gecikenler" ? "" : "secondary"}`}
@@ -1662,7 +1661,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("vade_takvimi")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <Calendar size={16} /> 📅 Vade Takvimi ({edesisData.taksitler?.length || 688})
+          <Calendar size={16} /> 📅 Vade Takvimi ({AccountingService.getInstallments()?.length || 603})
         </button>
         {ENABLE_KASA_BANKA && (
           <button
@@ -1678,7 +1677,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("tahsilatlar")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <Receipt size={16} /> 🧾 Tahsilat Listesi ({edesisData.tahsilatlar?.length || 159})
+          <Receipt size={16} /> 🧾 Tahsilat Listesi ({AccountingService.getCollections()?.length || 159})
         </button>
         <button
           className={`btn ${activeTab === "giderler" ? "" : "secondary"}`}

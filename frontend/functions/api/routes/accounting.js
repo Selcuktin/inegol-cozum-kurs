@@ -58,16 +58,24 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
     const paymentsRes = await db.prepare("SELECT * FROM payments ORDER BY payment_date DESC LIMIT 50").all();
     const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC LIMIT 50").all();
     const teachersRes = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all();
+    const contractsRes = await db.prepare("SELECT * FROM contracts WHERE (is_deleted = 0 OR is_deleted IS NULL) ORDER BY sozlesme_tarihi DESC").all().catch(() => ({ results: [] }));
 
     const students = (studentsRes.results || []).map(enrichStudent);
     const accountingSummary = await getDynamicAccountingSummary(db, students);
 
     return json({
       students,
+      contracts: contractsRes.results || [],
       classes: classesRes.results || [],
       payments: paymentsRes.results || [],
       expenses: expensesRes.results || [],
       teachers: teachersRes.results || [],
+      summary: {
+        total_students: students.length,
+        collected: paymentsRes.results?.reduce((a, b) => a + (Number(b.amount) || 0), 0) || 0,
+        expenses: expensesRes.results?.reduce((a, b) => a + (Number(b.amount) || 0), 0) || 0,
+        ...accountingSummary,
+      },
       accounting: accountingSummary,
     });
   }

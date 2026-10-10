@@ -84,45 +84,79 @@ import StudentService from "./lib/edesisStudentService";
 import AccountingService, { ENABLE_KASA_BANKA } from "./lib/edesisAccountingService";
 
 // Client storage cache-busting & refresh across all devices
-export const CLIENT_STORAGE_VERSION = "cozum_v6_20261009_kasabanka_hatice_heal";
+export const CLIENT_STORAGE_VERSION = "cozum_v7_20261010_device_site_data_purge";
 
-export function purgeClientStorage(preserveAuth = true) {
+export async function purgeClientStorage(preserveAuth = true) {
   if (typeof window === "undefined") return;
   try {
-    console.log("[App] Purging stale client cache across all devices, upgraded to:", CLIENT_STORAGE_VERSION);
+    console.log("[App] Purging all on-device site data and cache, upgraded to:", CLIENT_STORAGE_VERSION);
 
-    // Preserve critical authentication, persistent tombstones & user edits
-    const token = localStorage.getItem("session_token");
-    const customApi = localStorage.getItem("custom_api_url");
-    const deletedContracts = localStorage.getItem("cozum_deleted_contracts_v1");
-    const deletedIncomes = localStorage.getItem("cozum_deleted_incomes_v1");
-    const deletedStudents = localStorage.getItem("cozum_deleted_students_v1");
-    const customStudents = localStorage.getItem("cozum_custom_students_v1");
-    const contractOverrides = localStorage.getItem("cozum_contract_overrides_v1");
-    const incomeOverrides = localStorage.getItem("cozum_income_overrides_v1");
+    // Save auth token & custom API URL if requested
+    const token = preserveAuth ? localStorage.getItem("session_token") : null;
+    const customApi = preserveAuth ? localStorage.getItem("custom_api_url") : null;
 
-    // Clear all localStorage
+    // 1. Clear all localStorage completely (no restoring stale tombstones or overrides)
     localStorage.clear();
 
-    // Restore preserved credentials & tombstone sync
+    // 2. Clear all sessionStorage completely
+    sessionStorage.clear();
+
+    // Restore ONLY authentication credentials if requested
     if (preserveAuth) {
       if (token) localStorage.setItem("session_token", token);
       if (customApi) localStorage.setItem("custom_api_url", customApi);
     }
-    if (deletedContracts) localStorage.setItem("cozum_deleted_contracts_v1", deletedContracts);
-    if (deletedIncomes) localStorage.setItem("cozum_deleted_incomes_v1", deletedIncomes);
-    if (deletedStudents) localStorage.setItem("cozum_deleted_students_v1", deletedStudents);
-    if (customStudents) localStorage.setItem("cozum_custom_students_v1", customStudents);
-    if (contractOverrides) localStorage.setItem("cozum_contract_overrides_v1", contractOverrides);
-    if (incomeOverrides) localStorage.setItem("cozum_income_overrides_v1", incomeOverrides);
-
-    // Set current version tag
     localStorage.setItem("cozum_app_version", CLIENT_STORAGE_VERSION);
 
-    // Clear all sessionStorage
-    sessionStorage.clear();
+    // 3. Clear all IndexedDB databases
+    if (typeof window !== "undefined" && window.indexedDB) {
+      try {
+        if (typeof indexedDB.databases === "function") {
+          const dbs = await indexedDB.databases();
+          await Promise.all(
+            (dbs || []).map((db) => {
+              if (db && db.name) {
+                return new Promise((resolve) => {
+                  const req = indexedDB.deleteDatabase(db.name);
+                  req.onsuccess = () => resolve();
+                  req.onerror = () => resolve();
+                  req.onblocked = () => resolve();
+                });
+              }
+              return Promise.resolve();
+            })
+          );
+        }
+      } catch (e) {
+        console.warn("[App] IndexedDB purge error:", e);
+      }
+    }
 
-    // Clear client cookies across all path, domain and subdomain variations
+    // 4. Clear CacheStorage API (caches)
+    if (typeof window !== "undefined" && "caches" in window) {
+      try {
+        const names = await caches.keys();
+        await Promise.all((names || []).map((name) => caches.delete(name)));
+      } catch (e) {
+        console.warn("[App] CacheStorage purge error:", e);
+      }
+    }
+
+    // 5. Unregister all Service Workers
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(
+          (registrations || []).map(async (reg) => {
+            await reg.unregister().catch(() => {});
+          })
+        );
+      } catch (e) {
+        console.warn("[App] ServiceWorker purge error:", e);
+      }
+    }
+
+    // 6. Clear client cookies across all domain / subdomain combinations
     try {
       const cookies = document.cookie.split(";");
       const host = window.location.hostname || "";
@@ -145,23 +179,6 @@ export function purgeClientStorage(preserveAuth = true) {
         }
       });
     } catch (e) {}
-
-    // Clear CacheStorage API (PWA / Service Worker caches)
-    if ("caches" in window) {
-      caches.keys().then((names) => {
-        names.forEach((name) => caches.delete(name));
-      }).catch(() => {});
-    }
-
-    // Force service worker unregister & update across devices
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations.forEach((reg) => {
-          reg.unregister().catch(() => {});
-          reg.update().catch(() => {});
-        });
-      }).catch(() => {});
-    }
   } catch (err) {
     console.warn("[App] Purge error:", err);
   }
@@ -1116,10 +1133,10 @@ function MainApp({ me, onLogout }) {
         <button
           type="button"
           className="nav-item"
-          title="Tüm cihaz önbelleğini ve çerezleri temizleyip en güncel verileri yükler"
-          onClick={() => {
-            if (window.confirm("Tüm cihaz önbelleği ve geçici veriler sıfırlanıp sayfa yenilenecektir. Onaylıyor musunuz?")) {
-              purgeClientStorage(true);
+          title="Cihaz üzerindeki tüm site verilerini ve önbelleği silip en güncel verileri yükler"
+          onClick={async () => {
+            if (window.confirm("Cihaz üzerindeki tüm site verileri, önbellek ve yerel kayıtlar tamamen silinip sayfa yenilenecektir. Onaylıyor musunuz?")) {
+              await purgeClientStorage(true);
               window.location.reload();
             }
           }}

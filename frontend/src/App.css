@@ -4229,7 +4229,16 @@ td[colspan] {
 }
 
 /* Yazdırma Medya Sorguları & Belge/Makbuz/Senet Baskı İzolasyonu */
+@page {
+  size: A4 portrait;
+  margin: 8mm 10mm;
+}
+
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
   .no-print,
   .sidebar,
   .topbar,
@@ -4323,10 +4332,11 @@ td[colspan] {
     box-sizing: border-box !important;
     width: 100% !important;
     max-width: 190mm !important;
-    min-height: 246mm !important;
-    height: 246mm !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: 265mm !important;
     margin: 0 auto !important;
-    padding: 16mm 16mm !important;
+    padding: 8mm 12mm !important;
     background: #fff !important;
     color: #000 !important;
     border: 2px solid #000 !important;
@@ -4337,6 +4347,7 @@ td[colspan] {
     break-inside: avoid !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
+    overflow: hidden !important;
   }
 
   /* MEB Resmî Sözleşme ve Modal Baskı İzolasyonu */

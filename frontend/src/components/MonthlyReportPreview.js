@@ -12,7 +12,7 @@ import {
   DollarSign,
   AlertCircle
 } from "lucide-react";
-import edesisData from "../data/edesisAccountingData.json";
+import AccountingService from "../lib/edesisAccountingService";
 
 const MONTH_NAMES = {
   "01": "Ocak",
@@ -54,19 +54,19 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
     const list = [];
     const seen = new Set();
 
-    // From authentic edesisData
-    (edesisData.tahsilatlar || []).forEach(t => {
-      const dt = (t.tahsilatTarihi || "").slice(0, 7);
+    // From AccountingService collections
+    (AccountingService.getCollections() || []).forEach(t => {
+      const dt = (t.tahsilatTarihi || t.payment_date || "").slice(0, 7);
       if (dt === month) {
         seen.add(t.id || t.odemeKodu);
         list.push({
           id: t.id,
           code: t.odemeKodu || `THS-${t.id}`,
           date: t.tahsilatTarihi ? t.tahsilatTarihi.slice(0, 10) : "",
-          studentName: t.musteriUnvan || "Öğrenci",
-          account: t.kasaBankaAdi || "Nakit Ana Kasa",
-          amount: Number(t.tahsilatTutari) || 0,
-          note: t.aciklama || "Taksit Tahsilatı"
+          studentName: t.musteriUnvan || t.student_name || "Öğrenci",
+          account: t.kasaBankaAdi || t.bank || "Nakit Ana Kasa",
+          amount: Number(t.tahsilatTutari || t.amount) || 0,
+          note: t.aciklama || t.note || "Taksit Tahsilatı"
         });
       }
     });
@@ -91,21 +91,21 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
     return list.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   }, [month, data.payments]);
 
-  // 2. Filter installments due in this month from authentic Edesis taksitler
+  // 2. Filter installments due in this month from AccountingService taksitler
   const monthlyDueInstallments = useMemo(() => {
-    return (edesisData.taksitler || [])
-      .filter(t => (t.vadeTarihi || "").slice(0, 7) === month)
+    return (AccountingService.getInstallments() || [])
+      .filter(t => (t.vadeTarihi || t.due_date || "").slice(0, 7) === month)
       .map(t => ({
         id: t.id,
-        studentName: t.ogrenciAdiSoyadi || t.musteriUnvan || "Öğrenci",
+        studentName: t.ogrenciAdiSoyadi || t.ogrenciAdi || t.musteriUnvan || "Öğrenci",
         className: t.sinifAdi || "—",
-        contractNo: t.gelirAciklama ? t.gelirAciklama.replace("Sözleşme: ", "") : t.gelirKodu,
+        contractNo: t.gelirAciklama ? t.gelirAciklama.replace("Sözleşme: ", "") : (t.sozlesmeNo || t.gelirKodu),
         installmentNo: t.taksitNo,
-        amount: Number(t.taksitTutari) || 0,
-        paid: Number(t.tahsilEdilen) || 0,
+        amount: Number(t.taksitTutari || t.amount) || 0,
+        paid: Number(t.tahsilEdilen || t.paid_amount) || 0,
         remaining: Number(t.kalanTutar) || 0,
-        dueDate: (t.vadeTarihi || "").slice(0, 10),
-        status: t.kalanTutar === 0 ? "Ödendi" : (t.vadesiGectiMi ? "Gecikmede" : "Vadesi Gelmedi")
+        dueDate: (t.vadeTarihi || t.due_date || "").slice(0, 10),
+        status: t.kalanTutar === 0 ? "Ödendi" : (t.durumText || "Bekliyor")
       }))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [month]);
