@@ -124,7 +124,7 @@ export function PromissoryNoteModal({ student, onClose }) {
           </div>
         </div>
 
-        <div style={{ padding: "12px 20px", background: "var(--surface-alt)", borderBottom: "1px solid var(--border)", display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
+        <div className="no-print" style={{ padding: "12px 20px", background: "var(--surface-alt)", borderBottom: "1px solid var(--border)", display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
           <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", whiteSpace: "nowrap" }}>Yazdırılacak Senet:</span>
           <select 
             value={selectedInstIndex} 

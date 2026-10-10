@@ -4372,9 +4372,27 @@ td[colspan] {
   body.meb-print-active .doc-tips,
   body.meb-print-active .no-print,
   body.meb-print-active .edesis-sozlesme-detay-view,
-  body.meb-print-active .edesis-contracts-view,
-  body.meb-print-active .content > *:not(.modal-backdrop):not(.meb-contract-modal-backdrop) {
+  body.meb-print-active .edesis-contracts-view {
     display: none !important;
+  }
+
+  body.meb-print-active #root,
+  body.meb-print-active .app-layout,
+  body.meb-print-active .main,
+  body.meb-print-active .content,
+  body.meb-print-active [data-testid="contracts-page-container"] {
+    display: block !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
 
   body.meb-print-active .modal-backdrop,
@@ -4388,7 +4406,17 @@ td[colspan] {
     margin: 0 !important;
     box-shadow: none !important;
     width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
     z-index: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
   }
 
   body.meb-print-active .modal,
@@ -4397,6 +4425,8 @@ td[colspan] {
     position: static !important;
     width: 100% !important;
     max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
     max-height: none !important;
     overflow: visible !important;
     box-shadow: none !important;
@@ -4405,13 +4435,38 @@ td[colspan] {
     padding: 0 !important;
     margin: 0 !important;
     background: transparent !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
   }
 
+  .meb-contract-sheet,
   body.meb-print-active .meb-contract-sheet {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 190mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 255mm !important;
+    margin: 0 auto !important;
+    padding: 6mm 10mm !important;
+    background: #fff !important;
+    color: #000 !important;
+    border: 2px solid #000 !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
     visibility: visible !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+    overflow: hidden !important;
   }
 
   .receipt-sheet {

@@ -402,81 +402,84 @@ export default function EdesisSozlesmeDetay({
   };
 
   return (
-    <div
-      style={{
-        backgroundColor: "#f5f8fa",
-        minHeight: "100vh",
-        padding: "16px 28px",
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        color: "#1e293b"
-      }}
-    >
-      {/* Toast */}
-      {toastMsg && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "24px",
-            right: "24px",
-            background: "#1e293b",
-            color: "#fff",
-            padding: "12px 20px",
-            borderRadius: "8px",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
-            zIndex: 100000,
-            fontSize: "13px",
-            fontWeight: 600
-          }}
-        >
-          {toastMsg}
-        </div>
-      )}
+    <>
+      <div
+        className={showPromissoryModal || receiptModalPayment ? "no-print" : ""}
+        style={{
+          backgroundColor: "#f5f8fa",
+          minHeight: "100vh",
+          padding: "16px 28px",
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          color: "#1e293b"
+        }}
+      >
+        {/* Toast */}
+        {toastMsg && (
+          <div
+            style={{
+              position: "fixed",
+              bottom: "24px",
+              right: "24px",
+              background: "#1e293b",
+              color: "#fff",
+              padding: "12px 20px",
+              borderRadius: "8px",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+              zIndex: 100000,
+              fontSize: "13px",
+              fontWeight: 600
+            }}
+          >
+            {toastMsg}
+          </div>
+        )}
 
-      {/* TOP HEADER & BREADCRUMB (Matches media_1791229281373.png) */}
-      <div style={{ marginBottom: "14px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        {/* TOP HEADER & BREADCRUMB (Matches media_1791229281373.png) */}
+        <div style={{ marginBottom: "14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <button
+                  type="button"
+                  className="no-print"
+                  onClick={onBack}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    background: "#fff",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#475569",
+                    cursor: "pointer"
+                  }}
+                >
+                  <ArrowLeft size={14} /> Geri
+                </button>
+                <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a" }}>
+                  Sözleşme Detay & Gelir Yönetimi <span style={{ color: "#94a3b8", fontWeight: 400 }}>{contract?.sozlesmeNo}</span>
+                </h1>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "#64748b", marginTop: "6px", marginLeft: "2px" }}>
+                <span>Ana Sayfa</span>
+                <span>•</span>
+                <span>Muhasebe</span>
+                <span>•</span>
+                <span>Sözleşmeler V2</span>
+                <span>•</span>
+                <span style={{ color: "#0f172a", fontWeight: 600 }}>Sözleşme Detay & Gelir</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="no-print" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button
                 type="button"
-                onClick={onBack}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "6px 12px",
-                  background: "#fff",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: "#475569",
-                  cursor: "pointer"
-                }}
-              >
-                <ArrowLeft size={14} /> Geri
-              </button>
-              <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a" }}>
-                Sözleşme Detay & Gelir Yönetimi <span style={{ color: "#94a3b8", fontWeight: 400 }}>{contract?.sozlesmeNo}</span>
-              </h1>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "#64748b", marginTop: "6px", marginLeft: "2px" }}>
-              <span>Ana Sayfa</span>
-              <span>•</span>
-              <span>Muhasebe</span>
-              <span>•</span>
-              <span>Sözleşmeler V2</span>
-              <span>•</span>
-              <span style={{ color: "#0f172a", fontWeight: 600 }}>Sözleşme Detay & Gelir</span>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <button
-              type="button"
-              data-testid="print-promissory-notes-btn"
+                data-testid="print-promissory-notes-btn"
               aria-label="Resmî Senetler (Bono) Yazdır"
               onClick={() => setShowPromissoryModal(true)}
               style={{
@@ -1828,6 +1831,7 @@ export default function EdesisSozlesmeDetay({
           </div>
         </div>
       )}
+      </div>
 
       {showPromissoryModal && (
         <PromissoryNoteModal
@@ -1860,6 +1864,6 @@ export default function EdesisSozlesmeDetay({
           onClose={() => setReceiptModalPayment(null)}
         />
       )}
-    </div>
+    </>
   );
 }

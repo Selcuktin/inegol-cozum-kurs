@@ -443,6 +443,70 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       const detailView = container.querySelector(".edesis-sozlesme-detay-view");
       expect(detailView.classList.contains("no-print")).toBe(false);
     });
+
+    test("T5.4: MEB print modal in full app container tree is decoupled from hidden detail view", async () => {
+      sessionStorage.setItem("cozum_open_contract_no", "SZL202600135");
+
+      const { container } = await render(
+        <div className="content">
+          <div data-testid="contracts-page-container">
+            <EdesisSozlesmeler
+              students={mockStudents}
+              payments={mockPayments}
+            />
+          </div>
+        </div>
+      );
+
+      const printBtn = container.querySelector('[data-testid="print-meb-contract-btn"]');
+      await fireEvent.click(printBtn);
+
+      const modalBackdrop = container.querySelector(".meb-contract-modal-backdrop");
+      expect(modalBackdrop).toBeTruthy();
+
+      // The detail view must be marked no-print, but the modal itself must NOT be inside the no-print element
+      const detailView = container.querySelector(".edesis-sozlesme-detay-view");
+      expect(detailView.classList.contains("no-print")).toBe(true);
+      expect(detailView.contains(modalBackdrop)).toBe(false);
+
+      // Sheet contains all essential MEB elements
+      const sheet = container.querySelector(".meb-contract-sheet");
+      expect(sheet).toBeTruthy();
+      expect(sheet.textContent).toContain("ÖZEL ÖĞRETİM KURUMLARI ÖĞRENCİ KAYIT SÖZLEŞMESİ");
+      expect(sheet.textContent).toContain("VELİ / VASİ");
+      expect(sheet.textContent).toContain("KURUM YETKİLİSİ");
+    });
+
+    test("T5.5: In list view, MEB print modal is rendered outside edesis-contracts-view to avoid being hidden", async () => {
+      sessionStorage.removeItem("cozum_open_contract_no");
+      window.location.hash = "documents";
+
+      const { container } = await render(
+        <div className="content">
+          <div data-testid="contracts-page-container">
+            <EdesisSozlesmeler
+              students={mockStudents}
+              payments={mockPayments}
+            />
+          </div>
+        </div>
+      );
+
+      // Verify list view is rendered
+      const listView = container.querySelector(".edesis-contracts-view");
+      expect(listView).toBeTruthy();
+
+      // Find any Resmî Sözleşmeyi Yazdır button
+      const allText = Array.from(container.querySelectorAll("div, button"));
+      const printRowBtn = allText.find(el => el.textContent && el.textContent.includes("Resmî Sözleşmeyi Yazdır (MEB)"));
+      if (printRowBtn) {
+        await fireEvent.click(printRowBtn);
+        const modalBackdrop = container.querySelector(".meb-contract-modal-backdrop");
+        expect(modalBackdrop).toBeTruthy();
+        // Crucial test: modal backdrop must NOT be inside the hidden edesis-contracts-view
+        expect(listView.contains(modalBackdrop)).toBe(false);
+      }
+    });
   });
 });
 
