@@ -53,7 +53,7 @@ export async function getDynamicAccountingSummary(db, students = []) {
 export async function handleAccountingRoutes({ request, db, path, user }) {
   // 1. GET /dashboard
   if (path === "/dashboard" && request.method === "GET") {
-    const studentsRes = await db.prepare("SELECT * FROM students").all();
+    const studentsRes = await db.prepare("SELECT * FROM students ORDER BY created_at DESC, id DESC").all();
     const classesRes = await db.prepare("SELECT * FROM classes").all();
     const paymentsRes = await db.prepare("SELECT * FROM payments ORDER BY payment_date DESC LIMIT 50").all();
     const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC LIMIT 50").all();

@@ -96,7 +96,12 @@ export const StudentService = {
         has_contract: s.has_contract !== undefined ? s.has_contract : hasFee,
         sozlesme_no: s.sozlesme_no || (hasFee ? `SZL2026${String(Date.now()).slice(-5)}` : null)
       };
-    }).filter((s) => s && s.is_deleted !== 1);
+    }).filter((s) => s && s.is_deleted !== 1).sort((a, b) => {
+      const dateA = a.created_at ? new Date(String(a.created_at).replace(" ", "T")).getTime() : 0;
+      const dateB = b.created_at ? new Date(String(b.created_at).replace(" ", "T")).getTime() : 0;
+      if (dateB !== dateA) return dateB - dateA;
+      return String(b.id || "").localeCompare(String(a.id || ""));
+    });
   },
 
   // 2. Action Handlers (Mutations sync directly to Cloudflare Pages API)

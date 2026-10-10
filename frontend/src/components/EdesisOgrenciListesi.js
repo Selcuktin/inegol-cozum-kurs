@@ -240,6 +240,11 @@ export default function EdesisOgrenciListesi({
         }
       }
       return true;
+    }).sort((a, b) => {
+      const dateA = a.created_at ? new Date(String(a.created_at).replace(" ", "T")).getTime() : 0;
+      const dateB = b.created_at ? new Date(String(b.created_at).replace(" ", "T")).getTime() : 0;
+      if (dateB !== dateA) return dateB - dateA;
+      return String(b.id || "").localeCompare(String(a.id || ""));
     });
   }, [students, periodFilter, statusFilter, classFilter, searchQuery]);
 

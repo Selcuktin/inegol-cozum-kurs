@@ -92,7 +92,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
       params.push(period, `${period}%`);
     }
 
-    query += ` ORDER BY s.student_name ASC LIMIT ? OFFSET ?`;
+    query += ` ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
     const result = await db.prepare(query).bind(...params).all();
