@@ -48,7 +48,6 @@ import {
 } from "recharts";
 import { ReceiptModal } from "./ReceiptModal";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
-import { EdesisMuhasebeDashboard } from "./EdesisMuhasebeDashboard";
 import EdesisGelirListesi from "./EdesisGelirListesi";
 import EdesisVadeTakvimi from "./EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./EdesisTahsilatListesi";
@@ -58,6 +57,9 @@ import { OverdueAgingTab } from "./tabs/OverdueAgingTab";
 import { ScheduleCalendarTab } from "./tabs/ScheduleCalendarTab";
 import { CollectionsTab } from "./tabs/CollectionsTab";
 import { ExpensesTab } from "./tabs/ExpensesTab";
+import { BankPortfolioStrip, CashBankLedgerTab } from "./tabs/CashBankLedgerTab";
+import { BackupRestoreTab, RestoreConfirmModal } from "./tabs/BackupRestoreTab";
+import { SenetlerTab, QuickPaymentModal, ExpenseModal } from "./tabs/MuhasebeQuickModals";
 import AccountingService, { ENABLE_KASA_BANKA } from "../lib/edesisAccountingService";
 import { trIncludes, formatTrtDateTime } from "../lib/utils";
 
@@ -1481,179 +1483,12 @@ export function MuhasebeV2Dashboard({
 
       {/* 3. KASA & BANKA PORTFÖY ŞERİDİ (5 Edesis Hesabı) */}
       {ENABLE_KASA_BANKA && (
-      <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "14px", padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <div style={{ fontWeight: "700", fontSize: "14px", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
-            <Building size={16} color="#2563eb" /> Resmi Kasa & Banka Hesap Defteri
-          </div>
-          <span style={{ fontSize: "12px", color: "#64748b" }}>
-            T.C. Millî Eğitim Bakanlığı Onaylı Kurum Hesapları
-          </span>
-        </div>
-
-        <div className="muhasebe-bank-grid">
-          {/* VakıfBank */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("vakif"); }}
-            style={{ 
-              background: "#f0fdf4", 
-              border: "1px solid #bbf7d0",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#16a34a", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  ANA HESAP
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  VakıfBank İnegöl Şb.
-                </div>
-              </div>
-              <CreditCard size={16} color="#16a34a" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#166534" }} title={`₺${fmtMoney(registers.vakifbank)}`}>
-              ₺{fmtMoney(registers.vakifbank)}
-            </div>
-            <div className="bank-card-flow">
-              <span>G: ₺{fmtMoney(registers.vakifbankInflow)}</span>
-              <span>Ç: ₺{fmtMoney(registers.vakifbankExpense)}</span>
-            </div>
-            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", fontFamily: "monospace" }}>
-              TR04 0001 ... 4922 43
-            </div>
-          </div>
-
-          {/* Halkbank */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("halk"); }}
-            style={{ 
-              background: "#eff6ff", 
-              border: "1px solid #bfdbfe",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#2563eb", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  BANKA
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  Halkbank İnegöl Şb.
-                </div>
-              </div>
-              <Building size={16} color="#2563eb" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#1d4ed8" }} title={`₺${fmtMoney(registers.halkbank)}`}>
-              ₺{fmtMoney(registers.halkbank)}
-            </div>
-            <div className="bank-card-flow">
-              <span>G: ₺{fmtMoney(registers.halkbankInflow)}</span>
-              <span>Ç: ₺{fmtMoney(registers.halkbankExpense)}</span>
-            </div>
-            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", fontFamily: "monospace" }}>
-              TR87 0001 ... 1016 32
-            </div>
-          </div>
-
-          {/* Nakit Ana Kasa */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("nakit"); }}
-            style={{ 
-              background: "#fefce8", 
-              border: "1px solid #fef08a",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#ca8a04", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  NAKİT
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  Nakit Ana Kasa
-                </div>
-              </div>
-              <Wallet size={16} color="#ca8a04" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#854d0e" }} title={`₺${fmtMoney(registers.nakit)}`}>
-              ₺{fmtMoney(registers.nakit)}
-            </div>
-            <div className="bank-card-flow">
-              <span>G: ₺{fmtMoney(registers.nakitInflow)}</span>
-              <span>Ç: ₺{fmtMoney(registers.nakitExpense)}</span>
-            </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
-              Ofis Elden Tahsilat Bakiyesi
-            </div>
-          </div>
-
-          {/* POS / Kredi Kartı */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("kasalar"); setSelectedRegisterFilter("pos"); }}
-            style={{ 
-              background: "#fdf2f8", 
-              border: "1px solid #fbcfe8",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#db2777", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  POS
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  POS / Kredi Kartı
-                </div>
-              </div>
-              <CreditCard size={16} color="#db2777" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#9d174d" }} title={`₺${fmtMoney(registers.pos)}`}>
-              ₺{fmtMoney(registers.pos)}
-            </div>
-            <div className="bank-card-flow">
-              <span>G: ₺{fmtMoney(registers.posInflow)}</span>
-              <span>Ç: ₺{fmtMoney(registers.posExpense)}</span>
-            </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
-              Sanal ve Fiziki POS Girişleri
-            </div>
-          </div>
-
-          {/* Senet Portföyü */}
-          <div 
-            className="bank-acc-card"
-            onClick={() => { setActiveTab("senetler"); }}
-            style={{ 
-              background: "#f5f3ff", 
-              border: "1px solid #ddd6fe",
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: "700", background: "#7c3aed", color: "#fff", padding: "2px 6px", borderRadius: "4px" }}>
-                  SENET / BONO
-                </span>
-                <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a", marginTop: "4px" }}>
-                  Senet & Çek Portföyü
-                </div>
-              </div>
-              <FileText size={16} color="#7c3aed" />
-            </div>
-            <div className="bank-card-val" style={{ color: "#6d28d9" }} title={`₺${fmtMoney(registers.senet)}`}>
-              ₺{fmtMoney(registers.senet)}
-            </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
-              Matbu Senetli Tahsilatlar
-            </div>
-          </div>
-        </div>
-      </div>
+        <BankPortfolioStrip
+          registers={registers}
+          fmtMoney={fmtMoney}
+          setActiveTab={setActiveTab}
+          setSelectedRegisterFilter={setSelectedRegisterFilter}
+        />
       )}
 
       {/* MODÜL SEKMELERİ (EDESİS MUHASEBE V2 MENÜSÜ & YATAY KAYDIRMA) */}
@@ -1753,142 +1588,17 @@ export function MuhasebeV2Dashboard({
 
       {/* SEKME 2: KASA & BANKA DEFTERİ (GAP-2: Tahsilat / Kasa Hareketleri & Bakiye) */}
       {ENABLE_KASA_BANKA && activeTab === "kasalar" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          
-          {/* Kasa Filtre Seçicisi */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <button 
-                className={`btn small ${selectedRegisterFilter === "all" ? "" : "secondary"}`}
-                onClick={() => setSelectedRegisterFilter("all")}
-              >
-                Tüm Hesaplar ({allLedgerItems.length})
-              </button>
-              <button 
-                className={`btn small ${selectedRegisterFilter === "vakif" ? "" : "secondary"}`}
-                onClick={() => setSelectedRegisterFilter("vakif")}
-                style={{ color: "#166534" }}
-              >
-                VakıfBank (Bakiye: ₺{fmtMoney(registers.vakifbank)})
-              </button>
-              <button 
-                className={`btn small ${selectedRegisterFilter === "halk" ? "" : "secondary"}`}
-                onClick={() => setSelectedRegisterFilter("halk")}
-                style={{ color: "#1d4ed8" }}
-              >
-                Halkbank (Bakiye: ₺{fmtMoney(registers.halkbank)})
-              </button>
-              <button 
-                className={`btn small ${selectedRegisterFilter === "nakit" ? "" : "secondary"}`}
-                onClick={() => setSelectedRegisterFilter("nakit")}
-                style={{ color: "#854d0e" }}
-              >
-                Nakit Kasa (Bakiye: ₺{fmtMoney(registers.nakit)})
-              </button>
-              <button 
-                className={`btn small ${selectedRegisterFilter === "pos" ? "" : "secondary"}`}
-                onClick={() => setSelectedRegisterFilter("pos")}
-                style={{ color: "#9d174d" }}
-              >
-                POS Kasası (₺{fmtMoney(registers.pos)})
-              </button>
-              <button 
-                className={`btn small ${selectedRegisterFilter === "senet" ? "" : "secondary"}`}
-                onClick={() => setSelectedRegisterFilter("senet")}
-                style={{ color: "#7c3aed" }}
-              >
-                Senet Portföyü (₺{fmtMoney(registers.senet)})
-              </button>
-            </div>
-
-            <div className="top-search" style={{ width: "240px", margin: 0 }}>
-              <Search size={14} />
-              <input 
-                placeholder="Defterde ara..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ fontSize: "12px" }}
-              />
-            </div>
-          </div>
-
-          {/* Kasa Hareketleri Tablosu (Çift Yönlü Defter & Tam Ekrana Sığan Tablo) */}
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", width: "100%", overflowX: "auto" }}>
-            <table className="data-table" style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", margin: 0, fontSize: "12.5px" }}>
-              <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                  <th style={{ width: "10%", padding: "10px 8px" }}>Tarih</th>
-                  <th style={{ width: "16%", padding: "10px 8px" }}>Hesap / Kasa</th>
-                  <th style={{ width: "18%", padding: "10px 8px" }}>Öğrenci / Alacaklı</th>
-                  <th style={{ width: "23%", padding: "10px 8px" }}>Açıklama / Not</th>
-                  <th style={{ width: "11%", padding: "10px 8px", textAlign: "right" }}>İşlem Tutarı</th>
-                  <th style={{ width: "11%", padding: "10px 8px", textAlign: "right" }}>Kasa Bakiyesi</th>
-                  <th style={{ width: "11%", padding: "10px 8px", textAlign: "center" }}>İşlem</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLedgerList.map((item, idx) => {
-                  const bakiye = item.runningBalance;
-                  return (
-                    <tr key={item.id || idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>
-                        <b style={{ color: "#475569" }}>{item.date ? item.date.slice(0, 10) : "2026-10-02"}</b>
-                      </td>
-                      <td style={{ padding: "8px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.accountLabel}>
-                        <span className="badge" style={{ 
-                          background: item.isInflow ? "#eff6ff" : "#fef2f2", 
-                          color: item.isInflow ? "#1d4ed8" : "#dc2626", 
-                          padding: "2px 6px", 
-                          borderRadius: "4px", 
-                          fontSize: "11px", 
-                          fontWeight: "600" 
-                        }}>
-                          {item.accountLabel}
-                        </span>
-                      </td>
-                      <td style={{ padding: "8px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.party}>
-                        <b style={{ color: "#0f172a" }}>{item.party}</b>
-                      </td>
-                      <td style={{ padding: "8px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.description}>
-                        <span style={{ color: "#64748b" }}>{item.description}</span>
-                      </td>
-                      <td style={{ padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <b style={{ color: item.isInflow ? "#16a34a" : "#dc2626", fontSize: "13px" }}>
-                          {item.isInflow ? `+₺${fmtMoney(item.amount)}` : `-₺${fmtMoney(item.amount)}`}
-                        </b>
-                      </td>
-                      <td style={{ padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <b style={{ color: "#0f172a", fontFamily: "monospace", fontSize: "12px" }}>₺{fmtMoney(bakiye)}</b>
-                      </td>
-                      <td style={{ padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap" }}>
-                        {item.isInflow ? (
-                          <button 
-                            className="btn small secondary" 
-                            onClick={() => setReceiptPayment(item.rawPayment)}
-                            style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "11px", padding: "3px 6px", whiteSpace: "nowrap" }}
-                          >
-                            <Receipt size={12} color="#2563eb" /> Makbuz Bas
-                          </button>
-                        ) : (
-                          <span className="badge" style={{ background: "#fee2e2", color: "#b91c1c", padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "600" }}>
-                            Gider Çıkışı
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredLedgerList.length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
-                      Bu hesap için hareket kaydı bulunamadı.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <CashBankLedgerTab
+          registers={registers}
+          fmtMoney={fmtMoney}
+          selectedRegisterFilter={selectedRegisterFilter}
+          setSelectedRegisterFilter={setSelectedRegisterFilter}
+          allLedgerItems={allLedgerItems}
+          filteredLedgerList={filteredLedgerList}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          setReceiptPayment={setReceiptPayment}
+        />
       )}
 
       {/* SEKME 3: GECİKEN TAKSİTLER & YAŞLANDIRMA (WHATSAPP HATIRLATMA) */}
@@ -1940,47 +1650,12 @@ export function MuhasebeV2Dashboard({
 
       {/* SEKME 6: MATBU SENET (BONO) SÜİTİ */}
       {activeTab === "senetler" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ background: "#f8fafc", padding: "16px 20px", borderRadius: "12px", border: "1px solid var(--border)" }}>
-            <h3 style={{ margin: "0 0 6px 0", fontSize: "15px", fontWeight: "700" }}>Matbu Senet (Bono) Yazdırma Merkezi</h3>
-            <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
-              Öğrencilerin taksit planına göre yasal Türk Ticaret Kanunu uyumlu A4/A5 resmi senetlerini yazdırabilirsiniz.
-            </p>
-          </div>
-
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "640px" }}>
-              <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                  <th>Öğrenci Adı Soyadı</th>
-                  <th>Veli (Borçlu)</th>
-                  <th>Taksit Sayısı</th>
-                  <th>Net Sözleşme Tutarı</th>
-                  <th style={{ textAlign: "right" }}>Senet İşlemi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.slice(0, 30).map((s) => (
-                  <tr key={s.id}>
-                    <td><b>{s.student_name}</b></td>
-                    <td>{s.parent_name || "—"}</td>
-                    <td>{s.installment_count || 1} Taksit</td>
-                    <td><b>₺{fmtMoney(getEffectiveTotalFee(s))}</b></td>
-                    <td style={{ textAlign: "right" }}>
-                      <button 
-                        className="btn small secondary" 
-                        onClick={() => setPromissoryStudent(s)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 10px" }}
-                      >
-                        <FileText size={13} color="#7c3aed" /> Matbu Senetleri Yazdır
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <SenetlerTab
+          students={students}
+          fmtMoney={fmtMoney}
+          getEffectiveTotalFee={getEffectiveTotalFee}
+          setPromissoryStudent={setPromissoryStudent}
+        />
       )}
 
       {/* SEKME 7: EDESİS GELİRLER & SÖZLEŞMELER */}
@@ -1995,222 +1670,29 @@ export function MuhasebeV2Dashboard({
 
       {/* SEKME 8: 20:00 OTOMATİK YEDEKLEME & GERİ YÜKLEME (1-CLICK SNAPSHOT & RESTORE) */}
       {activeTab === "backup" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          
-          {/* Yedekleme Durum Kartı */}
-          <div style={{ background: "#fff", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "18px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
-              <div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#f0fdf4", color: "#166534", padding: "4px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "700", marginBottom: "6px" }}>
-                  <ShieldCheck size={14} color="#16a34a" /> 🟢 Otomatik Yedekleme: Her Akşam Saat 20:00 (TRT) Aktif
-                </div>
-                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
-                  Veritabanı Snapshot & Otomatik Kurtarma Merkezi
-                </h3>
-                <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#64748b", maxWidth: "700px" }}>
-                  Sistemimiz her akşam saat 20:00'de tüm veritabanı tablolarının (öğrenciler, sözleşmeler, tahsilatlar, giderler, sınavlar, yoklama, ders programı) tam anlık görüntüsünü (snapshot) otomatik olarak kaydeder. İhtiyaç halinde tek tıkla herhangi bir yedeğe geri dönüş yapabilir veya yedeği bilgisayarınıza indirebilirsiniz.
-                </p>
-              </div>
-
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => exportDataToExcel(null, "Tum_Sistem_Verileri")}
-                  style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700", fontSize: "12px", padding: "8px 14px", borderRadius: "8px", cursor: "pointer" }}
-                  title="Tüm veritabanı kayıtlarını (öğrenciler, tahsilatlar, giderler) Excel formatında bilgisayara indir"
-                >
-                  <Download size={14} /> 📊 Tüm Verileri Excel'e İndir (.csv)
-                </button>
-                {backups.length > 0 && (
-                  <button
-                    type="button"
-                    className="btn secondary"
-                    onClick={() => handleDownloadBackupJson(backups[0])}
-                    style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700", fontSize: "12px", padding: "8px 12px", borderRadius: "8px", cursor: "pointer" }}
-                    title="En son alınan sistem yedeğini .json olarak bilgisayara indir"
-                  >
-                    <Download size={14} color="#2563eb" /> 💾 Son Yedeği PC'ye İndir (.json)
-                  </button>
-                )}
-                <input
-                  type="text"
-                  placeholder="Yedekleme açıklaması (opsiyonel)..."
-                  value={backupNote}
-                  onChange={(e) => setBackupNote(e.target.value)}
-                  style={{ fontSize: "12px", padding: "7px 10px", borderRadius: "8px", border: "1px solid var(--border)", width: "190px" }}
-                />
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={handleTakeManualBackup}
-                  disabled={loadingBackups}
-                  style={{ background: "#2563eb", borderColor: "#2563eb", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700", fontSize: "12px", padding: "8px 12px", borderRadius: "8px", cursor: "pointer" }}
-                >
-                  <Plus size={15} /> {loadingBackups ? "Kaydediliyor..." : "📸 Şimdi Manuel Yedek Al"}
-                </button>
-                <button
-                  type="button"
-                  className="btn secondary"
-                  onClick={loadBackups}
-                  disabled={loadingBackups}
-                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "8px 12px", borderRadius: "8px", cursor: "pointer" }}
-                >
-                  <RefreshCw size={14} /> Yenile
-                </button>
-              </div>
-            </div>
-
-            {backupAlert && (
-              <div style={{ marginTop: "12px", padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", color: "#166534", fontSize: "13px", fontWeight: "600" }}>
-                {backupAlert}
-              </div>
-            )}
-          </div>
-
-          {/* Yedek Listesi Tablosu */}
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
-              <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                  <th style={{ whiteSpace: "nowrap" }}>Yedek ID & Açıklama</th>
-                  <th style={{ whiteSpace: "nowrap" }}>Kayıt Tarihi (TRT)</th>
-                  <th style={{ whiteSpace: "nowrap" }}>Yedek Türü</th>
-                  <th>Kapsam</th>
-                  <th style={{ whiteSpace: "nowrap" }}>Boyut</th>
-                  <th style={{ textAlign: "center", minWidth: "260px", position: "sticky", right: 0, background: "#f8fafc", zIndex: 2 }}>İndir / Geri Yükle</th>
-                </tr>
-              </thead>
-              <tbody>
-                {backups.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
-                      {loadingBackups ? "Yedekler yükleniyor..." : "Henüz manuel veya otomatik yedek kaydı bulunmuyor. 'Şimdi Manuel Yedek Al' butonuna tıklayarak ilk yedeğinizi oluşturabilirsiniz."}
-                    </td>
-                  </tr>
-                ) : (
-                  backups.map((b) => {
-                    const isScheduled = b.backup_type === "scheduled_20_00";
-                    const isPreRestore = b.backup_type === "pre_restore";
-                    const counts = b.table_counts || {};
-
-                    return (
-                      <tr key={b.id}>
-                        <td>
-                          <b style={{ fontFamily: "monospace", color: "#2563eb", fontSize: "12px" }}>{b.id}</b>
-                          {b.notes && (
-                            <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
-                              {b.notes}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>
-                          {formatTrtDateTime(b.created_at)}
-                        </td>
-                        <td>
-                          <span
-                            className="badge"
-                            style={{
-                              background: isScheduled ? "#f0fdf4" : (isPreRestore ? "#fef3c7" : "#eff6ff"),
-                              color: isScheduled ? "#166534" : (isPreRestore ? "#854d0e" : "#1d4ed8"),
-                              fontWeight: "700",
-                              fontSize: "11px",
-                              padding: "3px 8px",
-                              borderRadius: "6px",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {isScheduled ? "🕒 20:00 Otomatik" : (isPreRestore ? "🛡️ Güvenlik" : "👤 Manuel Snapshot")}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: "12px", color: "#475569" }}>
-                          <span title={JSON.stringify(counts)}>
-                            Öğr: <b>{counts.students ?? "-"}</b> · Tahsilat: <b>{counts.payments ?? "-"}</b> · Sınav: <b>{counts.exams ?? "-"}</b> · Yoklama: <b>{counts.attendance ?? "-"}</b>
-                          </span>
-                        </td>
-                        <td style={{ fontSize: "12px", color: "#64748b", whiteSpace: "nowrap" }}>
-                          {b.size_bytes ? `${Math.round(b.size_bytes / 1024)} KB` : "—"}
-                        </td>
-                        <td style={{ textAlign: "center", position: "sticky", right: 0, background: "#fff", zIndex: 2, boxShadow: "-4px 0 8px rgba(0,0,0,0.05)" }}>
-                          <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadBackupExcel(b)}
-                              className="btn small"
-                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "5px 9px", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", fontWeight: "700", borderRadius: "6px", cursor: "pointer" }}
-                              title="Bu yedeğin tüm verilerini Excel (CSV) formatında indir"
-                            >
-                              <Download size={12} color="#16a34a" /> Excel İndir
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadBackupJson(b)}
-                              className="btn small"
-                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "5px 9px", background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: "700", borderRadius: "6px", cursor: "pointer" }}
-                              title="Tam sistem yedeğini .json olarak bilgisayara indir"
-                            >
-                              <Download size={12} /> JSON İndir
-                            </button>
-                            <button
-                              type="button"
-                              className="btn small"
-                              onClick={() => setRestoreModalBackup(b)}
-                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "5px 9px", background: "#dc2626", borderColor: "#dc2626", color: "#fff", fontWeight: "700", borderRadius: "6px", cursor: "pointer" }}
-                              title="Bu Yedeğe Geri Dön (Kurtar)"
-                            >
-                              <RefreshCw size={12} /> Geri Yükle
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <BackupRestoreTab
+          backups={backups}
+          loadingBackups={loadingBackups}
+          backupNote={backupNote}
+          setBackupNote={setBackupNote}
+          backupAlert={backupAlert}
+          exportDataToExcel={exportDataToExcel}
+          handleDownloadBackupJson={handleDownloadBackupJson}
+          handleDownloadBackupExcel={handleDownloadBackupExcel}
+          handleTakeManualBackup={handleTakeManualBackup}
+          loadBackups={loadBackups}
+          setRestoreModalBackup={setRestoreModalBackup}
+          formatTrtDateTime={formatTrtDateTime}
+        />
       )}
 
       {/* GERİ YÜKLEME (RESTORE) ONAY MODALI */}
-      {restoreModalBackup && (
-        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div style={{ background: "#fff", borderRadius: "14px", maxWidth: "500px", width: "100%", padding: "24px", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#dc2626", marginBottom: "12px" }}>
-              <AlertTriangle size={24} />
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800" }}>Veritabanı Geri Yükleme Onayı</h3>
-            </div>
-            
-            <p style={{ fontSize: "13px", color: "#334155", lineHeight: 1.5, margin: "0 0 14px" }}>
-              <b>{restoreModalBackup.id}</b> numaralı yedeğe geri dönmek üzeresiniz.
-            </p>
-
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "12px", fontSize: "12px", color: "#991b1b", marginBottom: "16px", lineHeight: 1.4 }}>
-              <b>⚠️ DİKKAT:</b> Veritabanındaki tüm tablolar (öğrenciler, tahsilatlar, sınavlar vb.) bu yedeğin alındığı ana geri dönecektir.
-              <br /><br />
-              <b>🛡️ Güvenlik Önlemi:</b> Mevcut verileriniz kaybolmasın diye sistem otomatik olarak anında bir <b>"Geri Yükleme Öncesi Kurtarma Noktası"</b> oluşturacaktır.
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button
-                className="btn secondary"
-                onClick={() => setRestoreModalBackup(null)}
-                disabled={restoring}
-              >
-                Vazgeç
-              </button>
-              <button
-                className="btn"
-                onClick={handleConfirmRestore}
-                disabled={restoring}
-                style={{ background: "#dc2626", borderColor: "#dc2626", color: "#fff", fontWeight: "700" }}
-              >
-                {restoring ? "Geri Yükleniyor..." : "↺ Evet, Geri Yükle"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RestoreConfirmModal
+        restoreModalBackup={restoreModalBackup}
+        setRestoreModalBackup={setRestoreModalBackup}
+        restoring={restoring}
+        handleConfirmRestore={handleConfirmRestore}
+      />
 
       {/* MODAL 1: RESMİ TAHSİLAT MAKBUZU */}
       {receiptPayment && (() => {
@@ -2251,177 +1733,42 @@ export function MuhasebeV2Dashboard({
       )}
 
       {/* MODAL 3: HIZLI TAHSİLAT AL & MAKBUZ KES */}
-      {showQuickPaymentModal && (
-        <div className="modal-backdrop" onClick={() => setShowQuickPaymentModal(false)} style={{ zIndex: 1100 }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: "520px", width: "95vw" }}>
-            <div className="modal-head" style={{ borderBottom: "1px solid var(--border)", padding: "16px 20px" }}>
-              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>Hızlı Tahsilat Girişi & Makbuz</h2>
-              <button className="icon-btn" onClick={() => setShowQuickPaymentModal(false)}><X size={18} /></button>
-            </div>
-            <form onSubmit={handleSavePayment} style={{ padding: "20px" }}>
-              <div className="form-group" style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Öğrenci Seçin:</label>
-                <select 
-                  value={payStudentId} 
-                  onChange={e => setPayStudentId(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                  required
-                >
-                  <option value="">Öğrenci Seçiniz...</option>
-                  {students.map(s => {
-                    const eff = getEffectiveTotalFee(s);
-                    const paid = Number(s.paid_amount || 0);
-                    return (
-                      <option key={s.id} value={s.id}>
-                        {s.student_name} (#{s.student_no}) - Kalan: ₺{fmtMoney(Math.max(0, eff - paid))}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Tahsilat Tutarı (TL):</label>
-                <input 
-                  type="number"
-                  placeholder="Örn: 5000"
-                  value={payAmount}
-                  onChange={e => setPayAmount(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Ödeme Yöntemi:</label>
-                <select 
-                  value={payMethod}
-                  onChange={e => setPayMethod(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                >
-                  <option value="Nakit">Nakit (Ana Kasa)</option>
-                  <option value="Banka Havale / EFT">Banka Havale / EFT</option>
-                  <option value="POS / Kredi Kartı">POS / Kredi Kartı</option>
-                  <option value="Senet">Senet / Çek</option>
-                </select>
-              </div>
-
-              {payMethod === "Banka Havale / EFT" && (
-                <div className="form-group" style={{ marginBottom: "12px" }}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Giriş Yapılacak Banka Hesabı:</label>
-                  <select 
-                    value={payBank}
-                    onChange={e => setPayBank(e.target.value)}
-                    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                  >
-                    <option value="T.C. VAKIFLAR BANKASI İNEGÖL ŞB.">T.C. VAKIFLAR BANKASI İNEGÖL ŞB. (TR04...)</option>
-                    <option value="T.C. HALKBANK İNEGÖL ŞB.">T.C. HALKBANK İNEGÖL ŞB. (TR87...)</option>
-                  </select>
-                </div>
-              )}
-
-              <div className="form-group" style={{ marginBottom: "16px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Açıklama / Dekont Notu:</label>
-                <input 
-                  type="text"
-                  value={payNote}
-                  onChange={e => setPayNote(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-                <button type="button" className="btn secondary" onClick={() => setShowQuickPaymentModal(false)}>İptal</button>
-                <button type="submit" className="btn" disabled={payLoading} style={{ background: "#16a34a", color: "#fff" }}>
-                  {payLoading ? "Kaydediliyor..." : "Tahsilatı Kaydet & Makbuz Aç"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <QuickPaymentModal
+        showQuickPaymentModal={showQuickPaymentModal}
+        setShowQuickPaymentModal={setShowQuickPaymentModal}
+        handleSavePayment={handleSavePayment}
+        payStudentId={payStudentId}
+        setPayStudentId={setPayStudentId}
+        students={students}
+        getEffectiveTotalFee={getEffectiveTotalFee}
+        fmtMoney={fmtMoney}
+        payAmount={payAmount}
+        setPayAmount={setPayAmount}
+        payMethod={payMethod}
+        setPayMethod={setPayMethod}
+        payBank={payBank}
+        setPayBank={setPayBank}
+        payNote={payNote}
+        setPayNote={setPayNote}
+        payLoading={payLoading}
+      />
 
       {/* MODAL 4: GİDER EKLE (GAP-3: Hesap Seçimi ile Kasa Düşüşü) */}
-      {showExpenseModal && (
-        <div className="modal-backdrop" onClick={() => setShowExpenseModal(false)} style={{ zIndex: 1100 }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: "480px", width: "95vw" }}>
-            <div className="modal-head" style={{ borderBottom: "1px solid var(--border)", padding: "16px 20px" }}>
-              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>Kurum Gideri Ekle</h2>
-              <button className="icon-btn" onClick={() => setShowExpenseModal(false)}><X size={18} /></button>
-            </div>
-            <form onSubmit={handleSaveExpense} style={{ padding: "20px" }}>
-              <div className="form-group" style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Gider Başlığı:</label>
-                <input 
-                  type="text"
-                  placeholder="Örn: Derslik 1 Klima Bakımı"
-                  value={expTitle}
-                  onChange={e => setExpTitle(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Tutar (TL):</label>
-                <input 
-                  type="number"
-                  placeholder="Örn: 2500"
-                  value={expAmount}
-                  onChange={e => setExpAmount(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Ödenecek Hesap / Kasa (GAP-3):</label>
-                <select 
-                  value={expAccount} 
-                  onChange={e => setExpAccount(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                >
-                  <option value="Nakit Ana Kasa">Nakit Ana Kasa (Elden)</option>
-                  <option value="T.C. VAKIFLAR BANKASI İNEGÖL ŞB.">T.C. VAKIFLAR BANKASI İNEGÖL ŞB. (TR04...)</option>
-                  <option value="T.C. HALKBANK İNEGÖL ŞB.">T.C. HALKBANK İNEGÖL ŞB. (TR87...)</option>
-                  <option value="POS / Şirket Kredi Kartı">POS / Şirket Kredi Kartı</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Kategori:</label>
-                <select 
-                  value={expCategory} 
-                  onChange={e => setExpCategory(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                >
-                  <option value="Kira">Kira</option>
-                  <option value="Maaş / Eğitmen">Maaş / Eğitmen Ücreti</option>
-                  <option value="Kırtasiye / Yayın">Kırtasiye / Deneme Sınavı Yayını</option>
-                  <option value="Elektrik / Isınma">Elektrik / Su / Isınma</option>
-                  <option value="Reklam / Tanıtım">Reklam / Sosyal Medya</option>
-                  <option value="Genel">Diğer Genel Giderler</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: "16px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "4px" }}>Gider Tarihi:</label>
-                <input 
-                  type="date"
-                  value={expDate}
-                  onChange={e => setExpDate(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "16px" }}>
-                <button type="button" className="btn secondary" onClick={() => setShowExpenseModal(false)}>İptal</button>
-                <button type="submit" className="btn" style={{ background: "#ef4444", color: "#fff" }}>Gideri Kaydet</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ExpenseModal
+        showExpenseModal={showExpenseModal}
+        setShowExpenseModal={setShowExpenseModal}
+        handleSaveExpense={handleSaveExpense}
+        expTitle={expTitle}
+        setExpTitle={setExpTitle}
+        expAmount={expAmount}
+        setExpAmount={setExpAmount}
+        expAccount={expAccount}
+        setExpAccount={setExpAccount}
+        expCategory={expCategory}
+        setExpCategory={setExpCategory}
+        expDate={expDate}
+        setExpDate={setExpDate}
+      />
 
     </div>
   );

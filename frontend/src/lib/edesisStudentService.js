@@ -64,6 +64,7 @@ export const StudentService = {
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/api/students`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rows = await res.json();
       const list = Array.isArray(rows) ? rows : (rows?.items || rows?.data || []);
 
       _memory.students = list;

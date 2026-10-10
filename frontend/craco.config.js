@@ -98,7 +98,16 @@ let webpackConfig = {
   eslint: {
     configure: {
       extends: ["plugin:react-hooks/recommended"],
+      plugins: ["react"],
+      env: {
+        browser: true,
+        es2021: true,
+        node: true,
+        jest: true,
+      },
       rules: {
+        "no-undef": "error",
+        "react/jsx-no-undef": "error",
         "react-hooks/rules-of-hooks": "error",
         "react-hooks/exhaustive-deps": "warn",
       },
