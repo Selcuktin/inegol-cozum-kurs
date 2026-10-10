@@ -672,6 +672,7 @@ export default function EdesisSozlesmeDetay({
 
           {/* CARD 3: ÖDEME TAKVİMİ */}
           <div
+            id="tahsilat-section"
             style={{
               background: "#fff",
               borderRadius: "8px",

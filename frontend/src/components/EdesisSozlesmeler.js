@@ -20,6 +20,7 @@ import {
 import AccountingService, { trNorm } from "../lib/edesisAccountingService";
 import { StudentService } from "../lib/edesisStudentService";
 import EdesisSozlesmeDetay from "./EdesisSozlesmeDetay";
+import EdesisTahsilatListesi from "./EdesisTahsilatListesi";
 import { trIncludes } from "../lib/utils";
 import {
   fmtCurrency,
@@ -312,8 +313,33 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
           handleOpenNewContract(found);
         }
       }
+      if (sessionStorage.getItem("cozum_open_new_contract_modal") === "1") {
+        sessionStorage.removeItem("cozum_open_new_contract_modal");
+        handleOpenNewContract();
+      }
     } catch {}
+
+    const handleNewContractTrigger = () => {
+      handleOpenNewContract();
+    };
+    window.addEventListener("cozum_trigger_new_contract", handleNewContractTrigger);
+    return () => window.removeEventListener("cozum_trigger_new_contract", handleNewContractTrigger);
   }, [allRegisteredStudents]);
+
+  useEffect(() => {
+    const handleScrollToTahsilat = () => {
+      setTimeout(() => {
+        const el = document.getElementById("tahsilat-section");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    };
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("cozum_scroll_to_tahsilat") === "1") {
+      try { sessionStorage.removeItem("cozum_scroll_to_tahsilat"); } catch {}
+      handleScrollToTahsilat();
+    }
+    window.addEventListener("cozum_scroll_to_tahsilat", handleScrollToTahsilat);
+    return () => window.removeEventListener("cozum_scroll_to_tahsilat", handleScrollToTahsilat);
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -1830,6 +1856,15 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
             </button>
           </div>
         </div>
+      </div>
+
+      {/* ALTTTAKİ TAHSİLAT KISMI (TEK SAYFADAN YÖNETİM) */}
+      <div id="tahsilat-section" style={{ marginTop: "28px", paddingTop: "20px", borderTop: "2px dashed #cbd5e1" }}>
+        <EdesisTahsilatListesi
+          students={students}
+          payments={payments}
+          onNavigate={onNavigate}
+        />
       </div>
 
       {/* MODAL 1: SÖZLEŞME DETAY MODALI */}

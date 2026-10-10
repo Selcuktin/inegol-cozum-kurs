@@ -212,7 +212,7 @@ function App() {
   );
 }
 
-function MainApp({ me, onLogout }) {
+export function MainApp({ me, onLogout }) {
   const [data, setData] = useState(() => {
     try {
       if (typeof window !== "undefined") {
@@ -715,22 +715,49 @@ function MainApp({ me, onLogout }) {
                   <div className="quick-dropdown-header">HIZLI İŞLEMLER</div>
                   <div className="quick-dropdown-grid">
                     <div className="quick-col">
-                      <div className="quick-col-title">MUHASEBE</div>
-                      <button type="button" role="menuitem" onClick={() => setPage("documents")}><FileText size={14} style={{ color: "#2563eb" }} aria-hidden="true" /> Yeni Sözleşme <ChevronRight size={12} aria-hidden="true" /></button>
-                      <button type="button" role="menuitem" onClick={() => guardedOpen("payment")}><CircleDollarSign size={14} style={{ color: "#8b5cf6" }} aria-hidden="true" /> Tahsilat Al <ChevronRight size={12} aria-hidden="true" /></button>
-                      <button type="button" role="menuitem" onClick={() => guardedOpen("expense")}><TrendingDown size={14} style={{ color: "#ef4444" }} aria-hidden="true" /> Hızlı Gider <ChevronRight size={12} aria-hidden="true" /></button>
-                    </div>
-                    <div className="quick-col">
-                      <div className="quick-col-title">SINAV & ANALİZ</div>
-                      <button type="button" role="menuitem" onClick={() => setPage("exams")}><GraduationCap size={14} style={{ color: "#8b5cf6" }} aria-hidden="true" /> Yeni Sınav / Deneme <ChevronRight size={12} aria-hidden="true" /></button>
-                      <button type="button" role="menuitem" onClick={() => setShowGlobalKarne({ student_name: data.students?.[0]?.student_name || "Öğrenci", student_class: "7-A", score: 445.5, total_net: 62.5, overall_rank: 2, class_rank: 1, booklet: "A", exam: data.exams?.[0] || { title: "Kurumsal Deneme" } })}><Target size={14} style={{ color: "#0d9488" }} aria-hidden="true" /> Sınav Karnesi <ChevronRight size={12} aria-hidden="true" /></button>
-                      <button type="button" role="menuitem" onClick={() => setPage("attendance")}><UserCheck size={14} style={{ color: "#16a34a" }} aria-hidden="true" /> Günlük Yoklama <ChevronRight size={12} aria-hidden="true" /></button>
+                      <div className="quick-col-title">SÖZLEŞME & TAHSİLAT</div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          try {
+                            sessionStorage.setItem("cozum_open_new_contract_modal", "1");
+                          } catch {}
+                          setPage("documents");
+                          window.dispatchEvent(new CustomEvent("cozum_trigger_new_contract"));
+                        }}
+                      >
+                        <FileText size={14} style={{ color: "#2563eb" }} aria-hidden="true" />
+                        <span>Yeni Sözleşme</span>
+                        <ChevronRight size={12} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          try {
+                            sessionStorage.setItem("cozum_scroll_to_tahsilat", "1");
+                          } catch {}
+                          setPage("documents");
+                          window.dispatchEvent(new CustomEvent("cozum_scroll_to_tahsilat"));
+                          setTimeout(() => {
+                            const el = document.getElementById("tahsilat-section");
+                            if (el) el.scrollIntoView({ behavior: "smooth" });
+                          }, 150);
+                        }}
+                      >
+                        <CircleDollarSign size={14} style={{ color: "#16a34a" }} aria-hidden="true" />
+                        <span>Tahsilat Al</span>
+                        <ChevronRight size={12} aria-hidden="true" />
+                      </button>
                     </div>
                     <div className="quick-col">
                       <div className="quick-col-title">KAYIT & SİSTEM</div>
-                      <button type="button" role="menuitem" onClick={() => guardedOpen("student")}><UserPlus size={14} style={{ color: "#d97706" }} aria-hidden="true" /> Yeni Öğrenci Kaydı <ChevronRight size={12} aria-hidden="true" /></button>
-                      <button type="button" role="menuitem" onClick={() => setPage("schedules")}><Clock size={14} style={{ color: "#2563eb" }} aria-hidden="true" /> Ders Programı <ChevronRight size={12} aria-hidden="true" /></button>
-                      <button type="button" role="menuitem" onClick={() => setPage("classes")}><Users size={14} style={{ color: "#4f46e5" }} aria-hidden="true" /> Sınıf & Kontenjan <ChevronRight size={12} aria-hidden="true" /></button>
+                      <button type="button" role="menuitem" onClick={() => guardedOpen("student")}>
+                        <UserPlus size={14} style={{ color: "#d97706" }} aria-hidden="true" />
+                        <span>Yeni Öğrenci Kaydı</span>
+                        <ChevronRight size={12} aria-hidden="true" />
+                      </button>
                     </div>
                   </div>
                 </div>

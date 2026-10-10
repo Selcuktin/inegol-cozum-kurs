@@ -2443,7 +2443,7 @@ td[colspan] {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  width: 520px;
+  width: 390px;
   background: #ffffff;
   border: 1px solid var(--border);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
@@ -2471,7 +2471,7 @@ td[colspan] {
 }
 .quick-dropdown-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
 @media (max-width: 640px) {
