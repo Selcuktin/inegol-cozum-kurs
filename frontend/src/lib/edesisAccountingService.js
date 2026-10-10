@@ -474,14 +474,17 @@ export const AccountingService = {
     const studentName = String(incomeData.ogrenciAdi || incomeData.ogrenciAdiSoyadi || "Öğrenci").trim();
     const szlNo = incomeData.sozlesmeNo || `SZL2026${String(Date.now()).slice(-5)}`;
     const glrNo = incomeData.gelirKodu || `GLR${szlNo.replace(/\D/g, "")}`;
-    const id = `cnt_${Date.now()}`;
+    const id = incomeData.id || incomeData.contract_id || `cnt_${Date.now()}`;
 
-    if (typeof fetch === "function") {
+    // Remote sync guard: only fire remote POST if remote sync wasn't explicitly skipped
+    // and neither contract_id nor a pre-assigned sozlesmeNo was provided (which indicates the contract already exists on the server).
+    if (typeof fetch === "function" && !incomeData.skipRemoteSync && !incomeData.contract_id && !incomeData.sozlesmeNo) {
       const apiUrl = getApiUrl();
       fetch(`${apiUrl}/api/contracts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          student_id: incomeData.studentId || incomeData.student_id || "",
           student_name: studentName,
           parent_name: incomeData.veliAdi || studentName,
           student_class: incomeData.sinifAdi || "8-A",

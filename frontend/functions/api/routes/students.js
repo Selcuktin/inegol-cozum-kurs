@@ -256,6 +256,11 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
         inst > 1 ? 1 : 2, inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim", inst, user?.name || "Yönetici"
       ).run();
 
+      // Inactivate any orphaned duplicate contracts for this student
+      await db.prepare(
+        "UPDATE contracts SET is_deleted = 1 WHERE (student_name = ? COLLATE NOCASE OR (student_id = ? AND student_id != '')) AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
+      ).bind(s.student_name, id, contractId).run().catch(() => {});
+
       const gelirKodu = s.gelir_kodu || (await getNextSequence(db, "GLR_2026", "GLR2026", 5, 158));
       const glrId = "glr_" + crypto.randomUUID().slice(0, 10);
       await db.prepare(`
@@ -275,6 +280,11 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
         s.parent_name || s.student_name, `Sözleşme: ${sozlesmeNo}`, periodId, periodName, net, vat, gross,
         gross, s.due_date || new Date().toISOString(), inst > 1 ? 1 : 0, inst, inst
       ).run().catch((e) => console.error("Auto income insert error:", e));
+
+      // Inactivate any duplicate income rows for this student
+      await db.prepare(
+        "UPDATE student_incomes SET is_deleted = 1 WHERE (student_name = ? COLLATE NOCASE OR (student_id = ? AND student_id != '') OR contract_id = ?) AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
+      ).bind(s.student_name, id, contractId, glrId).run().catch(() => {});
 
       // Insert installments into installments table
       const baseAmt = Math.floor((gross / inst) * 100) / 100;

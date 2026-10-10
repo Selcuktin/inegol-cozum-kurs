@@ -105,9 +105,20 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
     await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(studentId, studentName.toLowerCase()).run().catch(() => {});
     await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND is_deleted = 1").bind(studentId, studentName.toLowerCase()).run().catch(() => {});
 
-    // Atomic contract number
-    const sozlesmeNo = await getNextSequence(db, "SZL_2026", "SZL2026", 5, 153);
-    const id = "cnt_" + crypto.randomUUID().slice(0, 10);
+    // Reuse existing active contract if one already exists for this student
+    const existingContract = await db.prepare(`
+      SELECT * FROM contracts 
+      WHERE ((student_id = ? AND student_id != '') OR (LOWER(student_name) = LOWER(?) AND student_name != ''))
+        AND (is_deleted = 0 OR is_deleted IS NULL)
+      LIMIT 1
+    `).bind(studentId, studentName.toLowerCase()).first().catch(() => null);
+
+    let sozlesmeNo = existingContract?.sozlesme_no || body.sozlesme_no || body.sozlesmeNo;
+    let id = existingContract?.id || "cnt_" + crypto.randomUUID().slice(0, 10);
+
+    if (!sozlesmeNo) {
+      sozlesmeNo = await getNextSequence(db, "SZL_2026", "SZL2026", 5, 153);
+    }
     const date = body.sozlesme_tarihi || body.contract_date || new Date().toISOString();
     const periodId = body.period_id || 113;
     const periodName = body.period_name || "2026-2027";
@@ -132,6 +143,11 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
       parentName, parentPhone, periodId, periodName, netTutar, kdvTutari, brutTutar,
       `Taksitli (${taksitSayisi} Taksit)`, taksitSayisi, date, user?.name || "Yönetici"
     ).run();
+
+    // Inactivate any duplicate contract rows that may have been created earlier for this student
+    await db.prepare(
+      "UPDATE contracts SET is_deleted = 1 WHERE (LOWER(student_name) = LOWER(?) OR (student_id = ? AND student_id != '')) AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
+    ).bind(studentName.toLowerCase(), studentId, id).run().catch(() => {});
 
     // Atomic income code
     const gelirKodu = await getNextSequence(db, "GLR_2026", "GLR2026", 5, 158);

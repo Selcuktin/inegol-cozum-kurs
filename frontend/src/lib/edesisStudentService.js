@@ -106,24 +106,26 @@ export const StudentService = {
   },
 
   // 2. Action Handlers (Mutations sync directly to Cloudflare Pages API)
-  async saveStudent(student, apiBaseUrl = "") {
+  async saveStudent(student, apiBaseUrl = "", options = {}) {
     if (!student) return null;
     const id = student.id || `student-${crypto.randomUUID().slice(0, 8)}`;
     const studentWithId = { ...student, id };
 
-    try {
-      const apiUrl = apiBaseUrl || getApiUrl();
-      const isExisting = _memory.students.some((s) => s.id === id);
-      const url = isExisting ? `${apiUrl}/api/students/${encodeURIComponent(id)}` : `${apiUrl}/api/students`;
-      const method = isExisting ? "PUT" : "POST";
+    if (!options?.skipRemoteSync && !student?.skipRemoteSync) {
+      try {
+        const apiUrl = apiBaseUrl || getApiUrl();
+        const isExisting = _memory.students.some((s) => s.id === id);
+        const url = isExisting ? `${apiUrl}/api/students/${encodeURIComponent(id)}` : `${apiUrl}/api/students`;
+        const method = isExisting ? "PUT" : "POST";
 
-      await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(studentWithId)
-      });
-    } catch (err) {
-      console.warn("[StudentService] Remote student SAVE error:", err);
+        await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(studentWithId)
+        });
+      } catch (err) {
+        console.warn("[StudentService] Remote student SAVE error:", err);
+      }
     }
 
     const idx = _memory.students.findIndex((s) => s.id === id);

@@ -240,23 +240,6 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         Number(formData.extra_kutuphane || 0);
       const grossFee = Math.max(0, Number(formData.total_fee || 0) + extraSum - Number(formData.discount_amount || 0));
 
-      let contractRes = null;
-      if (grossFee > 0) {
-        try {
-          contractRes = AccountingService.addNewIncome({
-            ogrenciAdi: formData.student_name.trim(),
-            veliAdi: resolvedParent,
-            sinifAdi: formData.student_class || "Genel",
-            brutTutar: grossFee,
-            taksitSayisi: Number(formData.installment_count) || 1,
-            vadeTarihi: formData.due_date || new Date().toISOString().slice(0, 10),
-            aciklama: `Kayıt Sözleşmesi`
-          });
-        } catch (accErr) {
-          console.warn("Accounting contract creation warning:", accErr);
-        }
-      }
-
       const payload = {
         ...formData,
         student_name: formData.student_name.trim(),
@@ -264,9 +247,9 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         total_fee: grossFee || Number(formData.total_fee || 0),
         installment_count: Number(formData.installment_count || 1),
         discount_amount: Number(formData.discount_amount || 0),
-        has_contract: Boolean(contractRes?.contract || formData.has_contract),
-        sozlesme_no: contractRes?.contract?.sozlesmeNo || formData.sozlesme_no || "",
-        gelir_kodu: contractRes?.income?.gelirKodu || formData.gelir_kodu || "",
+        has_contract: true,
+        sozlesme_no: formData.sozlesme_no || initialData?.sozlesme_no || "",
+        gelir_kodu: formData.gelir_kodu || initialData?.gelir_kodu || "",
         extra_fees: {
           kaynak: Number(formData.extra_kaynak || 0),
           dijital: Number(formData.extra_dijital || 0),
@@ -287,12 +270,12 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         ...(saved || {}),
         ...payload,
         has_contract: true,
-        sozlesme_no: saved?.sozlesme_no || contractRes?.contract?.sozlesmeNo || payload.sozlesme_no || ""
+        sozlesme_no: saved?.sozlesme_no || saved?.sozlesmeNo || payload.sozlesme_no || ""
       };
       if (grossFee > 0) {
         try {
           AccountingService.addNewIncome({
-            id: saved?.id,
+            id: saved?.contract_id || `cnt_${saved?.id}`,
             studentId: saved?.id,
             student_no: saved?.student_no || formData.student_no,
             sozlesmeNo: finalStudent.sozlesme_no,
@@ -303,14 +286,15 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
             brutTutar: grossFee,
             taksitSayisi: Number(formData.installment_count) || 1,
             vadeTarihi: formData.due_date || new Date().toISOString().slice(0, 10),
-            aciklama: `Kayıt Sözleşmesi`
+            aciklama: `Kayıt Sözleşmesi`,
+            skipRemoteSync: true
           });
         } catch (accErr) {
           console.warn("Accounting contract re-sync warning:", accErr);
         }
       }
       AccountingService.unTombstone(finalStudent.student_name, finalStudent.sozlesme_no, finalStudent.id);
-      StudentService.saveStudent(finalStudent);
+      StudentService.saveStudent(finalStudent, API, { skipRemoteSync: true });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("cozum_accounting_updated"));
         window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: finalStudent } }));
