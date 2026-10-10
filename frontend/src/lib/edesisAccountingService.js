@@ -56,6 +56,69 @@ const _memory = {
   isFetching: false,
 };
 
+export function formatContractRecord(r) {
+  if (!r) return null;
+  const no = r.sozlesmeNo || r.sozlesme_no || "";
+  const name = r.ogrenciAdi || r.ogrenciAdiSoyadi || r.student_name || "";
+  const parent = r.parent_name || r.parentName || r.musteriUnvan || name;
+  const parentPhone = r.parent_phone || r.parentPhone || "";
+  const sClass = r.student_class || r.sinifAdi || "8-A";
+  const pId = r.period_id || r.donemId || 113;
+  const pName = r.period_name || r.donemAdi || "2026-2027";
+  const gross = Number(r.brut_tutar !== undefined ? r.brut_tutar : (r.brutTutar !== undefined ? r.brutTutar : 0));
+  const net = Number(r.net_tutar !== undefined ? r.net_tutar : (r.netTutar !== undefined ? r.netTutar : Math.round(gross / 1.1 * 100) / 100));
+  const vat = Number(r.kdv_tutari !== undefined ? r.kdv_tutari : (r.kdvTutari !== undefined ? r.kdvTutari : gross - net));
+  const instCount = parseInt(r.taksit_sayisi !== undefined ? r.taksit_sayisi : (r.taksitSayisi !== undefined ? r.taksitSayisi : 8), 10) || 1;
+  const date = r.sozlesme_tarihi || r.sozlesmeTarihi || "";
+  const st = r.durum != null ? r.durum : 1;
+
+  return {
+    ...r,
+    id: r.id,
+    sozlesmeNo: no,
+    sozlesme_no: no,
+    studentId: r.student_id || r.studentId,
+    student_id: r.student_id || r.studentId,
+    ogrenciId: r.student_id || r.studentId,
+    ogrenciAdi: name,
+    student_name: name,
+    ogrenciAdiSoyadi: name,
+    ogrenciNo: r.student_no || r.ogrenciNo || "",
+    musteriUnvan: parent,
+    parentName: parent,
+    parent_name: parent,
+    parentPhone: parentPhone,
+    parent_phone: parentPhone,
+    sinifAdi: sClass,
+    student_class: sClass,
+    period_id: pId,
+    period_name: pName,
+    donemId: pId,
+    donemAdi: pName,
+    netTutar: net,
+    net_tutar: net,
+    kdvTutari: vat,
+    kdv_tutari: vat,
+    brutTutar: gross,
+    brut_tutar: gross,
+    taksitSayisi: instCount,
+    taksit_sayisi: instCount,
+    odemeTuru: r.odeme_turu || r.odemeTuru || 1,
+    odemeTuruText: r.odeme_turu_text || r.odemeTuruText || (instCount > 1 ? `Taksitli (${instCount} Taksit)` : "Peşin"),
+    sozlesmeTarihi: date,
+    sozlesme_tarihi: date,
+    durum: st,
+    durumText: r.durumText || (st === 3 ? "İptal Edildi" : st === 0 ? "Taslak" : "Aktif"),
+    isSigned: !!(r.is_signed || r.kurum_imza_alindi || r.veli_imza_alindi),
+    is_signed: !!(r.is_signed || r.kurum_imza_alindi || r.veli_imza_alindi),
+    veliImzaAlindi: !!r.veli_imza_alindi,
+    kurumImzaAlindi: !!r.kurum_imza_alindi,
+    kurumImzalayan: r.kurum_imzalayan || "",
+    signedAt: r.signed_at || r.signedAt,
+    sozlesmeUrl: r.sozlesme_url || r.sozlesmeUrl
+  };
+}
+
 export const AccountingService = {
   // Backward compatibility stubs
   getDeletedContracts() { return []; },
@@ -96,46 +159,7 @@ export const AccountingService = {
       const rows = await res.json();
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
-      const formatted = list.map((r) => ({
-        ...r,
-        id: r.id,
-        sozlesmeNo: r.sozlesme_no || r.sozlesmeNo,
-        sozlesme_no: r.sozlesme_no || r.sozlesmeNo,
-        studentId: r.student_id,
-        student_id: r.student_id,
-        ogrenciId: r.student_id,
-        ogrenciAdi: r.student_name || r.ogrenciAdi,
-        student_name: r.student_name || r.ogrenciAdi,
-        ogrenciAdiSoyadi: r.student_name || r.ogrenciAdi,
-        ogrenciNo: r.student_no,
-        musteriUnvan: r.parent_name || r.musteriUnvan || r.student_name,
-        parentName: r.parent_name || r.parentName || "",
-        parent_name: r.parent_name || r.parentName || "",
-        parentPhone: r.parent_phone || r.parentPhone || "",
-        parent_phone: r.parent_phone || r.parentPhone || "",
-        sinifAdi: r.student_class || r.sinifAdi || "8-A",
-        student_class: r.student_class || r.sinifAdi || "8-A",
-        period_id: r.period_id || 113,
-        period_name: r.period_name || "2026-2027",
-        donemId: r.period_id || 113,
-        donemAdi: r.period_name || "2026-2027",
-        netTutar: Number(r.net_tutar) || 0,
-        kdvTutari: Number(r.kdv_tutari) || 0,
-        brutTutar: Number(r.brut_tutar) || 0,
-        taksitSayisi: parseInt(r.taksit_sayisi) || 8,
-        odemeTuru: r.odeme_turu || 1,
-        odemeTuruText: r.odeme_turu_text || `Taksitli (${r.taksit_sayisi || 8} Taksit)`,
-        sozlesmeTarihi: r.sozlesme_tarihi || r.sozlesmeTarihi,
-        durum: r.durum != null ? r.durum : 1,
-        durumText: r.durum === 3 ? "İptal Edildi" : r.durum === 0 ? "Taslak" : "Aktif",
-        isSigned: !!(r.is_signed || r.kurum_imza_alindi || r.veli_imza_alindi),
-        is_signed: !!(r.is_signed || r.kurum_imza_alindi || r.veli_imza_alindi),
-        veliImzaAlindi: !!r.veli_imza_alindi,
-        kurumImzaAlindi: !!r.kurum_imza_alindi,
-        kurumImzalayan: r.kurum_imzalayan || "",
-        signedAt: r.signed_at,
-        sozlesmeUrl: r.sozlesme_url
-      }));
+      const formatted = list.map(formatContractRecord);
 
       _memory.contracts = formatted;
       writeCache("cozum_ssot_contracts_v2", formatted);
@@ -148,12 +172,13 @@ export const AccountingService = {
 
   getContracts(remoteStudents = [], propContracts = null) {
     if (Array.isArray(propContracts) && propContracts.length > 0) {
-      _memory.contracts = propContracts;
-      writeCache("cozum_ssot_contracts_v2", propContracts);
-      return propContracts;
+      const formatted = propContracts.map(formatContractRecord);
+      _memory.contracts = formatted;
+      writeCache("cozum_ssot_contracts_v2", formatted);
+      return formatted;
     }
 
-    let list = [..._memory.contracts];
+    let list = _memory.contracts.map(formatContractRecord);
 
     // Trigger background fetch if memory is empty
     if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {

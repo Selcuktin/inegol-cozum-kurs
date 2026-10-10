@@ -423,13 +423,13 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const stats = useMemo(() => {
     // Current period statistics
     const periodRecords = contractsList.filter(
-      (c) => periodFilter === "-1" || String(c.donemId) === String(periodFilter)
+      (c) => periodFilter === "-1" || String(c.donemId || c.period_id) === String(periodFilter)
     );
     const totalCount = periodRecords.length;
-    const activeContracts = periodRecords.filter((c) => c.durum === 1);
-    const activeAmount = activeContracts.reduce((sum, c) => sum + (Number(c.brutTutar) || 0), 0);
-    const draftCount = periodRecords.filter((c) => c.durum === 0).length;
-    const canceledCount = periodRecords.filter((c) => c.durum === 3).length;
+    const activeContracts = periodRecords.filter((c) => c.durum === 1 || c.durum === "1" || c.durum === "Aktif");
+    const activeAmount = activeContracts.reduce((sum, c) => sum + (Number(c.brutTutar !== undefined ? c.brutTutar : c.brut_tutar) || 0), 0);
+    const draftCount = periodRecords.filter((c) => c.durum === 0 || c.durum === "0" || c.durum === "Taslak").length;
+    const canceledCount = periodRecords.filter((c) => c.durum === 3 || c.durum === "3" || c.durum === "İptal").length;
 
     return {
       totalCount,
@@ -1818,8 +1818,8 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
               ) : (
                 paginatedContracts.map((c, idx) => {
                   const isMenuOpen = openDropdownId === c.id;
-                  const openUpwards = (idx >= paginatedContracts.length - 2 && paginatedContracts.length > 3);
-                  const isInstallment = c.taksitSayisi && c.taksitSayisi > 1;
+                  const instCount = parseInt(c.taksitSayisi !== undefined ? c.taksitSayisi : (c.taksit_sayisi !== undefined ? c.taksit_sayisi : 1), 10) || 1;
+                  const isInstallment = instCount > 1;
 
                   return (
                     <tr
@@ -2091,37 +2091,38 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                           onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
                           onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
                         >
-                          {c.sozlesmeNo}
+                          {c.sozlesmeNo || c.sozlesme_no}
                         </span>
                       </td>
 
                       {/* 3. Tarih */}
                       <td style={{ padding: "10px 14px", color: "#475569" }}>
-                        {fmtDate(c.sozlesmeTarihi)}
+                        {fmtDate(c.sozlesmeTarihi || c.sozlesme_tarihi)}
                       </td>
 
                       {/* 4. Müşteri (Öğrenci / Veli) */}
                       <td style={{ padding: "10px 14px" }}>
                         <div style={{ fontWeight: 700, color: "#1e293b" }}>
-                          {c.ogrenciAdi || c.musteriUnvan || "—"}
+                          {c.ogrenciAdi || c.musteriUnvan || c.student_name || "—"}
                         </div>
-                        {c.sinifAdi && (
+                        {(c.sinifAdi || c.student_class) && (
                           <div style={{ fontSize: "11px", color: "#64748b" }}>
-                            Sınıf: {c.sinifAdi}
+                            Sınıf: {c.sinifAdi || c.student_class}
                           </div>
                         )}
                       </td>
 
                       {/* 5. Dönem */}
                       <td style={{ padding: "10px 14px", color: "#475569" }}>
-                        {c.donemAdi || "2026-2027"}
+                        {c.donemAdi || c.period_name || "2026-2027"}
                       </td>
 
                       {/* 6. Brüt Tutar & Kalan Önizleme (1:1 media_1791234855262.png) */}
                       <td style={{ padding: "10px 14px", verticalAlign: "middle" }}>
                         {(() => {
-                          const matchingGelir = gelirMap[c.sozlesmeNo];
-                          const gross = Number(c.brutTutar) || 0;
+                          const sNo = c.sozlesmeNo || c.sozlesme_no;
+                          const matchingGelir = gelirMap[sNo];
+                          const gross = Number(c.brutTutar !== undefined ? c.brutTutar : (c.brut_tutar !== undefined ? c.brut_tutar : 0));
                           const collected = matchingGelir ? (Number(matchingGelir.toplamTahsilat) || 0) : 0;
                           const remaining = matchingGelir ? (Number(matchingGelir.kalanAlacak) || 0) : gross;
                           const pct = gross > 0 ? Math.min(100, Math.max(0, (collected / gross) * 100)) : 0;
@@ -2165,7 +2166,8 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                       {/* 6b. Tahsilat Kolonu (1:1 media_1791234855262.png) */}
                       <td style={{ padding: "10px 14px", textAlign: "right", verticalAlign: "middle" }}>
                         {(() => {
-                          const matchingGelir = gelirMap[c.sozlesmeNo];
+                          const sNo = c.sozlesmeNo || c.sozlesme_no;
+                          const matchingGelir = gelirMap[sNo];
                           const collected = matchingGelir ? (Number(matchingGelir.toplamTahsilat) || 0) : 0;
                           return (
                             <span style={{ fontWeight: 700, fontSize: "13px", color: "#f59e0b" }}>
@@ -2189,7 +2191,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                             border: "1px solid #fde68a"
                           }}
                         >
-                          {c.odemeTuruText || (isInstallment ? `Taksitli (${c.taksitSayisi} Taksit)` : "Peşin")}
+                          {c.odemeTuruText || (isInstallment ? `Taksitli (${instCount} Taksit)` : "Peşin")}
                         </span>
                       </td>
 

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import axios from "axios";
 import {
@@ -98,7 +98,7 @@ export { StudentsPage, ContractsPage, AccountingPage, AcademicPage, ExamOpticalP
 export { Classes, EditClassModal, PaymentTable };
 
 // Client storage cache-busting & refresh across all devices
-export const CLIENT_STORAGE_VERSION = "cozum_v7_20261010_device_site_data_purge";
+export const CLIENT_STORAGE_VERSION = "cozum_v8_20261010_data_normalization_fix";
 
 export async function purgeClientStorage(preserveAuth = true) {
   if (typeof window === "undefined") return;

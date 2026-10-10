@@ -174,14 +174,18 @@ export function getEffectiveTotalFee(student) {
 export function enrichStudent(s) {
   let prog = s.program || "2026-2027";
   let status = s.status || "Kesin Kayıt";
-  let isKesin = status === "Kesin Kayıt";
+  let isKesin = false;
 
   if (prog === "2026-2027-YAZ") {
     status = "Yaz Kursu";
-    isKesin = false;
   } else if (prog === "2025-2026") {
     status = "Mezun / Geçmiş";
-    isKesin = false;
+  } else {
+    // Current period (2026-2027): 'Aktif', 'Kayitli' or 'Kesin Kayıt' all denote active registered students
+    if (status === "Aktif" || status === "Kayitli" || status === "Kesin Kayıt" || !s.status) {
+      status = "Kesin Kayıt";
+      isKesin = true;
+    }
   }
 
   return {

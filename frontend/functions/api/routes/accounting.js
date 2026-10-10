@@ -62,10 +62,33 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
 
     const students = (studentsRes.results || []).map(enrichStudent);
     const accountingSummary = await getDynamicAccountingSummary(db, students);
+    const contracts = (contractsRes.results || []).map((r) => ({
+      ...r,
+      sozlesmeNo: r.sozlesme_no,
+      sozlesmeTarihi: r.sozlesme_tarihi,
+      ogrenciAdi: r.student_name,
+      ogrenciAdiSoyadi: r.student_name,
+      ogrenciNo: r.student_no,
+      ogrenciId: r.student_id,
+      sinifAdi: r.student_class,
+      veliAdi: r.parent_name,
+      veliTelefon: r.parent_phone,
+      musteriUnvan: r.parent_name || r.student_name,
+      donemId: r.period_id || 113,
+      donemAdi: r.period_name || "2026-2027",
+      netTutar: Number(r.net_tutar) || 0,
+      kdvTutari: Number(r.kdv_tutari) || 0,
+      brutTutar: Number(r.brut_tutar) || 0,
+      taksitSayisi: parseInt(r.taksit_sayisi) || 1,
+      odemeTuru: r.odeme_turu || 1,
+      odemeTuruText: r.odeme_turu_text || (r.taksit_sayisi > 1 ? `Taksitli (${r.taksit_sayisi} Taksit)` : "Peşin"),
+      durum: r.durum != null ? r.durum : 1,
+      durumText: r.durum === 3 ? "İptal Edildi" : r.durum === 0 ? "Taslak" : "Aktif",
+    }));
 
     return json({
       students,
-      contracts: contractsRes.results || [],
+      contracts,
       classes: classesRes.results || [],
       payments: paymentsRes.results || [],
       expenses: expensesRes.results || [],

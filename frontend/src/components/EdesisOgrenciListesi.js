@@ -186,8 +186,13 @@ export default function EdesisOgrenciListesi({
         return false;
       }
       // Status filter
-      if (statusFilter !== "all" && s.status !== statusFilter) {
-        return false;
+      if (statusFilter !== "all") {
+        if (statusFilter === "Kesin Kayıt") {
+          const isKesin = s.status === "Kesin Kayıt" || s.status === "Aktif" || s.status === "Kayitli" || s.is_kesin_kayit;
+          if (!isKesin) return false;
+        } else if (s.status !== statusFilter) {
+          return false;
+        }
       }
       // Class filter
       if (classFilter !== "all" && s.student_class !== classFilter) {
@@ -218,7 +223,10 @@ export default function EdesisOgrenciListesi({
 
   // Counts for pills
   const kesinCount = useMemo(() => {
-    return students.filter((s) => s.status === "Kesin Kayıt" && (periodFilter === "all" || String(s.donem_id) === String(periodFilter))).length;
+    return students.filter((s) => {
+      const isKesin = s.status === "Kesin Kayıt" || s.status === "Aktif" || s.status === "Kayitli" || s.is_kesin_kayit;
+      return isKesin && (periodFilter === "all" || String(s.donem_id) === String(periodFilter));
+    }).length;
   }, [students, periodFilter]);
 
   // Pagination slice
