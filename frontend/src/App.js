@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import axios from "axios";
 import {
@@ -82,6 +82,20 @@ import EdesisTahsilatListesi from "./components/EdesisTahsilatListesi";
 import { trIncludes, formatTrtDateTime } from "./lib/utils";
 import StudentService from "./lib/edesisStudentService";
 import AccountingService, { ENABLE_KASA_BANKA } from "./lib/edesisAccountingService";
+import { AuthGuard, can, CAN } from "./pages/AuthGuard";
+import { DashboardPage } from "./pages/DashboardPage";
+import { StudentsPage } from "./pages/StudentsPage";
+import { ContractsPage } from "./pages/ContractsPage";
+import { AccountingPage } from "./pages/AccountingPage";
+import { AcademicPage } from "./pages/AcademicPage";
+import { ExamOpticalPage } from "./pages/ExamOpticalPage";
+import { Classes, EditClassModal } from "./components/Classes";
+import { PaymentTable } from "./components/PaymentTable";
+
+export { AuthGuard, can, CAN };
+export { DashboardPage, DashboardPage as Dashboard };
+export { StudentsPage, ContractsPage, AccountingPage, AcademicPage, ExamOpticalPage };
+export { Classes, EditClassModal, PaymentTable };
 
 // Client storage cache-busting & refresh across all devices
 export const CLIENT_STORAGE_VERSION = "cozum_v7_20261010_device_site_data_purge";
@@ -221,31 +235,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const LOGO = "/assets/logo.jpeg";
 
 const ROLE_LABEL = { admin: "Yönetici", muhasebe: "Muhasebe", ogretmen: "Öğretmen" };
-const CAN = {
-  student_create:  ["admin"],
-  payment_create:  ["admin", "muhasebe"],
-  expense_create:  ["admin", "muhasebe"],
-  class_create:    ["admin"],
-  audit_view:      ["admin"],
-  user_manage:     ["admin"],
-  reports_view:    ["admin", "muhasebe"],
-  reminders_view:  ["admin", "muhasebe"],
-  export_data:     ["admin", "muhasebe"],
-  page_dashboard:  ["admin", "muhasebe", "ogretmen"],
-  page_students:   ["admin", "muhasebe", "ogretmen"],
-  page_exams:      ["admin", "muhasebe", "ogretmen"],
-  page_attendance: ["admin", "ogretmen"],
-  page_schedules:  ["admin", "muhasebe", "ogretmen"],
-  page_payments:   ["admin", "muhasebe"],
-  page_classes:    ["admin", "ogretmen"],
-  page_teachers:   ["admin", "muhasebe", "ogretmen"],
-  page_documents:  ["admin", "muhasebe", "ogretmen"],
-  page_users:      ["admin"],
-  page_audit:      ["admin"],
-  page_reports:    ["admin", "muhasebe"],
-  page_reminders:  ["admin", "muhasebe"],
-};
-const can = (me, action) => !!me && (CAN[action] || []).includes(me.role);
+// CAN and can imported from ./pages/AuthGuard
 
 async function downloadBlob(url, filename) {
   const r = await axios.get(url, { responseType: "blob" });
@@ -1214,7 +1204,18 @@ function MainApp({ me, onLogout }) {
         </div>
       </header>
       <main id="main-content" role="main" tabIndex="-1" className={`content ${page === "students" || page === "documents" ? "content-fullwidth" : ""}`}>
-        {page === "dashboard" && <Dashboard me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} onNavigate={setPage} onSelect={setSelected} />}
+        {page === "dashboard" && (
+          <DashboardPage
+            me={me}
+            data={data}
+            totalCollected={totalCollected}
+            totalExpected={totalExpected}
+            totalExpenses={totalExpenses}
+            onOpen={guardedOpen}
+            onNavigate={setPage}
+            onSelect={setSelected}
+          />
+        )}
         {page === "kayit" && (
           <KayitModulu
             activeTab={kayitTab}
@@ -1227,136 +1228,149 @@ function MainApp({ me, onLogout }) {
             onNavigate={setPage}
           />
         )}
-        {page === "exams" && <ExamsPage me={me} API={API} students={data.students || []} classes={data.classes || []} />}
-        {page === "attendance" && <AttendancePage me={me} API={API} classes={data.classes || []} />}
-        {page === "schedules" && <SchedulesPage me={me} API={API} classes={data.classes || []} />}
-        {page === "students" && (
-          <EdesisOgrenciListesi
+        {page === "exams" && (
+          <ExamOpticalPage
+            me={me}
             API={API}
-            globalSearch={search}
-            onSearchChange={setSearch}
             students={data.students || []}
-            onNewStudent={() => guardedOpen("student")}
-            onSelectStudent={(st) => {
-              const targetNo = st?.sozlesme_no || st?.id || st?.student_name;
-              if (targetNo) {
-                try {
-                  sessionStorage.setItem("cozum_open_contract_no", String(targetNo));
-                  sessionStorage.setItem("cozum_contract_prev_page", "students");
-                  if (st?.student_name) sessionStorage.setItem("cozum_open_contract_student", st.student_name);
-                  if (st?.id) sessionStorage.setItem("cozum_open_contract_student_id", String(st.id));
-                } catch {}
-              }
-              setPage("documents");
-            }}
-            onOpenGelir={(st) => {
-              const targetNo = st?.sozlesme_no || st?.id || st?.student_name;
-              if (targetNo) {
-                try {
-                  sessionStorage.setItem("cozum_open_contract_no", String(targetNo));
-                  sessionStorage.setItem("cozum_contract_prev_page", "students");
-                  if (st?.student_name) sessionStorage.setItem("cozum_open_contract_student", st.student_name);
-                  if (st?.id) sessionStorage.setItem("cozum_open_contract_student_id", String(st.id));
-                } catch {}
-              }
-              setPage("documents");
-            }}
-            onOpenContract={(contract, st) => {
-              const targetNo = contract?.sozlesmeNo || contract?.id || st?.sozlesme_no || st?.id || st?.student_name;
-              if (targetNo) {
-                try {
-                  sessionStorage.setItem("cozum_open_contract_no", String(targetNo));
-                  sessionStorage.setItem("cozum_contract_prev_page", "students");
-                  if (st?.student_name || contract?.ogrenciAdi) {
-                    sessionStorage.setItem("cozum_open_contract_student", st?.student_name || contract?.ogrenciAdi);
-                  }
-                  if (st?.id || contract?.studentId) {
-                    sessionStorage.setItem("cozum_open_contract_student_id", String(st?.id || contract?.studentId));
-                  }
-                } catch {}
-              }
-              setPage("documents");
-            }}
-            onOpenKarne={(st) =>
-              setShowGlobalKarne({
-                student_name: st.student_name,
-                student_class: st.student_class,
-                score: 450,
-                total_net: 65,
-                overall_rank: 1,
-                class_rank: 1,
-                booklet: "A",
-                exam: { title: "Kurumsal Deneme" }
-              })
-            }
+            classes={data.classes || []}
+            showOptikModal={showGlobalOptikModal}
+            onCloseOptikModal={() => setShowGlobalOptikModal(false)}
+            showKarneModal={showGlobalKarne}
+            onCloseKarneModal={() => setShowGlobalKarne(null)}
+          />
+        )}
+        {page === "attendance" && (
+          <AcademicPage
+            me={me}
+            mode="attendance"
+            classes={data.classes || []}
+            students={data.students || []}
+            teachers={data.teachers || []}
+            API={API}
+            reload={load}
+            guardedOpen={guardedOpen}
+            setSelected={setSelected}
             onNavigate={setPage}
           />
         )}
-        {page === "payments" && <MuhasebeV2Dashboard me={me} data={data} onOpen={guardedOpen} onSelectStudent={setSelected} API={API} reload={load} activeTab={accountingTab} onTabChange={setAccountingTab} onNavigate={setPage} />}
-        {page === "vade" && (
-          <EdesisVadeTakvimi
-            students={data.students}
-            onSelectStudent={setSelected}
+        {page === "schedules" && (
+          <AcademicPage
+            me={me}
+            mode="schedules"
+            classes={data.classes || []}
+            students={data.students || []}
+            teachers={data.teachers || []}
+            API={API}
+            reload={load}
+            guardedOpen={guardedOpen}
+            setSelected={setSelected}
             onNavigate={setPage}
-            onOpenGelir={(g) => {
-              const targetNo = g?.sozlesmeNo || g?.gelirKodu || g?.ogrenciAdiSoyadi;
-              if (targetNo) {
-                try {
-                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
-                  sessionStorage.setItem("cozum_contract_prev_page", "vade");
-                } catch {}
-              }
-              setPage("documents");
-            }}
+          />
+        )}
+        {page === "students" && (
+          <StudentsPage
+            me={me}
+            API={API}
+            search={search}
+            setSearch={setSearch}
+            students={data.students || []}
+            guardedOpen={guardedOpen}
+            setSelected={setSelected}
+            setPage={setPage}
+            setShowGlobalKarne={setShowGlobalKarne}
+          />
+        )}
+        {page === "payments" && (
+          <AccountingPage
+            me={me}
+            data={data}
+            onOpen={guardedOpen}
+            onSelectStudent={setSelected}
+            API={API}
+            reload={load}
+            activeTab={accountingTab}
+            onTabChange={setAccountingTab}
+            onNavigate={setPage}
+          />
+        )}
+        {page === "vade" && (
+          <AccountingPage
+            me={me}
+            data={data}
+            onOpen={guardedOpen}
+            onSelectStudent={setSelected}
+            API={API}
+            reload={load}
+            activeTab="gecikenler"
+            onTabChange={setAccountingTab}
+            onNavigate={setPage}
           />
         )}
         {page === "tahsilat" && (
-          <EdesisTahsilatListesi
-            students={data.students || []}
-            payments={data.payments || []}
-            API={API}
+          <AccountingPage
+            me={me}
+            data={data}
+            onOpen={guardedOpen}
             onSelectStudent={setSelected}
+            API={API}
+            reload={load}
+            activeTab="tahsilatlar"
+            onTabChange={setAccountingTab}
             onNavigate={setPage}
-            onOpenGelir={(g) => {
-              const targetNo = g?.sozlesmeNo || g?.gelirKodu || g?.ogrenciAdiSoyadi || g?.student_name;
-              if (targetNo) {
-                try {
-                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
-                  sessionStorage.setItem("cozum_contract_prev_page", "tahsilat");
-                } catch {}
-              }
-              setPage("documents");
-            }}
           />
         )}
-        {page === "classes" && <Classes me={me} classes={data.classes} students={data.students} onOpen={guardedOpen} onSelect={setSelected} onNavigate={setPage} reload={load} API={API} />}
-        {page === "teachers" && <TeachersPage me={me} API={API} teachers={data.teachers || []} onReload={load} onNavigate={setPage} />}
-        {page === "reminders" && <Reminders />}
         {page === "gelir" && (
-          <EdesisGelirListesi
-            students={data.students}
+          <AccountingPage
+            me={me}
+            data={data}
+            onOpen={guardedOpen}
             onSelectStudent={setSelected}
+            API={API}
+            reload={load}
+            activeTab="gelirler"
+            onTabChange={setAccountingTab}
             onNavigate={setPage}
-            onOpenGelir={(g) => {
-              const targetNo = g?.sozlesmeNo || g?.gelirKodu || g?.ogrenciAdiSoyadi;
-              if (targetNo) {
-                try {
-                  sessionStorage.setItem("cozum_open_contract_no", targetNo);
-                  sessionStorage.setItem("cozum_contract_prev_page", "gelir");
-                } catch {}
-              }
-              setPage("documents");
-            }}
+          />
+        )}
+        {page === "classes" && (
+          <AcademicPage
+            me={me}
+            mode="classes"
+            classes={data.classes || []}
+            students={data.students || []}
+            teachers={data.teachers || []}
+            API={API}
+            reload={load}
+            guardedOpen={guardedOpen}
+            setSelected={setSelected}
+            onNavigate={setPage}
+          />
+        )}
+        {page === "teachers" && (
+          <AcademicPage
+            me={me}
+            mode="teachers"
+            classes={data.classes || []}
+            students={data.students || []}
+            teachers={data.teachers || []}
+            API={API}
+            reload={load}
+            guardedOpen={guardedOpen}
+            setSelected={setSelected}
+            onNavigate={setPage}
           />
         )}
         {page === "documents" && (
-          <EdesisSozlesmeler
+          <ContractsPage
+            me={me}
             contracts={data.contracts || []}
-            students={data.students}
-            payments={data.payments}
+            students={data.students || []}
+            payments={data.payments || []}
             onNavigate={setPage}
           />
         )}
+        {page === "reminders" && <Reminders />}
         {page === "reports" && <Reports me={me} data={data} />}
         {page === "users" && <UsersPage me={me} />}
         {page === "audit" && <AuditPage />}
@@ -1453,97 +1467,7 @@ function MainApp({ me, onLogout }) {
   </div>;
 }
 
-function PageHead({ eyebrow, title, children }) { return <div className="page-head"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1></div><div className="head-actions">{children}</div></div> }
-function Button({ children, onClick, secondary = false, testid }) { return <button data-testid={testid} onClick={onClick} className={secondary ? "btn secondary" : "btn"}>{children}</button> }
-
-function Dashboard({ me, data, totalCollected, totalExpected, totalExpenses, onOpen, onNavigate, onSelect }) {
-  const outstanding = totalExpected - totalCollected;
-  const todayLabel = new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()).toUpperCase();
-  return <>
-    <PageHead eyebrow={todayLabel} title="Genel Bakış">
-      {can(me,"payment_create") && <Button testid="add-payment-dashboard" onClick={() => onOpen("payment")}><Plus size={17} /> Tahsilat Ekle</Button>}
-      {can(me,"student_create") && <Button testid="add-student-dashboard" secondary onClick={() => onOpen("student")}><Users size={17} /> Öğrenci Ekle</Button>}
-    </PageHead>
-    <EdesisDashboardWidgets
-      data={data}
-      onNavigate={onNavigate}
-      onSelectStudent={(id) => {
-        const s = (data.students || []).find((x) => x.id === id);
-        if (s) onSelect(s);
-        else onNavigate("students");
-      }}
-    />
-    <div className="stats-grid">
-      <Stat icon={CircleDollarSign} label="Bu ay tahsilat" value={money(totalCollected)} note="Toplam tahsil edilen" color="blue" trend="+12.8%" onClick={() => onNavigate("payments")} />
-      <Stat icon={Wallet} label="Bekleyen alacak" value={money(outstanding)} note="Öğrencilerden kalan" color="amber" trend="Takipte" onClick={() => onNavigate("reminders")} />
-      <Stat icon={Users} label="Aktif öğrenci" value={(data.students || []).filter(s => s.status === "Aktif" || s.program === "2026-2027" || s.program === "TYT - AYT" || s.program === "LGS Hazırlık").length} note={`${(data.students || []).length} toplam arşiv kaydı`} color="green" trend="62 Kesin Kayıt" onClick={() => onNavigate("students")} />
-      <Stat icon={TrendingDown} label="Bu ay gider" value={money(totalExpenses)} note="Genel toplamdan düşüldü" color="red" trend="Bu ay" onClick={() => onOpen("expense")} />
-    </div>
-    <div className="dashboard-grid">
-      <section className="panel collection-panel" onClick={() => onNavigate("payments")} style={{ cursor: "pointer" }} title="Tahsilat detaylarını aç">
-        <div className="panel-head">
-          <div>
-            <h2>Tahsilat görünümü</h2>
-            <p>Toplam kurs ücretlerinin gerçekleşme durumu</p>
-          </div>
-          <span className="period">Kasa Detayları <ChevronRight size={15} /></span>
-        </div>
-        <div className="progress-wrap">
-          <div className="progress-number"><strong>{Math.round((totalCollected / (totalExpected || 1)) * 100)}%</strong><span>tahsil edildi</span></div>
-          <div className="progress-track"><div style={{ width: `${Math.min(100, (totalCollected / (totalExpected || 1)) * 100)}%` }} /></div>
-          <div className="progress-labels">
-            <span><i className="dot blue" /> Tahsil edilen <b>{money(totalCollected)}</b></span>
-            <span><i className="dot gray" /> Kalan bakiye <b>{money(outstanding)}</b></span>
-          </div>
-        </div>
-        <div className="mini-chart">
-          <div className="chart-y"><span>₺40K</span><span>₺20K</span><span>₺0</span></div>
-          <div className="bars">{[42, 58, 46, 72, 62, 88, 67, 76, 55, 91, 73, 84].map((h, i) => <div key={i} className="bar-col"><div className={i > 8 ? "bar active" : "bar"} style={{ height: `${h}%` }} /><small>{["Oca", "", "", "Şub", "", "", "Mar", "", "", "Nis", "", ""][i]}</small></div>)}</div>
-        </div>
-      </section>
-      <section className="panel alerts-panel">
-        <div className="panel-head">
-          <div>
-            <h2>Ödeme takibi</h2>
-            <p>Yaklaşan ve geciken ödemeler (Tıkla ve incele)</p>
-          </div>
-          <button data-testid="view-all-payments" className="text-btn" onClick={() => onNavigate("reminders")}>Tümünü gör <ChevronRight size={15} /></button>
-        </div>
-        {(data.students || []).slice(0,6).map((s, i) => (
-          <div className="alert-row" key={s.id} onClick={() => onSelect(s)} style={{ cursor: "pointer" }} title={`${s.student_name} detaylarını aç`}>
-            <div className={`status-icon ${i === 1 ? "warning" : "danger"}`}><Bell size={15} /></div>
-            <div className="alert-info">
-              <b>{s.student_name}</b>
-              <span>{i === 1 ? "Yaklaşan taksit" : "Geciken ödeme"} · {s.due_date ? new Date(s.due_date).toLocaleDateString("tr-TR") : "—"}</span>
-            </div>
-            <strong>{money(Math.round((s.total_fee||0) / (s.installment_count || 1)))}</strong>
-            <ChevronRight size={15} />
-          </div>
-        ))}
-      </section>
-    </div>
-    <section className="panel recent-panel">
-      <div className="panel-head">
-        <div>
-          <h2>Son tahsilatlar</h2>
-          <p>Hesabınıza işlenen son hareketler</p>
-        </div>
-        {can(me,"payment_create") && <button data-testid="quick-receipt" className="text-btn" onClick={() => onOpen("payment")}>Makbuz oluştur <Receipt size={15} /></button>}
-      </div>
-      <PaymentTable payments={data.payments || []} students={data.students || []} onSelect={onSelect} />
-    </section>
-  </>;
-}
-
-function Stat({ icon: Icon, label, value, note, color, trend, onClick }) { 
-  return (
-    <div className="stat-card" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }} title={`${label} modülünü aç`}>
-      <div className={`stat-icon ${color}`}><Icon size={19} /></div>
-      <div className="stat-copy"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>
-      <em className={color}>{trend}</em>
-    </div>
-  ); 
-}
+export { PageHead, Button, Stat } from "./pages/DashboardPage";
 
 export const CANCELLED_STUDENT_NAMES = [
   "SERHAT SERBEST",
@@ -1586,1683 +1510,7 @@ export function getStudentCategory(s) {
   return "kesin";
 }
 
-function Students({ me, allStudents, search, onSearch, onOpen, onSelect, onOpenProfile }) {
-  const [activeSegment, setActiveSegment] = useState("kesin"); // "kesin" (default: 61), "yaz", "mezun", "iptal", "debtors", "paid", "all"
-  const [selectedPeriod, setSelectedPeriod] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all");
-  const [selectedClass, setSelectedClass] = useState("all");
-  const [selectedDebt, setSelectedDebt] = useState("all");
-
-  const students = allStudents || [];
-
-  // Summary Metrics
-  const stats = useMemo(() => {
-    let kesin = 0;
-    let yaz = 0;
-    let mezun = 0;
-    let iptal = 0;
-    let deneme = 0;
-    let debtors = 0;
-    let paid = 0;
-    let totalOutstanding = 0;
-
-    students.forEach((s) => {
-      const cat = getStudentCategory(s);
-      if (cat === "kesin") kesin++;
-      else if (cat === "yaz") yaz++;
-      else if (cat === "mezun") mezun++;
-      else if (cat === "iptal") iptal++;
-      else if (cat === "deneme") deneme++;
-
-      const rem = Number(s.remaining || 0);
-      if (rem > 0) {
-        debtors++;
-        totalOutstanding += rem;
-      } else {
-        paid++;
-      }
-    });
-
-    return {
-      kesin,
-      active: kesin, // backwards compatibility
-      yaz,
-      mezun,
-      iptal,
-      deneme,
-      total: students.length,
-      debtors,
-      paid,
-      totalOutstanding,
-    };
-  }, [students]);
-
-  // Unique Classes
-  const classOptions = useMemo(() => {
-    const set = new Set();
-    students.forEach((s) => {
-      if (s.student_class && s.student_class !== "Genel") set.add(s.student_class.trim());
-    });
-    return Array.from(set).sort();
-  }, [students]);
-
-  // Filtering Logic
-  const filteredStudents = useMemo(() => {
-    return students.filter((s) => {
-      const cat = getStudentCategory(s);
-      const rem = Number(s.remaining || 0);
-
-      // 1. Segment Pill Filter
-      if ((activeSegment === "kesin" || activeSegment === "active") && cat !== "kesin") return false;
-      if (activeSegment === "yaz" && cat !== "yaz") return false;
-      if (activeSegment === "mezun" && cat !== "mezun") return false;
-      if (activeSegment === "iptal" && cat !== "iptal") return false;
-      if (activeSegment === "debtors" && rem <= 0) return false;
-      if (activeSegment === "paid" && rem > 0) return false;
-
-      // 2. Academic Period Filter Dropdown
-      if (selectedPeriod !== "all") {
-        if (selectedPeriod === "2026-2027" && cat !== "kesin" && cat !== "iptal" && cat !== "deneme") return false;
-        if (selectedPeriod === "2026-2027-YAZ" && cat !== "yaz") return false;
-        if (selectedPeriod === "2025-2026" && cat !== "mezun") return false;
-      }
-
-      // 3. Status Filter Dropdown
-      if (selectedStatus !== "all") {
-        if (selectedStatus === "Aktif" && cat !== "kesin") return false;
-        if (selectedStatus === "Kesin Kayıt" && cat !== "kesin") return false;
-        if (selectedStatus === "Yaz Kursu" && cat !== "yaz") return false;
-        if (selectedStatus === "Mezun / Geçmiş" && cat !== "mezun") return false;
-        if (selectedStatus === "İptal / Ayrılan" && cat !== "iptal") return false;
-      }
-
-      // 4. Class / Şube Filter Dropdown
-      if (selectedClass !== "all" && s.student_class !== selectedClass) {
-        return false;
-      }
-
-      // 5. Debt Filter Dropdown
-      if (selectedDebt === "has_debt" && rem <= 0) return false;
-      if (selectedDebt === "no_debt" && rem > 0) return false;
-
-      // 6. Search Term
-      if (search && search.trim()) {
-        const haystack = `${s.student_name} ${s.parent_name} ${s.student_phone} ${s.parent_phone} ${s.school} ${s.student_class} ${s.program}`;
-        if (!trIncludes(haystack, search)) return false;
-      }
-
-      return true;
-    });
-  }, [students, activeSegment, selectedPeriod, selectedStatus, selectedClass, selectedDebt, search]);
-
-  const handleResetFilters = () => {
-    setActiveSegment("kesin");
-    setSelectedPeriod("all");
-    setSelectedStatus("all");
-    setSelectedClass("all");
-    setSelectedDebt("all");
-    onSearch("");
-  };
-
-  const hasActiveCustomFilters =
-    (activeSegment !== "kesin" && activeSegment !== "active") ||
-    selectedPeriod !== "all" ||
-    selectedStatus !== "all" ||
-    selectedClass !== "all" ||
-    selectedDebt !== "all" ||
-    (search && search.trim().length > 0);
-
-  return (
-    <>
-      <PageHead eyebrow="KAYITLAR · ÖĞRENCİ VE VELİ YÖNETİMİ" title="Öğrenci Yönetimi">
-        {can(me, "export_data") && (
-          <Button testid="export-students-button" secondary onClick={() => downloadBlob(`${API}/export/students`, `inegol-cozum-ogrenciler.csv`)}>
-            <Download size={16} /> Excel İndir
-          </Button>
-        )}
-        {can(me, "student_create") && (
-          <Button testid="add-student-button" onClick={() => onOpen("student")}>
-            <Plus size={17} /> Yeni Öğrenci
-          </Button>
-        )}
-      </PageHead>
-
-      {/* 4 Edesis Stat KPI Cards */}
-      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", marginBottom: "16px" }}>
-        <Stat
-          icon={Users}
-          label="Kesin Kayıt Öğrenciler"
-          value={stats.kesin}
-          note="2026-2027 Edesis Onaylı"
-          color="green"
-          trend="Aktif Dönem"
-          onClick={() => { setActiveSegment("kesin"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
-        />
-        <Stat
-          icon={Sun}
-          label="Yaz Kursu"
-          value={stats.yaz}
-          note="2026-2027-YAZ Destek"
-          color="blue"
-          trend="Yaz Dönemi"
-          onClick={() => { setActiveSegment("yaz"); setSelectedPeriod("2026-2027-YAZ"); }}
-        />
-        <Stat
-          icon={GraduationCap}
-          label="Mezun / Geçmiş"
-          value={stats.mezun}
-          note="2025-2026 Mezun Arşivi"
-          color="purple"
-          trend="Eski Kayıt"
-          onClick={() => { setActiveSegment("mezun"); setSelectedPeriod("2025-2026"); }}
-        />
-        <Stat
-          icon={CircleDollarSign}
-          label="Taksit Takipte"
-          value={stats.debtors}
-          note={`Toplam Bakiye: ${money(stats.totalOutstanding)}`}
-          color="amber"
-          trend="Kalan Borç"
-          onClick={() => setActiveSegment("debtors")}
-        />
-      </div>
-
-      {/* Edesis Tarzı Segment Hapları */}
-      <div className="student-segments-container">
-        <div className="student-segment-strip">
-          <button
-            className={`student-segment-pill ${(activeSegment === "kesin" || activeSegment === "active") ? "active" : ""}`}
-            onClick={() => { setActiveSegment("kesin"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
-          >
-            🟢 Kesin Kayıt ({stats.kesin})
-          </button>
-          <button
-            className={`student-segment-pill ${activeSegment === "yaz" ? "active" : ""}`}
-            onClick={() => { setActiveSegment("yaz"); setSelectedPeriod("2026-2027-YAZ"); }}
-          >
-            ☀️ Yaz Kursu ({stats.yaz})
-          </button>
-          <button
-            className={`student-segment-pill ${activeSegment === "mezun" ? "active" : ""}`}
-            onClick={() => { setActiveSegment("mezun"); setSelectedPeriod("2025-2026"); }}
-          >
-            🎓 Mezunlar / Geçmiş ({stats.mezun})
-          </button>
-          <button
-            className={`student-segment-pill ${activeSegment === "iptal" ? "active" : ""}`}
-            onClick={() => { setActiveSegment("iptal"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
-          >
-            🚫 İptal / Ayrılan ({stats.iptal})
-          </button>
-          <button
-            className={`student-segment-pill ${activeSegment === "debtors" ? "active" : ""}`}
-            onClick={() => setActiveSegment("debtors")}
-          >
-            ⏳ Borcu Olanlar ({stats.debtors})
-          </button>
-          <button
-            className={`student-segment-pill ${activeSegment === "paid" ? "active" : ""}`}
-            onClick={() => setActiveSegment("paid")}
-          >
-            ✅ Borcu Kapananlar ({stats.paid})
-          </button>
-          <button
-            className={`student-segment-pill ${activeSegment === "all" ? "active" : ""}`}
-            onClick={() => { setActiveSegment("all"); setSelectedPeriod("all"); setSelectedStatus("all"); }}
-          >
-            📁 Tüm Kayıtlar ({stats.total})
-          </button>
-        </div>
-      </div>
-
-      {/* Edesis Gelişmiş Filtre Çubuğu */}
-      <div className="student-filter-toolbar">
-        <div className="student-filter-grid">
-          {/* Arama Inputu */}
-          <div className="inline-search" style={{ width: "100%", margin: 0 }}>
-            <Search size={16} />
-            <input
-              data-testid="student-search-input"
-              placeholder="İsim, veli veya telefon ile ara..."
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-            />
-          </div>
-
-          {/* Dönem Dropdown */}
-          <select
-            className="student-filter-select"
-            value={selectedPeriod}
-            onChange={(e) => {
-              setSelectedPeriod(e.target.value);
-              if (e.target.value !== "all") setActiveSegment("all");
-            }}
-          >
-            <option value="all">📅 Dönem: Hepsi</option>
-            <option value="2026-2027">2026-2027 (Aktif)</option>
-            <option value="2026-2027-YAZ">2026-2027-YAZ</option>
-            <option value="2025-2026">2025-2026</option>
-          </select>
-
-          {/* Durum Dropdown */}
-          <select
-            className="student-filter-select"
-            value={selectedStatus}
-            onChange={(e) => {
-              setSelectedStatus(e.target.value);
-              if (e.target.value !== "all") setActiveSegment("all");
-            }}
-          >
-            <option value="all">🏷️ Durum: Hepsi</option>
-            <option value="Kesin Kayıt">Kesin Kayıt ({stats.kesin})</option>
-            <option value="Yaz Kursu">Yaz Kursu ({stats.yaz})</option>
-            <option value="Mezun / Geçmiş">Mezun / Geçmiş ({stats.mezun})</option>
-            <option value="İptal / Ayrılan">İptal / Ayrılan ({stats.iptal})</option>
-          </select>
-
-          {/* Sınıf / Şube Dropdown */}
-          <select
-            className="student-filter-select"
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-          >
-            <option value="all">🏫 Sınıf: Hepsi</option>
-            {classOptions.map((cls) => (
-              <option key={cls} value={cls}>
-                {cls}
-              </option>
-            ))}
-          </select>
-
-          {/* Bakiye Dropdown */}
-          <select
-            className="student-filter-select"
-            value={selectedDebt}
-            onChange={(e) => {
-              setSelectedDebt(e.target.value);
-              if (e.target.value !== "all") setActiveSegment("all");
-            }}
-          >
-            <option value="all">💰 Bakiye: Hepsi</option>
-            <option value="has_debt">Borcu Olanlar (Bekliyor)</option>
-            <option value="no_debt">Borcu Bitenler (Tamamlandı)</option>
-          </select>
-
-          {/* Sıfırla Butonu */}
-          {hasActiveCustomFilters && (
-            <button
-              onClick={handleResetFilters}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-                padding: "7px 12px",
-                borderRadius: "8px",
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-                fontSize: "12px",
-                fontWeight: "600",
-                cursor: "pointer",
-                color: "var(--muted)",
-                whiteSpace: "nowrap"
-              }}
-              title="Filtreleri Sıfırla"
-            >
-              Sıfırla
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Sonuç Sayısı ve Bilgi Çubuğu */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", padding: "0 4px", flexWrap: "wrap", gap: "8px" }}>
-        <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--muted)" }}>
-          Gösterilen: <strong style={{ color: "var(--foreground)" }}>{filteredStudents.length}</strong> öğrenci
-          {filteredStudents.length !== stats.total && ` (Toplam ${stats.total} kayıt arasından filtrelendi)`}
-        </span>
-        {(activeSegment === "kesin" || activeSegment === "active") && (
-          <span style={{ fontSize: "12px", background: "#dcfce7", color: "#15803d", padding: "3px 10px", borderRadius: "12px", fontWeight: "600" }}>
-            ✓ Edesis Onaylı 2026-2027 Kesin Kayıt ({stats.kesin} Öğrenci)
-          </span>
-        )}
-      </div>
-
-      {/* Tablo */}
-      <section className="panel table-panel">
-        <table>
-          <thead>
-            <tr>
-              <th>ÖĞRENCİ</th>
-              <th>DURUM</th>
-              <th>VELİ / TELEFON</th>
-              <th>OKUL & SINIF</th>
-              <th>ALAN / PROGRAM</th>
-              <th>BAKİYE DURUMU</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStudents.map((s) => {
-              const cat = getStudentCategory(s);
-
-              return (
-                <tr key={s.id} data-testid={`student-row-${s.id}`} onClick={() => onSelect(s)}>
-                  <td>
-                    <div className="person">
-                      {s.photo ? (
-                        <img src={s.photo} alt="" className="student-avatar" style={{ objectFit: "cover" }} />
-                      ) : (
-                        <div className="student-avatar">
-                          {s.student_name.split(" ").map((x) => x[0]).join("").slice(0, 2)}
-                        </div>
-                      )}
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <b>{s.student_name}</b>
-                          {s.student_no && (
-                            <span className="role-pill" style={{ fontSize: 10, padding: "1px 6px", background: "#f1f5f9", color: "#475569" }}>
-                              #{s.student_no}
-                            </span>
-                          )}
-                        </div>
-                        <span>{s.student_phone || "Telefon yok"}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    {cat === "kesin" && <span className="status-badge active-badge">🟢 Kesin Kayıt</span>}
-                    {cat === "yaz" && <span className="status-badge summer-badge">☀️ Yaz Kursu</span>}
-                    {cat === "mezun" && <span className="status-badge archive-badge">🎓 Mezun / Geçmiş</span>}
-                    {cat === "iptal" && <span className="status-badge" style={{ background: "#fee2e2", color: "#b91c1c", fontWeight: 600 }}>🚫 İptal</span>}
-                    {cat === "deneme" && <span className="status-badge" style={{ background: "#f1f5f9", color: "#64748b", fontWeight: 600 }}>📝 Deneme</span>}
-                  </td>
-                  <td>
-                    <div className="cell-stack">
-                      <b>{s.parent_name}</b>
-                      <span>{s.parent_phone}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="cell-stack">
-                      <b>{s.school}</b>
-                      <span>{s.student_class}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="cell-stack">
-                      <span className="program-tag">{s.program}</span>
-                      {s.department && <small style={{ color: "#64748b", fontSize: 11 }}>{s.department}</small>}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="balance">
-                      <b>{money(s.remaining)}</b>
-                      <span className={s.remaining === 0 ? "paid" : "pending"}>
-                        {s.remaining === 0 ? "Tamamlandı" : "Bekliyor"}
-                      </span>
-                    </div>
-                  </td>
-                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        style={{
-                          padding: "4px 8px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          borderRadius: "6px",
-                          color: "#166534",
-                          background: "#f0fdf4",
-                          border: "1px solid #bbf7d0",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelect(s);
-                        }}
-                        title="Edesis Gelir & Taksit Detayını Aç"
-                      >
-                        <FileText size={13} /> Gelir Detay
-                      </button>
-                      {onOpenProfile && (
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          style={{
-                            padding: "4px 7px",
-                            borderRadius: "6px",
-                            color: "#1d4ed8",
-                            background: "#eff6ff",
-                            border: "1px solid #bfdbfe",
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center"
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenProfile(s);
-                          }}
-                          title="Öğrenci Akademik & Devamsızlık Profili"
-                        >
-                          <User size={13} />
-                        </button>
-                      )}
-                      <button
-                        data-testid={`student-detail-${s.id}`}
-                        className="row-arrow"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelect(s);
-                        }}
-                        title="Gelir Detay"
-                      >
-                        <ChevronRight size={17} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {filteredStudents.length === 0 && (
-              <tr>
-                <td colSpan={7} style={{ textAlign: "center", padding: "36px", color: "var(--muted)" }}>
-                  <Users size={32} style={{ margin: "0 auto 8px auto", opacity: 0.4, display: "block" }} />
-                  Belirtilen kriterlere ve filtrelere uygun öğrenci kaydı bulunamadı.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
-    </>
-  );
-}
-
-function Payments({ me, data, onOpen }) {
-  const [selectedRegister, setSelectedRegister] = useState("all");
-  const [selectedReceiptPayment, setSelectedReceiptPayment] = useState(null);
-  const [selectedPromissoryStudent, setSelectedPromissoryStudent] = useState(null);
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [expenseTitle, setExpenseTitle] = useState("");
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseCategory, setExpenseCategory] = useState("Genel");
-  const [expenseDate, setExpenseDate] = useState(today());
-  const [expenses, setExpenses] = useState(data.expenses || []);
-
-  const payments = data.payments || [];
-  const students = data.students || [];
-
-  // Kasa Defteri Ayrımı
-  const registers = useMemo(() => {
-    let nakit = 0;
-    let pos = 0;
-    let banka = 0;
-    let senet = 0;
-
-    payments.forEach((p) => {
-      const m = (p.method || "").toLowerCase();
-      const amt = Number(p.amount || 0);
-      if (m.includes("nakit") || m.includes("elden") || m.includes("kasa")) {
-        nakit += amt;
-      } else if (m.includes("kart") || m.includes("pos")) {
-        pos += amt;
-      } else if (m.includes("bank") || m.includes("havale") || m.includes("eft")) {
-        banka += amt;
-      } else if (m.includes("senet") || m.includes("çek")) {
-        senet += amt;
-      } else {
-        nakit += amt;
-      }
-    });
-
-    const totalExpenseSum = expenses.reduce((a, e) => a + Number(e.amount || 0), 0);
-    return { nakit, pos, banka, senet, totalExpenseSum };
-  }, [payments, expenses]);
-
-  const filteredPayments = useMemo(() => {
-    if (selectedRegister === "all") return payments;
-    return payments.filter((p) => {
-      const m = (p.method || "").toLowerCase();
-      if (selectedRegister === "nakit") return m.includes("nakit") || m.includes("elden") || (!m.includes("kart") && !m.includes("pos") && !m.includes("bank") && !m.includes("havale") && !m.includes("senet"));
-      if (selectedRegister === "pos") return m.includes("kart") || m.includes("pos");
-      if (selectedRegister === "banka") return m.includes("bank") || m.includes("havale") || m.includes("eft");
-      if (selectedRegister === "senet") return m.includes("senet") || m.includes("çek");
-      return true;
-    });
-  }, [payments, selectedRegister]);
-
-  const handleAddExpense = async (e) => {
-    e.preventDefault();
-    if (!expenseTitle || !expenseAmount) return;
-    try {
-      const res = await axios.post(`${API}/expenses`, {
-        title: expenseTitle,
-        amount: parseFloat(expenseAmount),
-        category: expenseCategory,
-        expense_date: expenseDate
-      });
-      setExpenses((prev) => [
-        {
-          id: res.data?.id || `exp-${Date.now()}`,
-          title: expenseTitle,
-          amount: parseFloat(expenseAmount),
-          category: expenseCategory,
-          expense_date: expenseDate
-        },
-        ...prev
-      ]);
-      setShowExpenseModal(false);
-      setExpenseTitle("");
-      setExpenseAmount("");
-      alert("Kurum gideri başarıyla kaydedildi.");
-    } catch (err) {
-      alert("Gider kaydedilemedi: " + err.message);
-    }
-  };
-
-  const handleNotifyOverdue = () => {
-    const overdueStudents = students.filter((s) => Number(s.remaining || 0) > 0);
-    if (overdueStudents.length === 0) {
-      alert("Vadesi geçmiş borcu olan öğrenci bulunmuyor.");
-      return;
-    }
-    const target = overdueStudents[0];
-    const msg = `Sayın Velimiz, Özel İnegöl Çözüm Kursu'nda kayıtlı öğrencimiz ${target.student_name} için kalan taksit bakiyesi ${money(target.remaining)}'dir. Kurumumuz muhasebe birimine ödeme detayları için başvurmanızı rica ederiz. İletişim: 0224 715 00 02`;
-    openWhatsApp(target.parent_phone, msg);
-    if (overdueStudents.length > 1) {
-      alert(`Toplam ${overdueStudents.length} bakiye sahibi öğrenci tespit edildi. İlk öğrencinin (${target.student_name}) WhatsApp mesajı hazırlandı.`);
-    }
-  };
-
-  return (
-    <>
-      <PageHead eyebrow="FİNANS · KASA DEFTERİ & TAHSİLAT" title="Kasa Defteri & Tahsilat Yönetimi">
-        <button 
-          className="btn secondary" 
-          onClick={handleNotifyOverdue}
-          style={{ display: "flex", gap: "6px", alignItems: "center", borderColor: "#16a34a", color: "#16a34a" }}
-          title="Vadesi geçmiş bakiye sahiplerine tek tıkla WhatsApp borç hatırlatması açar"
-        >
-          <MessageCircle size={16} /> Veliye WhatsApp Borç Hatırlat
-        </button>
-        <button 
-          className="btn secondary" 
-          onClick={() => setShowExpenseModal(true)}
-          style={{ display: "flex", gap: "6px", alignItems: "center" }}
-        >
-          <TrendingDown size={16} color="var(--danger)" /> Gider Ekle
-        </button>
-        {can(me, "export_data") && (
-          <Button testid="export-payments-button" secondary onClick={() => downloadBlob(`${API}/export/payments`, `inegol-cozum-tahsilat.csv`)}>
-            <Download size={16} /> Excel İndir
-          </Button>
-        )}
-        {can(me, "payment_create") && (
-          <Button testid="add-payment-button" onClick={() => onOpen("payment")}>
-            <Plus size={17} /> Tahsilat Ekle
-          </Button>
-        )}
-      </PageHead>
-
-      {/* 4 Kasa Defteri Ayrımı */}
-      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", marginBottom: "16px" }}>
-        <Stat 
-          icon={Wallet} 
-          label="Nakit Kasa" 
-          value={money(registers.nakit)} 
-          note="Elden Tahsil Edilen" 
-          color="green" 
-          trend="Aktif Kasa"
-          onClick={() => setSelectedRegister("nakit")} 
-        />
-        <Stat 
-          icon={CircleDollarSign} 
-          label="POS / Kredi Kartı" 
-          value={money(registers.pos)} 
-          note="Banka POS Çekimleri" 
-          color="blue" 
-          trend="Bankada"
-          onClick={() => setSelectedRegister("pos")} 
-        />
-        <Stat 
-          icon={TrendingUp} 
-          label="Banka Transferi" 
-          value={money(registers.banka)} 
-          note="Havale / EFT Kasası" 
-          color="blue" 
-          trend="Hesapta"
-          onClick={() => setSelectedRegister("banka")} 
-        />
-        <Stat 
-          icon={FileText} 
-          label="Senet / Çek Kasası" 
-          value={money(registers.senet)} 
-          note="Vadeli Matbu Senetler" 
-          color="purple" 
-          trend="Portföyde"
-          onClick={() => setSelectedRegister("senet")} 
-        />
-      </div>
-
-      {/* Kasa Filtreleme Sekmeleri */}
-      <div className="attendance-controls-bar" style={{ marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--muted)" }}>Kasa Filtresi:</span>
-          {["all", "nakit", "pos", "banka", "senet"].map((reg) => (
-            <button
-              key={reg}
-              className={`summary-pill ${selectedRegister === reg ? "active" : ""}`}
-              style={{
-                cursor: "pointer",
-                background: selectedRegister === reg ? "var(--primary)" : "var(--surface)",
-                color: selectedRegister === reg ? "#fff" : "var(--foreground)",
-                border: "1px solid var(--border)",
-                padding: "4px 12px",
-                borderRadius: "20px",
-                fontSize: "12px",
-                fontWeight: "600"
-              }}
-              onClick={() => setSelectedRegister(reg)}
-            >
-              {reg === "all" ? "Tüm Kasalar" : reg === "nakit" ? "Nakit Kasa" : reg === "pos" ? "POS / Kredi Kartı" : reg === "banka" ? "Banka Havale" : "Senet / Çek"}
-            </button>
-          ))}
-        </div>
-        <span className="result-count">{filteredPayments.length} Tahsilat Hareketi</span>
-      </div>
-
-      <section className="panel table-panel">
-        <div className="panel-head">
-          <div>
-            <h2>Kasa ve Tahsilat Hareketleri</h2>
-            <p>Her tahsilat için resmi makbuz veya matbu senet basımı yapabilirsiniz</p>
-          </div>
-        </div>
-        <PaymentTable 
-          payments={filteredPayments} 
-          students={students} 
-          onSelect={(s) => setSelectedPromissoryStudent(s)}
-          onOpenReceipt={(p) => setSelectedReceiptPayment(p)}
-          onOpenPromissory={(s) => setSelectedPromissoryStudent(s)}
-        />
-      </section>
-
-      {/* Gider Ekle Modal */}
-      {showExpenseModal && (
-        <div className="modal-backdrop" onClick={() => setShowExpenseModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "440px" }}>
-            <div className="modal-head">
-              <h2>Kurum Gideri Ekle</h2>
-              <button className="icon-btn" onClick={() => setShowExpenseModal(false)}><X size={18} /></button>
-            </div>
-            <form onSubmit={handleAddExpense}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label>Gider Başlığı *</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="Örn: Ekim Ayı Bina Kirası, Fotokopi Kağıdı..." 
-                    value={expenseTitle} 
-                    onChange={(e) => setExpenseTitle(e.target.value)} 
-                  />
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Tutar (TL) *</label>
-                    <input 
-                      type="number" 
-                      required 
-                      step="any" 
-                      placeholder="0.00" 
-                      value={expenseAmount} 
-                      onChange={(e) => setExpenseAmount(e.target.value)} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Kategori</label>
-                    <select value={expenseCategory} onChange={(e) => setExpenseCategory(e.target.value)}>
-                      <option value="Kira">Kira</option>
-                      <option value="Personel / Öğretmen">Personel / Öğretmen</option>
-                      <option value="Kırtasiye / Yayın">Kırtasiye / Yayın</option>
-                      <option value="Fatura / Enerji">Fatura / Enerji</option>
-                      <option value="İkram / Temizlik">İkram / Temizlik</option>
-                      <option value="Genel">Genel</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>Tarih</label>
-                  <input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
-                </div>
-              </div>
-              <div className="modal-foot">
-                <button type="button" className="btn secondary" onClick={() => setShowExpenseModal(false)}>İptal</button>
-                <button type="submit" className="btn">Gideri Kaydet</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Tahsilat Makbuzu Modalı */}
-      {selectedReceiptPayment && (
-        <ReceiptModal 
-          payment={selectedReceiptPayment} 
-          student={students.find((s) => s.id === selectedReceiptPayment.student_id)} 
-          onClose={() => setSelectedReceiptPayment(null)} 
-        />
-      )}
-
-      {/* Matbu Senet Modalı */}
-      {selectedPromissoryStudent && (
-        <PromissoryNoteModal 
-          student={selectedPromissoryStudent} 
-          onClose={() => setSelectedPromissoryStudent(null)} 
-        />
-      )}
-    </>
-  );
-}
-
-function PaymentTable({ payments, students, onSelect, onOpenReceipt, onOpenPromissory }) {
-  const list = payments.length ? payments : students.map((s, i) => ({
-    id: `p${i}`,
-    student_id: s.id,
-    payment_date: today(),
-    method: i % 2 === 0 ? "Nakit Kasa" : "Kredi Kartı",
-    note: "Dönem taksit ödemesi",
-    amount: s.paid_amount || 4000
-  }));
-
-  return (
-    <>
-      <div className="desktop-only-table table-responsive">
-        <table>
-          <thead>
-            <tr>
-              <th>ÖĞRENCİ</th>
-              <th>TARİH</th>
-              <th>KASA / YÖNTEM</th>
-              <th>AÇIKLAMA</th>
-              <th>TUTAR</th>
-              <th>DURUM</th>
-              <th style={{ textAlign: "right" }}>MAKBUZ & SENET</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((p) => {
-              const s = students.find((x) => x.id === p.student_id);
-              return (
-                <tr key={p.id}>
-                  <td onClick={() => { if (onSelect && s) onSelect(s); }} style={{ cursor: "pointer" }}>
-                    <div className="person">
-                      <div className="student-avatar small">
-                        {s?.student_name?.split(" ").map((x) => x[0]).join("") || "?"}
-                      </div>
-                      <div>
-                        <b>{s?.student_name || "Öğrenci"}</b>
-                        <span style={{ fontSize: "11px", color: "var(--muted)", display: "block" }}>
-                          {s?.student_class || "Şube yok"}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{new Date(p.payment_date).toLocaleDateString("tr-TR")}</td>
-                  <td><span className="method-tag">{p.method || "Nakit Kasa"}</span></td>
-                  <td className="muted-cell">{p.note || "Eğitim taksiti"}</td>
-                  <td><b className="amount">{money(p.amount)}</b></td>
-                  <td><span className="status-pill success">İşlendi ✓</span></td>
-                  <td style={{ textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                      <button 
-                        className="btn secondary" 
-                        style={{ padding: "4px 8px", fontSize: "11px", display: "flex", gap: "4px", alignItems: "center" }}
-                        title="Resmi Tahsilat Makbuzunu Yazdır"
-                        onClick={() => onOpenReceipt && onOpenReceipt(p)}
-                      >
-                        <Receipt size={13} color="var(--primary)" /> Makbuz
-                      </button>
-                      {s && (
-                        <button 
-                          className="btn secondary" 
-                          style={{ padding: "4px 8px", fontSize: "11px", display: "flex", gap: "4px", alignItems: "center" }}
-                          title="Matbu Senet Koçanı Yazdır"
-                          onClick={() => onOpenPromissory && onOpenPromissory(s)}
-                        >
-                          <FileText size={13} color="#7c3aed" /> Senet
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mobile-only-cards payments-mobile-list">
-        {list.map((p) => {
-          const s = students.find((x) => x.id === p.student_id);
-          return (
-            <div key={p.id} className="mobile-data-card payment-card" data-testid={`payment-card-${p.id}`}>
-              <div className="payment-card-top">
-                <div className="person" onClick={() => { if (onSelect && s) onSelect(s); }} style={{ cursor: "pointer" }}>
-                  <div className="student-avatar small">
-                    {s?.student_name?.split(" ").map((x) => x[0]).join("") || "?"}
-                  </div>
-                  <div>
-                    <b>{s?.student_name || "—"}</b>
-                    <span className="card-subtext">{new Date(p.payment_date).toLocaleDateString("tr-TR")}</span>
-                  </div>
-                </div>
-                <b className="amount green-amount">{money(p.amount)}</b>
-              </div>
-              <div className="payment-card-bottom">
-                <div className="payment-meta-tags">
-                  <span className="method-tag">{p.method}</span>
-                  <span className="card-note">{p.note || "Tahsilat kaydı"}</span>
-                </div>
-                <div style={{ display: "flex", gap: "6px" }}>
-                  <button 
-                    className="btn secondary" 
-                    style={{ padding: "3px 8px", fontSize: "11px" }}
-                    onClick={() => onOpenReceipt && onOpenReceipt(p)}
-                  >
-                    Makbuz
-                  </button>
-                  {s && (
-                    <button 
-                      className="btn secondary" 
-                      style={{ padding: "3px 8px", fontSize: "11px" }}
-                      onClick={() => onOpenPromissory && onOpenPromissory(s)}
-                    >
-                      Senet
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-function EditClassModal({ cls, onClose, API, onSaved }) {
-  const [name, setName] = useState(cls?.name || "");
-  const [level, setLevel] = useState(cls?.level || "");
-  const [room, setRoom] = useState(cls?.room || "");
-  const [capacity, setCapacity] = useState(cls?.capacity || 20);
-  const [teacher, setTeacher] = useState(cls?.teacher || "");
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) { setErr("Sınıf adı boş bırakılamaz"); return; }
-    setSaving(true); setErr("");
-    try {
-      await axios.put(`${API}/classes/${cls.id}`, { name, level, room, capacity: Number(capacity), teacher });
-      if (onSaved) onSaved();
-      onClose();
-    } catch (e) {
-      setErr(e.response?.data?.detail || "Sınıf güncellenemedi.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: "480px" }}>
-        <div className="modal-head">
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <BookOpen size={18} color="#2563eb" />
-            <h2>Sınıf / Şube Düzenle: {cls?.name}</h2>
-          </div>
-          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            {err && <div className="report-msg" style={{ background: "#fee2e2", color: "#dc2626", marginBottom: "12px" }}>{err}</div>}
-            <div className="form-group">
-              <label>Sınıf / Şube Adı:</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label>Seviye (Örn: 11. Sınıf, LGS Hazırlık):</label>
-              <input type="text" value={level} onChange={e => setLevel(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Derslik / Oda:</label>
-              <input type="text" value={room} onChange={e => setRoom(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Kontenjan / Kapasite:</label>
-              <input type="number" min="1" max="100" value={capacity} onChange={e => setCapacity(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Sorumlu Sınıf Öğretmeni:</label>
-              <input type="text" value={teacher} onChange={e => setTeacher(e.target.value)} />
-            </div>
-          </div>
-          <div className="modal-foot">
-            <button type="button" className="btn secondary" onClick={onClose}>Vazgeç</button>
-            <button type="submit" className="btn" disabled={saving}>
-              {saving ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function Classes({ me, classes = [], onOpen, students = [], onSelect, onNavigate, reload, API }) {
-  const [selectedClass, setSelectedClass] = useState(null);
-  const [inspectingClass, setInspectingClass] = useState(null);
-  const [editingClass, setEditingClass] = useState(null);
-  const [classSearch, setClassSearch] = useState("");
-  const [studentSearch, setStudentSearch] = useState("");
-  const [classFilterCategory, setClassFilterCategory] = useState("all"); // 'all' | 'with_students' | 'primary' | 'middle' | 'high'
-  const rosterRef = useRef(null);
-
-  // Compute enrolled student count and list for each class
-  const classesWithCounts = useMemo(() => {
-    return classes.map(c => {
-      const enrolled = students.filter(s => s.program === c.name || s.student_class === c.name);
-      return {
-        ...c,
-        enrolledStudents: enrolled,
-        enrolledCount: enrolled.length,
-        occupancyPct: c.capacity > 0 ? Math.min(100, Math.round((enrolled.length / c.capacity) * 100)) : 0
-      };
-    });
-  }, [classes, students]);
-
-  // Set default selectedClass to the class with the most students (e.g. 7-A, 3-A, 8-A)
-  const activeClass = useMemo(() => {
-    if (selectedClass) {
-      const found = classesWithCounts.find(c => c.id === selectedClass.id);
-      if (found) return found;
-    }
-    const sorted = [...classesWithCounts].sort((a, b) => b.enrolledCount - a.enrolledCount);
-    return sorted[0] || classes[0] || null;
-  }, [selectedClass, classesWithCounts, classes]);
-
-  const classesWithStudentsCount = useMemo(() => {
-    return classesWithCounts.filter(c => c.enrolledCount > 0).length;
-  }, [classesWithCounts]);
-
-  // Filter classes by category and search
-  const filteredClasses = useMemo(() => {
-    return classesWithCounts.filter(c => {
-      // Category filter
-      if (classFilterCategory === "with_students" && c.enrolledCount === 0) return false;
-      if (classFilterCategory === "primary") {
-        const lvl = (c.level || "").toLowerCase();
-        const nm = c.name.toLowerCase();
-        if (!(lvl.includes("1.") || lvl.includes("2.") || lvl.includes("3.") || lvl.includes("4.") || /^[1-4]/.test(nm))) return false;
-      }
-      if (classFilterCategory === "middle") {
-        const lvl = (c.level || "").toLowerCase();
-        const nm = c.name.toLowerCase();
-        if (!(lvl.includes("5.") || lvl.includes("6.") || lvl.includes("7.") || lvl.includes("8.") || /^[5-8]/.test(nm) || nm.includes("lgs"))) return false;
-      }
-      if (classFilterCategory === "high") {
-        const lvl = (c.level || "").toLowerCase();
-        const nm = c.name.toLowerCase();
-        if (!(lvl.includes("9.") || lvl.includes("10.") || lvl.includes("11.") || lvl.includes("12.") || lvl.includes("mezun") || nm.includes("tyt") || nm.includes("ayt") || nm.includes("yks"))) return false;
-      }
-
-      // Search term
-      if (classSearch.trim()) {
-        const matches = trIncludes(c.name, classSearch) ||
-                        trIncludes(c.level, classSearch) ||
-                        trIncludes(c.room, classSearch) ||
-                        trIncludes(c.teacher, classSearch);
-        if (!matches) return false;
-      }
-
-      return true;
-    });
-  }, [classesWithCounts, classFilterCategory, classSearch]);
-
-  const enrolledStudents = useMemo(() => {
-    if (!activeClass) return [];
-    return students.filter(s => (s.program === activeClass.name || s.student_class === activeClass.name));
-  }, [students, activeClass]);
-
-  const filteredClassStudents = useMemo(() => {
-    return enrolledStudents.filter(s => 
-      trIncludes(`${s.student_name} ${s.student_no} ${s.parent_name} ${s.parent_phone} ${s.student_tc || ""}`, studentSearch)
-    );
-  }, [enrolledStudents, studentSearch]);
-
-  const handleDeleteClass = async (c) => {
-    if (!window.confirm(`"${c.name}" sınıfını silmek istediğinize emin misiniz?`)) return;
-    try {
-      await axios.delete(`${API}/classes/${c.id}`);
-      if (reload) reload();
-      if (selectedClass?.id === c.id) setSelectedClass(null);
-    } catch (err) {
-      alert("Sınıf silinirken hata: " + (err.response?.data?.detail || err.message));
-    }
-  };
-
-  const handleCardClick = (c) => {
-    setSelectedClass(c);
-    setInspectingClass(c);
-  };
-
-  const handleInlineSelect = (c) => {
-    setSelectedClass(c);
-    setTimeout(() => {
-      rosterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 80);
-  };
-
-  return <>
-    <PageHead eyebrow="EĞİTİM · DERSLİKLER VE ŞUBE YÖNETİMİ" title="Sınıflar & Şubeler">
-      {can(me,"class_create") && <Button testid="add-class-button" onClick={() => onOpen("class")}><Plus size={17} /> Sınıf Oluştur</Button>}
-    </PageHead>
-
-    {/* Filtre ve Arama Çubuğu */}
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-        <button 
-          className={`btn small ${classFilterCategory === "all" ? "" : "secondary"}`}
-          onClick={() => setClassFilterCategory("all")}
-          style={{ fontWeight: "600", fontSize: "12px" }}
-        >
-          🔵 Tüm Şubeler ({classes.length})
-        </button>
-        <button 
-          className={`btn small ${classFilterCategory === "with_students" ? "" : "secondary"}`}
-          onClick={() => setClassFilterCategory("with_students")}
-          style={{ fontWeight: "600", fontSize: "12px" }}
-        >
-          🟢 Dolu / Öğrencili Şubeler ({classesWithStudentsCount})
-        </button>
-        <button 
-          className={`btn small ${classFilterCategory === "primary" ? "" : "secondary"}`}
-          onClick={() => setClassFilterCategory("primary")}
-          style={{ fontWeight: "600", fontSize: "12px" }}
-        >
-          🎒 İlkokul (1-4)
-        </button>
-        <button 
-          className={`btn small ${classFilterCategory === "middle" ? "" : "secondary"}`}
-          onClick={() => setClassFilterCategory("middle")}
-          style={{ fontWeight: "600", fontSize: "12px" }}
-        >
-          🎓 Ortaokul & LGS (5-8)
-        </button>
-        <button 
-          className={`btn small ${classFilterCategory === "high" ? "" : "secondary"}`}
-          onClick={() => setClassFilterCategory("high")}
-          style={{ fontWeight: "600", fontSize: "12px" }}
-        >
-          📚 Lise & YKS (9-12 / Mezun)
-        </button>
-      </div>
-
-      <div className="top-search" style={{ width: "300px", margin: 0 }}>
-        <Search size={15} />
-        <input 
-          placeholder="Şube adı, seviye, derslik veya öğretmen ara..." 
-          value={classSearch} 
-          onChange={e => setClassSearch(e.target.value)} 
-          style={{ fontSize: "12px" }}
-        />
-      </div>
-    </div>
-
-    {/* Sınıf Kartları Grid */}
-    <div className="class-grid">
-      {filteredClasses.map(c => {
-        const isSelected = activeClass?.id === c.id;
-        return (
-          <div 
-            className={`class-card ${isSelected ? "selected-card" : ""}`} 
-            key={c.id}
-            onClick={() => handleCardClick(c)}
-            style={{
-              cursor: "pointer",
-              position: "relative",
-              border: isSelected ? "2px solid #2563eb" : "1px solid var(--line)",
-              boxShadow: isSelected ? "0 6px 18px rgba(37,99,235,0.18)" : "0 2px 6px rgba(0,0,0,0.04)",
-              transition: "all 0.2s ease",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between"
-            }}
-          >
-            <div>
-              <div className="class-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div className="class-icon"><BookOpen size={20} /></div>
-                  <span className="active-label">AKTİF</span>
-                  <span 
-                    className="badge" 
-                    style={{ 
-                      background: c.enrolledCount > 0 ? "#dcfce7" : "#f1f5f9", 
-                      color: c.enrolledCount > 0 ? "#166534" : "#64748b", 
-                      fontSize: "11px", 
-                      fontWeight: "700" 
-                    }}
-                  >
-                    👥 {c.enrolledCount} Öğrenci
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: "4px" }} onClick={e => e.stopPropagation()}>
-                  <button 
-                    className="icon-btn" 
-                    title="Sınıfı Düzenle"
-                    style={{ padding: "4px" }}
-                    onClick={() => setEditingClass(c)}
-                  >
-                    <Edit size={14} color="#2563eb" />
-                  </button>
-                  <button 
-                    className="icon-btn" 
-                    title="Sınıfı Sil"
-                    style={{ padding: "4px" }}
-                    onClick={() => handleDeleteClass(c)}
-                  >
-                    <Trash2 size={14} color="#ef4444" />
-                  </button>
-                </div>
-              </div>
-
-              <h2 style={{ margin: "10px 0 4px 0", fontSize: "18px", fontWeight: "800" }}>{c.name}</h2>
-              <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>{c.level || "—"} · {c.room || "Derslik"}</p>
-              
-              <div className="class-meta" style={{ marginTop: "10px" }}>
-                <span><Users size={14} /> {c.capacity} kişilik ({c.enrolledCount} kayıtlı)</span>
-                <span>{c.teacher || "Öğretmen Atanmadı"}</span>
-              </div>
-
-              <div className="class-progress" style={{ marginTop: "10px" }}>
-                <div><span>Doluluk</span><b>%{c.occupancyPct}</b></div>
-                <div className="progress-track"><div style={{ width: `${c.occupancyPct}%` }} /></div>
-              </div>
-
-              {/* Öğrenci Avatarları Önizlemesi */}
-              {c.enrolledCount > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "12px", paddingTop: "8px", borderTop: "1px dashed var(--line)" }}>
-                  <div style={{ display: "flex", alignItems: "center" }}>
-                    {c.enrolledStudents.slice(0, 5).map((st, i) => (
-                      <div 
-                        key={st.id || i}
-                        style={{ 
-                          width: 24, 
-                          height: 24, 
-                          borderRadius: "50%", 
-                          background: "#3b82f6", 
-                          color: "#fff", 
-                          fontSize: "10px", 
-                          fontWeight: "700", 
-                          display: "flex", 
-                          alignItems: "center", 
-                          justifyContent: "center",
-                          border: "2px solid #fff", 
-                          marginLeft: i > 0 ? "-6px" : 0 
-                        }}
-                        title={st.student_name}
-                      >
-                        {st.student_name ? st.student_name[0] : "?"}
-                      </div>
-                    ))}
-                  </div>
-                  {c.enrolledCount > 5 && (
-                    <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: "600" }}>
-                      +{c.enrolledCount - 5} diğer
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Buton ve Eylem Barı */}
-            <div style={{ marginTop: "14px", display: "grid", gap: "6px" }} onClick={e => e.stopPropagation()}>
-              <button 
-                className="btn small"
-                style={{ 
-                  width: "100%", 
-                  justifyContent: "center", 
-                  background: isSelected ? "#1d4ed8" : "#2563eb",
-                  fontWeight: "600",
-                  fontSize: "12px"
-                }}
-                onClick={() => handleCardClick(c)}
-              >
-                <Users size={14} /> Öğrenci Kadrosunu İncele ({c.enrolledCount})
-              </button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-
-    {/* Seçili Sınıfın Detay & Öğrenci Yönetim Paneli */}
-    {activeClass && (
-      <div ref={rosterRef} className="panel" style={{ marginTop: "28px", padding: "22px 26px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", borderBottom: "1px solid var(--line)", paddingBottom: "16px", marginBottom: "16px" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "800" }}>{activeClass.name} Öğrenci Kadrosu</h2>
-              <span className="badge" style={{ background: "#dbeafe", color: "#1d4ed8", padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "700" }}>
-                {enrolledStudents.length} Kayıtlı Öğrenci
-              </span>
-              <span style={{ background: "#f1f5f9", color: "#475569", padding: "4px 10px", borderRadius: "12px", fontSize: "12px" }}>
-                {activeClass.level || "Genel"} · {activeClass.room || "Derslik"}
-              </span>
-            </div>
-            <p style={{ margin: "6px 0 0 0", color: "#64748b", fontSize: "13px" }}>
-              Kontenjan: <b>{activeClass.capacity}</b> · Sınıf Öğretmeni: <b>{activeClass.teacher || "—"}</b>
-            </p>
-          </div>
-
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <button 
-              className="btn small"
-              onClick={() => setInspectingClass(activeClass)} 
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#1e293b", color: "#fff", fontWeight: "600" }}
-            >
-              <Users size={14} /> Detaylı Sınıf Portalı & A4 Yazdır
-            </button>
-            <button className="btn small secondary" onClick={() => setEditingClass(activeClass)} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-              <Edit size={14} /> Sınıfı Düzenle
-            </button>
-            <button className="btn small secondary" onClick={() => onNavigate && onNavigate("attendance")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-              <UserCheck size={14} /> Yoklama Al
-            </button>
-            <button className="btn small secondary" onClick={() => onNavigate && onNavigate("schedules")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-              <Clock size={14} /> Ders Programı
-            </button>
-            <button className="btn small" onClick={() => onOpen("student")} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "#2563eb" }}>
-              <Plus size={14} /> Yeni Öğrenci Ekle
-            </button>
-          </div>
-        </div>
-
-        {/* Öğrenci Arama ve Liste */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
-          <div className="top-search" style={{ width: "320px", margin: 0 }}>
-            <Search size={15} />
-            <input 
-              placeholder="Bu sınıfta öğrenci, veli, telefon ara..." 
-              value={studentSearch} 
-              onChange={e => setStudentSearch(e.target.value)} 
-            />
-          </div>
-          <span style={{ fontSize: "12px", color: "#64748b" }}>
-            Öğrenci satırına tıklayarak doğrudan tam <b>Öğrenci Bilgi Sayfasını</b> açabilirsiniz.
-          </span>
-        </div>
-
-        {filteredClassStudents.length > 0 ? (
-          <div style={{ border: "1px solid var(--line)", borderRadius: "10px", overflow: "hidden" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px" }}>
-              <thead>
-                <tr>
-                  <th>No</th>
-                  <th>Öğrenci Adı Soyadı</th>
-                  <th>Okulu</th>
-                  <th>Veli & İletişim</th>
-                  <th>Taksit / Bakiye</th>
-                  <th>Durum</th>
-                  <th style={{ textAlign: "right" }}>İşlem</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredClassStudents.map(s => {
-                  const rem = Math.max(0, (Number(s.total_fee) || 0) - (Number(s.paid_amount) || 0));
-                  return (
-                    <tr 
-                      key={s.id} 
-                      onClick={() => onSelect && onSelect(s)}
-                      style={{ cursor: "pointer", transition: "background 0.15s" }}
-                    >
-                      <td><b style={{ color: "#2563eb", fontFamily: "monospace" }}>#{s.student_no || "—"}</b></td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <div className="student-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
-                            {s.student_name?.split(" ").map(x=>x[0]).join("").slice(0,2)}
-                          </div>
-                          <div>
-                            <b style={{ color: "#1e293b", display: "block" }}>{s.student_name}</b>
-                            {s.student_tc && <span style={{ fontSize: "11px", color: "#64748b" }}>TC: {s.student_tc}</span>}
-                          </div>
-                        </div>
-                      </td>
-                      <td><span style={{ color: "#475569" }}>{s.school || "—"}</span></td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <div>
-                            <span>{s.parent_name}</span>
-                            <span style={{ display: "block", fontSize: "11px", color: "#64748b" }}>{s.parent_phone}</span>
-                          </div>
-                          {s.parent_phone && (
-                            <a 
-                              href={`https://wa.me/${s.parent_phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Sayın ${s.parent_name}, Özel İnegöl Çözüm Kursu olarak ${s.student_name} isimli öğrencimizin sınıfı (${activeClass.name}) hakkında bilgilendirmedir.`)}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              title="Veliye WhatsApp Mesajı Gönder"
-                              style={{ 
-                                display: "inline-flex", 
-                                alignItems: "center", 
-                                justifyContent: "center", 
-                                width: 24, 
-                                height: 24, 
-                                borderRadius: "6px", 
-                                background: "#22c55e", 
-                                color: "#fff",
-                                textDecoration: "none"
-                              }}
-                            >
-                              <MessageCircle size={13} />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <b style={{ color: rem > 0 ? "#ef4444" : "#16a34a" }}>
-                          {rem > 0 ? `${rem.toLocaleString("tr-TR")} TL Kalan` : "Ödendi ✓"}
-                        </b>
-                      </td>
-                      <td>
-                        <span className="status-pill success">{s.status || "Kayıtlı"}</span>
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <button 
-                          className="btn small secondary" 
-                          onClick={(e) => { e.stopPropagation(); onSelect && onSelect(s); }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
-                        >
-                          Öğrenci Bilgi Sayfası <ChevronRight size={12} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ padding: "30px", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed var(--line)" }}>
-            <Users size={28} color="#94a3b8" style={{ margin: "0 auto 6px auto" }} />
-            <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
-              {studentSearch ? "Aramaya uygun öğrenci bulunamadı." : "Bu sınıfta henüz kayıtlı öğrenci yok."}
-            </p>
-          </div>
-        )}
-      </div>
-    )}
-
-    {/* MODAL: DETAYLI SINIF & ÖĞRENCİ PORTALI */}
-    {inspectingClass && (
-      <ClassDetailModal
-        activeClass={inspectingClass}
-        students={students}
-        onClose={() => setInspectingClass(null)}
-        onSelectStudent={(s) => {
-          setInspectingClass(null);
-          if (onSelect) onSelect(s);
-        }}
-        onEditClass={(c) => {
-          setInspectingClass(null);
-          setEditingClass(c);
-        }}
-        onNavigate={(page) => {
-          setInspectingClass(null);
-          if (onNavigate) onNavigate(page);
-        }}
-        onOpenNewStudent={() => {
-          setInspectingClass(null);
-          if (onOpen) onOpen("student");
-        }}
-      />
-    )}
-
-    {/* MODAL: SINIFI DÜZENLE */}
-    {editingClass && (
-      <EditClassModal 
-        cls={editingClass} 
-        onClose={() => setEditingClass(null)} 
-        API={API}
-        onSaved={() => {
-          if (reload) reload();
-          setEditingClass(null);
-        }}
-      />
-    )}
-  </>;
-}
-
-function Documents({ students, payments }) {
-  const [student, setStudent] = useState(students[0]?.id || "");
-  const [kind, setKind] = useState("contract");
-  const [showPromissory, setShowPromissory] = useState(false);
-
-  useEffect(() => {
-    if (!student && students.length > 0) {
-      setStudent(students[0].id);
-    }
-  }, [students, student]);
-
-  const s = students.find(x => x.id === student);
-  const p = payments.find(x => x.student_id === student);
-  const now = new Date();
-  const yearStart = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-  const schoolYear = `${yearStart} - ${yearStart + 1}`;
-  const kayitTarihi = s?.created_at ? new Date(s.created_at).toLocaleDateString("tr-TR") : "";
-  const blank = (v, min = 26) => (v && String(v).trim()) ? v : "\u2026".repeat(min);
-  const fee = s?.total_fee || 0;
-  const inst = s?.installment_count || 1;
-  let extras = {};
-  try {
-    extras = typeof s?.extra_fees === "string" ? JSON.parse(s.extra_fees || "{}") : (s?.extra_fees || {});
-  } catch {}
-  const extraSum = EXTRA_KEYS.reduce((sum, x) => sum + Number(extras[x.k] || 0), 0);
-  const disc = Number(s?.discount_amount || 0);
-  const totalAll = Math.max(0, fee + extraSum - disc);
-  const perInstallment = inst > 0 ? Math.round(totalAll / inst) : totalAll;
-  const dtype = s?.discount_type || "";
-  const check = (t) => dtype === t ? "( X )" : "(   )";
-
-  return <>
-    <PageHead eyebrow="BELGELER · ÇIKTI MERKEZİ" title="Sözleşme & Makbuz" />
-    <div className="document-layout">
-      <section className="panel document-tools">
-        <h2>Öğrenci seçin</h2>
-        <p>Resmî MEB Öğrenci Kayıt Sözleşmesi otomatik doldurulur; boş kalan alanlar veli tarafından ıslak imzayla tamamlanabilir.</p>
-        <select data-testid="document-student-select" value={student} onChange={e => setStudent(e.target.value)}>{students.map(x => <option key={x.id} value={x.id}>{x.student_name}</option>)}</select>
-        <div className="doc-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <Button testid="print-contract-button" onClick={() => { setKind("contract"); setTimeout(() => window.print(), 60); }}><FileText size={17} /> Sözleşmeyi yazdır</Button>
-          <Button testid="print-receipt-button" secondary onClick={() => { setKind("receipt"); setTimeout(() => window.print(), 60); }}><Receipt size={17} /> Makbuzu yazdır</Button>
-          <Button testid="print-promissory-button" secondary onClick={() => setShowPromissory(true)}><FileText size={17} color="#7c3aed" /> Matbu Senetleri Yazdır</Button>
-        </div>
-        <div className="doc-tips"><b>İpucu:</b> Yazıcı diyaloğunda "Hedef: PDF olarak kaydet" seçerseniz sözleşme direkt PDF çıkar.</div>
-      </section>
-
-      {kind === "receipt" ? (
-        <section className="paper-preview" data-testid="receipt-preview">
-          <div className="paper-head"><img className="paper-logo" src={LOGO} alt="Logo" /><div className="paper-brand"><b>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ</b><small>Kemalpaşa Mah. Ilıca Sk. No:31/33A İnegöl / BURSA · 0224 715 00 02</small></div></div>
-          <h2>TAHSİLAT MAKBUZU</h2><div className="paper-line" />
-          <p>Makbuz no: <b>{p?.id?.slice(0, 8) || "ÖNİZLEME"}</b></p>
-          <p>Öğrenci: <b>{s?.student_name || "—"}</b></p>
-          <p>Veli: <b>{s?.parent_name || "—"}</b></p>
-          <p>Ödeme yöntemi: <b>{p?.method || "—"}</b>{p?.bank ? <> · <b>{p.bank}</b></> : null}</p>
-          <p>Ödeme tarihi: <b>{p?.payment_date ? new Date(p.payment_date).toLocaleDateString("tr-TR") : "—"}</b></p>
-          <p>Tahsil edilen tutar: <b>{money(p?.amount)}</b></p>
-          <p>Kalan bakiye: <b>{money(s?.remaining ?? Math.max(0,(s?.total_fee||0)-(s?.paid_amount||0)))}</b></p>
-          <div className="signature"><span>Veli imzası</span><span>Kurs yetkilisi · Nevin ÇAKMAK</span></div>
-        </section>
-      ) : (
-        <section className="contract-preview" data-testid="contract-preview">
-          {/* PAGE 1 */}
-          <div className="contract-page">
-            <div className="contract-header">
-              <img src={LOGO} alt="Çözüm Kurs" className="contract-logo" />
-              <div className="contract-title">
-                <div className="contract-tc">T.C.<br/>MİLLÎ EĞİTİM BAKANLIĞI<br/>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
-                <h1>ÖĞRENCİ KAYIT SÖZLEŞMESİ</h1>
-              </div>
-              <div className="contract-seal">MEB<br/><small>ÖZEL ÖĞR.<br/>KURUMLARI</small></div>
-            </div>
-
-            <div className="contract-course-name">
-              <b>ÖZEL ÖĞRETİM KURS ADI:</b> ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ &nbsp;·&nbsp; <b>{schoolYear}</b> Öğretim Yılı
-            </div>
-
-            <div className="contract-section-title">ÖĞRENCİNİN BİLGİLERİ</div>
-            <table className="contract-table"><tbody>
-              <tr><td className="lbl">T.C. Kimlik No</td><td>{blank(s?.student_tc)}</td></tr>
-              <tr><td className="lbl">Adı ve Soyadı</td><td>{blank(s?.student_name)}</td></tr>
-              <tr><td className="lbl">Veli/Vasi Adı ve Soyadı</td><td>{blank(s?.parent_name)}</td></tr>
-              <tr><td className="lbl">Sınıfı</td><td>{blank(s?.student_class)}</td></tr>
-              <tr><td className="lbl">Okula kayıt / nakil tarihi</td><td>{blank(kayitTarihi)}</td></tr>
-              <tr><td className="lbl">Ev adresi</td><td>{blank(s?.student_address || s?.parent_address)}</td></tr>
-              {s?.program && <tr><td className="lbl">Kayıt olduğu program</td><td>{s.program}</td></tr>}
-            </tbody></table>
-
-            <div className="contract-parents">
-              <div className="contract-parent">
-                <div className="contract-section-title small">ÖĞRENCİNİN ANNE BİLGİLERİ</div>
-                <table className="contract-table"><tbody>
-                  <tr><td className="lbl">T.C. Kimlik No</td><td>{blank(s?.mother_tc)}</td></tr>
-                  <tr><td className="lbl">Adı ve Soyadı</td><td>{blank(s?.mother_name)}</td></tr>
-                  <tr><td className="lbl">Mesleği</td><td>{blank(s?.mother_job)}</td></tr>
-                  <tr><td className="lbl">Cep telefonu</td><td>{blank(s?.mother_phone)}</td></tr>
-                  <tr><td className="lbl">İş telefonu</td><td>{blank(s?.mother_work_phone)}</td></tr>
-                  <tr><td className="lbl">Ev adresi</td><td>{blank(s?.mother_address)}</td></tr>
-                  <tr><td className="lbl">İş adresi</td><td>{blank(s?.mother_work_address)}</td></tr>
-                  <tr><td className="lbl">e-Posta</td><td>{blank(s?.mother_email)}</td></tr>
-                </tbody></table>
-              </div>
-              <div className="contract-parent">
-                <div className="contract-section-title small">ÖĞRENCİNİN BABA BİLGİLERİ</div>
-                <table className="contract-table"><tbody>
-                  <tr><td className="lbl">T.C. Kimlik No</td><td>{blank(s?.parent_tc)}</td></tr>
-                  <tr><td className="lbl">Adı ve Soyadı</td><td>{blank(s?.parent_name)}</td></tr>
-                  <tr><td className="lbl">Mesleği</td><td>{blank(s?.father_job)}</td></tr>
-                  <tr><td className="lbl">Cep telefonu</td><td>{blank(s?.parent_phone)}</td></tr>
-                  <tr><td className="lbl">İş telefonu</td><td>{blank(s?.father_work_phone)}</td></tr>
-                  <tr><td className="lbl">Ev adresi</td><td>{blank(s?.parent_address)}</td></tr>
-                  <tr><td className="lbl">İş adresi</td><td>{blank(s?.father_work_address)}</td></tr>
-                  <tr><td className="lbl">e-Posta</td><td>{blank(s?.father_email)}</td></tr>
-                </tbody></table>
-              </div>
-            </div>
-
-            <div className="contract-section-title">ÖĞRENCİNİN VASİ BİLGİLERİ (VARSA)</div>
-            <table className="contract-table two-col"><tbody>
-              <tr><td className="lbl">T.C. Kimlik No</td><td>{blank(s?.guardian_tc)}</td><td className="lbl">İş telefonu</td><td>{blank(s?.guardian_work_phone)}</td></tr>
-              <tr><td className="lbl">Adı ve Soyadı</td><td>{blank(s?.guardian_name)}</td><td className="lbl">Ev adresi</td><td>{blank(s?.guardian_home_address)}</td></tr>
-              <tr><td className="lbl">Mesleği</td><td>{blank(s?.guardian_job)}</td><td className="lbl">İş adresi</td><td>{blank(s?.guardian_work_address)}</td></tr>
-              <tr><td className="lbl">Cep telefonu</td><td>{blank(s?.guardian_phone)}</td><td className="lbl">e-Posta</td><td>{blank(s?.guardian_email)}</td></tr>
-              <tr><td className="lbl">Ev telefonu</td><td>{blank(s?.guardian_home_phone)}</td><td></td><td></td></tr>
-            </tbody></table>
-
-            <div className="contract-footer">ÇÖZÜM KURS EĞİTİM KOORDİNATÖRLÜĞÜ</div>
-          </div>
-
-          {/* PAGE 2 */}
-          <div className="contract-page">
-            <div className="contract-section-title center">ÖDEME BİLGİLERİ ({schoolYear} Öğretim Yılı İçin)</div>
-            <table className="contract-table fees"><thead>
-              <tr><th>KALEM</th><th>Kurumun İlan Ettiği Ücret (KDV Dahil)</th><th>Öğrenci İçin Belirlenen Ücret (KDV Dahil)</th></tr>
-            </thead><tbody>
-              <tr><td className="lbl">Öğrenim Ücreti</td><td className="right">{money(fee)}</td><td className="right"><b>{money(fee)}</b></td></tr>
-              <tr><td className="lbl">Kaynak Kitaplar Ücreti</td><td className="right">{Number(extras.kaynak) > 0 ? money(extras.kaynak) : blank("")}</td><td className="right">{Number(extras.kaynak) > 0 ? <b>{money(extras.kaynak)}</b> : blank("")}</td></tr>
-              <tr><td className="lbl">Dijital Platform Ücreti</td><td className="right">{Number(extras.dijital) > 0 ? money(extras.dijital) : blank("")}</td><td className="right">{Number(extras.dijital) > 0 ? <b>{money(extras.dijital)}</b> : blank("")}</td></tr>
-              <tr><td className="lbl">DNM Kulübü Ücreti</td><td className="right">{Number(extras.dnm) > 0 ? money(extras.dnm) : blank("")}</td><td className="right">{Number(extras.dnm) > 0 ? <b>{money(extras.dnm)}</b> : blank("")}</td></tr>
-              <tr><td className="lbl">Kütüphane / Kafe Ücreti</td><td className="right">{Number(extras.kutuphane) > 0 ? money(extras.kutuphane) : blank("")}</td><td className="right">{Number(extras.kutuphane) > 0 ? <b>{money(extras.kutuphane)}</b> : blank("")}</td></tr>
-              <tr><td className="lbl">Özel Ders Ücreti</td><td className="right">{Number(extras.ozel_ders) > 0 ? money(extras.ozel_ders) : blank("")}</td><td className="right">{Number(extras.ozel_ders) > 0 ? <b>{money(extras.ozel_ders)}</b> : blank("")}</td></tr>
-              {disc > 0 && <tr><td className="lbl">İndirim ({(DISCOUNT_TYPES.find(d => d.v === dtype) || {}).label || "—"})</td><td className="right">−{money(disc)}</td><td className="right"><b style={{color:"#dc2626"}}>−{money(disc)}</b></td></tr>}
-              <tr className="total-row"><td className="lbl">ÜCRETLER TOPLAMI</td><td className="right">{money(totalAll)}</td><td className="right"><b>{money(totalAll)}</b></td></tr>
-            </tbody></table>
-
-            <table className="contract-table two-col"><tbody>
-              <tr><td className="lbl">Ödeme Şekli</td><td>{inst > 1 ? "(   ) Peşin  ( X ) Taksit" : "( X ) Peşin  (   ) Taksit"}</td><td className="lbl">Peşinat</td><td>{blank("")}</td></tr>
-              <tr><td className="lbl">Taksit Başlangıç Tarihi</td><td>{blank(s?.due_date ? new Date(s.due_date).toLocaleDateString("tr-TR") : "")}</td><td className="lbl">Taksit Sayısı ve Tutarı</td><td>{inst > 1 ? `${inst} taksit × ${money(perInstallment)}` : blank("")}</td></tr>
-              <tr><td className="lbl">İndirim Yapıldı Mı?</td><td colSpan="3">{disc > 0 ? "( X ) Evet  (   ) Hayır" : "(   ) Evet  ( X ) Hayır"} &nbsp;&nbsp;&nbsp; İndirim tutarı: <b>{disc > 0 ? money(disc) : blank("", 10)}</b></td></tr>
-            </tbody></table>
-
-            <div className="contract-discount">
-              <b>İndirim Yapılmışsa Nedeni:</b><br/>
-              {check("kardes")} Kardeş İndirimi &nbsp;&nbsp; {check("ogretmen_cocugu")} Öğretmen Çocuğu İndirimi &nbsp;&nbsp; {check("personel_cocugu")} Personel Çocuğu İndirimi<br/>
-              {check("basari")} Başarı İndirimi &nbsp;&nbsp; {check("kurumsal")} Kurumsal İndirim &nbsp;&nbsp; {check("kayitli")} Kayıtlı Öğrenci İndirimi<br/>
-              {check("sehit_gazi")} Şehit/Gazi Çocuğu İndirimi &nbsp;&nbsp; {check("korucu")} Korucu Çocuğu İndirimi &nbsp;&nbsp; {check("diger")} Diğer: {dtype === "diger" ? blank(s?.discount_note, 20) : blank("", 20)}
-            </div>
-
-            <div className="contract-section-title">KAYIT SÖZLEŞMESİ İLE İLGİLİ GENEL HUSUSLAR</div>
-            <ol className="contract-clauses">
-              <li>Kurumumuza kayıt yaptıran öğrenci "bir öğretim dönemi boyunca alacağı dersler için" kurs ücreti öder. Öğrenci ve velinin isteğine bağlı diğer ücretler tamamen öğrenci velisinin inisiyatifine bağlıdır ve bu alandaki hizmetler öğrenim ücretinden ayrı hesaplanır.</li>
-              <li>Öğrencinin bir sonraki eğitim öğretim yılında kursa devam etmek istemesi durumunda, yukarıda "Ödeme Bilgileri Bölümünde Öğrenci İçin Belirlenen Öğrenim Ücreti" üzerinden artış yapılacaktır.</li>
-              <li>Kursun öğretim ücreti, bir önceki eğitim öğretim yılında ilan edilen ücrete (Y.İ-ÜFE+TÜFE)/2 oranına en fazla %10 artış; kursa devam eden öğrencilerin ücreti ise, öğrenci kayıt sözleşmesinde belirlenen eğitim ücretine, (Y.İ-ÜFE+TÜFE)/2 oranına en fazla %10 artış yapılarak hesaplanır.</li>
-              <li>Kurumumuz, bir sonraki yılın eğitim ve öğretim ücretini ve diğer (kırtasiye, dijital platform, deneme kulübü, kütüphane, özel ders vb.) ücretleri, Eylül ayından itibaren Kasım ayının sonuna kadar ilan eder. Bu ilanlarda ders yılı veya ders saati ücretiyle birlikte, peşin veya taksitli ödemeler ve diğer indirimler de belirtilir. Bu tarihten sonra oluşan ekonomik değişimlerden (asgari ücret artışı, memur ve işçi zamları gibi) kurumumuz bu zam oranlarının %'sinden en fazla %10 artış yapabilir ve bu durumu ilgili kayıt yapan öğrenci velisi kabul ve taahhüt eder.</li>
-              <li>Sosyal ve kültürel faaliyetler, gezi ve gözlem gibi diğer etkinlikler gönüllülük esaslı olup bunlar için ücretler, faaliyet öncesi belirlenir. Kurs ve faaliyetlere katılım ise veli/vasi izni doğrultusunda gerçekleşir.</li>
-              <li>Kurumumuz, öğrenci veya veli/vasilerinden kurs kaynakları, Kurs Deneme Kulübü, Kurs Kütüphanesi, Kurs dijital platform ücreti adı altında ayrı bir ücret talep edebilecektir.</li>
-              <li>Öğrenim ücreti, Özel Öğretim Kanunu'nda ilgili kademe/sınıf için belirlenen ders müfredat sayısından az olamaz. Öğrenci ders saat ücreti ilgili dönem için MEB DYK kurs öğretmen ders saat ücretinden az olamayacak miktarda ders saat ücreti hesaplanır.</li>
-            </ol>
-            <div className="contract-footer">ÇÖZÜM KURS EĞİTİM KOORDİNATÖRLÜĞÜ</div>
-          </div>
-
-          {/* PAGE 3 */}
-          <div className="contract-page">
-            <ol className="contract-clauses" start="8">
-              <li>Kurumumuzun eğitim ve öğretim ücreti kurs muhasebe birimine veya kurum adına açılan ve valiliğe bildirilen banka hesap numarasına yatırılarak tahsil edilir. Öğrencilerden alınan ücretler e-kurs sistemine işlenir ve velilerin bilgisine sunulur.</li>
-              <li>MEB Özel Öğretim Kurumları Yönetmeliği'nin 56. maddesi hükümlerince; eğitim ve öğretim yılı başlamadan kurumumuzdan ayrılanlara, 5580 sayılı Özel Öğretim Yasası gereğince öğrencinin ödeyeceği yıllık ücretin %10 dışındaki kısmı, eğitim ve öğretim yılı başladıktan sonra kurumumuzdan ayrılanlara ise öğrencinin ödeyeceği yıllık ücretin %10'u ile öğrenim gördüğü günlere göre hesaplanan miktarın dışındaki kısmı öğrenci veli/vasisine iade edilir.</li>
-              <li>Kurumumuz tarafından öğrencinin ücretsiz okumasının uygun bulunması veya indirim hakkı elde etmesi halinde kurumumuza ödenen ücret, eğitim ve öğretim başladıktan sonra iki ay içinde öğrenci veli/vasisine geri ödenir.</li>
-              <li>Herhangi bir şekilde kurumumuzdan ayrılan öğrenci ya da burslu öğrencilerden öğrenim gördüğü süre için kurumumuz tarafından ayrılacağı tarihe kadar verilen ders ücretleri dışında, eğer faydalanmışsa öğrenciden ayrıca kaynak ücreti, Deneme Kulübü ücreti, Kütüphane ücreti ve Dijital platform ücreti talep edilecektir.</li>
-              <li>Öğrencinin kursa devam etmesi esastır. Devamsızlık yapan öğrencilerin velileri/vasileri, öğrencilerin mazeretlerini kursa bildirir. Veli/vasi tarafından söz konusu bildirimin kursa yapılmaması halinde, kurs idaresi gelmeyen öğrencilerin velisiyle/vasisiyle iletişim kurarak devamsız öğrenci hakkında veli/vasiye bilgi verir. Hastalık, doğal afetler nedeniyle gelmediğini belgeleyen öğrencilerin dersleri sonradan kurs tarafından düzenlenen ek tamamlayıcı bir program ile tamamlanmak koşuluyla öğretim ve diğer ücretler talep edilir. (Kurs tarafından devamsız öğrenciye sunulan ek tamamlayıcı programa katılım göstermek zorundadır, aksi halde tüm ücret yükümlülüklerini kabul eder.)</li>
-              <li>İşbu sözleşmede yer alan hususların yerine getirilmesi ve gerekli tebligatların yapılabilmesi için veli/vasi tarafından yukarıda belirtilen adresin yasal ikametgâh adresi olduğu ve adres değişikliği durumunda 15 gün içerisinde yazılı olarak kursa bildirilmediği takdirde bu adrese yapılacak tebligat geçerli olacaktır. Öğrenci kayıt sözleşmesinin tüm hükümleri veli/vasi tarafından eksiksiz olarak okunmuş, anlaşılmış ve herhangi bir tereddüt olmaksızın tamamen hür irade ve arzu ile kesin olarak kabul edilmiştir.</li>
-            </ol>
-
-            <div className="contract-section-title">Özel Hususlar</div>
-            <div className="contract-note">(Yürürlükteki mevzuata ve kayıt sözleşmesi şartlarına aykırı olmamak kaydıyla özel şartlar belirlenebilir.)</div>
-            <div className="contract-blanks"><span>1. {"\u2026".repeat(90)}</span><span>2. {"\u2026".repeat(90)}</span></div>
-
-            <div className="contract-corp-info">
-              <b>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ</b> · Nevin ÇAKMAK<br/>
-              Kemalpaşa Mah. Ilıca Sokak No:31/33A İnegöl / BURSA · Tel: 0224 715 00 02 · 0553 715 00 02<br/>
-              Vergi No: 3171055818 · İnegöl V.D.
-            </div>
-
-            <div className="contract-signatures">
-              <div>
-                <div className="sig-title">Öğrenci Velisi/Vasisinin</div>
-                <div className="sig-title">Adı Soyadı ve İmzası</div>
-                <div className="sig-blank">{blank(s?.parent_name, 30)}</div>
-                <div className="sig-date">..... / ..... / 20.....</div>
-              </div>
-              <div>
-                <div className="sig-title">Kurumun</div>
-                <div className="sig-title">(Kaşe, Mühür ve Yetkilinin İmzası)</div>
-                <div className="sig-blank">Nevin ÇAKMAK</div>
-                <div className="sig-date">..... / ..... / 20.....</div>
-              </div>
-            </div>
-            <div className="contract-footer">ÇÖZÜM KURS EĞİTİM KOORDİNATÖRLÜĞÜ</div>
-          </div>
-        </section>
-      )}
-    </div>
-    {showPromissory && s && (
-      <PromissoryNoteModal student={s} onClose={() => setShowPromissory(false)} />
-    )}
-  </>;
-}
+// Legacy monolithic subviews extracted to modular src/pages/ and src/components/
 
 function UsersPage({ me }) {
   const [users, setUsers] = useState([]);

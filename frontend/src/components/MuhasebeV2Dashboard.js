@@ -52,6 +52,12 @@ import { EdesisMuhasebeDashboard } from "./EdesisMuhasebeDashboard";
 import EdesisGelirListesi from "./EdesisGelirListesi";
 import EdesisVadeTakvimi from "./EdesisVadeTakvimi";
 import EdesisTahsilatListesi from "./EdesisTahsilatListesi";
+import { OverviewTab } from "./tabs/OverviewTab";
+import { IncomesTab } from "./tabs/IncomesTab";
+import { OverdueAgingTab } from "./tabs/OverdueAgingTab";
+import { ScheduleCalendarTab } from "./tabs/ScheduleCalendarTab";
+import { CollectionsTab } from "./tabs/CollectionsTab";
+import { ExpensesTab } from "./tabs/ExpensesTab";
 import AccountingService, { ENABLE_KASA_BANKA } from "../lib/edesisAccountingService";
 import { trIncludes, formatTrtDateTime } from "../lib/utils";
 
@@ -1705,7 +1711,7 @@ export function MuhasebeV2Dashboard({
       {/* 4. SEKME İÇERİKLERİ */}
       {/* SEKME 1: EDESİS KONTROL PANELİ & DASHBOARD */}
       {activeTab === "dashboard" && (
-        <EdesisMuhasebeDashboard
+        <OverviewTab
           onOpen={onOpen}
           onSelectStudent={onSelectStudent}
           onNavigateTab={(tab) => {
@@ -1870,140 +1876,23 @@ export function MuhasebeV2Dashboard({
 
       {/* SEKME 3: GECİKEN TAKSİTLER & YAŞLANDIRMA (WHATSAPP HATIRLATMA) */}
       {activeTab === "gecikenler" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button 
-                className={`btn small ${agingFilter === "all" ? "" : "secondary"}`}
-                onClick={() => setAgingFilter("all")}
-              >
-                Tüm Gecikenler ({overdueStudents.length})
-              </button>
-              <button 
-                className={`btn small ${agingFilter === "1-30" ? "" : "secondary"}`}
-                onClick={() => setAgingFilter("1-30")}
-                style={{ color: "#ca8a04" }}
-              >
-                1 - 30 Gün ({agingSummary.c1_30.count})
-              </button>
-              <button 
-                className={`btn small ${agingFilter === "31-60" ? "" : "secondary"}`}
-                onClick={() => setAgingFilter("31-60")}
-                style={{ color: "#ea580c" }}
-              >
-                31 - 60 Gün ({agingSummary.c31_60.count})
-              </button>
-              <button 
-                className={`btn small ${agingFilter === "60+" ? "" : "secondary"}`}
-                onClick={() => setAgingFilter("60+")}
-                style={{ color: "#dc2626" }}
-              >
-                60+ Gün Kritik ({agingSummary.c60plus.count})
-              </button>
-            </div>
-
-            <div className="top-search" style={{ width: "260px", margin: 0 }}>
-              <Search size={14} />
-              <input 
-                placeholder="Öğrenci veya veli ara..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ fontSize: "12px" }}
-              />
-            </div>
-          </div>
-
-          {/* Geciken Taksitler Tablosu (Responsive Yatay Kaydırma) */}
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "700px" }}>
-              <thead>
-                <tr style={{ background: "#fef2f2" }}>
-                  <th>Öğrenci Adı Soyadı</th>
-                  <th>Şube / Sınıf</th>
-                  <th>Veli & İletişim</th>
-                  <th>Gecikme Süresi</th>
-                  <th>Toplam Borç</th>
-                  <th style={{ textAlign: "right" }}>Veliye Hatırlatma</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOverdueList.map((s, idx) => (
-                  <tr key={s.id || idx}>
-                    <td>
-                      <b style={{ color: "#0f172a", cursor: "pointer" }} onClick={() => onSelectStudent && onSelectStudent(s)}>
-                        {s.student_name}
-                      </b>
-                      <div style={{ fontSize: "11px", color: "#64748b" }}>#{s.student_no || "—"}</div>
-                    </td>
-                    <td><span style={{ color: "#475569" }}>{s.student_class || s.program || "—"}</span></td>
-                    <td>
-                      <div>
-                        <b>{s.parent_name || "Veli"}</b>
-                        <div style={{ fontSize: "11px", color: "#64748b" }}>{s.parent_phone || "—"}</div>
-                      </div>
-                    </td>
-                    <td>
-                      <span 
-                        className="badge" 
-                        style={{ 
-                          background: s.agingCategory === "60+" ? "#fee2e2" : s.agingCategory === "31-60" ? "#ffedd5" : "#fef9c3",
-                          color: s.agingCategory === "60+" ? "#991b1b" : s.agingCategory === "31-60" ? "#9a3412" : "#854d0e",
-                          padding: "3px 8px", 
-                          borderRadius: "12px", 
-                          fontSize: "11px", 
-                          fontWeight: "700"
-                        }}
-                      >
-                        {s.daysOverdue} Gün Gecikmede
-                      </span>
-                    </td>
-                    <td>
-                      <b style={{ color: "#dc2626", fontSize: "14px" }}>
-                        ₺{fmtMoney(s.remaining)}
-                      </b>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: "6px" }}>
-                        <button 
-                          className="btn small"
-                          onClick={() => sendWhatsAppReminder(s)}
-                          style={{ background: "#22c55e", color: "#fff", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
-                        >
-                          <MessageCircle size={13} /> WhatsApp
-                        </button>
-                        <button 
-                          className="btn small secondary"
-                          onClick={() => {
-                            setPayStudentId(s.id);
-                            setPayAmount(String(s.remaining));
-                            setShowQuickPaymentModal(true);
-                          }}
-                          style={{ fontSize: "11px", padding: "4px 8px" }}
-                        >
-                          Tahsil Et
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredOverdueList.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
-                      Geciken taksit ödemesi bulunamadı.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
+        <OverdueAgingTab
+          overdueStudents={overdueStudents}
+          agingSummary={agingSummary}
+          onSelectStudent={onSelectStudent}
+          sendWhatsAppReminder={sendWhatsAppReminder}
+          onQuickPayment={(s) => {
+            setPayStudentId(s.id);
+            setPayAmount(String(s.remaining));
+            setShowQuickPaymentModal(true);
+          }}
+          fmtMoney={fmtMoney}
+        />
       )}
 
       {/* SEKME 3B: EDESİS VADE TAKVİMİ (688 GERÇEK TAKSİT & YAŞLANDIRMA) */}
       {activeTab === "vade_takvimi" && (
-        <EdesisVadeTakvimi
+        <ScheduleCalendarTab
           students={students}
           onSelectStudent={onSelectStudent}
           onOpenGelir={handleOpenUnifiedContract}
@@ -2013,7 +1902,7 @@ export function MuhasebeV2Dashboard({
 
       {/* SEKME 4: EDESİS TAHSİLAT LİSTESİ (159 GERÇEK TAHSİLAT & MAKBUZLAR) */}
       {activeTab === "tahsilatlar" && (
-        <EdesisTahsilatListesi
+        <CollectionsTab
           students={students}
           payments={payments}
           API={API}
@@ -2025,51 +1914,11 @@ export function MuhasebeV2Dashboard({
 
       {/* SEKME 5: KURUM GİDERLERİ */}
       {activeTab === "giderler" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "700" }}>Kurum Gider Defteri</h3>
-              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>Kira, personel maaşları, enerji ve hesap bazlı gider çıkışları</p>
-            </div>
-            <button className="btn small" onClick={() => setShowExpenseModal(true)} style={{ background: "#ef4444", color: "#fff" }}>
-              <Plus size={14} /> Yeni Gider Ekle
-            </button>
-          </div>
-
-          <div className="table-responsive" style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table className="data-table" style={{ width: "100%", margin: 0, fontSize: "13px", minWidth: "600px" }}>
-              <thead>
-                <tr style={{ background: "#fef2f2" }}>
-                  <th>Tarih</th>
-                  <th>Gider Başlığı</th>
-                  <th>Kategori</th>
-                  <th>Ödenen Hesap</th>
-                  <th>Tutar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expenses.map((e, idx) => (
-                  <tr key={e.id || idx}>
-                    <td>{e.expense_date ? e.expense_date.slice(0, 10) : "2026-10-02"}</td>
-                    <td><b>{e.title}</b></td>
-                    <td><span className="badge" style={{ background: "#f1f5f9", padding: "3px 8px", borderRadius: "6px", fontSize: "11px" }}>{e.category || "Genel"}</span></td>
-                    <td><span className="badge" style={{ background: "#eff6ff", color: "#1d4ed8", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" }}>{e.account || "Nakit Ana Kasa"}</span></td>
-                    <td><b style={{ color: "#dc2626" }}>-₺{fmtMoney(e.amount)}</b></td>
-                  </tr>
-                ))}
-                {expenses.length === 0 && (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
-                      Henüz kaydedilmiş gider bulunmuyor.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
+        <ExpensesTab
+          expenses={expenses}
+          onAddExpense={() => setShowExpenseModal(true)}
+          fmtMoney={fmtMoney}
+        />
       )}
 
       {/* SEKME 6: MATBU SENET (BONO) SÜİTİ */}
@@ -2119,7 +1968,7 @@ export function MuhasebeV2Dashboard({
 
       {/* SEKME 7: EDESİS GELİRLER & SÖZLEŞMELER */}
       {activeTab === "gelirler" && (
-        <EdesisGelirListesi
+        <IncomesTab
           students={students}
           onSelectStudent={onSelectStudent}
           onOpenGelir={handleOpenUnifiedContract}
