@@ -207,7 +207,18 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
   if (path === "/backup" && request.method === "POST") {
     if (!db) return errorResponse("Database connection unavailable", 500);
     await ensureBackupTable(db);
-    const user = await getCurrentUser(request, db).catch(() => null);
+    const user = currentUser || await getCurrentUser(request, db).catch(() => null);
+
+    // Auth check: either admin user session OR Bearer BACKUP_TOKEN secret
+    const authHeader = request.headers.get("Authorization") || "";
+    const backupSecret = (env?.BACKUP_TOKEN || "cozum-backup-token-2026").trim();
+    const isTokenAuthed = authHeader === `Bearer ${backupSecret}`;
+    const isAdmin = user && user.role === ROLE_ADMIN;
+
+    if (!isAdmin && !isTokenAuthed) {
+      return errorResponse("Yedekleme için yetkiniz yok", 403, "FORBIDDEN");
+    }
+
     const body = await request.json().catch(() => ({}));
     const snap = { version: 1, created_at: new Date().toISOString(), tables: {} };
     const counts = {};
@@ -222,8 +233,8 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       }
     }
     const bId = "backup_manual_" + Date.now();
-    const notes = body.notes || "Manuel Yönetici Snapshot Yedeği";
-    const createdBy = user?.name || "Yönetici";
+    const notes = body.notes || (isTokenAuthed ? "Zamanlanmış / API Yedeği" : "Manuel Yönetici Snapshot Yedeği");
+    const createdBy = isTokenAuthed ? "Otomatik Servis (Token)" : (user?.name || "Yönetici");
     await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'manual', ?, ?, ?, ?)")
       .bind(bId, new Date().toISOString(), JSON.stringify(snap), JSON.stringify(counts), createdBy, notes)
       .run();
@@ -234,7 +245,11 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
   if (path === "/backup/restore" && request.method === "POST") {
     if (!db) return errorResponse("Database connection unavailable", 500);
     await ensureBackupTable(db);
-    const user = await getCurrentUser(request, db).catch(() => null);
+    const user = currentUser || await getCurrentUser(request, db).catch(() => null);
+    if (!user || user.role !== ROLE_ADMIN) {
+      return errorResponse("Geri yükleme işlemi yalnızca yönetici tarafından yapılabilir", 403, "FORBIDDEN");
+    }
+
     const body = await request.json().catch(() => ({}));
     const backupId = body.backup_id;
     if (!backupId) return errorResponse("backup_id belirtilmedi", 400);
@@ -267,25 +282,31 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       .bind(preId, new Date().toISOString(), JSON.stringify(preSnap), JSON.stringify(preCounts), `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
       .run().catch(() => {});
 
-    // 2. Tabloları temizle ve seçili snapshot'ı geri yükle
+    // 2. Tabloları temizle ve seçili snapshot'ı atomik db.batch() ile geri yükle
     const restoredCounts = {};
     for (const t of BACKUP_TABLES) {
       const rows = snap.tables?.[t];
       if (Array.isArray(rows)) {
         try {
-          await db.prepare("DELETE FROM " + t).run();
-          let count = 0;
+          const statements = [
+            db.prepare("DELETE FROM " + t)
+          ];
           for (const row of rows) {
             const keys = Object.keys(row);
             if (keys.length > 0) {
               const placeholders = keys.map(() => "?").join(", ");
               const cols = keys.join(", ");
               const values = keys.map(k => row[k]);
-              await db.prepare(`INSERT INTO ${t} (${cols}) VALUES (${placeholders})`).bind(...values).run();
-              count++;
+              statements.push(db.prepare(`INSERT INTO ${t} (${cols}) VALUES (${placeholders})`).bind(...values));
             }
           }
-          restoredCounts[t] = count;
+          // D1 max batch chunk limit (100)
+          const CHUNK_SIZE = 100;
+          for (let i = 0; i < statements.length; i += CHUNK_SIZE) {
+            const chunk = statements.slice(i, i + CHUNK_SIZE);
+            await db.batch(chunk);
+          }
+          restoredCounts[t] = rows.length;
         } catch (err) {
           console.error(`Restore error on table ${t}:`, err);
         }

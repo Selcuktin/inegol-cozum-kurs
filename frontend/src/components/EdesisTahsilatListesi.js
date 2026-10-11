@@ -210,6 +210,8 @@ export default function EdesisTahsilatListesi({
     let cashSum = 0;
 
     filteredTahsilatlar.forEach((t) => {
+      const isCancelled = t.is_cancelled === 1 || t.is_cancelled === true || t.status === "İptal Edildi" || t.durum === "İptal Edildi" || t.durumText === "İptal Edildi";
+      if (isCancelled) return;
       count++;
       const amt = Number(t.tahsilatTutari) || 0;
       totalCollected += amt;
@@ -923,26 +925,42 @@ export default function EdesisTahsilatListesi({
                         </span>
                       </td>
 
-                      {/* 8. Tutar */}
-                      <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, fontSize: "13px", color: "#16a34a" }}>
-                        {fmtCurrency(t.tahsilatTutari)}
-                      </td>
+                      {/* 8. Tutar & 9. Durum */}
+                      {(() => {
+                        const isCancelled = t.is_cancelled === 1 || t.is_cancelled === true || t.status === "İptal Edildi" || t.durum === "İptal Edildi" || t.durumText === "İptal Edildi";
+                        return (
+                          <>
+                            <td
+                              style={{
+                                padding: "10px 14px",
+                                textAlign: "right",
+                                fontWeight: 700,
+                                fontSize: "13px",
+                                color: isCancelled ? "#94a3b8" : "#16a34a",
+                                textDecoration: isCancelled ? "line-through" : "none"
+                              }}
+                            >
+                              {fmtCurrency(t.tahsilatTutari)}
+                            </td>
 
-                      {/* 9. Durum */}
-                      <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                        <span
-                          style={{
-                            padding: "3px 8px",
-                            borderRadius: "6px",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            background: "#dcfce7",
-                            color: "#166534"
-                          }}
-                        >
-                          {t.durumText || "Aktif"}
-                        </span>
-                      </td>
+                            <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                              <span
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  background: isCancelled ? "#fee2e2" : "#dcfce7",
+                                  color: isCancelled ? "#b91c1c" : "#166534",
+                                  border: isCancelled ? "1px solid #fca5a5" : "1px solid #86efac"
+                                }}
+                              >
+                                {isCancelled ? "İptal Edildi" : (t.durumText || "Tahsil Edildi")}
+                              </span>
+                            </td>
+                          </>
+                        );
+                      })()}
 
                       {/* 10. Resmi Makbuz */}
                       <td style={{ padding: "10px 14px", textAlign: "center" }}>

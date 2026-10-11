@@ -52,6 +52,23 @@ export default function EdesisSozlesmeDetay({
   const [receiptModalPayment, setReceiptModalPayment] = useState(null);
   const [isSignedState, setIsSignedState] = useState(() => !!(contract?.isSigned || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));
   const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || "Osman Seymen (Yönetici)");
+  const [accountingTick, setAccountingTick] = useState(0);
+
+  React.useEffect(() => {
+    const handleUpdate = () => setAccountingTick((t) => t + 1);
+    window.addEventListener("cozum_accounting_updated", handleUpdate);
+    window.addEventListener("cozum_students_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("cozum_accounting_updated", handleUpdate);
+      window.removeEventListener("cozum_students_updated", handleUpdate);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (contract?.id || contract?.sozlesmeNo) {
+      AccountingService.fetchInstallments(contract.id || contract.sozlesmeNo);
+    }
+  }, [contract?.id, contract?.sozlesmeNo]);
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -88,7 +105,7 @@ export default function EdesisSozlesmeDetay({
       student_tc: contract.student_tc || contract.studentTc || "",
       student_no: contract.ogrenciNo || contract.student_no || ""
     };
-  }, [contract, students]);
+  }, [contract, students, accountingTick]);
 
   const student = baseStudent;
 
@@ -171,7 +188,7 @@ export default function EdesisSozlesmeDetay({
       durum: 0, // 0: Vadesi Gelmedi
       durumText: "Vadesi Gelmedi"
     }));
-  }, [contract, students]);
+  }, [contract, students, accountingTick]);
 
   const [localInstallments, setLocalInstallments] = useState(installments);
 
@@ -225,13 +242,18 @@ export default function EdesisSozlesmeDetay({
     const paidAmount = Number(amount) || taksit.taksitTutari;
 
     AccountingService.recordCollection({
-      studentName: contract.ogrenciAdi || contract.musteriUnvan,
+      studentId: contract.studentId || contract.student_id || contract.ogrenciId || student?.id,
+      studentName: contract.ogrenciAdi || contract.musteriUnvan || student?.student_name,
+      contractId: contract.id,
+      sozlesmeNo: contract.sozlesmeNo,
+      installment_no: taksit.taksitNo,
+      installment_id: taksit.id,
       amount: paidAmount,
       method: collectModal.method || "Nakit",
       bank: collectModal.method === "Banka Havale / EFT" ? "T.C. VAKIFLAR BANKASI İNEGÖL ŞB." : "Nakit Ana Kasa",
+      date: collectModal.date,
       note: `${contract.sozlesmeNo || ""} ${taksit.taksitNo}. Taksit Tahsilatı`,
-      gelirKodu: taksit.gelirKodu || contract.gelirKodu,
-      sozlesmeNo: contract.sozlesmeNo
+      gelirKodu: taksit.gelirKodu || contract.gelirKodu
     });
 
     const updated = localInstallments.map((t) =>
@@ -239,11 +261,14 @@ export default function EdesisSozlesmeDetay({
         ? {
             ...t,
             tahsilEdilen: paidAmount,
+            paid_amount: paidAmount,
             kalanTutar: Math.max(0, t.taksitTutari - paidAmount),
             durum: 1,
             durumText: "Tahsil Edildi",
+            status: "Odendi",
             odemeYontemi: collectModal.method,
-            tahsilatTarihi: collectModal.date
+            tahsilatTarihi: collectModal.date,
+            payment_date: collectModal.date
           }
         : t
     );
@@ -260,17 +285,30 @@ export default function EdesisSozlesmeDetay({
   const handleConfirmCancel = () => {
     if (!cancelModal || !cancelModal.taksit) return;
     const { taksit } = cancelModal;
+    const cancelAmt = Number(taksit.tahsilEdilen || taksit.paid_amount || taksit.taksitTutari || 0);
+
+    AccountingService.cancelCollection({
+      studentId: contract?.studentId || contract?.student_id || contract?.ogrenciId || student?.id,
+      contractId: contract?.id,
+      sozlesmeNo: contract?.sozlesmeNo || taksit.sozlesmeNo,
+      installment_no: taksit.taksitNo,
+      installment_id: taksit.id,
+      amount: cancelAmt
+    });
 
     const updated = localInstallments.map((t) =>
       t.taksitNo === taksit.taksitNo
         ? {
             ...t,
             tahsilEdilen: 0,
+            paid_amount: 0,
             kalanTutar: t.taksitTutari,
             durum: 0,
             durumText: "Vadesi Gelmedi",
+            status: "Bekliyor",
             odemeYontemi: null,
-            tahsilatTarihi: null
+            tahsilatTarihi: null,
+            payment_date: null
           }
         : t
     );

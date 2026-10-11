@@ -128,7 +128,8 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
           bank: form.bank || "Nakit Ana Kasa",
           note: form.note || "Taksit Tahsilatı",
           gelirKodu: st?.gelir_kodu,
-          sozlesmeNo: st?.sozlesme_no
+          sozlesmeNo: st?.sozlesme_no,
+          alreadyPersisted: true
         });
       }
       if (type === "expense") {

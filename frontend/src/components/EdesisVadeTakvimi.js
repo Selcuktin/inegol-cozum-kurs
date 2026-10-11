@@ -77,7 +77,7 @@ export default function EdesisVadeTakvimi({
 
   // Filtre durumları
   const [period, setPeriod] = useState("2026-2027");
-  const [vadeFilter, setVadeFilter] = useState("all"); // "all" = Tüm Vadeler
+  const [vadeFilter, setVadeFilter] = useState("upcoming"); // Varsayılan: Yaklaşanlar
   const [filterUnpaid, setFilterUnpaid] = useState(true); // Edesis varsayılanı: "Ödenmemişler" aktif
   const [showIptaller, setShowIptaller] = useState(false); // İptaller toggle
   const [searchQuery, setSearchQuery] = useState("");
@@ -209,7 +209,8 @@ export default function EdesisVadeTakvimi({
     if (vadeFilter === "overdue") {
       list = list.filter((t) => t.vadesiGectiMi || Number(t.gecikmeGunSayisi) > 0);
     } else if (vadeFilter === "upcoming") {
-      list = list.filter((t) => !t.vadesiGectiMi && Number(t.gecikmeGunSayisi) <= 0 && Number(t.kalanTutar) > 0);
+      const up = list.filter((t) => !t.vadesiGectiMi && Number(t.gecikmeGunSayisi) <= 0 && Number(t.kalanTutar) > 0);
+      list = up.length > 0 ? up : list;
     } else if (vadeFilter === "paid") {
       list = list.filter((t) => Number(t.kalanTutar) <= 0 || t.durumText === "Tam Ödendi");
     }
@@ -494,103 +495,51 @@ export default function EdesisVadeTakvimi({
         </div>
       </div>
 
-      {/* 3. EDESİS 5 ADET KPI KARTI (media_1791241193046.png BİREBİR) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "12px" }}>
-        {/* KART 1: TOPLAM TUTAR (Mavi üst çizgi) */}
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderTop: "3px solid #3b82f6", borderRadius: "10px", padding: "14px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", letterSpacing: "0.03em" }}>TOPLAM TUTAR</div>
-              <div style={{ fontSize: "18px", fontWeight: "800", color: "#1e3a8a", marginTop: "2px" }}>
-                {fmtMoneyWhole(kpi.toplamTutar)}
-              </div>
-              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>{kpi.toplamAdet} taksit</div>
-            </div>
-            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Wallet size={18} color="#3b82f6" />
-            </div>
+      {/* 3. EDESİS KPI ÖZET ŞERİDİ (KOMPAKT & BİLGİ BOMBARDIMANINDAN ARINDIRILMIŞ) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "8px" }}>
+        {/* KART 1: TOPLAM TUTAR */}
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderLeft: "3px solid #3b82f6", borderRadius: "8px", padding: "8px 12px" }}>
+          <div style={{ fontSize: "10.5px", fontWeight: "700", color: "#64748b" }}>TOPLAM TUTAR</div>
+          <div style={{ fontSize: "15px", fontWeight: "800", color: "#1e3a8a", marginTop: "1px" }}>
+            {fmtMoneyWhole(kpi.toplamTutar)}
           </div>
+          <div style={{ fontSize: "10.5px", color: "#94a3b8" }}>{kpi.toplamAdet} taksit</div>
         </div>
 
-        {/* KART 2: BEKLEYEN (Sarı/Turuncu üst çizgi) */}
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderTop: "3px solid #f59e0b", borderRadius: "10px", padding: "14px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", letterSpacing: "0.03em" }}>BEKLEYEN</div>
-              <div style={{ fontSize: "18px", fontWeight: "800", color: "#b45309", marginTop: "2px" }}>
-                {fmtMoneyWhole(kpi.bekleyenTutar)}
-              </div>
-              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>{kpi.bekleyenAdet} taksit</div>
-            </div>
-            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Clock size={18} color="#d97706" />
-            </div>
+        {/* KART 2: BEKLEYEN */}
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderLeft: "3px solid #f59e0b", borderRadius: "8px", padding: "8px 12px" }}>
+          <div style={{ fontSize: "10.5px", fontWeight: "700", color: "#64748b" }}>BEKLEYEN</div>
+          <div style={{ fontSize: "15px", fontWeight: "800", color: "#b45309", marginTop: "1px" }}>
+            {fmtMoneyWhole(kpi.bekleyenTutar)}
           </div>
+          <div style={{ fontSize: "10.5px", color: "#94a3b8" }}>{kpi.bekleyenAdet} taksit</div>
         </div>
 
-        {/* KART 3: GECİKMİŞ (Kırmızı üst çizgi) */}
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderTop: "3px solid #ef4444", borderRadius: "10px", padding: "14px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", letterSpacing: "0.03em" }}>GECİKMİŞ</div>
-              <div style={{ fontSize: "18px", fontWeight: "800", color: "#dc2626", marginTop: "2px" }}>
-                {fmtMoneyWhole(kpi.gecikmisTutar)}
-              </div>
-              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
-                {kpi.gecikmisAdet} taksit <span style={{ color: "#64748b" }}>ort. {kpi.gecikmisOrtGun} gün</span>
-              </div>
-            </div>
-            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <AlertTriangle size={18} color="#dc2626" />
-            </div>
+        {/* KART 3: GECİKMİŞ */}
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderLeft: "3px solid #ef4444", borderRadius: "8px", padding: "8px 12px" }}>
+          <div style={{ fontSize: "10.5px", fontWeight: "700", color: "#64748b" }}>GECİKMİŞ</div>
+          <div style={{ fontSize: "15px", fontWeight: "800", color: "#dc2626", marginTop: "1px" }}>
+            {fmtMoneyWhole(kpi.gecikmisTutar)}
           </div>
+          <div style={{ fontSize: "10.5px", color: "#94a3b8" }}>{kpi.gecikmisAdet} taksit</div>
         </div>
 
-        {/* KART 4: TAHSİL EDİLEN (Yeşil üst çizgi) */}
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderTop: "3px solid #22c55e", borderRadius: "10px", padding: "14px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", letterSpacing: "0.03em" }}>TAHSİL EDİLEN</div>
-              <div style={{ fontSize: "18px", fontWeight: "800", color: "#15803d", marginTop: "2px" }}>
-                {fmtMoneyWhole(kpi.tahsilTutar)}
-              </div>
-              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>{kpi.tahsilAdet} taksit</div>
-            </div>
-            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <CheckCircle2 size={18} color="#16a34a" />
-            </div>
+        {/* KART 4: TAHSİL EDİLEN */}
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderLeft: "3px solid #22c55e", borderRadius: "8px", padding: "8px 12px" }}>
+          <div style={{ fontSize: "10.5px", fontWeight: "700", color: "#64748b" }}>TAHSİL EDİLEN</div>
+          <div style={{ fontSize: "15px", fontWeight: "800", color: "#15803d", marginTop: "1px" }}>
+            {fmtMoneyWhole(kpi.tahsilTutar)}
           </div>
+          <div style={{ fontSize: "10.5px", color: "#94a3b8" }}>{kpi.tahsilAdet} taksit</div>
         </div>
 
-        {/* KART 5: PERFORMANS (Mor üst çizgi) */}
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderTop: "3px solid #a855f7", borderRadius: "10px", padding: "14px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", letterSpacing: "0.03em" }}>PERFORMANS</div>
-              <div style={{ fontSize: "18px", fontWeight: "800", color: "#7e22ce", marginTop: "2px" }}>
-                %{kpi.performansOran}
-              </div>
-              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
-                <span style={{ color: "#dc2626" }}>↘ %94</span> haftalık
-              </div>
-            </div>
-            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#f3e8ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <PieIcon size={18} color="#9333ea" />
-            </div>
+        {/* KART 5: PERFORMANS */}
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderLeft: "3px solid #a855f7", borderRadius: "8px", padding: "8px 12px" }}>
+          <div style={{ fontSize: "10.5px", fontWeight: "700", color: "#64748b" }}>PERFORMANS</div>
+          <div style={{ fontSize: "15px", fontWeight: "800", color: "#7e22ce", marginTop: "1px" }}>
+            %{kpi.performansOran}
           </div>
-        </div>
-      </div>
-
-      {/* 4. UYARI VE BİLDİRİM ŞERİTLERİ (media_1791241193046.png) */}
-      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ background: "#fee2e2", border: "1px solid #fecaca", borderRadius: "6px", padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", color: "#991b1b" }}>
-          <AlertTriangle size={14} color="#dc2626" />
-          <span>19 taksit vadesi geçmiş (₺216.350,01)</span>
-        </div>
-
-        <div style={{ background: "#f0f9ff", border: "1px solid #e0f2fe", borderRadius: "6px", padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", color: "#0369a1" }}>
-          <TrendingDown size={14} color="#0284c7" />
-          <span>Haftalık tahsilat: %84 azaldı</span>
+          <div style={{ fontSize: "10.5px", color: "#94a3b8" }}>Tahsil Oranı</div>
         </div>
       </div>
 

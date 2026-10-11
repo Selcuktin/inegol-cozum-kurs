@@ -82,7 +82,7 @@ describe("Sadeleştirilmiş Hızlı İşlemler & Genel Bakış Test Paketi", () 
     expect(container.textContent).toContain("Son Tahsilatlar");
   });
 
-  test("Hızlı İşlemler dropdown: Hızlı Gider ve Sınav Analizi kaldırılmıştır, Yeni Sözleşme ve Tahsilat Al doğrudan yönlendirir", async () => {
+  test("Hızlı İşlemler dropdown: Sadece Öğrenci Kaydı (Sözleşmeyle Birlikte) kalmıştır, diğerleri kaldırılmıştır", async () => {
     const { container } = await render(<MainApp me={adminUser} onLogout={jest.fn()} />);
 
     // Hızlı İşlemler butonunu bul ve tıkla
@@ -95,19 +95,17 @@ describe("Sadeleştirilmiş Hızlı İşlemler & Genel Bakış Test Paketi", () 
     expect(dropdown).not.toBeNull();
 
     // Kontroller:
-    // 1. "Hızlı Gider" kaldırılmış olmalı
+    // 1. "Hızlı Gider" ve "SINAV & ANALİZ" kaldırılmış olmalı
     expect(dropdown.textContent).not.toContain("Hızlı Gider");
-
-    // 2. "SINAV & ANALİZ" kaldırılmış olmalı
     expect(dropdown.textContent).not.toContain("SINAV & ANALİZ");
     expect(dropdown.textContent).not.toContain("Yeni Sınav");
 
-    // 3. "Yeni Sözleşme" ve "Tahsilat Al" ve "Yeni Öğrenci Kaydı" mevcut olmalı
-    expect(dropdown.textContent).toContain("Yeni Sözleşme");
-    expect(dropdown.textContent).toContain("Tahsilat Al");
-    expect(dropdown.textContent).toContain("Yeni Öğrenci Kaydı");
+    // 2. Sadece "Öğrenci Kaydı (Sözleşmeyle Birlikte)" olmalı, ayrı "Yeni Sözleşme" ve "Tahsilat Al" kaldırılmış olmalı
+    expect(dropdown.textContent).toContain("Öğrenci Kaydı (Sözleşmeyle Birlikte)");
+    expect(dropdown.textContent).not.toContain("Yeni Sözleşme");
+    expect(dropdown.textContent).not.toContain("Tahsilat Al");
 
-    // 4. "Ders Programı" kaldırılmış olmalı
+    // 3. "Ders Programı" kaldırılmış olmalı
     expect(dropdown.textContent).not.toContain("Ders Programı");
   });
 });

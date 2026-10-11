@@ -98,6 +98,15 @@ export async function getCurrentUser(request, db) {
   }
 }
 
+export function requireRole(user, allowedRoles = [ROLE_ADMIN]) {
+  if (!user) return errorResponse("Oturum açılmadı", 401, "UNAUTHORIZED");
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+  if (!roles.includes(user.role)) {
+    return errorResponse("Bu işlem için yetkiniz yok", 403, "FORBIDDEN");
+  }
+  return null;
+}
+
 export async function logAction(db, user, action, target_type = "", target_id = "", detail = "") {
   if (!db) return;
   try {
@@ -127,14 +136,6 @@ export async function logAction(db, user, action, target_type = "", target_id = 
 export async function getNextSequence(db, seqName, prefix = "", padLength = 5, fallbackInitial = 1) {
   if (!db) return `${prefix}${Date.now().toString().slice(-padLength)}`;
   try {
-    await db.prepare(`
-      CREATE TABLE IF NOT EXISTS system_sequences (
-        name TEXT PRIMARY KEY,
-        current_val INTEGER NOT NULL,
-        updated_at TEXT DEFAULT (datetime('now'))
-      )
-    `).run().catch(() => {});
-
     const res = await db.prepare(
       "UPDATE system_sequences SET current_val = current_val + 1, updated_at = datetime('now') WHERE name = ? RETURNING current_val"
     ).bind(seqName).first().catch(() => null);

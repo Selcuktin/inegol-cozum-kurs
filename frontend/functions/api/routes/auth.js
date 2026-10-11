@@ -1,6 +1,6 @@
 import { json, errorResponse, ROLE_ADMIN, ROLE_LABELS, logAction } from "../utils.js";
 
-export async function handleAuthRoutes({ request, db, path, user }) {
+export async function handleAuthRoutes({ request, db, env, path, user }) {
   // Reset cookies and clear site data across all devices
   if (path === "/system/reset-cookies" || path === "/auth/clear-all-cookies") {
     return json({ ok: true, message: "Tüm cihaz çerezleri ve önbellek sıfırlandı" }, 200, {
@@ -15,16 +15,19 @@ export async function handleAuthRoutes({ request, db, path, user }) {
     const role = body.role in ROLE_LABELS ? body.role : ROLE_ADMIN;
     const password = String(body.password || "").trim();
 
-    const ADMIN_PASSWORDS = ["cozum2026", "admin4321", "admin", "inegol2026"];
-    const STAFF_PASSWORD = "4321";
+    // Use environment secret if configured; fallback for local dev compatibility
+    const adminPasswords = env?.ADMIN_PASSWORDS
+      ? env.ADMIN_PASSWORDS.split(",").map(p => p.trim())
+      : (env?.ADMIN_PASSWORD ? [env.ADMIN_PASSWORD.trim()] : ["cozum2026", "admin4321"]);
+    const staffPassword = (env?.STAFF_PASSWORD || "4321").trim();
 
     if (role === ROLE_ADMIN) {
-      if (!password || !ADMIN_PASSWORDS.includes(password)) {
+      if (!password || !adminPasswords.includes(password)) {
         return errorResponse("Hatalı yönetici parolası!", 401, "AUTH_FAILED");
       }
     } else {
-      if (password !== STAFF_PASSWORD) {
-        return errorResponse("Hatalı şifre! (Personel şifresi: 4321)", 401, "AUTH_FAILED");
+      if (password !== staffPassword) {
+        return errorResponse("Hatalı personel şifresi!", 401, "AUTH_FAILED");
       }
     }
 
@@ -94,13 +97,7 @@ export async function handleAuthRoutes({ request, db, path, user }) {
   // Get current user (/auth/me)
   if (path === "/auth/me" && request.method === "GET") {
     if (!user) {
-      return json({
-        user_id: "guest",
-        email: "guest@inegolcozumkurs.com",
-        name: "Yönetici",
-        role: "admin",
-        role_label: "Yönetici",
-      });
+      return errorResponse("Oturum açılmadı", 401, "UNAUTHORIZED");
     }
     return json({ ...user, role_label: ROLE_LABELS[user.role] || user.role });
   }

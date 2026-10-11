@@ -43,6 +43,7 @@ import {
   Brand, AuthCallback, Login, PwaBanner, MobileBottomNav,
   getBackendBaseUrl, API, LOGO, ROLE_LABEL
 } from "./components/layout/AuthAndNav";
+import { buildNavCategories } from "./components/layout/navConfig";
 import { UsersPage, Reminders, Reports, AuditPage, downloadBlob } from "./pages/SystemPages";
 import { StudentProfileModal, StudentDetailDrawer } from "./components/StudentProfileModal";
 import { Modal, CameraCapture, computeEffective, DISCOUNT_TYPES, EXTRA_KEYS } from "./components/QuickActionModal";
@@ -68,93 +69,8 @@ export {
 };
 
 // Client storage cache-busting & refresh across all devices
-export const CLIENT_STORAGE_VERSION = "cozum_v8_20261010_data_normalization_fix";
-
-export async function purgeClientStorage(preserveAuth = true) {
-  if (typeof window === "undefined") return;
-  try {
-    console.log("[App] Purging all on-device site data and cache, upgraded to:", CLIENT_STORAGE_VERSION);
-    const token = preserveAuth ? localStorage.getItem("session_token") : null;
-    const customApi = preserveAuth ? localStorage.getItem("custom_api_url") : null;
-
-    localStorage.clear();
-    sessionStorage.clear();
-
-    if (preserveAuth) {
-      if (token) localStorage.setItem("session_token", token);
-      if (customApi) localStorage.setItem("custom_api_url", customApi);
-    }
-    localStorage.setItem("cozum_app_version", CLIENT_STORAGE_VERSION);
-
-    if (typeof window !== "undefined" && window.indexedDB) {
-      try {
-        if (typeof indexedDB.databases === "function") {
-          const dbs = await indexedDB.databases();
-          await Promise.all(
-            (dbs || []).map((db) => {
-              if (db && db.name) {
-                return new Promise((resolve) => {
-                  const req = indexedDB.deleteDatabase(db.name);
-                  req.onsuccess = () => resolve();
-                  req.onerror = () => resolve();
-                  req.onblocked = () => resolve();
-                });
-              }
-              return Promise.resolve();
-            })
-          );
-        }
-      } catch (e) {
-        console.warn("[App] IndexedDB purge error:", e);
-      }
-    }
-
-    if (typeof window !== "undefined" && "caches" in window) {
-      try {
-        const names = await caches.keys();
-        await Promise.all((names || []).map((name) => caches.delete(name)));
-      } catch (e) {
-        console.warn("[App] CacheStorage purge error:", e);
-      }
-    }
-
-    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(
-          (registrations || []).map(async (reg) => {
-            await reg.unregister().catch(() => {});
-          })
-        );
-      } catch (e) {
-        console.warn("[App] ServiceWorker purge error:", e);
-      }
-    }
-
-    try {
-      const cookies = document.cookie.split(";");
-      const host = window.location.hostname || "";
-      const domains = ["", host, `.${host}`];
-      if (host.includes(".")) {
-        const parts = host.split(".");
-        if (parts.length >= 2) domains.push(`.${parts.slice(-2).join(".")}`);
-      }
-      cookies.forEach((c) => {
-        const eqPos = c.indexOf("=");
-        const name = eqPos > -1 ? c.substring(0, eqPos).trim() : c.trim();
-        if (name && (!preserveAuth || name !== "session_token")) {
-          domains.forEach((d) => {
-            const domAttr = d ? `;domain=${d}` : "";
-            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/${domAttr};`;
-            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax;Secure${domAttr};`;
-          });
-        }
-      });
-    } catch (e) {}
-  } catch (err) {
-    console.warn("[App] Purge error:", err);
-  }
-}
+import { CLIENT_STORAGE_VERSION, purgeClientStorage } from "./lib/storageUtils";
+export { CLIENT_STORAGE_VERSION, purgeClientStorage };
 
 if (typeof window !== "undefined") {
   window.cozumPurgeAllCaches = purgeClientStorage;
@@ -402,7 +318,11 @@ export function MainApp({ me, onLogout }) {
     load();
     const handleUpdate = () => load();
     window.addEventListener("cozum_students_updated", handleUpdate);
-    return () => window.removeEventListener("cozum_students_updated", handleUpdate);
+    window.addEventListener("cozum_accounting_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("cozum_students_updated", handleUpdate);
+      window.removeEventListener("cozum_accounting_updated", handleUpdate);
+    };
   }, []);
   const filtered = useMemo(() => (data.students || []).filter((s) => trIncludes(`${s.student_name} ${s.parent_name} ${s.student_phone}`, search)), [data.students, search]);
   const totalCollected = data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
@@ -420,121 +340,12 @@ export function MainApp({ me, onLogout }) {
   }, [quickOpen]);
   const guardedOpen = (type) => setModal(type);
 
-  const navCategories = [
-    {
-      title: "KURUMSAL",
-      items: [{ id: "dashboard", label: "Genel Bakış", icon: LayoutDashboard, perm: "page_dashboard" }]
-    },
-    {
-      title: "",
-      items: [
-        {
-          id: "payments", label: "Muhasebe V2", icon: Wallet, perm: "page_payments", isTree: true, treeKey: "muhasebe",
-          subItems: [
-            {
-              id: "p_dash", label: "Kontrol Paneli", icon: LayoutDashboard,
-              activeCheck: () => page === "payments" && accountingTab === "dashboard",
-              onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); }
-            },
-            {
-              id: "p_gelir", label: "Gelir Yönetimi", isAccordion: true, subKey: "gelir", icon: Folder,
-              children: [
-                { id: "g_list", label: "Gelir Listesi", activeCheck: () => page === "gelir" || (page === "payments" && accountingTab === "gelirler"), onClick: () => { setPage("gelir"); setAccountingTab("gelirler"); setMobileOpen(false); } },
-                { id: "g_szl", label: "Sözleşmeler", activeCheck: () => page === "documents", onClick: () => { try { sessionStorage.removeItem("cozum_open_contract_no"); } catch {} if (typeof window !== "undefined") window.location.hash = "documents"; setPage("documents"); setMobileOpen(false); } },
-                { id: "g_vade", label: "Vade Takvimi", activeCheck: () => page === "vade" || (page === "payments" && accountingTab === "gecikenler"), onClick: () => { setPage("vade"); setMobileOpen(false); } },
-                { id: "g_tahs", label: "Tahsilat Listesi", activeCheck: () => page === "tahsilat" || (page === "payments" && accountingTab === "tahsilatlar"), onClick: () => { setPage("tahsilat"); setMobileOpen(false); } },
-                { id: "g_cust", label: "Müşteriler", activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } }
-              ]
-            },
-            {
-              id: "p_gider", label: "Gider Yönetimi", isAccordion: true, subKey: "gider", icon: TrendingDown,
-              children: [
-                { id: "gid_list", label: "Gider Listesi", activeCheck: () => page === "payments" && accountingTab === "giderler", onClick: () => { setPage("payments"); setAccountingTab("giderler"); setMobileOpen(false); } },
-                { id: "gid_add", label: "Yeni Gider Ekle", onClick: () => { guardedOpen("expense"); setMobileOpen(false); } }
-              ]
-            },
-            ...(ENABLE_KASA_BANKA ? [{
-              id: "p_kasa", label: "Kasa ve Banka", isAccordion: true, subKey: "kasa", icon: Building,
-              children: [
-                { id: "k_def", label: "Kasa Defteri", activeCheck: () => page === "payments" && accountingTab === "kasalar", onClick: () => { setPage("payments"); setAccountingTab("kasalar"); setMobileOpen(false); } },
-                { id: "k_gun", label: "Kasa Raporu Yazdır", onClick: () => { window.print(); setMobileOpen(false); } },
-                { id: "k_makbuz", label: "Tahsilat Makbuzu Kes", onClick: () => { guardedOpen("payment"); setMobileOpen(false); } },
-                { id: "k_senet", label: "Matbu Senet (Bono) Yazdır", onClick: () => { setShowGlobalPromissory(true); setMobileOpen(false); } },
-                { id: "k_bak", label: "Bakiyeler & Hesaplar", activeCheck: () => page === "payments" && accountingTab === "dashboard", onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); } },
-                { id: "k_backup", label: "💾 Otomatik Yedekleme (20:00)", activeCheck: () => page === "payments" && accountingTab === "backup", onClick: () => { setPage("payments"); setAccountingTab("backup"); setMobileOpen(false); } }
-              ]
-            }] : [])
-          ]
-        }
-      ]
-    },
-    {
-      title: "",
-      items: [
-        {
-          id: "kayit", label: "Kayıt İşlemleri", icon: Users, perm: "page_students", isTree: true, treeKey: "kayit",
-          subItems: [
-            { id: "k_kokpit", label: "Kayıt Kokpiti", icon: TrendingUp, activeCheck: () => page === "kayit" && kayitTab === "kokpit", onClick: () => { setPage("kayit"); setKayitTab("kokpit"); setMobileOpen(false); } },
-            { id: "k_ogrenciler", label: "Öğrenciler", icon: UserPlus, activeCheck: () => page === "students", onClick: () => { setPage("students"); setMobileOpen(false); } },
-            { id: "k_ogretmenler", label: "Öğretmenler & Kadro", icon: GraduationCap, activeCheck: () => page === "teachers", onClick: () => { setPage("teachers"); setMobileOpen(false); } },
-            { id: "k_siniflar", label: "Sınıflar & Şubeler", icon: BookOpen, activeCheck: () => page === "classes", onClick: () => { setPage("classes"); setMobileOpen(false); } },
-            { id: "k_raporlar", label: "Kayıt Raporları", icon: FileText, activeCheck: () => page === "kayit" && kayitTab === "raporlar", onClick: () => { setPage("kayit"); setKayitTab("raporlar"); setMobileOpen(false); } },
-            {
-              id: "k_araclar", label: "Araçlar ve Ayarlar", isAccordion: true, subKey: "kayit_araclar", icon: Settings,
-              children: [
-                { id: "k_sifre", label: "Geçici Şifreler (SMS)", activeCheck: () => page === "kayit" && kayitTab === "sifreler", onClick: () => { setPage("kayit"); setKayitTab("sifreler"); setMobileOpen(false); } },
-                { id: "k_donem", label: "Dönem Geçiş Sihirbazı", activeCheck: () => page === "kayit" && kayitTab === "donem", onClick: () => { setPage("kayit"); setKayitTab("donem"); setMobileOpen(false); } },
-                { id: "k_ayar", label: "Kayıt Ayarları", activeCheck: () => page === "kayit" && kayitTab === "ayarlar", onClick: () => { setPage("kayit"); setKayitTab("ayarlar"); setMobileOpen(false); } }
-              ]
-            },
-            {
-              id: "k_bursluluk", label: "Bursluluk ve STS Modülü", isAccordion: true, subKey: "kayit_bursluluk", icon: Award,
-              children: [
-                { id: "k_aday", label: "Adaylar & Ön Kayıtlar", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } },
-                { id: "k_form", label: "Ön Kayıt Formları & Şubeler", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } },
-                { id: "k_seans", label: "Sınav Seansları & Salonları", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      title: "",
-      items: [
-        {
-          id: "exams", label: "Deneme Sınavları & Karne", icon: Award, perm: "page_exams", isTree: true, treeKey: "olcme",
-          subItems: [
-            { id: "exams_list", label: "Deneme Sınavları Listesi", icon: Award, activeCheck: () => page === "exams" && !showGlobalOptikModal && !showGlobalHataKarnesi, onClick: () => { setPage("exams"); setMobileOpen(false); } },
-            { id: "optik_omr", label: "Optik Okuma & Şablonlar (OMR)", icon: Sparkles, onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); } },
-            { id: "hata_karnesi", label: "Kazanım & Hata Karneleri", icon: Target, onClick: () => { setShowGlobalHataKarnesi(true); setMobileOpen(false); } },
-            { id: "kalibrasyon", label: "Milimetrik Kalibrasyon & Baskı", icon: Printer, onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); } }
-          ]
-        }
-      ]
-    },
-    {
-      title: "EĞİTİM & AKADEMİK",
-      items: [
-        { id: "schedules", label: "Ders Programı", icon: Calendar, perm: "page_schedules" },
-        { id: "attendance", label: "Günlük Yoklama", icon: CalendarCheck, perm: "page_attendance" }
-      ]
-    },
-    {
-      title: "SİSTEM & YÖNETİM",
-      items: [
-        { id: "reports", label: "Aylık Muhasebe Raporu", icon: FileDown, perm: "page_reports" },
-        { id: "reminders", label: "Taksit Takibi & Risk", icon: BellRing, perm: "page_reminders" },
-        { id: "users", label: "Kullanıcılar & Roller", icon: UserCog, perm: "page_users" },
-        { id: "audit", label: "Denetim Kaydı", icon: History, perm: "page_audit" },
-        {
-          id: "backup", label: "Otomatik Yedekleme (20:00)", icon: ShieldCheck, perm: "page_payments",
-          activeCheck: () => page === "payments" && accountingTab === "backup",
-          customAction: () => { setPage("payments"); setAccountingTab("backup"); }
-        }
-      ]
-    }
-  ];
+  const navCategories = useMemo(() => buildNavCategories({
+    page, accountingTab, setPage, setAccountingTab, setMobileOpen,
+    guardedOpen, setShowGlobalPromissory, kayitTab, setKayitTab,
+    showGlobalOptikModal, showGlobalHataKarnesi, setShowGlobalOptikModal,
+    setShowGlobalHataKarnesi
+  }), [page, accountingTab, kayitTab, showGlobalOptikModal, showGlobalHataKarnesi]);
 
   return (
     <div className="app-shell">
@@ -711,54 +522,27 @@ export function MainApp({ me, onLogout }) {
                 <Zap size={14} aria-hidden="true" /><span>Hızlı İşlemler</span>
               </button>
               {quickOpen && (
-                <div className="edesis-quick-dropdown" onClick={() => setQuickOpen(false)} role="menu">
-                  <div className="quick-dropdown-header">HIZLI İŞLEMLER</div>
-                  <div className="quick-dropdown-grid">
-                    <div className="quick-col">
-                      <div className="quick-col-title">SÖZLEŞME & TAHSİLAT</div>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          try {
-                            sessionStorage.setItem("cozum_open_new_contract_modal", "1");
-                          } catch {}
-                          setPage("documents");
-                          window.dispatchEvent(new CustomEvent("cozum_trigger_new_contract"));
-                        }}
-                      >
-                        <FileText size={14} style={{ color: "#2563eb" }} aria-hidden="true" />
-                        <span>Yeni Sözleşme</span>
-                        <ChevronRight size={12} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          try {
-                            sessionStorage.setItem("cozum_scroll_to_tahsilat", "1");
-                          } catch {}
-                          setPage("documents");
-                          window.dispatchEvent(new CustomEvent("cozum_scroll_to_tahsilat"));
-                          setTimeout(() => {
-                            const el = document.getElementById("tahsilat-section");
-                            if (el) el.scrollIntoView({ behavior: "smooth" });
-                          }, 150);
-                        }}
-                      >
-                        <CircleDollarSign size={14} style={{ color: "#16a34a" }} aria-hidden="true" />
-                        <span>Tahsilat Al</span>
-                        <ChevronRight size={12} aria-hidden="true" />
-                      </button>
-                    </div>
-                    <div className="quick-col">
-                      <div className="quick-col-title">KAYIT & SİSTEM</div>
-                      <button type="button" role="menuitem" onClick={() => guardedOpen("student")}>
-                        <UserPlus size={14} style={{ color: "#d97706" }} aria-hidden="true" />
-                        <span>Yeni Öğrenci Kaydı</span>
-                        <ChevronRight size={12} aria-hidden="true" />
-                      </button>
-                    </div>
+                <div className="edesis-quick-dropdown" onClick={() => setQuickOpen(false)} role="menu" style={{ width: "290px" }}>
+                  <div className="quick-dropdown-header">HIZLI İŞLEM</div>
+                  <div className="quick-col">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => guardedOpen("student")}
+                      style={{
+                        padding: "10px 12px",
+                        background: "#eff6ff",
+                        borderColor: "#bfdbfe",
+                        color: "#1e40af",
+                        fontWeight: 600
+                      }}
+                    >
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                        <UserPlus size={15} style={{ color: "#2563eb" }} aria-hidden="true" />
+                        <span>Öğrenci Kaydı (Sözleşmeyle Birlikte)</span>
+                      </span>
+                      <ChevronRight size={13} aria-hidden="true" />
+                    </button>
                   </div>
                 </div>
               )}

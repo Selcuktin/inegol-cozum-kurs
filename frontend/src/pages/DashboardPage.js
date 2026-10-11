@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   CircleDollarSign,
   Wallet,
@@ -185,121 +185,38 @@ export function DashboardPage({
     });
   }, [data.classes, data.classCapacities, data.students]);
 
+  const [installmentFilter, setInstallmentFilter] = useState("upcoming");
+
+  const displayedInstallments = useMemo(() => {
+    if (installmentFilter === "all") return upcomingInstallments;
+    if (installmentFilter === "overdue") {
+      const filtered = upcomingInstallments.filter((item) => {
+        const badge = getVadeBadge(item.due_date);
+        return badge.isOverdue;
+      });
+      return filtered;
+    }
+    // "upcoming" (default)
+    const filtered = upcomingInstallments.filter((item) => {
+      const badge = getVadeBadge(item.due_date);
+      return !badge.isOverdue;
+    });
+    return filtered.length > 0 ? filtered : upcomingInstallments;
+  }, [upcomingInstallments, installmentFilter]);
+
   return (
     <div className="dashboard-page-container" data-testid="dashboard-page">
       <PageHead eyebrow={todayLabel} title="Genel Bakış">
-        {can(me, "payment_create") && (
-          <Button testid="add-payment-dashboard" onClick={() => onOpen && onOpen("payment")}>
-            <Plus size={17} /> Tahsilat Ekle
-          </Button>
-        )}
         {can(me, "student_create") && (
-          <Button testid="add-student-dashboard" secondary onClick={() => onOpen && onOpen("student")}>
+          <Button testid="add-student-dashboard" onClick={() => onOpen && onOpen("student")}>
             <Users size={17} /> Öğrenci Ekle
           </Button>
         )}
       </PageHead>
 
-      {/* 4 ÖZET KPI KARTI (Öğrenci, Sözleşme, Tahsil Edilen, Kalan) */}
-      <div className="stats-grid">
-        <Stat
-          icon={CircleDollarSign}
-          label="Bu ay tahsilat"
-          value={money(totalCollected)}
-          note="Toplam tahsil edilen tutar"
-          color="blue"
-          trend={`%${collectionRate} Tahsil`}
-          onClick={() => onNavigate && onNavigate("payments")}
-        />
-        <Stat
-          icon={Wallet}
-          label="Bekleyen alacak"
-          value={money(outstanding)}
-          note="Tahsil edilecek net bakiye"
-          color="amber"
-          trend="Takipte"
-          onClick={() => onNavigate && onNavigate("reminders")}
-        />
-        <Stat
-          icon={Users}
-          label="Sözleşme & Öğrenci"
-          value={`${contractsCount} Sözleşme`}
-          note={`${studentsCount} Kayıtlı Öğrenci`}
-          color="green"
-          trend="Aktif Portföy"
-          onClick={() => onNavigate && onNavigate("documents")}
-        />
-        <Stat
-          icon={Receipt}
-          label="Tahsilat Oranı"
-          value={`%${collectionRate}`}
-          note={`Toplam taahhüt: ${money(totalExpected)}`}
-          color="purple"
-          trend="Hedef %100"
-          onClick={() => onNavigate && onNavigate("payments")}
-        />
-      </div>
-
-      {/* TAHSİLAT DURUMU & GERÇEKLEŞME ÇUBUĞU */}
-      <section
-        className="panel collection-panel"
-        style={{ marginBottom: "18px", padding: "18px 22px", borderRadius: "10px", background: "#fff", border: "1px solid var(--border)" }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
-          <div>
-            <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "var(--ink)" }}>Tahsilat Gerçekleşme Durumu</h2>
-            <p style={{ fontSize: "12.5px", color: "var(--muted)", margin: "3px 0 0" }}>Tüm sözleşmelerin toplam taahhüt ve tahsilat oranı</p>
-          </div>
-          <button
-            type="button"
-            className="text-btn"
-            onClick={() => onNavigate && onNavigate("payments")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12.5px", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-          >
-            Muhasebe Detayları <ChevronRight size={14} />
-          </button>
-        </div>
-
-        <div style={{ marginBottom: "12px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "6px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>
-              Tahsilat İlerlemesi: <strong style={{ color: "var(--primary)" }}>%{collectionRate}</strong>
-            </span>
-            <span style={{ fontSize: "12px", color: "var(--muted)" }}>
-              Kalan: <b>{money(outstanding)}</b> / Toplam: <b>{money(totalExpected)}</b>
-            </span>
-          </div>
-          <div style={{ height: "10px", width: "100%", background: "#f1f5f9", borderRadius: "6px", overflow: "hidden", display: "flex" }}>
-            <div
-              style={{
-                width: `${Math.min(100, collectionRate)}%`,
-                background: "linear-gradient(90deg, #2563eb 0%, #10b981 100%)",
-                borderRadius: "6px",
-                transition: "width 0.4s ease"
-              }}
-            />
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "12px", color: "var(--muted)", paddingTop: "8px", borderTop: "1px solid #f1f5f9" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
-            Tahsil Edilen: <strong style={{ color: "#0f172a" }}>{money(totalCollected)}</strong>
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
-            Bekleyen Alacak: <strong style={{ color: "#0f172a" }}>{money(outstanding)}</strong>
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#64748b", display: "inline-block" }} />
-            Toplam Sözleşme Portföyü: <strong style={{ color: "#0f172a" }}>{money(totalExpected)}</strong>
-          </span>
-        </div>
-      </section>
-
-      {/* YAKLAŞAN & VADESİ GELEN TAHSİLATLAR (NE ZAMAN, KİMDEN, NE KADAR ALINACAK - AŞIRI SADE & PRATİK) */}
-      <section className="panel" style={{ marginBottom: "18px", padding: "18px 22px", borderRadius: "10px", background: "#fff", border: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+      {/* YAKLAŞAN & VADESİ GELEN TAHSİLATLAR (EN YUKARIDA VE VARSAYILAN OLARAK YAKLAŞANLAR SEÇİLİ) */}
+      <section className="panel" style={{ marginBottom: "16px", padding: "16px 20px", borderRadius: "10px", background: "#fff", border: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <Calendar size={18} style={{ color: "var(--primary)" }} />
@@ -309,20 +226,75 @@ export function DashboardPage({
               Ne zaman, kimden ve ne kadar tahsilat alınacağını pratik olarak takip edin
             </p>
           </div>
-          <button
-            type="button"
-            data-testid="view-all-payments"
-            className="text-btn"
-            onClick={() => onNavigate && onNavigate("reminders")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12.5px", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-          >
-            Tüm Taksit Takibi <ChevronRight size={14} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "3px", borderRadius: "8px", gap: "2px" }}>
+              <button
+                type="button"
+                onClick={() => setInstallmentFilter("upcoming")}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  fontWeight: installmentFilter === "upcoming" ? 700 : 500,
+                  background: installmentFilter === "upcoming" ? "#fff" : "transparent",
+                  color: installmentFilter === "upcoming" ? "#2563eb" : "#64748b",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  boxShadow: installmentFilter === "upcoming" ? "0 1px 2px rgba(0,0,0,0.06)" : "none"
+                }}
+              >
+                Yaklaşanlar (Varsayılan)
+              </button>
+              <button
+                type="button"
+                onClick={() => setInstallmentFilter("overdue")}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  fontWeight: installmentFilter === "overdue" ? 700 : 500,
+                  background: installmentFilter === "overdue" ? "#fff" : "transparent",
+                  color: installmentFilter === "overdue" ? "#dc2626" : "#64748b",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  boxShadow: installmentFilter === "overdue" ? "0 1px 2px rgba(0,0,0,0.06)" : "none"
+                }}
+              >
+                Gecikenler
+              </button>
+              <button
+                type="button"
+                onClick={() => setInstallmentFilter("all")}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  fontWeight: installmentFilter === "all" ? 700 : 500,
+                  background: installmentFilter === "all" ? "#fff" : "transparent",
+                  color: installmentFilter === "all" ? "#0f172a" : "#64748b",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  boxShadow: installmentFilter === "all" ? "0 1px 2px rgba(0,0,0,0.06)" : "none"
+                }}
+              >
+                Tümü
+              </button>
+            </div>
+            <button
+              type="button"
+              data-testid="view-all-payments"
+              className="text-btn"
+              onClick={() => onNavigate && onNavigate("reminders")}
+              style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12.5px", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 600, marginLeft: "4px" }}
+            >
+              Tüm Taksit Takibi <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
 
-        {upcomingInstallments.length === 0 ? (
+        {displayedInstallments.length === 0 ? (
           <div style={{ padding: "30px", textAlign: "center", color: "var(--muted)", fontSize: "13px", background: "#f8fafc", borderRadius: "8px" }}>
-            Vadesi yaklaşan veya geciken tahsilat kaydı bulunmamaktadır.
+            Seçilen kritere uygun tahsilat kaydı bulunmamaktadır.
           </div>
         ) : (
           <div className="table-responsive" style={{ overflowX: "auto" }}>
@@ -338,7 +310,7 @@ export function DashboardPage({
                 </tr>
               </thead>
               <tbody>
-                {upcomingInstallments.map((item) => {
+                {displayedInstallments.map((item) => {
                   const badge = getVadeBadge(item.due_date);
                   return (
                     <tr
@@ -467,6 +439,95 @@ export function DashboardPage({
             </table>
           </div>
         )}
+      </section>
+
+      {/* 4 ÖZET KPI KARTI (KOMPAKT & SCROLL GEREKTİRMEYEN STRIP) */}
+      <div className="stats-grid" style={{ marginBottom: "12px" }}>
+        <Stat
+          icon={CircleDollarSign}
+          label="Bu ay tahsilat"
+          value={money(totalCollected)}
+          note="Toplam tahsil edilen tutar"
+          color="blue"
+          trend={`%${collectionRate} Tahsil`}
+          onClick={() => onNavigate && onNavigate("payments")}
+        />
+        <Stat
+          icon={Wallet}
+          label="Bekleyen alacak"
+          value={money(outstanding)}
+          note="Tahsil edilecek net bakiye"
+          color="amber"
+          trend="Takipte"
+          onClick={() => onNavigate && onNavigate("reminders")}
+        />
+        <Stat
+          icon={Users}
+          label="Sözleşme & Öğrenci"
+          value={`${contractsCount} Sözleşme`}
+          note={`${studentsCount} Kayıtlı Öğrenci`}
+          color="green"
+          trend="Aktif Portföy"
+          onClick={() => onNavigate && onNavigate("documents")}
+        />
+        <Stat
+          icon={Receipt}
+          label="Tahsilat Oranı"
+          value={`%${collectionRate}`}
+          note={`Toplam taahhüt: ${money(totalExpected)}`}
+          color="purple"
+          trend="Hedef %100"
+          onClick={() => onNavigate && onNavigate("payments")}
+        />
+      </div>
+
+      {/* TAHSİLAT DURUMU & GERÇEKLEŞME ÇUBUĞU (KOMPAKT) */}
+      <section
+        className="panel collection-panel"
+        style={{ marginBottom: "16px", padding: "12px 18px", borderRadius: "10px", background: "#fff", border: "1px solid var(--border)" }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
+            <h2 style={{ fontSize: "14px", fontWeight: 700, margin: 0, color: "var(--ink)" }}>Tahsilat Gerçekleşme Durumu</h2>
+            <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+              İlerleme: <strong style={{ color: "var(--primary)" }}>%{collectionRate}</strong> (Kalan: <b>{money(outstanding)}</b> / Toplam: <b>{money(totalExpected)}</b>)
+            </span>
+          </div>
+          <button
+            type="button"
+            className="text-btn"
+            onClick={() => onNavigate && onNavigate("payments")}
+            style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+          >
+            Muhasebe Detayları <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <div style={{ height: "8px", width: "100%", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden", display: "flex", marginBottom: "8px" }}>
+          <div
+            style={{
+              width: `${Math.min(100, collectionRate)}%`,
+              background: "linear-gradient(90deg, #2563eb 0%, #10b981 100%)",
+              borderRadius: "4px",
+              transition: "width 0.4s ease"
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "11.5px", color: "var(--muted)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+            <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+            Tahsil Edilen: <strong style={{ color: "#0f172a" }}>{money(totalCollected)}</strong>
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+            <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
+            Bekleyen Alacak: <strong style={{ color: "#0f172a" }}>{money(outstanding)}</strong>
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+            <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#64748b", display: "inline-block" }} />
+            Toplam Sözleşme Portföyü: <strong style={{ color: "#0f172a" }}>{money(totalExpected)}</strong>
+          </span>
+        </div>
       </section>
 
       {/* SINIF KONTENJANLARI (SADE & KOMPAKT) */}

@@ -31,14 +31,6 @@ export function formatPaymentDate(raw) {
 }
 
 export function ReceiptModal({ payment, student, onClose }) {
-  const [editableAmount, setEditableAmount] = useState(() => Number(payment?.amount || 0));
-  if (!payment) return null;
-
-  const LOGO = "/assets/logo.jpeg";
-  const amount = editableAmount;
-  const amountWords = numberToTurkishWords(amount);
-  const paymentDate = formatPaymentDate(payment.payment_date || payment.tahsilatTarihi || payment.date);
-
   const sNameNorm = normTr(student?.student_name);
   const rawParentNorm = normTr(student?.parent_name);
   const isInvalidParent = (pNorm) =>
@@ -68,9 +60,9 @@ export function ReceiptModal({ payment, student, onClose }) {
   }
 
   const candidateParent = !isInvalidParent(rawParentNorm)
-    ? student.parent_name
+    ? student?.parent_name
     : !isInvalidParent(normTr(matchedStudent?.parent_name))
-    ? matchedStudent.parent_name
+    ? matchedStudent?.parent_name
     : "";
 
   const resolvedParentName =
@@ -85,6 +77,23 @@ export function ReceiptModal({ payment, student, onClose }) {
     (student?.student_phone && student.student_phone !== "—" ? student.student_phone : "") ||
     (matchedStudent?.student_phone && matchedStudent.student_phone !== "—" ? matchedStudent.student_phone : "") ||
     "—";
+
+  const [editableAmount, setEditableAmount] = useState(() => Number(payment?.amount || 0));
+  const [editableDate, setEditableDate] = useState(() => formatPaymentDate(payment?.payment_date || payment?.tahsilatTarihi || payment?.date));
+  const [editableParent, setEditableParent] = useState(() => (resolvedParentName !== "—" ? resolvedParentName : (student?.parent_name || "")));
+  const [editableParentPhone, setEditableParentPhone] = useState(() => (resolvedParentPhone !== "—" ? resolvedParentPhone : ""));
+  const [editableStudentName, setEditableStudentName] = useState(() => student?.student_name || payment?.student_name || "");
+  const [editableMethod, setEditableMethod] = useState(() => payment?.method || payment?.payment_type || "Nakit Kasa");
+  const [editableNote, setEditableNote] = useState(() => payment?.note || "Eğitim Dönemi Taksit Ödemesi");
+  const [editableOfficer, setEditableOfficer] = useState("Nevin ÇAKMAK / Osman SEYMEN");
+  const [showEditDrawer, setShowEditDrawer] = useState(false);
+
+  if (!payment) return null;
+
+  const LOGO = "/assets/logo.jpeg";
+  const amount = editableAmount;
+  const amountWords = numberToTurkishWords(amount);
+  const paymentDate = editableDate || formatPaymentDate(payment.payment_date || payment.tahsilatTarihi || payment.date);
 
   let extraSum = 0;
   try {
@@ -102,7 +111,7 @@ export function ReceiptModal({ payment, student, onClose }) {
       <div 
         className="modal" 
         onClick={(e) => e.stopPropagation()} 
-        style={{ maxWidth: "720px", width: "95vw", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
+        style={{ maxWidth: "780px", width: "95vw", maxHeight: "92vh", display: "flex", flexDirection: "column" }}
       >
         <div className="modal-head" style={{ borderBottom: "1px solid var(--border)", padding: "16px 20px" }}>
           <div>
@@ -112,6 +121,14 @@ export function ReceiptModal({ payment, student, onClose }) {
             </h2>
           </div>
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => setShowEditDrawer(!showEditDrawer)}
+              style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "12px", padding: "7px 12px" }}
+            >
+              <Edit3 size={15} /> {showEditDrawer ? "Düzenlemeyi Kapat" : "Makbuzu Düzenle"}
+            </button>
             <button className="btn" onClick={() => window.print()} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               <Printer size={16} /> Makbuzu Yazdır
             </button>
@@ -119,62 +136,105 @@ export function ReceiptModal({ payment, student, onClose }) {
           </div>
         </div>
 
-        <div className="modal-body" style={{ overflowY: "auto", padding: "24px", background: "#f8fafc" }}>
-          {/* HIZLI TUTAR DÜZENLEME & KISMİ ÖDEME BARI (Ekranda görünür, yazdırmada gizlenir) */}
+        <div className="modal-body" style={{ overflowY: "auto", padding: "20px", background: "#f8fafc" }}>
+          {/* PRATİK ÖNİZLEME & DÜZENLEME PANELİ (Yazdırmada gizlenir) */}
           <div 
             className="no-print" 
             style={{ 
               marginBottom: "16px", 
-              background: "#eff6ff", 
-              border: "1px solid #bfdbfe", 
+              background: showEditDrawer ? "#eff6ff" : "#f1f5f9", 
+              border: showEditDrawer ? "1px solid #3b82f6" : "1px solid #cbd5e1", 
               borderRadius: "8px", 
-              padding: "10px 14px", 
-              display: "flex", 
-              alignItems: "center", 
-              justifyContent: "space-between", 
-              flexWrap: "wrap", 
-              gap: "10px" 
+              padding: "12px 16px"
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <Edit3 size={15} color="#2563eb" />
-              <span style={{ fontSize: "12px", fontWeight: "700", color: "#1e40af" }}>
-                Tahsilat Tutarı (Kısmi Ödeme):
-              </span>
-              <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-                <span style={{ position: "absolute", left: "8px", fontWeight: "700", color: "#2563eb", fontSize: "13px" }}>₺</span>
-                <input 
-                  type="number"
-                  step="any"
-                  value={editableAmount || ""}
-                  onChange={(e) => setEditableAmount(Number(e.target.value) || 0)}
-                  placeholder="0.00"
-                  style={{ 
-                    width: "140px", 
-                    padding: "5px 8px 5px 22px", 
-                    fontSize: "14px", 
-                    fontWeight: "700", 
-                    border: "2px solid #3b82f6", 
-                    borderRadius: "6px", 
-                    color: "#1e3a8a", 
-                    background: "#ffffff" 
-                  }}
-                />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showEditDrawer ? "12px" : "0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Edit3 size={15} color="#2563eb" />
+                <span style={{ fontSize: "13px", fontWeight: "700", color: "#1e3a8a" }}>
+                  Hızlı Makbuz Düzenleme & Önizleme
+                </span>
+                <span style={{ fontSize: "11px", color: "#64748b" }}>
+                  (Yazdırmadan önce makbuz üzerindeki bilgileri buradan değiştirebilirsiniz)
+                </span>
               </div>
-              <span style={{ fontSize: "11px", color: "#64748b" }}>
-                (Kısmi ödemeler için tutarı doğrudan değiştirebilirsiniz)
-              </span>
-            </div>
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button 
-                type="button" 
-                onClick={() => setEditableAmount(Number(payment.amount || 0))} 
-                className="btn small secondary" 
-                style={{ fontSize: "11px", padding: "4px 8px" }}
+              <button
+                type="button"
+                onClick={() => setShowEditDrawer(!showEditDrawer)}
+                style={{ background: "none", border: "none", color: "#2563eb", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}
               >
-                İlk Tutar ({Number(payment.amount || 0).toLocaleString("tr-TR")} ₺)
+                {showEditDrawer ? "Gizle ▲" : "Düzenle ▼"}
               </button>
             </div>
+
+            {showEditDrawer && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px", marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed #bfdbfe" }}>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Öğrenci Adı</label>
+                  <input
+                    type="text"
+                    value={editableStudentName}
+                    onChange={(e) => setEditableStudentName(e.target.value)}
+                    style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Veli Adı Soyadı</label>
+                  <input
+                    type="text"
+                    value={editableParent}
+                    onChange={(e) => setEditableParent(e.target.value)}
+                    style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Veli Telefon</label>
+                  <input
+                    type="text"
+                    value={editableParentPhone}
+                    onChange={(e) => setEditableParentPhone(e.target.value)}
+                    style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Tahsilat Tutarı (TL)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editableAmount || ""}
+                    onChange={(e) => setEditableAmount(Number(e.target.value) || 0)}
+                    style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", fontWeight: 700, color: "#15803d", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Ödeme Tarihi</label>
+                  <input
+                    type="text"
+                    value={editableDate}
+                    onChange={(e) => setEditableDate(e.target.value)}
+                    style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Ödeme Yöntemi</label>
+                  <input
+                    type="text"
+                    value={editableMethod}
+                    onChange={(e) => setEditableMethod(e.target.value)}
+                    style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Açıklama / Dekont Notu</label>
+                  <input
+                    type="text"
+                    value={editableNote}
+                    onChange={(e) => setEditableNote(e.target.value)}
+                    style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           <div 
             className="receipt-sheet"
@@ -214,7 +274,7 @@ export function ReceiptModal({ payment, student, onClose }) {
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "15px", fontWeight: "bold", letterSpacing: "1px", color: "#1e3a8a" }}>TAHSİLAT MAKBUZU</div>
                 <div style={{ fontSize: "12px", color: "#64748b" }}>Seri: A · No: <b>#{payment.id ? String(payment.id).slice(0, 8).toUpperCase() : "2026-001"}</b></div>
-                <div style={{ fontSize: "11px", color: "#475569" }}>Tarih: <b>{paymentDate}</b></div>
+                <div style={{ fontSize: "11px", color: "#475569" }}>Tarih: <b>{editableDate || paymentDate}</b></div>
               </div>
             </div>
 
@@ -227,26 +287,26 @@ export function ReceiptModal({ payment, student, onClose }) {
                 <tbody>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                     <td style={{ width: "18%", color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Öğrenci Adı:</td>
-                    <td style={{ width: "34%", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}><b>{student?.student_name || "—"}</b></td>
+                    <td style={{ width: "34%", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}><b>{editableStudentName || student?.student_name || "—"}</b></td>
                     <td style={{ width: "16%", color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Sınıf / Şube:</td>
                     <td style={{ width: "32%", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}><b>{student?.student_class || "—"}</b></td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                     <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Veli Adı Soyadı:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}><b>{resolvedParentName}</b></td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}><b>{editableParent || resolvedParentName}</b></td>
                     <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Veli Telefon:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>{resolvedParentPhone}</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>{editableParentPhone || resolvedParentPhone}</td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                     <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Ödeme Yöntemi:</td>
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}>
                       <span style={{ background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: "4px", fontWeight: "600", display: "inline-block" }}>
-                        {payment.method || "Nakit Kasa"}
+                        {editableMethod || payment.method || "Nakit Kasa"}
                       </span>
                       {payment.bank && <span style={{ marginLeft: "6px", color: "#64748b", fontSize: "11.5px" }}>({payment.bank})</span>}
                     </td>
                     <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Açıklama:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}>{payment.note || "Eğitim Dönemi Taksit Ödemesi"}</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}>{editableNote || payment.note || "Eğitim Dönemi Taksit Ödemesi"}</td>
                   </tr>
                 </tbody>
               </table>
@@ -317,13 +377,13 @@ export function ReceiptModal({ payment, student, onClose }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", marginTop: "30px", textAlign: "center" }}>
               <div>
                 <div style={{ fontSize: "11px", fontWeight: "bold", color: "#475569" }}>ÖDEMEYİ YAPAN (VELİ)</div>
-                <div style={{ fontSize: "12px", marginTop: "4px" }}>{resolvedParentName !== "—" ? resolvedParentName : (student?.student_name || "—")}</div>
+                <div style={{ fontSize: "12px", marginTop: "4px" }}>{editableParent || (resolvedParentName !== "—" ? resolvedParentName : (student?.student_name || "—"))}</div>
                 <div style={{ height: "45px", borderBottom: "1px solid #cbd5e1", marginTop: "15px" }}></div>
                 <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px" }}>İmza</div>
               </div>
               <div>
                 <div style={{ fontSize: "11px", fontWeight: "bold", color: "#475569" }}>TAHSİLAT YETKİLİSİ (KURUM)</div>
-                <div style={{ fontSize: "12px", marginTop: "4px" }}>Nevin ÇAKMAK / Osman SEYMEN</div>
+                <div style={{ fontSize: "12px", marginTop: "4px" }}>{editableOfficer || "Nevin ÇAKMAK / Osman SEYMEN"}</div>
                 <div style={{ height: "45px", borderBottom: "1px solid #cbd5e1", marginTop: "15px" }}></div>
                 <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px" }}>Kaşe / İmza</div>
               </div>

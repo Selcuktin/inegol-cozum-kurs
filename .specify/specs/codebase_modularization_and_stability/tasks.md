@@ -23,3 +23,16 @@
 ## Phase 5: Verification, Build, Deploy & Live Browser QA
 - [ ] T013 Run ESLint (`no-undef`, `react/jsx-no-undef`), `npm test` (18 suites), and `npm run build` in `frontend/`
 - [ ] T014 Deploy to Cloudflare Pages and run live visual verification with `browser` subagent across `#reports` (Aylık Muhasebe Raporu), `#reminders`, `#users`, `#audit`, `#documents`, `#payments`, `#exams`, and `#schedules`
+
+## Phase 6: Convergence (Post-Analysis Stability & Zero-Error Tasks)
+- [x] T015 [Security] Remove hardcoded passwords in `frontend/functions/api/routes/auth.js` and enforce `env.ADMIN_PASSWORD` validation
+- [x] T016 [Security] Require admin role for `POST /backup` and `POST /backup/restore` in `system.js` and add `BACKUP_TOKEN` to `daily-backup.yml`
+- [x] T017 [Database] Sanitize real PII/KVKK seed data in `frontend/schema.sql` with synthetic test records
+- [x] T018 [Integrity] Remove `OR c.student_name = s.student_name` and `stu-` loose join branches in `contracts.js` and `students.js`; enforce canonical `c.student_id = s.id`
+- [x] T019 [Integrity] Eliminate `buildSyntheticContractForStudent` in `edesisAccountingService.js`; rely strictly on canonical D1 records to prevent count inflation
+- [x] T020 [Performance] Remove `CREATE TABLE IF NOT EXISTS` DDL statement inside `getNextSequence` in `utils.js`
+- [x] T021 [PWA] Upgrade `frontend/public/sw.js` caching strategy to Network-First to prevent stale chunk lockups after deployments
+- [x] T022 [Refactor] Trim `frontend/src/App.js` below 850 lines by extracting static category configurations and router helpers
+- [x] T023 [Refactor] Decompose `frontend/src/components/EdesisSozlesmeler.js` (< 1,600 lines) and `MuhasebeV2Dashboard.js` (< 1,600 lines)
+- [x] T024 [Test] Add `global.fetch` mocks in Jest test setup to eliminate unhandled `AggregateError` noise during test runs
+- [x] T025 [CI/CD] Add `.github/workflows/deploy.yml` pipeline with automated test, build, and `wrangler pages deploy`

@@ -72,8 +72,6 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
         s.id = c.student_id 
         OR s.id = ('stu-' || c.student_id)
         OR ('stu-' || s.id) = c.student_id
-        OR (s.sozlesme_no IS NOT NULL AND s.sozlesme_no != '' AND s.sozlesme_no = c.sozlesme_no)
-        OR s.student_name = c.student_name
       ) AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
       WHERE 1=1
     `;
@@ -509,23 +507,23 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
         "SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ? OR LOWER(student_name) = LOWER(?)"
       ).bind(decodedId, decodedId, decodedId, decodedId).first();
 
-      if (!student) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
+      if (!student) {
+        return json({ ok: true, deleted_id: decodedId, already_deleted: true });
+      }
 
       const targetId = student.id;
       const targetName = student.student_name;
 
-      await db.prepare("DELETE FROM students WHERE id = ?").bind(targetId).run();
-      await db.prepare(
-        "UPDATE contracts SET is_deleted = 1 WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')"
-      ).bind(targetId, targetId, targetId, targetName).run();
-      await db.prepare(
-        "UPDATE student_incomes SET is_deleted = 1 WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')"
-      ).bind(targetId, targetId, targetId, targetName).run();
-      await db.prepare(
-        "DELETE FROM installments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE LOWER(student_name) = LOWER(?))"
-      ).bind(targetId, targetId, targetId, targetName).run().catch(() => {});
+      // Full Cascade Purge: Permanently delete payments, installments, incomes, contracts, and student
+      await db.batch([
+        db.prepare("DELETE FROM payments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE student_id = ? OR LOWER(student_name) = LOWER(?))").bind(targetId, targetId, targetId, targetId, targetName),
+        db.prepare("DELETE FROM installments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE student_id = ? OR LOWER(student_name) = LOWER(?))").bind(targetId, targetId, targetId, targetId, targetName),
+        db.prepare("DELETE FROM student_incomes WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')").bind(targetId, targetId, targetId, targetName),
+        db.prepare("DELETE FROM contracts WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')").bind(targetId, targetId, targetId, targetName),
+        db.prepare("DELETE FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?").bind(targetId, targetId, targetId)
+      ]);
 
-      await logAction(db, user, "student.delete", "student", targetId, `${targetName} silindi`);
+      await logAction(db, user, "student.delete", "student", targetId, `${targetName} ve ilişkili tüm kayıtlar silindi`);
       return json({ ok: true, deleted_id: targetId, deleted_name: targetName });
     }
   }

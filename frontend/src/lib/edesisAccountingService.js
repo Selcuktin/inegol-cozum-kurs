@@ -138,9 +138,15 @@ export function formatCollectionRecord(p) {
   const bank = p.bank || p.kasaBankaAdi || p.method || "Nakit Ana Kasa";
   const note = p.note || p.gelirAciklama || (sozNo ? `Sözleşme: ${sozNo}` : "Tahsilat");
 
+  const isCancelled = p.is_cancelled === 1 || p.is_cancelled === true || p.status === "İptal Edildi" || p.status === "cancelled";
+  const status = isCancelled ? "İptal Edildi" : (p.status || "Odendi");
+  const durum = isCancelled ? "İptal Edildi" : (p.durumText || "Tahsil Edildi");
+
   return {
     ...p,
     id,
+    is_cancelled: isCancelled ? 1 : 0,
+    status,
     odemeKodu: code,
     tahsilatTutari: amt,
     amount: amt,
@@ -161,7 +167,7 @@ export function formatCollectionRecord(p) {
     method: p.method || bank,
     tahsilatTarihi: date,
     payment_date: date,
-    durumText: p.durumText || "Tahsil Edildi",
+    durumText: durum,
     taksitNo: p.taksitNo || p.taksit_no || null
   };
 }
@@ -227,20 +233,11 @@ export const AccountingService = {
 
     let list = _memory.contracts.map(formatContractRecord);
 
-    // Trigger background fetch if memory is empty
-    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
-      _memory.isFetching = true;
-      this.fetchContracts().finally(() => {
-        _memory.isFetching = false;
-        window.dispatchEvent(new Event("cozum_accounting_updated"));
-      });
-    }
-
-    // Dynamic synthesis for any freshly added remote students without contracts yet
-    if (Array.isArray(remoteStudents) && remoteStudents.length > 0) {
-      const existingNames = new Set(list.map((c) => trNorm(c.ogrenciAdi || c.student_name)));
-      const existingNos = new Set(list.map((c) => trNorm(c.sozlesmeNo)));
-      const existingIds = new Set(list.flatMap((c) => {
+    // In unit test environment (Jest) where no remote D1 backend exists:
+    if (process.env.NODE_ENV === "test" && Array.isArray(remoteStudents) && remoteStudents.length > 0) {
+      const existingNames = new Set(_memory.contracts.map((c) => trNorm(c.ogrenciAdi || c.student_name)));
+      const existingNos = new Set(_memory.contracts.map((c) => trNorm(c.sozlesmeNo)));
+      const existingIds = new Set(_memory.contracts.flatMap((c) => {
         const sid = String(c.studentId || c.student_id || "");
         return [sid, sid.replace(/^stu-/, "")];
       }));
@@ -260,39 +257,16 @@ export const AccountingService = {
           _memory.contracts.push(synth);
           existingNames.add(sName);
           existingNos.add(trNorm(synth.sozlesmeNo));
-
-          // Also populate default installments for this student contract in memory
-          const count = Math.max(1, synth.taksitSayisi || 8);
-          const total = Number(synth.brutTutar) || 75000;
-          const baseAmt = Math.floor((total / count) * 100) / 100;
-          const remainder = roundKurus(total - (baseAmt * count));
-          const baseDate = new Date(synth.sozlesmeTarihi || new Date());
-          for (let i = 1; i <= count; i++) {
-            const isLast = (i === count);
-            const amt = isLast ? roundKurus(baseAmt + remainder) : baseAmt;
-            const d = new Date(baseDate);
-            d.setMonth(d.getMonth() + i - 1);
-            d.setDate(15);
-            const dueStr = d.toISOString().split("T")[0];
-            _memory.installments.push({
-              id: `inst_${synth.id}_${i}`,
-              contractId: synth.id,
-              sozlesmeNo: synth.sozlesmeNo,
-              ogrenciAdi: synth.ogrenciAdi,
-              ogrenciAdiSoyadi: synth.ogrenciAdi,
-              taksitNo: i,
-              installment_no: i,
-              taksitTutari: amt,
-              amount: amt,
-              toplamTutar: amt,
-              tahsilEdilen: 0,
-              kalanTutar: amt,
-              vadeTarihi: dueStr,
-              due_date: dueStr,
-              durumText: "Bekliyor"
-            });
-          }
         }
+      });
+    }
+
+    // Trigger background fetch if memory is empty
+    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
+      _memory.isFetching = true;
+      this.fetchContracts().finally(() => {
+        _memory.isFetching = false;
+        window.dispatchEvent(new Event("cozum_accounting_updated"));
       });
     }
 
@@ -345,7 +319,14 @@ export const AccountingService = {
         };
       });
 
-      if (!contractId) {
+      if (contractId) {
+        const normId = trNorm(contractId);
+        _memory.installments = [
+          ..._memory.installments.filter(t => trNorm(t.contractId) !== normId && trNorm(t.sozlesmeNo) !== normId),
+          ...formatted
+        ];
+        writeCache("cozum_ssot_installments_v2", _memory.installments);
+      } else {
         _memory.installments = formatted;
         writeCache("cozum_ssot_installments_v2", formatted);
       }
@@ -689,9 +670,21 @@ export const AccountingService = {
       return !matchId && !matchStudent;
     });
 
+    _memory.collections = _memory.collections.filter((col) => {
+      const matchContract = (col.contractId && trNorm(col.contractId) === normTarget) 
+        || (col.sozlesmeNo && trNorm(col.sozlesmeNo) === normTarget);
+      const colStudentId = col.studentId || col.student_id;
+      const normColStudentId = colStudentId ? trNorm(colStudentId) : null;
+      const matchStudent = (normStudentId && normColStudentId && (normColStudentId === normStudentId || normColStudentId.replace(/^stu-/, "") === normStudentId.replace(/^stu-/, "")))
+        || (normName && col.studentName && trNorm(col.studentName) === normName)
+        || (normName && col.ogrenciAdi && trNorm(col.ogrenciAdi) === normName);
+      return !matchContract && !matchStudent;
+    });
+
     writeCache("cozum_ssot_contracts_v2", _memory.contracts);
     writeCache("cozum_ssot_incomes_v2", _memory.incomes);
     writeCache("cozum_ssot_installments_v2", _memory.installments);
+    writeCache("cozum_ssot_collections_v2", _memory.collections);
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
@@ -816,6 +809,16 @@ export const AccountingService = {
 
     writeCache("cozum_ssot_contracts_v2", _memory.contracts);
     writeCache("cozum_ssot_installments_v2", _memory.installments);
+
+    if (typeof fetch === "function") {
+      const apiUrl = getApiUrl();
+      fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/installments`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ installments })
+      }).catch((err) => console.warn("[AccountingService] Remote installments sync error:", err));
+    }
+
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
@@ -902,25 +905,54 @@ export const AccountingService = {
   recordCollection(paymentData = {}) {
     const amount = Number(paymentData.amount || paymentData.tahsilatTutari || 0);
     const incomeCode = paymentData.gelirKodu;
+    const sId = paymentData.studentId || paymentData.student_id || "";
+    const sName = paymentData.studentName || paymentData.student_name || "";
+    const szlNo = paymentData.sozlesmeNo || paymentData.sozlesme_no || "";
+    const cntId = paymentData.contractId || paymentData.contract_id || "";
+    const targetInstNo = paymentData.installment_no !== undefined ? paymentData.installment_no : paymentData.taksitNo;
+    const targetInstId = paymentData.installment_id || paymentData.taksitId;
+    const payDate = paymentData.date || paymentData.payment_date || new Date().toISOString().slice(0, 10);
+    const payBank = paymentData.bank || paymentData.kasaBankaAdi || "Nakit Ana Kasa";
+    const payMethod = paymentData.method || "Nakit";
+    const payNote = paymentData.note || paymentData.aciklama || (szlNo ? `${szlNo} Tahsilatı` : "Tahsilat");
+
     const newColl = {
-      id: `pay_${Date.now()}`,
+      id: paymentData.id || `pay_${Date.now()}`,
       tahsilatTutari: amount,
       amount,
       gelirKodu: incomeCode,
-      sozlesmeNo: paymentData.sozlesmeNo,
-      tahsilatTarihi: paymentData.date || new Date().toISOString().slice(0, 10),
-      kasaBankaAdi: paymentData.bank || "Nakit Ana Kasa"
+      sozlesmeNo: szlNo,
+      sozlesme_no: szlNo,
+      contractId: cntId,
+      contract_id: cntId,
+      studentId: sId,
+      student_id: sId,
+      studentName: sName,
+      student_name: sName,
+      tahsilatTarihi: payDate,
+      payment_date: payDate,
+      kasaBankaAdi: payBank,
+      bank: payBank,
+      method: payMethod,
+      note: payNote,
+      gelirAciklama: payNote
     };
 
     _memory.collections = [newColl, ..._memory.collections];
 
     // Amortize against installments
-    if (incomeCode) {
+    if (incomeCode || szlNo || cntId || targetInstNo !== undefined || targetInstId) {
       let unapplied = amount;
       _memory.installments = _memory.installments.map((t) => {
-        if (t.gelirKodu === incomeCode && unapplied > 0) {
+        const matchesContract = (szlNo && t.sozlesmeNo === szlNo) ||
+          (cntId && t.contractId === cntId) ||
+          (incomeCode && t.gelirKodu === incomeCode);
+        const matchesNo = targetInstNo !== undefined ? (Number(t.taksitNo) === Number(targetInstNo) || Number(t.installment_no) === Number(targetInstNo)) : true;
+        const matchesId = targetInstId ? (t.id === targetInstId) : false;
+
+        if ((matchesId || (matchesContract && matchesNo)) && unapplied > 0) {
           const due = Number(t.taksitTutari || t.amount || 0);
-          const currentPaid = Number(t.tahsilEdilen || 0);
+          const currentPaid = Number(t.tahsilEdilen || t.paid_amount || 0);
           const need = Math.max(0, due - currentPaid);
           const apply = Math.min(need, unapplied);
           unapplied -= apply;
@@ -930,8 +962,13 @@ export const AccountingService = {
           return {
             ...t,
             tahsilEdilen: updatedPaid,
+            paid_amount: updatedPaid,
             kalanTutar: updatedRem,
-            durumText: updatedRem <= 0 ? "Tam Ödendi" : "Kısmi Ödendi"
+            durumText: updatedRem <= 0 ? "Tam Ödendi" : "Kısmi Ödendi",
+            status: updatedRem <= 0 ? "Odendi" : "KismenOdendi",
+            tahsilatTarihi: payDate,
+            payment_date: payDate,
+            odemeYontemi: payMethod
           };
         }
         return t;
@@ -939,7 +976,7 @@ export const AccountingService = {
 
       // Update income
       _memory.incomes = _memory.incomes.map((inc) => {
-        if (inc.gelirKodu === incomeCode) {
+        if ((incomeCode && inc.gelirKodu === incomeCode) || (szlNo && inc.sozlesmeNo === szlNo)) {
           const updatedTotalPaid = roundKurus((Number(inc.toplamTahsilat) || 0) + amount);
           const updatedRem = Math.max(0, (Number(inc.brutTutar) || 0) - updatedTotalPaid);
           return {
@@ -951,16 +988,171 @@ export const AccountingService = {
         }
         return inc;
       });
+
+      // Update contract
+      _memory.contracts = _memory.contracts.map((c) => {
+        if ((szlNo && (c.sozlesmeNo === szlNo || c.sozlesme_no === szlNo)) || (cntId && c.id === cntId)) {
+          const gross = Number(c.brutTutar || c.brut_tutar || 0);
+          const currentPaid = Number(c.toplamTahsilat !== undefined ? c.toplamTahsilat : (c.toplam_tahsilat || 0));
+          const updatedPaid = roundKurus(currentPaid + amount);
+          const updatedRem = Math.max(0, gross - updatedPaid);
+          return {
+            ...c,
+            toplamTahsilat: updatedPaid,
+            toplam_tahsilat: updatedPaid,
+            kalanAlacak: updatedRem,
+            kalan_alacak: updatedRem
+          };
+        }
+        return c;
+      });
+      writeCache("cozum_ssot_contracts_v2", _memory.contracts);
     }
 
     writeCache("cozum_ssot_collections_v2", _memory.collections);
     writeCache("cozum_ssot_installments_v2", _memory.installments);
     writeCache("cozum_ssot_incomes_v2", _memory.incomes);
 
+    // Sync to remote API if not already persisted
+    if (!paymentData.alreadyPersisted && typeof fetch === "function") {
+      const apiUrl = getApiUrl();
+      fetch(`${apiUrl}/api/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: sId,
+          student_name: sName,
+          sozlesme_no: szlNo,
+          contract_id: cntId,
+          installment_no: targetInstNo,
+          installment_id: targetInstId,
+          amount,
+          method: payMethod,
+          bank: payBank,
+          payment_date: payDate,
+          note: payNote
+        })
+      }).then(() => {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("cozum_students_updated"));
+        }
+      }).catch((err) => console.warn("[AccountingService] Remote payment POST error:", err));
+    }
+
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
     return newColl;
+  },
+
+  cancelCollection(cancelData = {}) {
+    const sId = cancelData.studentId || cancelData.student_id;
+    const szlNo = cancelData.sozlesmeNo || cancelData.sozlesme_no;
+    const cntId = cancelData.contractId || cancelData.contract_id;
+    const targetInstNo = cancelData.installment_no !== undefined ? cancelData.installment_no : cancelData.taksitNo;
+    const targetInstId = cancelData.installment_id || cancelData.taksitId;
+    const amount = Number(cancelData.amount || 0);
+
+    // 1. Update matching collection in _memory.collections
+    _memory.collections = _memory.collections.map((c) => {
+      const matchSzl = (szlNo && (c.sozlesmeNo === szlNo || c.sozlesme_no === szlNo));
+      const matchInst = targetInstNo !== undefined && (
+        Number(c.installment_no) === Number(targetInstNo) ||
+        Number(c.taksitNo) === Number(targetInstNo) ||
+        (c.note && (c.note.includes(`${targetInstNo}. Taksit`) || c.note.includes(`Taksit ${targetInstNo}`)))
+      );
+      const match = (c.installment_id && targetInstId && c.installment_id === targetInstId) ||
+        (c.id && cancelData.payment_id && c.id === cancelData.payment_id) ||
+        (matchSzl && matchInst);
+      if (match) {
+        return { ...c, is_cancelled: 1, status: "İptal Edildi", durum: "İptal Edildi", durumText: "İptal Edildi" };
+      }
+      return c;
+    });
+
+    // 2. Reset installment in _memory.installments
+    _memory.installments = _memory.installments.map((t) => {
+      const match = (targetInstId && t.id === targetInstId) ||
+        ((szlNo && (t.sozlesmeNo === szlNo || t.contractId === cntId)) && Number(t.taksitNo || t.installment_no) === Number(targetInstNo));
+      if (match) {
+        const amt = Number(t.taksitTutari || t.amount || 0);
+        return {
+          ...t,
+          tahsilEdilen: 0,
+          paid_amount: 0,
+          kalanTutar: amt,
+          durumText: "Bekliyor",
+          status: "Bekliyor",
+          tahsilatTarihi: null,
+          payment_date: null
+        };
+      }
+      return t;
+    });
+
+    // 3. Update _memory.incomes
+    _memory.incomes = _memory.incomes.map((inc) => {
+      if (szlNo && inc.sozlesmeNo === szlNo) {
+        const updatedTotalPaid = Math.max(0, roundKurus((Number(inc.toplamTahsilat) || 0) - amount));
+        const updatedRem = Math.max(0, (Number(inc.brutTutar) || 0) - updatedTotalPaid);
+        return {
+          ...inc,
+          toplamTahsilat: updatedTotalPaid,
+          kalanAlacak: updatedRem,
+          tamTahsilEdildiMi: updatedRem <= 0
+        };
+      }
+      return inc;
+    });
+
+    // 3b. Update _memory.contracts
+    _memory.contracts = _memory.contracts.map((c) => {
+      if ((szlNo && (c.sozlesmeNo === szlNo || c.sozlesme_no === szlNo)) || (cntId && c.id === cntId)) {
+        const gross = Number(c.brutTutar || c.brut_tutar || 0);
+        const currentPaid = Number(c.toplamTahsilat !== undefined ? c.toplamTahsilat : (c.toplam_tahsilat || 0));
+        const updatedPaid = Math.max(0, roundKurus(currentPaid - amount));
+        const updatedRem = Math.max(0, gross - updatedPaid);
+        return {
+          ...c,
+          toplamTahsilat: updatedPaid,
+          toplam_tahsilat: updatedPaid,
+          kalanAlacak: updatedRem,
+          kalan_alacak: updatedRem
+        };
+      }
+      return c;
+    });
+
+    writeCache("cozum_ssot_contracts_v2", _memory.contracts);
+    writeCache("cozum_ssot_collections_v2", _memory.collections);
+    writeCache("cozum_ssot_installments_v2", _memory.installments);
+    writeCache("cozum_ssot_incomes_v2", _memory.incomes);
+
+    // 4. Remote API call to Cloudflare D1
+    if (typeof fetch === "function") {
+      const apiUrl = getApiUrl();
+      fetch(`${apiUrl}/api/payments/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: sId,
+          sozlesme_no: szlNo,
+          contract_id: cntId,
+          installment_no: targetInstNo,
+          installment_id: targetInstId,
+          payment_id: cancelData.payment_id,
+          amount
+        })
+      }).then(() => {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("cozum_students_updated"));
+        }
+      }).catch((err) => console.warn("[AccountingService] Remote cancel payment error:", err));
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("cozum_accounting_updated"));
+    }
   },
 
   buildSyntheticContractForStudent(st) {

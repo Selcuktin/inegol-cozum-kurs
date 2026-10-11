@@ -149,4 +149,31 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
     expect(edesisData.gelirler.length).toBe(129);
     expect(edesisData.taksitler.length).toBe(682);
   });
+
+  test("5. Target Installment Collection: Specific installment is marked paid and persists across cache", () => {
+    const testSzl = "SZL_PERSIST_TEST";
+    const testInsts = [
+      { taksitNo: 1, taksitTutari: 5000, tahsilEdilen: 0, kalanTutar: 5000, durumText: "Bekliyor", sozlesmeNo: testSzl },
+      { taksitNo: 2, taksitTutari: 5000, tahsilEdilen: 0, kalanTutar: 5000, durumText: "Bekliyor", sozlesmeNo: testSzl }
+    ];
+    AccountingService.saveInstallments(testSzl, testInsts);
+
+    const coll = AccountingService.recordCollection({
+      sozlesmeNo: testSzl,
+      installment_no: 1,
+      amount: 5000,
+      bank: "Nakit Ana Kasa",
+      alreadyPersisted: true
+    });
+
+    expect(coll).toBeDefined();
+    expect(coll.amount).toBe(5000);
+
+    const insts = AccountingService.getInstallments().filter(t => t.sozlesmeNo === testSzl);
+    expect(insts.length).toBe(2);
+    expect(insts[0].tahsilEdilen).toBe(5000);
+    expect(insts[0].kalanTutar).toBe(0);
+    expect(insts[0].durumText).toBe("Tam Ödendi");
+    expect(insts[1].tahsilEdilen).toBe(0);
+  });
 });

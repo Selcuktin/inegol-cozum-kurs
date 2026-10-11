@@ -1,5 +1,5 @@
 // Service Worker for Inegol Cozum Kurs PWA
-const CACHE_NAME = 'inegol-cozum-cache-v6-20261009-kasabanka';
+const CACHE_NAME = 'inegol-cozum-cache-v7-20261011';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -33,20 +33,32 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/')) {
     return;
   }
-  // Navigation / HTML requests: Network first, cache fallback
-  if (event.request.mode === 'navigate') {
+
+  // Navigation / HTML / JS / CSS: Network-First to prevent stale chunk lockups after deployments
+  const isCodeOrDoc = event.request.mode === 'navigate' ||
+    event.request.destination === 'document' ||
+    event.request.destination === 'script' ||
+    event.request.destination === 'style' ||
+    event.request.url.endsWith('.html') ||
+    event.request.url.endsWith('.js') ||
+    event.request.url.endsWith('.css');
+
+  if (isCodeOrDoc) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          if (response && response.status === 200 && response.type === 'basic') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
           return response;
         })
-        .catch(() => caches.match('/index.html'))
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/index.html')))
     );
     return;
   }
-  // Static assets: Cache first, network fallback
+
+  // Static media/fonts: Cache first, network fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
