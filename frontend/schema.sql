@@ -83,7 +83,11 @@ CREATE TABLE IF NOT EXISTS payments (
   note TEXT DEFAULT '',
   created_by TEXT DEFAULT '',
   created_by_name TEXT DEFAULT '',
-  created_at TEXT DEFAULT ''
+  created_at TEXT DEFAULT '',
+  status TEXT DEFAULT 'Odendi',
+  installment_id TEXT DEFAULT '',
+  contract_id TEXT DEFAULT '',
+  is_cancelled INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
@@ -194,6 +198,9 @@ CREATE INDEX IF NOT EXISTS idx_payments_contract ON payments(contract_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_student ON contracts(student_id);
 CREATE INDEX IF NOT EXISTS idx_incomes_student ON student_incomes(student_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_students_name ON students(student_name);
+CREATE INDEX IF NOT EXISTS idx_students_tc ON students(student_tc);
+CREATE INDEX IF NOT EXISTS idx_students_class ON students(student_class);
 
 CREATE TABLE IF NOT EXISTS system_sequences (
   name TEXT PRIMARY KEY,
