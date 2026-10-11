@@ -2,11 +2,6 @@ name = "inegol-cozum-kurs"
 compatibility_date = "2024-12-30"
 pages_build_output_dir = "build"
 
-[observability]
-enabled = true
-
-[observability.traces]
-enabled = true
 
 [[d1_databases]]
 binding = "DB"
