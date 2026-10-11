@@ -3,6 +3,7 @@ import { ReceiptModal } from "../components/ReceiptModal";
 import { PromissoryNoteModal, numberToTurkishWords } from "../components/PromissoryNoteModal";
 import EdesisSozlesmeler from "../components/EdesisSozlesmeler";
 import EdesisSozlesmeDetay from "../components/EdesisSozlesmeDetay";
+import { MebContractPrintModal } from "../components/contracts/ContractModals";
 import {
   render,
   cleanup,
@@ -533,6 +534,87 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       expect(container.textContent).not.toContain("Invalid Date");
       expect(container.textContent).toContain("31.10.2026");
     });
+
+    test("T5.7: MebContractPrintModal auto-fills student and parent details from students list when contract has snake_case or missing fields", async () => {
+      const contractWithSnakeCase = {
+        id: "cnt_9988",
+        sozlesme_no: "SZL202600135",
+        student_id: "stu-1",
+        student_name: "Ahmet Yılmaz",
+        brut_tutar: 80000,
+        taksit_sayisi: 8,
+        sozlesme_tarihi: "2026-10-05T10:00:00.000Z"
+      };
+
+      const { container } = await render(
+        <MebContractPrintModal
+          contract={contractWithSnakeCase}
+          students={mockStudents}
+          onClose={jest.fn()}
+        />
+      );
+
+      // Verify auto-fill from mockStudents[0] (Ahmet Yılmaz)
+      expect(container.textContent).toContain("SZL202600135");
+      expect(container.textContent).toContain("Ahmet Yılmaz");
+      expect(container.textContent).toContain("Mehmet Yılmaz"); // Parent auto-filled from student
+      expect(container.textContent).toContain("05321112233"); // Parent phone auto-filled
+      expect(container.textContent).toContain("12-SAY-A"); // Class auto-filled
+      expect(container.textContent).toContain("₺80.000,00"); // Gross fee formatted
+      expect(container.textContent).toContain("8 Taksit"); // Installment count
+    });
+
+    test("T5.8: MebContractPrintModal editable drawer allows overriding fields with live updates in the sheet and reset support", async () => {
+      const sampleContract = {
+        id: "cnt_123",
+        sozlesmeNo: "SZL-TEST-001",
+        ogrenciAdi: "Ali Kaya",
+        sinifAdi: "11-EA",
+        brutTutar: 50000,
+        taksitSayisi: 5,
+        parent_name: "Hasan Kaya",
+        parent_phone: "05554443322"
+      };
+
+      const { container } = await render(
+        <MebContractPrintModal
+          contract={sampleContract}
+          students={[]}
+          onClose={jest.fn()}
+        />
+      );
+
+      // Verify initial auto-filled rendering
+      expect(container.textContent).toContain("Ali Kaya");
+      expect(container.textContent).toContain("Hasan Kaya");
+      expect(container.textContent).toContain("₺50.000,00");
+
+      // Open editable drawer
+      const editBtn = Array.from(container.querySelectorAll("button")).find(b => b.textContent.includes("Sözleşmeyi Düzenle"));
+      expect(editBtn).toBeTruthy();
+      await fireEvent.click(editBtn);
+
+      // Verify drawer opened
+      expect(container.textContent).toContain("Hızlı Sözleşme Düzenleme & Önizleme");
+      expect(container.textContent).toContain("Sıfırla");
+
+      // Find the inputs
+      const studentNameInput = container.querySelector('input[value="Ali Kaya"]');
+      expect(studentNameInput).toBeTruthy();
+      await fireEvent.change(studentNameInput, { target: { value: "Ali Kaya (Burslu)" } });
+
+      // Check live update in sheet
+      expect(container.textContent).toContain("Ali Kaya (Burslu)");
+
+      // Click Reset (Sıfırla) button
+      const resetBtn = Array.from(container.querySelectorAll("button")).find(b => b.textContent.includes("Sıfırla"));
+      expect(resetBtn).toBeTruthy();
+      await fireEvent.click(resetBtn);
+
+      // Check that it reverted back to original
+      expect(container.textContent).toContain("Ali Kaya");
+    });
   });
 });
+
 

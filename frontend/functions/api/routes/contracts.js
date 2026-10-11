@@ -10,7 +10,11 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
 
     let query = `
       SELECT c.*,
-        s.student_tc,
+        COALESCE(NULLIF(c.parent_name, ''), s.parent_name) as resolved_parent_name,
+        COALESCE(NULLIF(c.parent_phone, ''), s.parent_phone) as resolved_parent_phone,
+        COALESCE(NULLIF(c.student_class, ''), s.student_class) as resolved_student_class,
+        COALESCE(NULLIF(c.student_name, ''), s.student_name) as resolved_student_name,
+        COALESCE(NULLIF(c.student_tc, ''), s.student_tc) as resolved_student_tc,
         s.parent_tc,
         s.id as student_full_id,
         (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE (p.contract_id = c.id OR (p.student_id = c.student_id AND c.student_id IS NOT NULL AND c.student_id != '')) AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
@@ -50,27 +54,40 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         const gross = Number(r.brut_tutar || 0);
         const paid = Number(r.calculated_paid !== undefined ? r.calculated_paid : 0);
         const remaining = Math.max(0, gross - paid);
+        const parentName = r.resolved_parent_name || r.parent_name || "";
+        const parentPhone = r.resolved_parent_phone || r.parent_phone || "";
+        const studentTc = r.resolved_student_tc || r.student_tc || "";
+        const studentName = r.resolved_student_name || r.student_name || "";
+        const studentClass = r.resolved_student_class || r.student_class || "";
         return {
           ...r,
-          student_tc: r.student_tc || "",
-          studentTc: r.student_tc || "",
+          student_tc: studentTc,
+          studentTc: studentTc,
           parent_tc: r.parent_tc || "",
           parentTc: r.parent_tc || "",
           studentId: r.student_full_id || r.student_id,
           ogrenciId: r.student_full_id || r.student_id,
+          student_name: studentName,
           sozlesmeNo: r.sozlesme_no,
+          sozlesme_no: r.sozlesme_no,
           sozlesmeTarihi: r.sozlesme_tarihi,
-          ogrenciAdi: r.student_name,
-          ogrenciAdiSoyadi: r.student_name,
+          sozlesme_tarihi: r.sozlesme_tarihi,
+          ogrenciAdi: studentName,
+          ogrenciAdiSoyadi: studentName,
           ogrenciNo: r.student_no,
-          sinifAdi: r.student_class,
-          veliAdi: r.parent_name,
-          veliTelefon: r.parent_phone,
+          student_no: r.student_no,
+          sinifAdi: studentClass,
+          student_class: studentClass,
+          veliAdi: parentName,
+          parent_name: parentName,
+          veliTelefon: parentPhone,
+          parent_phone: parentPhone,
           donemId: r.period_id,
           donemAdi: r.period_name,
           netTutar: r.net_tutar,
           kdvTutari: r.kdv_tutari,
           brutTutar: gross,
+          brut_tutar: gross,
           toplamTahsilat: paid,
           toplam_tahsilat: paid,
           kalanAlacak: remaining,
@@ -78,6 +95,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
           odemeTuru: r.odeme_turu,
           odemeTuruText: r.odeme_turu_text,
           taksitSayisi: r.taksit_sayisi,
+          taksit_sayisi: r.taksit_sayisi,
           durum: r.durum,
           durumText: r.durum === 1 ? "Aktif" : r.durum === 3 ? "İptal Edildi" : "Taslak",
           durumRenk: r.durum === 1 ? "success" : r.durum === 3 ? "danger" : "warning",

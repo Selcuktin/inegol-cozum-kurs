@@ -523,18 +523,21 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   const printStudent = useMemo(() => {
     if (!showMebPrintModal) return null;
-    const name = trNorm(showMebPrintModal.ogrenciAdi || showMebPrintModal.musteriUnvan || "");
-    const sId = String(showMebPrintModal.ogrenciId || showMebPrintModal.studentId || "");
+    const name = trNorm(showMebPrintModal.ogrenciAdi || showMebPrintModal.student_name || showMebPrintModal.musteriUnvan || "");
+    const sId = String(showMebPrintModal.ogrenciId || showMebPrintModal.studentId || showMebPrintModal.student_id || "");
     const cleanId = sId.replace(/^stu-/, "");
     const szlNo = showMebPrintModal.sozlesmeNo || showMebPrintModal.sozlesme_no || "";
-    const ogrNo = String(showMebPrintModal.ogrenciNo || "");
+    const ogrNo = String(showMebPrintModal.ogrenciNo || showMebPrintModal.student_no || "");
+    const tc = String(showMebPrintModal.student_tc || showMebPrintModal.tc || "").trim();
     const list = Array.isArray(allRegisteredStudents) && allRegisteredStudents.length > 0 ? allRegisteredStudents : (students || []);
     return list.find((s) => {
       if (!s) return false;
-      if (szlNo && s.sozlesme_no === szlNo) return true;
+      if (szlNo && s.sozlesme_no && String(s.sozlesme_no) === szlNo) return true;
       if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
+      if (tc && s.student_tc && String(s.student_tc).trim() === tc) return true;
       if (ogrNo && String(s.student_no) === ogrNo) return true;
-      return trNorm(s.student_name) === name;
+      if (name && trNorm(s.student_name) === name) return true;
+      return false;
     }) || null;
   }, [showMebPrintModal, allRegisteredStudents, students]);
 
@@ -595,6 +598,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
         <MebContractPrintModal
           contract={showMebPrintModal}
           printStudent={printStudent}
+          students={allRegisteredStudents.length > 0 ? allRegisteredStudents : (students || [])}
           onClose={() => setShowMebPrintModal(null)}
         />
       </>
@@ -1455,6 +1459,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
       <MebContractPrintModal
         contract={showMebPrintModal}
         printStudent={printStudent}
+        students={allRegisteredStudents.length > 0 ? allRegisteredStudents : (students || [])}
         onClose={() => setShowMebPrintModal(null)}
       />
 

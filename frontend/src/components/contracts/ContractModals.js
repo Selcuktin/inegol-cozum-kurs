@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   FileText,
   Printer,
@@ -10,7 +10,8 @@ import {
   Plus,
   Users,
   UserCheck,
-  Edit3
+  Edit3,
+  RotateCcw
 } from "lucide-react";
 import AccountingService from "../../lib/edesisAccountingService";
 import { StudentService } from "../../lib/edesisStudentService";
@@ -225,27 +226,156 @@ export function PaymentPlanModal({ contract, onClose }) {
   );
 }
 
-export function MebContractPrintModal({ contract, printStudent, onClose }) {
+function normTr(str) {
+  return String(str || "")
+    .trim()
+    .replace(/i/g, "İ")
+    .replace(/ı/g, "I")
+    .toLocaleUpperCase("tr-TR")
+    .replace(/\s+/g, " ");
+}
+
+export function MebContractPrintModal({ contract, printStudent, students = [], onClose }) {
   const [showEditDrawer, setShowEditDrawer] = useState(false);
-  const [editableContractNo, setEditableContractNo] = useState(() => contract?.sozlesmeNo || "MEB-2026-001");
-  const [editableContractDate, setEditableContractDate] = useState(() => {
-    const d = fmtDate(contract?.sozlesmeTarihi);
-    return d !== "—" ? d : new Date().toLocaleDateString("tr-TR");
-  });
-  const [editableStudentTc, setEditableStudentTc] = useState(() => contract?.student_tc || printStudent?.student_tc || "");
-  const [editableStudentName, setEditableStudentName] = useState(() => contract?.ogrenciAdi || contract?.musteriUnvan || printStudent?.student_name || "");
-  const [editableParentName, setEditableParentName] = useState(() => printStudent?.parent_name || contract?.parent_name || contract?.musteriUnvan || "");
-  const [editableParentPhone, setEditableParentPhone] = useState(() => printStudent?.parent_phone || contract?.parent_phone || contract?.musteriTelefon || printStudent?.student_phone || "");
-  const [editableClass, setEditableClass] = useState(() => contract?.sinifAdi || printStudent?.student_class || "Mezun / YKS");
-  const [editablePeriod, setEditablePeriod] = useState(() => contract?.donemAdi || "2026-2027 Eğitim-Öğretim Dönemi");
-  const [editableGrossFee, setEditableGrossFee] = useState(() => Number(contract?.brutTutar ?? printStudent?.total_fee) || 0);
-  const [editableInstallments, setEditableInstallments] = useState(() => Number(contract?.taksitSayisi) || 1);
-  const [editableOfficer, setEditableOfficer] = useState("Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi");
-  const [editablePaymentPlanText, setEditablePaymentPlanText] = useState(() => {
-    if (contract?.odemeTuruText) return contract.odemeTuruText;
-    const count = Number(contract?.taksitSayisi) || 1;
-    return count > 1 ? `Taksitli (${count} Taksit)` : "Peşin";
-  });
+
+  // Intelligently resolve the full student record if printStudent is missing or partial
+  const resolvedStudent = useMemo(() => {
+    if (printStudent) return printStudent;
+    if (!contract) return null;
+
+    const list = Array.isArray(students) && students.length > 0
+      ? students
+      : (StudentService?.getAllStudents ? StudentService.getAllStudents() : []);
+
+    if (!list || list.length === 0) return null;
+
+    const sNameNorm = normTr(contract.ogrenciAdi || contract.student_name || contract.ogrenciAdiSoyadi || contract.musteriUnvan || "");
+    const sId = String(contract.ogrenciId || contract.studentId || contract.student_id || "");
+    const cleanId = sId.replace(/^stu-/, "");
+    const szlNo = String(contract.sozlesmeNo || contract.sozlesme_no || "").trim();
+    const tc = String(contract.student_tc || contract.studentTc || contract.tc || "").trim();
+    const ogrNo = String(contract.ogrenciNo || contract.student_no || "").trim();
+
+    return list.find((s) => {
+      if (!s) return false;
+      if (szlNo && s.sozlesme_no && String(s.sozlesme_no).trim() === szlNo) return true;
+      if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
+      if (tc && s.student_tc && String(s.student_tc).trim() === tc) return true;
+      if (ogrNo && s.student_no && String(s.student_no).trim() === ogrNo) return true;
+      if (sNameNorm && normTr(s.student_name) === sNameNorm) return true;
+      return false;
+    }) || null;
+  }, [contract, printStudent, students]);
+
+  // Pure extraction helper: computes auto-filled values from contract and student records
+  const computeInitialValues = (cnt, st) => {
+    if (!cnt) return {};
+    const sName = cnt.ogrenciAdi || cnt.student_name || cnt.ogrenciAdiSoyadi || st?.student_name || cnt.musteriUnvan || "";
+    const sNameNorm = normTr(sName);
+
+    const isInvalidParent = (val) => {
+      const n = normTr(val);
+      return !n || n === "—" || n === "-" || n === "VELİ" || n === "VELI" || n === "BELİRTİLMEDİ" || (sNameNorm && n === sNameNorm);
+    };
+
+    let pName = "";
+    if (!isInvalidParent(cnt.parent_name)) pName = cnt.parent_name;
+    else if (!isInvalidParent(cnt.veliAdi)) pName = cnt.veliAdi;
+    else if (!isInvalidParent(st?.parent_name)) pName = st.parent_name;
+    else if (!isInvalidParent(st?.guardian_name)) pName = st.guardian_name;
+    else if (!isInvalidParent(st?.father_name)) pName = st.father_name;
+    else if (!isInvalidParent(st?.mother_name)) pName = st.mother_name;
+    else if (!isInvalidParent(cnt.musteriUnvan)) pName = cnt.musteriUnvan;
+
+    const rawPhone = cnt.parent_phone || cnt.veliTelefon || st?.parent_phone || st?.guardian_phone || st?.father_phone || st?.mother_phone || cnt.musteriTelefon || st?.student_phone || cnt.student_phone || "";
+    const pPhone = rawPhone !== "—" ? rawPhone : "";
+
+    const cNo = cnt.sozlesmeNo || cnt.sozlesme_no || st?.sozlesme_no || (cnt.id ? String(cnt.id) : "MEB-2026-001");
+
+    const rawDate = cnt.sozlesmeTarihi || cnt.sozlesme_tarihi || cnt.contract_date || cnt.created_at || st?.sozlesme_tarihi;
+    const dFormatted = fmtDate(rawDate);
+    const cDate = dFormatted !== "—" ? dFormatted : new Date().toLocaleDateString("tr-TR");
+
+    const tc = cnt.student_tc || cnt.studentTc || cnt.tc || st?.student_tc || st?.tc || st?.tckn || "";
+
+    const sClass = cnt.sinifAdi || cnt.student_class || st?.student_class || st?.class_level || st?.sinif || "Mezun / YKS";
+
+    const sPeriod = cnt.donemAdi || cnt.period_name || cnt.donem_adi || st?.donem_adi || st?.term || "2026-2027 Eğitim-Öğretim Dönemi";
+
+    const rawFee = cnt.brutTutar ?? cnt.brut_tutar ?? cnt.total_amount ?? cnt.netTutar ?? st?.total_fee ?? 0;
+    const grossFee = Number(rawFee) || 0;
+
+    const rawInst = cnt.taksitSayisi ?? cnt.taksit_sayisi ?? cnt.installment_count ?? (Array.isArray(cnt.taksitler) ? cnt.taksitler.length : (Array.isArray(cnt.installments) ? cnt.installments.length : 1));
+    const instCount = Math.max(1, Number(rawInst) || 1);
+
+    const planText = cnt.odemeTuruText || cnt.odeme_turu_text || (instCount > 1 ? `Taksitli (${instCount} Taksit)` : "Peşin");
+
+    const officer = cnt.kurumImzalayan || cnt.kurum_imzalayan || "Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi";
+
+    return {
+      cNo,
+      cDate,
+      tc,
+      sName,
+      pName,
+      pPhone,
+      sClass,
+      sPeriod,
+      grossFee,
+      instCount,
+      planText,
+      officer
+    };
+  };
+
+  const initialVals = useMemo(() => computeInitialValues(contract, resolvedStudent), [contract, resolvedStudent]);
+
+  const [editableContractNo, setEditableContractNo] = useState(() => initialVals.cNo || "MEB-2026-001");
+  const [editableContractDate, setEditableContractDate] = useState(() => initialVals.cDate || new Date().toLocaleDateString("tr-TR"));
+  const [editableStudentTc, setEditableStudentTc] = useState(() => initialVals.tc || "");
+  const [editableStudentName, setEditableStudentName] = useState(() => initialVals.sName || "");
+  const [editableParentName, setEditableParentName] = useState(() => initialVals.pName || "");
+  const [editableParentPhone, setEditableParentPhone] = useState(() => initialVals.pPhone || "");
+  const [editableClass, setEditableClass] = useState(() => initialVals.sClass || "Mezun / YKS");
+  const [editablePeriod, setEditablePeriod] = useState(() => initialVals.sPeriod || "2026-2027 Eğitim-Öğretim Dönemi");
+  const [editableGrossFee, setEditableGrossFee] = useState(() => initialVals.grossFee || 0);
+  const [editableInstallments, setEditableInstallments] = useState(() => initialVals.instCount || 1);
+  const [editableOfficer, setEditableOfficer] = useState(() => initialVals.officer || "Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi");
+  const [editablePaymentPlanText, setEditablePaymentPlanText] = useState(() => initialVals.planText || "Peşin");
+
+  // Keep state synchronized whenever contract or resolvedStudent updates
+  useEffect(() => {
+    if (!contract) return;
+    const v = computeInitialValues(contract, resolvedStudent);
+    setEditableContractNo(v.cNo || "MEB-2026-001");
+    setEditableContractDate(v.cDate || new Date().toLocaleDateString("tr-TR"));
+    setEditableStudentTc(v.tc || "");
+    setEditableStudentName(v.sName || "");
+    setEditableParentName(v.pName || "");
+    setEditableParentPhone(v.pPhone || "");
+    setEditableClass(v.sClass || "Mezun / YKS");
+    setEditablePeriod(v.sPeriod || "2026-2027 Eğitim-Öğretim Dönemi");
+    setEditableGrossFee(v.grossFee || 0);
+    setEditableInstallments(v.instCount || 1);
+    setEditableOfficer(v.officer || "Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi");
+    setEditablePaymentPlanText(v.planText || "Peşin");
+  }, [contract, resolvedStudent]);
+
+  const handleResetToOriginal = () => {
+    const v = computeInitialValues(contract, resolvedStudent);
+    setEditableContractNo(v.cNo || "MEB-2026-001");
+    setEditableContractDate(v.cDate || new Date().toLocaleDateString("tr-TR"));
+    setEditableStudentTc(v.tc || "");
+    setEditableStudentName(v.sName || "");
+    setEditableParentName(v.pName || "");
+    setEditableParentPhone(v.pPhone || "");
+    setEditableClass(v.sClass || "Mezun / YKS");
+    setEditablePeriod(v.sPeriod || "2026-2027 Eğitim-Öğretim Dönemi");
+    setEditableGrossFee(v.grossFee || 0);
+    setEditableInstallments(v.instCount || 1);
+    setEditableOfficer(v.officer || "Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi");
+    setEditablePaymentPlanText(v.planText || "Peşin");
+  };
 
   if (!contract) return null;
 
@@ -350,35 +480,68 @@ export function MebContractPrintModal({ contract, printStudent, onClose }) {
           </button>
         </div>
 
-        {/* PRATİK SÖZLEŞME ÖNİZLEME & DÜZENLEME FORMU (no-print) */}
-        {showEditDrawer && (
-          <div
-            className="no-print"
-            style={{
-              marginBottom: "16px",
-              background: "#eff6ff",
-              border: "1px solid #93c5fd",
-              borderRadius: "8px",
-              padding: "14px",
-              fontFamily: "sans-serif"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+        {/* PRATİK ÖNİZLEME & DÜZENLEME PANELİ (Yazdırmada gizlenir - Makbuz modalındaki gibi) */}
+        <div
+          className="no-print"
+          style={{
+            marginBottom: "16px",
+            background: showEditDrawer ? "#eff6ff" : "#f1f5f9",
+            border: showEditDrawer ? "1px solid #3b82f6" : "1px solid #cbd5e1",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            fontFamily: "'Inter', system-ui, sans-serif"
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Edit3 size={15} color="#2563eb" />
               <span style={{ fontSize: "13px", fontWeight: "700", color: "#1e3a8a" }}>
-                Hızlı Sözleşme Bilgisi Düzenleme
+                Hızlı Sözleşme Düzenleme & Önizleme
               </span>
               <span style={{ fontSize: "11px", color: "#64748b" }}>
-                (Değişiklikler anında aşağıdaki MEB formuna yansır ve öyle yazdırılır)
+                (Yazdırmadan önce sözleşme üzerindeki bilgileri buradan değiştirebilirsiniz)
               </span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {showEditDrawer && (
+                <button
+                  type="button"
+                  onClick={handleResetToOriginal}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    background: "none",
+                    border: "none",
+                    color: "#dc2626",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                  title="Orijinal değerlere geri dön"
+                >
+                  <RotateCcw size={13} /> Sıfırla
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowEditDrawer(!showEditDrawer)}
+                style={{ background: "none", border: "none", color: "#2563eb", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}
+              >
+                {showEditDrawer ? "Gizle ▲" : "Düzenle ▼"}
+              </button>
+            </div>
+          </div>
+
+          {showEditDrawer && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px", marginTop: "12px", paddingTop: "12px", borderTop: "1px dashed #bfdbfe" }}>
               <div>
                 <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Öğrenci Adı Soyadı</label>
                 <input
                   type="text"
                   value={editableStudentName}
                   onChange={(e) => setEditableStudentName(e.target.value)}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
               <div>
@@ -387,7 +550,7 @@ export function MebContractPrintModal({ contract, printStudent, onClose }) {
                   type="text"
                   value={editableStudentTc}
                   onChange={(e) => setEditableStudentTc(e.target.value)}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
               <div>
@@ -396,7 +559,7 @@ export function MebContractPrintModal({ contract, printStudent, onClose }) {
                   type="text"
                   value={editableParentName}
                   onChange={(e) => setEditableParentName(e.target.value)}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
               <div>
@@ -405,7 +568,7 @@ export function MebContractPrintModal({ contract, printStudent, onClose }) {
                   type="text"
                   value={editableParentPhone}
                   onChange={(e) => setEditableParentPhone(e.target.value)}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
               <div>
@@ -414,25 +577,25 @@ export function MebContractPrintModal({ contract, printStudent, onClose }) {
                   type="text"
                   value={editableClass}
                   onChange={(e) => setEditableClass(e.target.value)}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Dönem</label>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Eğitim Dönemi</label>
                 <input
                   type="text"
                   value={editablePeriod}
                   onChange={(e) => setEditablePeriod(e.target.value)}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Öğrenim Ücreti (TL)</label>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Öğrenim Ücreti (Brüt TL)</label>
                 <input
                   type="number"
                   value={editableGrossFee}
                   onChange={(e) => setEditableGrossFee(Number(e.target.value))}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
               <div>
@@ -441,8 +604,12 @@ export function MebContractPrintModal({ contract, printStudent, onClose }) {
                   type="number"
                   min="1"
                   value={editableInstallments}
-                  onChange={(e) => setEditableInstallments(Math.max(1, Number(e.target.value)))}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  onChange={(e) => {
+                    const cnt = Math.max(1, Number(e.target.value));
+                    setEditableInstallments(cnt);
+                    setEditablePaymentPlanText(cnt > 1 ? `Taksitli (${cnt} Taksit)` : "Peşin");
+                  }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
               <div>
@@ -453,29 +620,38 @@ export function MebContractPrintModal({ contract, printStudent, onClose }) {
                     value={editableContractNo}
                     onChange={(e) => setEditableContractNo(e.target.value)}
                     placeholder="Sözleşme No"
-                    style={{ width: "50%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                    style={{ width: "50%", padding: "6px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                   />
                   <input
                     type="text"
                     value={editableContractDate}
                     onChange={(e) => setEditableContractDate(e.target.value)}
                     placeholder="Tarih"
-                    style={{ width: "50%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                    style={{ width: "50%", padding: "6px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                   />
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Kurum Yetkilisi</label>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Kurum Yetkilisi / Müdür</label>
                 <input
                   type="text"
                   value={editableOfficer}
                   onChange={(e) => setEditableOfficer(e.target.value)}
-                  style={{ width: "100%", padding: "5px 8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
+                />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Ödeme Şekli & Vade Planı Açıklaması</label>
+                <input
+                  type="text"
+                  value={editablePaymentPlanText}
+                  onChange={(e) => setEditablePaymentPlanText(e.target.value)}
+                  style={{ width: "100%", padding: "6px 9px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "5px", background: "#fff" }}
                 />
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div
           className="meb-contract-sheet"
