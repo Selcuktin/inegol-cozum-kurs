@@ -236,6 +236,43 @@ export default function EdesisSozlesmeDetay({
     });
   };
 
+  // Auto-scroll to Tahsilat section and highlight/open collection modal if requested from Dashboard
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const el = document.getElementById("tahsilat-section");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.style.transition = "box-shadow 0.4s ease, border-color 0.4s ease";
+        el.style.boxShadow = "0 0 0 3px rgba(16, 185, 129, 0.35)";
+        el.style.borderColor = "#10b981";
+        setTimeout(() => {
+          el.style.boxShadow = "0 1px 3px rgba(0,0,0,0.02)";
+          el.style.borderColor = "#e2e8f0";
+        }, 2500);
+
+        const targetTaksitNo = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("cozum_target_taksit_no") : null;
+        if (targetTaksitNo && Array.isArray(localInstallments) && localInstallments.length > 0) {
+          const targetInst = localInstallments.find((t) => String(t.taksitNo) === String(targetTaksitNo) && t.durum !== 1);
+          if (targetInst) {
+            handleOpenCollect(targetInst);
+          }
+        }
+        try {
+          sessionStorage.removeItem("cozum_scroll_to_tahsilat");
+          sessionStorage.removeItem("cozum_target_taksit_no");
+        } catch {}
+      }
+    };
+
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("cozum_scroll_to_tahsilat") === "1") {
+      const timer = setTimeout(handleScroll, 120);
+      return () => clearTimeout(timer);
+    }
+
+    window.addEventListener("cozum_scroll_to_tahsilat", handleScroll);
+    return () => window.removeEventListener("cozum_scroll_to_tahsilat", handleScroll);
+  }, [localInstallments]);
+
   const handleConfirmCollect = () => {
     if (!collectModal || !collectModal.taksit) return;
     const { taksit, amount } = collectModal;

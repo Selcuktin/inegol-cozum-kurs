@@ -318,8 +318,17 @@ export function DashboardPage({
                       key={item.id}
                       style={{ borderBottom: "1px solid #f1f5f9", cursor: "pointer" }}
                       onClick={() => {
+                        const targetNo = item.sozlesmeNo || item.student?.sozlesme_no || item.student_name;
+                        try {
+                          if (targetNo) sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                          if (item.student_name) sessionStorage.setItem("cozum_open_contract_student", item.student_name);
+                          if (item.student?.id) sessionStorage.setItem("cozum_open_contract_student_id", String(item.student.id));
+                        } catch {}
                         if (item.student && onSelect) onSelect(item.student);
-                        else if (onNavigate) onNavigate("documents");
+                        if (onNavigate) onNavigate("documents");
+                        if (typeof window !== "undefined" && targetNo) {
+                          window.location.hash = `documents?id=${encodeURIComponent(targetNo)}`;
+                        }
                       }}
                       title={`${item.student_name} sözleşme detayına git`}
                     >
@@ -407,12 +416,24 @@ export function DashboardPage({
                       <td style={{ padding: "10px 12px", verticalAlign: "middle", textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const targetNo = item.sozlesmeNo || item.student?.sozlesme_no || item.student_name;
                             try {
+                              if (targetNo) sessionStorage.setItem("cozum_open_contract_no", targetNo);
+                              if (item.student_name) sessionStorage.setItem("cozum_open_contract_student", item.student_name);
+                              if (item.student?.id) sessionStorage.setItem("cozum_open_contract_student_id", String(item.student.id));
                               sessionStorage.setItem("cozum_scroll_to_tahsilat", "1");
+                              if (item.installment_no) sessionStorage.setItem("cozum_target_taksit_no", String(item.installment_no));
                             } catch {}
+                            if (item.student && onSelect) onSelect(item.student);
                             if (onNavigate) onNavigate("documents");
-                            window.dispatchEvent(new CustomEvent("cozum_scroll_to_tahsilat"));
+                            if (typeof window !== "undefined" && targetNo) {
+                              window.location.hash = `documents?id=${encodeURIComponent(targetNo)}`;
+                            }
+                            window.dispatchEvent(new CustomEvent("cozum_scroll_to_tahsilat", {
+                              detail: { contractNo: targetNo, installmentNo: item.installment_no }
+                            }));
                           }}
                           style={{
                             display: "inline-flex",
@@ -428,7 +449,7 @@ export function DashboardPage({
                             cursor: "pointer",
                             boxShadow: "0 1px 2px rgba(16, 185, 129, 0.2)"
                           }}
-                          title="Bu sözleşme için tahsilat al"
+                          title="Öğrencinin sözleşmesinde tahsilat al"
                         >
                           <Plus size={12} /> Tahsilat Al
                         </button>

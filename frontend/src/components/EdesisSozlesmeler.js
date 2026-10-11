@@ -177,56 +177,60 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   };
 
   useEffect(() => {
-    try {
-      const targetKey = getTargetContractKey();
-      if (!targetKey) return;
+    const syncTargetContract = () => {
+      try {
+        const targetKey = getTargetContractKey();
+        if (!targetKey) return;
 
-      let found = findMatchingContract(targetKey, contractsList);
+        let found = findMatchingContract(targetKey, contractsList);
 
-      // If not found, check student name or student id from sessionStorage
-      if (!found && typeof sessionStorage !== "undefined") {
-        const sName = sessionStorage.getItem("cozum_open_contract_student");
-        const sId = sessionStorage.getItem("cozum_open_contract_student_id");
-        if (sName) found = findMatchingContract(sName, contractsList);
-        if (!found && sId) found = findMatchingContract(sId, contractsList);
-      }
-
-      // If still not found, check in students array and synthesize on the fly
-      if (!found && Array.isArray(students) && students.length > 0) {
-        const normKey = trNorm(targetKey);
-        const sNameKey = typeof sessionStorage !== "undefined" ? trNorm(sessionStorage.getItem("cozum_open_contract_student") || "") : "";
-        const sIdKey = typeof sessionStorage !== "undefined" ? String(sessionStorage.getItem("cozum_open_contract_student_id") || "") : "";
-
-        const st = students.find((s) => 
-          (s.id && String(s.id) === String(targetKey)) || 
-          (s.id && sIdKey && String(s.id) === sIdKey) ||
-          (s.sozlesme_no && String(s.sozlesme_no) === String(targetKey)) || 
-          (s.student_name && trNorm(s.student_name) === normKey) ||
-          (s.student_name && sNameKey && trNorm(s.student_name) === sNameKey)
-        );
-        if (st) {
-          found = findMatchingContract(st.sozlesme_no, contractsList) || 
-                  findMatchingContract(st.student_name, contractsList) ||
-                  findMatchingContract(st.id, contractsList);
-
-          // If not found, do not fabricate synthetic contracts
+        // If not found, check student name or student id from sessionStorage
+        if (!found && typeof sessionStorage !== "undefined") {
+          const sName = sessionStorage.getItem("cozum_open_contract_student");
+          const sId = sessionStorage.getItem("cozum_open_contract_student_id");
+          if (sName) found = findMatchingContract(sName, contractsList);
+          if (!found && sId) found = findMatchingContract(sId, contractsList);
         }
-      }
 
-      if (found) {
-        setSelectedContract((prev) => {
-          if (prev && (prev.sozlesmeNo === found.sozlesmeNo || prev.id === found.id)) return prev;
-          return found;
-        });
-        try {
-          sessionStorage.removeItem("cozum_open_contract_no");
-          sessionStorage.removeItem("cozum_open_contract_student");
-          sessionStorage.removeItem("cozum_open_contract_student_id");
-        } catch {}
+        // If still not found, check in students array and synthesize on the fly
+        if (!found && Array.isArray(students) && students.length > 0) {
+          const normKey = trNorm(targetKey);
+          const sNameKey = typeof sessionStorage !== "undefined" ? trNorm(sessionStorage.getItem("cozum_open_contract_student") || "") : "";
+          const sIdKey = typeof sessionStorage !== "undefined" ? String(sessionStorage.getItem("cozum_open_contract_student_id") || "") : "";
+
+          const st = students.find((s) => 
+            (s.id && String(s.id) === String(targetKey)) || 
+            (s.id && sIdKey && String(s.id) === sIdKey) ||
+            (s.sozlesme_no && String(s.sozlesme_no) === String(targetKey)) || 
+            (s.student_name && trNorm(s.student_name) === normKey) ||
+            (s.student_name && sNameKey && trNorm(s.student_name) === sNameKey)
+          );
+          if (st) {
+            found = findMatchingContract(st.sozlesme_no, contractsList) || 
+                    findMatchingContract(st.student_name, contractsList) ||
+                    findMatchingContract(st.id, contractsList);
+          }
+        }
+
+        if (found) {
+          setSelectedContract((prev) => {
+            if (prev && (prev.sozlesmeNo === found.sozlesmeNo || prev.id === found.id)) return prev;
+            return found;
+          });
+          try {
+            sessionStorage.removeItem("cozum_open_contract_no");
+            sessionStorage.removeItem("cozum_open_contract_student");
+            sessionStorage.removeItem("cozum_open_contract_student_id");
+          } catch {}
+        }
+      } catch (e) {
+        console.warn("Contract open effect error:", e);
       }
-    } catch (e) {
-      console.warn("Contract open effect error:", e);
-    }
+    };
+
+    syncTargetContract();
+    window.addEventListener("hashchange", syncTargetContract);
+    return () => window.removeEventListener("hashchange", syncTargetContract);
   }, [contractsList, students]);
   const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(null);
   const [showMebPrintModal, setShowMebPrintModal] = useState(null);
@@ -322,16 +326,18 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     const handleScrollToTahsilat = () => {
       setTimeout(() => {
         const el = document.getElementById("tahsilat-section");
-        if (el) el.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+          try { sessionStorage.removeItem("cozum_scroll_to_tahsilat"); } catch {}
+        }
+      }, 120);
     };
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("cozum_scroll_to_tahsilat") === "1") {
-      try { sessionStorage.removeItem("cozum_scroll_to_tahsilat"); } catch {}
+    if (selectedContract && typeof sessionStorage !== "undefined" && sessionStorage.getItem("cozum_scroll_to_tahsilat") === "1") {
       handleScrollToTahsilat();
     }
     window.addEventListener("cozum_scroll_to_tahsilat", handleScrollToTahsilat);
     return () => window.removeEventListener("cozum_scroll_to_tahsilat", handleScrollToTahsilat);
-  }, []);
+  }, [selectedContract]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
