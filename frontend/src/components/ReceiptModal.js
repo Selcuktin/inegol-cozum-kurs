@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Printer, X, Receipt, CheckCircle2, Edit3 } from "lucide-react";
+import { Printer, X, Receipt, CheckCircle2, Edit3, Mail } from "lucide-react";
 import { numberToTurkishWords } from "./PromissoryNoteModal";
 import { StudentService } from "../lib/edesisService";
 
@@ -87,6 +87,41 @@ export function ReceiptModal({ payment, student, onClose }) {
   const [editableNote, setEditableNote] = useState(() => payment?.note || "Eğitim Dönemi Taksit Ödemesi");
   const [editableOfficer, setEditableOfficer] = useState("Nevin ÇAKMAK / Osman SEYMEN");
   const [showEditDrawer, setShowEditDrawer] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
+  const [recipientEmail, setRecipientEmail] = useState(() => {
+    return student?.parent_email || student?.guardian_email || student?.father_email || student?.mother_email || "";
+  });
+
+  const handleSendEmail = async () => {
+    let target = recipientEmail.trim();
+    if (!target) {
+      target = window.prompt("Lütfen makbuzun iletileceği veli e-posta adresini giriniz:");
+      if (!target || !target.includes("@")) return;
+      setRecipientEmail(target);
+    }
+
+    setIsSendingEmail(true);
+    setEmailStatus(null);
+    try {
+      const payId = payment.id || "preview";
+      const res = await fetch(`/api/payments/${encodeURIComponent(payId)}/send-receipt-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: target })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setEmailStatus({ ok: true, message: data.message || `${target} adresine makbuz iletildi.` });
+      } else {
+        setEmailStatus({ ok: false, message: data.error || data.detail || "E-posta gönderilemedi." });
+      }
+    } catch (err) {
+      setEmailStatus({ ok: false, message: "Bağlantı hatası: " + err.message });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
 
   if (!payment) return null;
 
@@ -124,6 +159,16 @@ export function ReceiptModal({ payment, student, onClose }) {
             <button
               type="button"
               className="btn secondary"
+              onClick={handleSendEmail}
+              disabled={isSendingEmail}
+              style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "12px", padding: "7px 12px", color: "#1e40af" }}
+              title="Velinin e-posta adresine resmi makbuzu ilet"
+            >
+              <Mail size={15} color="#2563eb" /> {isSendingEmail ? "Gönderiliyor..." : "E-Posta Gönder"}
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
               onClick={() => setShowEditDrawer(!showEditDrawer)}
               style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "12px", padding: "7px 12px" }}
             >
@@ -135,6 +180,28 @@ export function ReceiptModal({ payment, student, onClose }) {
             <button className="icon-btn" onClick={onClose}><X size={20} /></button>
           </div>
         </div>
+
+        {emailStatus && (
+          <div 
+            className="no-print" 
+            style={{ 
+              margin: "12px 20px 0 20px", 
+              padding: "10px 14px", 
+              borderRadius: "6px", 
+              fontSize: "13px", 
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: emailStatus.ok ? "#ecfdf5" : "#fef2f2",
+              color: emailStatus.ok ? "#065f46" : "#991b1b",
+              border: emailStatus.ok ? "1px solid #a7f3d0" : "1px solid #fecaca"
+            }}
+          >
+            <span>{emailStatus.ok ? "✓ " : "✕ "}{emailStatus.message}</span>
+            <button type="button" onClick={() => setEmailStatus(null)} style={{ border: "none", background: "none", cursor: "pointer", color: "inherit", fontWeight: 700 }}>✕</button>
+          </div>
+        )}
 
         <div className="modal-body" style={{ overflowY: "auto", padding: "20px", background: "#f8fafc" }}>
           {/* PRATİK ÖNİZLEME & DÜZENLEME PANELİ (Yazdırmada gizlenir) */}
@@ -221,6 +288,16 @@ export function ReceiptModal({ payment, student, onClose }) {
                     type="text"
                     value={editableMethod}
                     onChange={(e) => setEditableMethod(e.target.value)}
+                    style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "3px" }}>Veli E-Posta (Makbuz İletimi)</label>
+                  <input
+                    type="email"
+                    placeholder="veli@ornek.com"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
                     style={{ width: "100%", padding: "5px 8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "5px" }}
                   />
                 </div>

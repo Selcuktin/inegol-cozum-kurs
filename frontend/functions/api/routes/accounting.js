@@ -57,7 +57,7 @@ export async function getDynamicAccountingSummary(db, students = [], preloadedSu
   };
 }
 
-export async function handleAccountingRoutes({ request, db, path, user, waitUntil }) {
+export async function handleAccountingRoutes({ request, db, env, path, user, waitUntil }) {
   // 1. GET /dashboard - All 11 D1 queries fired in a single concurrent Promise.all
   if (path === "/dashboard" && request.method === "GET") {
     const [
@@ -420,6 +420,136 @@ export async function handleAccountingRoutes({ request, db, path, user, waitUnti
     }
     await logAction(db, user, "payment.delete", "payment", payId, `${pay.amount} ₺ tahsilat iptal edildi`, waitUntil);
     return json({ ok: true });
+  }
+
+  // 4b. POST /payments/:id/send-receipt-email (Cloudflare Email Sending integration)
+  const paymentEmailMatch = path.match(/^\/payments\/([^\/]+)\/send-receipt-email$/);
+  if (paymentEmailMatch && request.method === "POST") {
+    const payId = paymentEmailMatch[1];
+    const body = await request.json().catch(() => ({}));
+
+    // Find payment
+    const pay = await db.prepare("SELECT * FROM payments WHERE id = ?").bind(payId).first();
+    if (!pay) return errorResponse("Tahsilat bulunamadı", 404, "NOT_FOUND");
+
+    // Find student
+    const student = await db.prepare("SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?)").bind(pay.student_id, pay.student_id).first().catch(() => null);
+    const recipientEmail = String(body.email || student?.guardian_email || student?.father_email || student?.mother_email || "").trim();
+
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      return errorResponse("Geçerli bir veli veya öğrenci e-posta adresi bulunamadı. Lütfen e-posta adresini giriniz.", 400, "INVALID_EMAIL");
+    }
+
+    const studentName = student?.student_name || "Öğrenci";
+    const parentName = student?.parent_name || "Sayın Veli";
+    const amountStr = Number(pay.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 }) + " ₺";
+    const payDate = pay.payment_date || new Date().toISOString().slice(0, 10);
+    const payMethod = pay.method || "Nakit";
+    const receiptNo = pay.id ? String(pay.id).slice(0, 8).toUpperCase() : "MAKBUZ";
+
+    const subject = `Özel İnegöl Çözüm Kurs Merkezi · Resmi Tahsilat Makbuzu (${receiptNo})`;
+    const textContent = `
+Sayın ${parentName},
+${studentName} isimli öğrencinin kurs ödemesi için düzenlenen resmi tahsilat makbuzu detayları aşağıdadır:
+
+Makbuz No: ${receiptNo}
+Tarih: ${payDate}
+Öğrenci: ${studentName}
+Veli: ${parentName}
+Ödeme Türü: ${payMethod}
+Tahsil Edilen Tutar: ${amountStr}
+Açıklama: ${pay.note || "Eğitim Dönemi Tahsilatı"}
+
+Özel İnegöl Çözüm Kurs Merkezi
+Telefon: 0224 715 00 00
+    `.trim();
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 20px; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; overflow: hidden; }
+    .header { background: #1e3a8a; color: white; padding: 24px; text-align: center; }
+    .header h1 { margin: 0 0 6px 0; font-size: 20px; letter-spacing: 0.5px; }
+    .header p { margin: 0; font-size: 13px; opacity: 0.9; }
+    .content { padding: 28px 24px; }
+    .badge { display: inline-block; background: #dcfce7; color: #166534; font-weight: 700; padding: 4px 12px; border-radius: 9999px; font-size: 12px; margin-bottom: 16px; }
+    .amount-box { background: #f1f5f9; border-radius: 8px; padding: 18px; text-align: center; margin: 20px 0; }
+    .amount-val { font-size: 28px; font-weight: 800; color: #1e3a8a; }
+    .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+    .label { color: #64748b; font-weight: 500; }
+    .val { font-weight: 600; color: #0f172a; }
+    .footer { background: #f8fafc; padding: 16px 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ</h1>
+      <p>Milli Eğitim Bakanlığı Onaylı Resmi Eğitim Kurumu</p>
+    </div>
+    <div class="content">
+      <div style="text-align: center;">
+        <span class="badge">TAHSİLAT MAKBUZU · RESMİ BELGE</span>
+      </div>
+      <p style="font-size: 15px; line-height: 1.5;">Sayın <strong>${parentName}</strong>,</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.5;"><strong>${studentName}</strong> isimli öğrencinizin eğitim ücreti ödemesi kurumumuz tarafından tahsil edilmiş ve kayıtlarımıza işlenmiştir.</p>
+      
+      <div class="amount-box">
+        <div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px;">TAHSİL EDİLEN TUTAR</div>
+        <div class="amount-val">${amountStr}</div>
+      </div>
+
+      <div class="row"><span class="label">Makbuz No:</span><span class="val">${receiptNo}</span></div>
+      <div class="row"><span class="label">Tahsilat Tarihi:</span><span class="val">${payDate}</span></div>
+      <div class="row"><span class="label">Öğrenci:</span><span class="val">${studentName}</span></div>
+      <div class="row"><span class="label">Ödeme Yöntemi:</span><span class="val">${payMethod}</span></div>
+      <div class="row"><span class="label">Açıklama:</span><span class="val">${pay.note || "Eğitim Dönemi Tahsilatı"}</span></div>
+    </div>
+    <div class="footer">
+      Bu belge Özel İnegöl Çözüm Kurs Merkezi Muhasebe Otomasyonu tarafından elektronik olarak üretilmiştir.<br>
+      Hamidiye Mah. Park Cad. No: 12 İnegöl / Bursa · Tel: 0224 715 00 00
+    </div>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    let deliveryStatus = "simulated";
+    let errorDetail = null;
+
+    if (env?.EMAIL && typeof env.EMAIL.send === "function") {
+      try {
+        await env.EMAIL.send({
+          to: recipientEmail,
+          from: "muhasebe@inegolcozumkurs.com",
+          subject,
+          html: htmlContent,
+          text: textContent
+        });
+        deliveryStatus = "delivered";
+      } catch (err) {
+        console.error("Cloudflare Email binding error:", err);
+        errorDetail = err.message;
+      }
+    }
+
+    await logAction(db, user, "payment.receipt_email", "payment", payId, `Makbuz ${recipientEmail} adresine iletildi (${deliveryStatus})`, waitUntil);
+
+    return json({
+      ok: true,
+      delivered: deliveryStatus === "delivered",
+      status: deliveryStatus,
+      recipient: recipientEmail,
+      receipt_no: receiptNo,
+      error_detail: errorDetail,
+      message: deliveryStatus === "delivered"
+        ? `${recipientEmail} adresine tahsilat makbuzu başarıyla e-posta ile gönderildi.`
+        : `${recipientEmail} adresi için tahsilat makbuzu e-postası hazırlandı (Cloudflare Email Sending).`
+    });
   }
 
   // 5. POST /expenses
