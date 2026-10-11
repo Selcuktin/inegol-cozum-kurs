@@ -1,6 +1,6 @@
 import { json, errorResponse, logAction, getNextSequence } from "../utils.js";
 
-export async function handleContractsRoutes({ request, db, url, path, user }) {
+export async function handleContractsRoutes({ request, db, url, path, user, waitUntil }) {
   // 1. GET /contracts
   if (path === "/contracts" && request.method === "GET") {
     const period = url.searchParams.get("period_id") || url.searchParams.get("period");
@@ -216,7 +216,7 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
       }
     }
 
-    await logAction(db, user, "contract.create", "contract", id, `${studentName} · ${sozlesmeNo} · ${brutTutar} ₺`);
+    await logAction(db, user, "contract.create", "contract", id, `${studentName} · ${sozlesmeNo} · ${brutTutar} ₺`, waitUntil);
 
     return json({
       id,
@@ -276,7 +276,7 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
       `).bind(targetId, targetId).run();
     }
 
-    await logAction(db, user, "contract.sign", "contract", row.id, `${row.sozlesme_no} sözleşmesi ${signerName} tarafından imzalandı`);
+    await logAction(db, user, "contract.sign", "contract", row.id, `${row.sozlesme_no} sözleşmesi ${signerName} tarafından imzalandı`, waitUntil);
     const updated = await db.prepare("SELECT * FROM contracts WHERE id = ?").bind(row.id).first();
     return json({ success: true, contract: updated, is_signed: true, isSigned: true, kurumImzaAlindi: true });
   }
@@ -339,7 +339,7 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
         for (const s of deleteStmts) await s.run().catch(() => {});
       }
 
-      await logAction(db, user, "contract.delete", "contract", row.id, `${row.sozlesme_no} sözleşmesi ve ilişkili tüm kayıtlar silindi`);
+      await logAction(db, user, "contract.delete", "contract", row.id, `${row.sozlesme_no} sözleşmesi ve ilişkili tüm kayıtlar silindi`, waitUntil);
       return json({ success: true, ok: true, deleted_id: row.id, deleted_sozlesme: row.sozlesme_no });
     }
 
@@ -380,7 +380,7 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
         WHERE contract_id = ? OR sozlesme_no = ? OR LOWER(student_name) = LOWER(?)
       `).bind(brut, net, kdv, inst, brut, row.id, row.sozlesme_no, row.student_name).run().catch(() => {});
 
-      await logAction(db, user, "contract.update", "contract", row.id, `${row.sozlesme_no} güncellendi: ${brut} TL`);
+      await logAction(db, user, "contract.update", "contract", row.id, `${row.sozlesme_no} güncellendi: ${brut} TL`, waitUntil);
 
       const updatedRow = await db.prepare("SELECT * FROM contracts WHERE id = ?").bind(row.id).first();
       return json({

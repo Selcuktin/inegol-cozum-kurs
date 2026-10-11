@@ -57,7 +57,7 @@ export async function getDynamicAccountingSummary(db, students = [], preloadedSu
   };
 }
 
-export async function handleAccountingRoutes({ request, db, path, user }) {
+export async function handleAccountingRoutes({ request, db, path, user, waitUntil }) {
   // 1. GET /dashboard - All 11 D1 queries fired in a single concurrent Promise.all
   if (path === "/dashboard" && request.method === "GET") {
     const [
@@ -300,7 +300,7 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
       for (const s of batchStmts) await s.run().catch(() => {});
     }
 
-    await logAction(db, user, "payment.create", "payment", id, `${student.student_name} · ${amount} ₺ · ${payMethod}`);
+    await logAction(db, user, "payment.create", "payment", id, `${student.student_name} · ${amount} ₺ · ${payMethod}`, waitUntil);
     return json({ id, student_id: student.id, student_name: student.student_name, amount, payment_date: payDate, ...p }, 201);
   }
 
@@ -374,7 +374,7 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
       }
     }
 
-    await logAction(db, user, "payment.cancel", "payment", payId || "", "Tahsilat iptal edildi");
+    await logAction(db, user, "payment.cancel", "payment", payId || "", "Tahsilat iptal edildi", waitUntil);
     return json({ ok: true, cancelled_id: payId });
   }
 
@@ -418,7 +418,7 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
     } else {
       for (const s of stmts) await s.run().catch(() => {});
     }
-    await logAction(db, user, "payment.delete", "payment", payId, `${pay.amount} ₺ tahsilat iptal edildi`);
+    await logAction(db, user, "payment.delete", "payment", payId, `${pay.amount} ₺ tahsilat iptal edildi`, waitUntil);
     return json({ ok: true });
   }
 
@@ -445,7 +445,7 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
       )
       .run();
 
-    await logAction(db, user, "expense.create", "expense", id, `${e.title} · ${amount} ₺ (${e.account || "Nakit Ana Kasa"})`);
+    await logAction(db, user, "expense.create", "expense", id, `${e.title} · ${amount} ₺ (${e.account || "Nakit Ana Kasa"})`, waitUntil);
     return json({ id, ...e, amount }, 201);
   }
 
@@ -454,7 +454,7 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
   if (expenseIdMatch && request.method === "DELETE") {
     const expId = expenseIdMatch[1];
     await db.prepare("DELETE FROM expenses WHERE id = ?").bind(expId).run();
-    await logAction(db, user, "expense.delete", "expense", expId, "Gider kaydı silindi");
+    await logAction(db, user, "expense.delete", "expense", expId, "Gider kaydı silindi", waitUntil);
     return json({ ok: true });
   }
 

@@ -1,4 +1,4 @@
-import { json, errorResponse, ROLE_ADMIN, ROLE_LABELS, logAction } from "../utils.js";
+import { json, errorResponse, ROLE_ADMIN, ROLE_LABELS, logAction, parseCookies } from "../utils.js";
 
 export async function handleAuthRoutes({ request, db, env, path, user }) {
   // Reset cookies and clear site data across all devices
@@ -102,8 +102,13 @@ export async function handleAuthRoutes({ request, db, env, path, user }) {
     return json({ ...user, role_label: ROLE_LABELS[user.role] || user.role });
   }
 
-  // Logout
+  // Logout - Invalidate D1 session token and clear browser cookies
   if (path === "/auth/logout" && request.method === "POST") {
+    const cookies = parseCookies(request);
+    const token = cookies["session_token"] || (request.headers.get("Authorization") || "").replace(/^Bearer\s+/, "");
+    if (token && db) {
+      await db.prepare("DELETE FROM user_sessions WHERE session_token = ?").bind(token).run().catch(() => {});
+    }
     return json(
       { ok: true },
       200,

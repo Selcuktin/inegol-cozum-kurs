@@ -49,7 +49,7 @@ function computeInstallmentPlan(student, payments) {
   return plan;
 }
 
-export async function handleStudentsRoutes({ request, db, url, path, user }) {
+export async function handleStudentsRoutes({ request, db, url, path, user, waitUntil }) {
   // 1. GET /students
   if ((path === "/students" || path.endsWith("/Ogrencies/GetAll")) && request.method === "GET") {
     const search = url.searchParams.get("search") || "";
@@ -210,7 +210,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
       )
       .run();
 
-    await logAction(db, user, "student.create", "student", id, `${s.student_name} kaydedildi`);
+    await logAction(db, user, "student.create", "student", id, `${s.student_name} kaydedildi`, waitUntil);
     const created = await db.prepare("SELECT * FROM students WHERE id = ?").bind(id).first();
 
     // Auto-create contract and installments in D1 if not exists
@@ -410,7 +410,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
       .bind(base64, filename, contentType, studentId)
       .run();
 
-    await logAction(db, user, "student.contract_upload", "student", studentId, `${student.student_name} için sözleşme yüklendi (${filename})`);
+    await logAction(db, user, "student.contract_upload", "student", studentId, `${student.student_name} için sözleşme yüklendi (${filename})`, waitUntil);
     return json({ ok: true, filename, uploaded_at: new Date().toISOString() });
   }
 
@@ -510,7 +510,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
         await db.prepare(`UPDATE students SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
       }
 
-      await logAction(db, user, "student.update", "student", targetId, `${existing.student_name} bilgileri güncellendi`);
+      await logAction(db, user, "student.update", "student", targetId, `${existing.student_name} bilgileri güncellendi`, waitUntil);
       const updated = await db.prepare("SELECT * FROM students WHERE id = ?").bind(targetId).first();
       return json(enrichStudent(updated));
     }
@@ -542,7 +542,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
         for (const s of deleteStmts) await s.run().catch(() => {});
       }
 
-      await logAction(db, user, "student.delete", "student", targetId, `${targetName} ve ilişkili tüm kayıtlar silindi`);
+      await logAction(db, user, "student.delete", "student", targetId, `${targetName} ve ilişkili tüm kayıtlar silindi`, waitUntil);
       return json({ ok: true, deleted_id: targetId, deleted_name: targetName });
     }
   }
