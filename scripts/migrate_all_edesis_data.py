@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Migrate authentic Edesis data into Cloudflare D1 / SQLite database.
 Generates comprehensive SQL statements strictly conforming to remote D1 schema:

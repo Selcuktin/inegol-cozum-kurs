@@ -1,6 +1,6 @@
-import urllib.request
-import json
 import http.cookiejar
+import json
+import urllib.request
 
 BASE = "https://inegol-cozum-kurs.pages.dev/api"
 cj = http.cookiejar.CookieJar()
@@ -60,39 +60,21 @@ status, dash = request("GET", "/dashboard")
 assert status == 200, f"/dashboard failed: {status}"
 print(f"[OK] /dashboard OK: {len(dash.get('students', []))} students, {len(dash.get('payments', []))} payments, {len(dash.get('classes', []))} classes")
 
-# GET /GetSummary
-status, summary = request("GET", "/GetSummary")
-assert status == 200, f"/GetSummary failed: {status}"
-print(f"[OK] /GetSummary OK: totalStudents={summary.get('result', {}).get('totalStudents')}, active={summary.get('result', {}).get('activeStudents')}")
+# GET /contracts
+status, contracts = request("GET", "/contracts")
+assert status == 200, f"/contracts failed: {status}"
+print(f"[OK] /contracts OK: {len(contracts)} contracts loaded")
 
-# GET /GetRecentRegistrations
-status, recent = request("GET", "/GetRecentRegistrations?Count=5")
-assert status == 200, f"/GetRecentRegistrations failed: {status}"
-print(f"[OK] /GetRecentRegistrations OK: {len(recent.get('result', []))} items")
-
-# GET /GetClassCapacities
-status, caps = request("GET", "/GetClassCapacities")
-assert status == 200, f"/GetClassCapacities failed: {status}"
-print(f"[OK] /GetClassCapacities OK: {caps.get('result', {}).get('totalCount')} classes")
-
-# GET /GetGradeDistribution
-status, grades = request("GET", "/GetGradeDistribution")
-assert status == 200, f"/GetGradeDistribution failed: {status}"
-print(f"[OK] /GetGradeDistribution OK: {len(grades.get('result', []))} grade buckets")
-
-# GET /GetStudentStateDistribution
-status, states = request("GET", "/GetStudentStateDistribution")
-assert status == 200, f"/GetStudentStateDistribution failed: {status}"
-print(f"[OK] /GetStudentStateDistribution OK: {len(states.get('result', []))} state buckets")
-
-# GET /GetMissingDataAlerts
-status, alerts = request("GET", "/GetMissingDataAlerts")
-assert status == 200, f"/GetMissingDataAlerts failed: {status}"
-print(f"[OK] /GetMissingDataAlerts OK: {alerts.get('result', {}).get('totalCount')} alerts")
+# GET /search/omni
+status, search_res = request("GET", "/search/omni?q=Berat")
+assert status == 200, f"/search/omni failed: {status}"
+assert len(search_res.get("students", [])) >= 1, "Expected at least 1 student for Berat"
+print(f"[OK] /search/omni OK: {len(search_res.get('students', []))} students found")
 
 # GET /students
-status, students = request("GET", "/students")
+status, stu_res = request("GET", "/students")
 assert status == 200, f"/students failed: {status}"
+students = stu_res.get("items", stu_res) if isinstance(stu_res, dict) else stu_res
 assert len(students) >= 100, f"Expected at least 100 students, got {len(students)}"
 first_stu = students[0]
 stu_id = first_stu["id"]

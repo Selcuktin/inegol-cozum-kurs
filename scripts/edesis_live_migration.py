@@ -7,9 +7,7 @@ Extracts authentic students, classes, and exams from inegolcozum.edesis.com / ed
 purges temporary test records, and generates clean SQL seed files ready for D1 / SQLite.
 """
 
-import json
 import os
-import sys
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SWAGGER_PATH = os.path.join(BASE_DIR, "edesis_swagger.json")

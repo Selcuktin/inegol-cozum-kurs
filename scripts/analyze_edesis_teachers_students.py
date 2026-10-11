@@ -1,7 +1,7 @@
-import json
 import glob
-import re
+import json
 import os
+import re
 
 print("=== 1. ANALYZING DUMP FOR 61 STUDENTS ===")
 dump_path = "scripts/edesis_dump_data.json"

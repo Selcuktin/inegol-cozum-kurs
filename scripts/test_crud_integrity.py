@@ -1,6 +1,6 @@
-import urllib.request
-import json
 import http.cookiejar
+import json
+import urllib.request
 
 BASE = "https://inegol-cozum-kurs.pages.dev/api"
 cj = http.cookiejar.CookieJar()
@@ -64,7 +64,7 @@ print(f"[OK] Class updated: {updated_class.get('name')}")
 # Delete class
 status, del_res = request("DELETE", f"/classes/{test_class_id}", headers=auth_hdr)
 assert status == 200, f"Class delete failed: {status}"
-print(f"[OK] Class deleted cleanly")
+print("[OK] Class deleted cleanly")
 
 print("\n--- 3. Test Schedule CRUD ---")
 status, new_sch = request("POST", "/schedules", {
@@ -86,12 +86,12 @@ status, up_sch = request("PUT", f"/schedules/{sch_id}", {
     "room": "Derslik 2"
 }, headers=auth_hdr)
 assert status == 200, f"Schedule update failed: {status}"
-print(f"[OK] Schedule updated")
+print("[OK] Schedule updated")
 
 # Delete schedule
 status, del_sch = request("DELETE", f"/schedules/{sch_id}", headers=auth_hdr)
 assert status == 200, f"Schedule delete failed: {status}"
-print(f"[OK] Schedule deleted cleanly")
+print("[OK] Schedule deleted cleanly")
 
 print("\n--- 4. Test Homework CRUD ---")
 status, new_hw = request("POST", "/homework", {
@@ -111,12 +111,12 @@ status, sub_res = request("POST", f"/homework/{hw_id}/submissions", [
     {"student_id": "stu-7086993", "status": "yapildi", "note": "Eksiksiz tamamlandı"}
 ], headers=auth_hdr)
 assert status == 200, f"Homework submission update failed: {status}"
-print(f"[OK] Homework submission recorded")
+print("[OK] Homework submission recorded")
 
 # Delete homework
 status, del_hw = request("DELETE", f"/homework/{hw_id}", headers=auth_hdr)
 assert status == 200, f"Homework delete failed: {status}"
-print(f"[OK] Homework deleted cleanly")
+print("[OK] Homework deleted cleanly")
 
 print("\n--- 5. Test Mentorship CRUD ---")
 status, new_men = request("POST", "/mentorship", {
@@ -137,7 +137,7 @@ print(f"[OK] Mentorship created: {men_id}")
 # Delete mentorship
 status, del_men = request("DELETE", f"/mentorship/{men_id}", headers=auth_hdr)
 assert status == 200, f"Mentorship delete failed: {status}"
-print(f"[OK] Mentorship deleted cleanly")
+print("[OK] Mentorship deleted cleanly")
 
 print("\n--- 6. Test Attendance Save & Parent Notification ---")
 status, att_save = request("POST", "/attendance", {
@@ -147,13 +147,13 @@ status, att_save = request("POST", "/attendance", {
     ]
 }, headers=auth_hdr)
 assert status == 200, f"Attendance save failed: {status}"
-print(f"[OK] Attendance saved successfully")
+print("[OK] Attendance saved successfully")
 
 status, notif_res = request("POST", "/attendance/notify", {
     "student_id": "stu-7086993",
     "date": "2026-10-03"
 }, headers=auth_hdr)
 assert status == 200, f"Attendance notify failed: {status}"
-print(f"[OK] Attendance notification flag updated")
+print("[OK] Attendance notification flag updated")
 
 print("\n>>> ALL MUTATION & CRUD ENDPOINTS FUNCTIONING 100% PERFECTLY! <<<")

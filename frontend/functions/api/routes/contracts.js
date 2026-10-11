@@ -14,7 +14,8 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         COALESCE(NULLIF(c.parent_phone, ''), s.parent_phone) as resolved_parent_phone,
         COALESCE(NULLIF(c.student_class, ''), s.student_class) as resolved_student_class,
         COALESCE(NULLIF(c.student_name, ''), s.student_name) as resolved_student_name,
-        COALESCE(NULLIF(c.student_tc, ''), s.student_tc) as resolved_student_tc,
+        s.student_tc as resolved_student_tc,
+        s.student_tc,
         s.parent_tc,
         s.id as student_full_id,
         (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE (p.contract_id = c.id OR (p.student_id = c.student_id AND c.student_id IS NOT NULL AND c.student_id != '')) AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
