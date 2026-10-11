@@ -211,6 +211,48 @@ export function MuhasebeV2Dashboard({
     }
   };
 
+  const handleUploadBackupJson = async (file) => {
+    if (!file) return;
+    try {
+      setRestoring(true);
+      const text = await file.text();
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        alert("Seçilen dosya geçerli bir JSON dosyası değil.");
+        return;
+      }
+
+      if (!parsed || typeof parsed.tables !== "object") {
+        alert("Geçersiz yedek dosyası: 'tables' anahtarı bulunamadı.");
+        return;
+      }
+
+      const tableKeys = Object.keys(parsed.tables);
+      const studentCount = parsed.tables.students?.length || 0;
+      const paymentCount = parsed.tables.payments?.length || 0;
+      const contractCount = parsed.tables.contracts?.length || 0;
+
+      const confirmMsg = `"${file.name}" yedeği sisteme aktarılacak.\n\nİçerik Özeti:\n- Öğrenci: ${studentCount}\n- Tahsilat: ${paymentCount}\n- Sözleşme: ${contractCount}\n- Toplam Tablo: ${tableKeys.length}\n\nBu işlem mevcut veritabanını bu yedek ile tamamen güncelleyecektir (işlem öncesi otomatik güvenlik yedeği alınır).\n\nOnaylıyor musunuz?`;
+      if (!window.confirm(confirmMsg)) return;
+
+      await axios.post(`${API}/backup/upload-restore`, {
+        snapshot: parsed,
+        notes: `Harici dosya yüklemesi (${file.name})`
+      });
+
+      setBackupAlert("✓ Harici yedek dosyası başarıyla yüklendi ve veritabanı geri yüklendi!");
+      if (reload) reload();
+      await loadBackups();
+      setTimeout(() => setBackupAlert(""), 5000);
+    } catch (err) {
+      alert("Yedek yükleme hatası: " + (err.response?.data?.detail || err.response?.data?.error || err.message));
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   // Excel / CSV Export for system data and snapshots
   const exportDataToExcel = (customData = null, fileSuffix = "Tum_Sistem") => {
     exportAccountingDataToExcel(customData, fileSuffix, data);
@@ -1485,6 +1527,7 @@ export function MuhasebeV2Dashboard({
         <BackupRestoreTab
           backups={backups}
           loadingBackups={loadingBackups}
+          restoring={restoring}
           backupNote={backupNote}
           setBackupNote={setBackupNote}
           backupAlert={backupAlert}
@@ -1492,6 +1535,7 @@ export function MuhasebeV2Dashboard({
           handleDownloadBackupJson={handleDownloadBackupJson}
           handleDownloadBackupExcel={handleDownloadBackupExcel}
           handleTakeManualBackup={handleTakeManualBackup}
+          handleUploadBackupJson={handleUploadBackupJson}
           loadBackups={loadBackups}
           setRestoreModalBackup={setRestoreModalBackup}
           formatTrtDateTime={formatTrtDateTime}

@@ -1,9 +1,10 @@
-import React from "react";
-import { ShieldCheck, Download, Plus, RefreshCw, AlertTriangle } from "lucide-react";
+import React, { useRef } from "react";
+import { ShieldCheck, Download, Plus, RefreshCw, AlertTriangle, Upload } from "lucide-react";
 
 export function BackupRestoreTab({
   backups = [],
   loadingBackups = false,
+  restoring = false,
   backupNote = "",
   setBackupNote = () => {},
   backupAlert = "",
@@ -11,10 +12,12 @@ export function BackupRestoreTab({
   handleDownloadBackupJson = () => {},
   handleDownloadBackupExcel = () => {},
   handleTakeManualBackup = () => {},
+  handleUploadBackupJson = () => {},
   loadBackups = () => {},
   setRestoreModalBackup = () => {},
   formatTrtDateTime = (d) => String(d || "")
 }) {
+  const fileInputRef = useRef(null);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Yedekleme Durum Kartı */}
@@ -53,6 +56,28 @@ export function BackupRestoreTab({
                 <Download size={14} color="#2563eb" /> 💾 Son Yedeği PC'ye İndir (.json)
               </button>
             )}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".json,application/json"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                if (e.target.files?.[0]) {
+                  handleUploadBackupJson(e.target.files[0]);
+                  e.target.value = "";
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loadingBackups || restoring}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "700", fontSize: "12px", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", color: "#4338ca", borderColor: "#c7d2fe", background: "#eef2ff" }}
+              title="Bilgisayarınızdaki bir .json sistem yedeğini sisteme yükleyip geri yükleyin"
+            >
+              <Upload size={14} color="#4f46e5" /> {restoring ? "Yükleniyor..." : "📁 PC'den Yedek Yükle (.json)"}
+            </button>
             <input
               type="text"
               placeholder="Yedekleme açıklaması (opsiyonel)..."

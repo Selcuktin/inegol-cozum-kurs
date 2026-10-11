@@ -2,6 +2,7 @@
 import { json, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, ROLE_ADMIN, ROLE_LABELS } from "../utils.js";
 
 const BACKUP_TABLES = [
+  "users",
   "students",
   "classes",
   "teachers",
@@ -34,6 +35,66 @@ async function ensureBackupTable(db) {
       notes TEXT DEFAULT ''
     )
   `).run().catch(() => {});
+}
+
+async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUntil = null) {
+  // 1. Mevcut durumu güvenlik için pre_restore olarak yedekle
+  const preSnap = { version: 1, created_at: new Date().toISOString(), tables: {} };
+  const preCounts = {};
+  for (const t of BACKUP_TABLES) {
+    try {
+      const res = await db.prepare("SELECT * FROM " + t).all();
+      preSnap.tables[t] = res.results || [];
+      preCounts[t] = (res.results || []).length;
+    } catch {
+      preSnap.tables[t] = [];
+      preCounts[t] = 0;
+    }
+  }
+  const preId = "backup_prerestore_" + Date.now();
+  await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'pre_restore', ?, ?, 'Sistem Güvenlik', ?)")
+    .bind(preId, new Date().toISOString(), JSON.stringify(preSnap), JSON.stringify(preCounts), `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
+    .run().catch(() => {});
+
+  // 2. Tabloları temizle ve seçili snapshot'ı atomik db.batch() ile geri yükle
+  const restoredCounts = {};
+  for (const t of BACKUP_TABLES) {
+    const rows = snap.tables?.[t];
+    if (Array.isArray(rows)) {
+      try {
+        const statements = [
+          db.prepare("DELETE FROM " + t)
+        ];
+        for (const row of rows) {
+          const keys = Object.keys(row);
+          if (keys.length > 0) {
+            const placeholders = keys.map(() => "?").join(", ");
+            const cols = keys.join(", ");
+            const values = keys.map(k => row[k]);
+            statements.push(db.prepare(`INSERT INTO ${t} (${cols}) VALUES (${placeholders})`).bind(...values));
+          }
+        }
+        // D1 max batch chunk limit (100)
+        const CHUNK_SIZE = 100;
+        for (let i = 0; i < statements.length; i += CHUNK_SIZE) {
+          const chunk = statements.slice(i, i + CHUNK_SIZE);
+          await db.batch(chunk);
+        }
+        restoredCounts[t] = rows.length;
+      } catch (err) {
+        console.error(`Restore error on table ${t}:`, err);
+      }
+    }
+  }
+
+  await logAction(db, user, "system.backup_restore", "backup", backupId, notes || `Veritabanı ${backupId} yedeğinden geri yüklendi`, waitUntil);
+  return {
+    ok: true,
+    message: "Veritabanı başarıyla geri yüklendi.",
+    backup_id: backupId,
+    safety_backup_id: preId,
+    restored_counts: restoredCounts
+  };
 }
 
 export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) {
@@ -139,19 +200,25 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     });
   }
 
-  // ---------------- BACKUP & RESTORE (20:00 DAILY SNAPSHOT & 1-CLICK RESTORE) ----------------
+  // ---------------- BACKUP & RESTORE (20:00 DAILY SNAPSHOT & 1-CLICK RESTORE & R2) ----------------
   if (path === "/backup" && request.method === "GET") {
     if (!db) return json({ backups: [], schedule: "Her gün 20:00 (TRT)", status: "inactive" });
     await ensureBackupTable(db);
+    const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
 
     const dlId = url.searchParams.get("download");
     if (dlId) {
-      const bRow = await db.prepare("SELECT * FROM system_backups WHERE id = ?").bind(dlId).first().catch(() => null);
-      if (!bRow) return errorResponse("Yedek bulunamadı", 404);
-      return new Response(bRow.snapshot_data, {
+      let bRow = await db.prepare("SELECT * FROM system_backups WHERE id = ?").bind(dlId).first().catch(() => null);
+      let data = bRow?.snapshot_data;
+      if (!data && r2Bucket && typeof r2Bucket.get === "function") {
+        const r2Obj = await r2Bucket.get(`${dlId}.json`).catch(() => null);
+        if (r2Obj) data = await r2Obj.text().catch(() => null);
+      }
+      if (!data) return errorResponse("Yedek bulunamadı", 404);
+      return new Response(data, {
         headers: {
           "Content-Type": "application/json; charset=utf-8",
-          "Content-Disposition": `attachment; filename="${bRow.id}.json"`,
+          "Content-Disposition": `attachment; filename="${dlId}.json"`,
           ...CORS_HEADERS
         }
       });
@@ -179,9 +246,15 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
             }
           }
           const bId = "backup_20_00_" + trtDateStr.replace(/-/g, "");
+          const snapJson = JSON.stringify(snap);
+          const countsJson = JSON.stringify(counts);
           await db.prepare("INSERT OR REPLACE INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'scheduled_20_00', ?, ?, 'Otomatik Zamanlayıcı (20:00 TRT)', ?)")
-            .bind(bId, new Date().toISOString(), JSON.stringify(snap), JSON.stringify(counts), `${trtDateStr} Saat 20:00 Günlük Otomatik Yedek`)
+            .bind(bId, new Date().toISOString(), snapJson, countsJson, `${trtDateStr} Saat 20:00 Günlük Otomatik Yedek`)
             .run().catch(() => {});
+
+          if (r2Bucket && typeof r2Bucket.put === "function") {
+            await r2Bucket.put(`${bId}.json`, snapJson).catch(() => {});
+          }
         }
       }
     } catch (err) {
@@ -200,7 +273,8 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       })),
       schedule: "Her gün 20:00 (TRT)",
       status: "active",
-      current_date_trt: trtDateStr
+      current_date_trt: trtDateStr,
+      r2_storage: !!r2Bucket
     });
   }
 
@@ -235,11 +309,25 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     const bId = "backup_manual_" + Date.now();
     const notes = body.notes || (isTokenAuthed ? "Zamanlanmış / API Yedeği" : "Manuel Yönetici Snapshot Yedeği");
     const createdBy = isTokenAuthed ? "Otomatik Servis (Token)" : (user?.name || "Yönetici");
+    const snapJson = JSON.stringify(snap);
+    const countsJson = JSON.stringify(counts);
     await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'manual', ?, ?, ?, ?)")
-      .bind(bId, new Date().toISOString(), JSON.stringify(snap), JSON.stringify(counts), createdBy, notes)
+      .bind(bId, new Date().toISOString(), snapJson, countsJson, createdBy, notes)
       .run();
+
+    const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
+    let r2Saved = false;
+    if (r2Bucket && typeof r2Bucket.put === "function") {
+      try {
+        await r2Bucket.put(`${bId}.json`, snapJson);
+        r2Saved = true;
+      } catch (err) {
+        console.error("R2 backup save error:", err);
+      }
+    }
+
     await logAction(db, user, "system.backup_create", "backup", bId, notes);
-    return json({ ok: true, backup_id: bId, counts });
+    return json({ ok: true, backup_id: bId, counts, r2_saved: r2Saved });
   }
 
   if (path === "/backup/restore" && request.method === "POST") {
@@ -255,72 +343,63 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (!backupId) return errorResponse("backup_id belirtilmedi", 400);
 
     const bRow = await db.prepare("SELECT * FROM system_backups WHERE id = ?").bind(backupId).first().catch(() => null);
-    if (!bRow) return errorResponse("Yedek bulunamadı", 404);
-
     let snap;
-    try {
-      snap = JSON.parse(bRow.snapshot_data);
-    } catch {
-      return errorResponse("Yedek verisi çözülemedi", 400);
-    }
-
-    // 1. Önce mevcut durumu güvenlik için pre_restore olarak yedekle
-    const preSnap = { version: 1, created_at: new Date().toISOString(), tables: {} };
-    const preCounts = {};
-    for (const t of BACKUP_TABLES) {
+    if (bRow) {
       try {
-        const res = await db.prepare("SELECT * FROM " + t).all();
-        preSnap.tables[t] = res.results || [];
-        preCounts[t] = (res.results || []).length;
+        snap = JSON.parse(bRow.snapshot_data);
       } catch {
-        preSnap.tables[t] = [];
-        preCounts[t] = 0;
+        return errorResponse("Yedek verisi çözülemedi", 400);
       }
-    }
-    const preId = "backup_prerestore_" + Date.now();
-    await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'pre_restore', ?, ?, 'Sistem Güvenlik', ?)")
-      .bind(preId, new Date().toISOString(), JSON.stringify(preSnap), JSON.stringify(preCounts), `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
-      .run().catch(() => {});
-
-    // 2. Tabloları temizle ve seçili snapshot'ı atomik db.batch() ile geri yükle
-    const restoredCounts = {};
-    for (const t of BACKUP_TABLES) {
-      const rows = snap.tables?.[t];
-      if (Array.isArray(rows)) {
-        try {
-          const statements = [
-            db.prepare("DELETE FROM " + t)
-          ];
-          for (const row of rows) {
-            const keys = Object.keys(row);
-            if (keys.length > 0) {
-              const placeholders = keys.map(() => "?").join(", ");
-              const cols = keys.join(", ");
-              const values = keys.map(k => row[k]);
-              statements.push(db.prepare(`INSERT INTO ${t} (${cols}) VALUES (${placeholders})`).bind(...values));
-            }
-          }
-          // D1 max batch chunk limit (100)
-          const CHUNK_SIZE = 100;
-          for (let i = 0; i < statements.length; i += CHUNK_SIZE) {
-            const chunk = statements.slice(i, i + CHUNK_SIZE);
-            await db.batch(chunk);
-          }
-          restoredCounts[t] = rows.length;
-        } catch (err) {
-          console.error(`Restore error on table ${t}:`, err);
+    } else {
+      const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
+      if (r2Bucket && typeof r2Bucket.get === "function") {
+        const r2Obj = await r2Bucket.get(`${backupId}.json`).catch(() => null);
+        if (r2Obj) {
+          const text = await r2Obj.text().catch(() => null);
+          try { snap = JSON.parse(text); } catch {}
         }
       }
     }
+    if (!snap) return errorResponse("Yedek bulunamadı", 404);
 
-    await logAction(db, user, "system.backup_restore", "backup", backupId, `Veritabanı ${backupId} yedeğinden geri yüklendi`);
-    return json({
-      ok: true,
-      message: "Veritabanı başarıyla geri yüklendi.",
-      backup_id: backupId,
-      safety_backup_id: preId,
-      restored_counts: restoredCounts
-    });
+    const result = await restoreSnapshotData(db, snap, user, backupId, `Veritabanı ${backupId} yedeğinden geri yüklendi`, ctxOrPath?.waitUntil);
+    return json(result);
+  }
+
+  // ---------------- BACKUP IMPORT & RESTORE FROM LOCAL JSON FILE ----------------
+  if (path === "/backup/upload-restore" && request.method === "POST") {
+    if (!db) return errorResponse("Database connection unavailable", 500);
+    await ensureBackupTable(db);
+    const user = currentUser || await getCurrentUser(request, db).catch(() => null);
+    if (!user || user.role !== ROLE_ADMIN) {
+      return errorResponse("Harici yedek yükleme işlemi yalnızca yönetici tarafından yapılabilir", 403, "FORBIDDEN");
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const rawSnap = body.snapshot || body;
+    if (!rawSnap || typeof rawSnap.tables !== "object") {
+      return errorResponse("Geçersiz yedek dosyası formatı. 'tables' nesnesi bulunamadı.", 422, "INVALID_BACKUP");
+    }
+
+    const backupId = "backup_imported_" + Date.now();
+    const notes = body.notes || "Harici JSON dosyasından geri yükleme";
+
+    const counts = {};
+    for (const t of Object.keys(rawSnap.tables || {})) {
+      counts[t] = Array.isArray(rawSnap.tables[t]) ? rawSnap.tables[t].length : 0;
+    }
+
+    await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'imported', ?, ?, ?, ?)")
+      .bind(backupId, new Date().toISOString(), JSON.stringify(rawSnap), JSON.stringify(counts), user.name || "Yönetici", notes)
+      .run().catch(() => {});
+
+    const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
+    if (r2Bucket && typeof r2Bucket.put === "function") {
+      await r2Bucket.put(`${backupId}.json`, JSON.stringify(rawSnap)).catch(() => {});
+    }
+
+    const result = await restoreSnapshotData(db, rawSnap, user, backupId, notes, ctxOrPath?.waitUntil);
+    return json(result);
   }
 
   return null;
