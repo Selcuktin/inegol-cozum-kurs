@@ -305,9 +305,14 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
   if (contractInstMatch && request.method === "GET") {
     const contractId = contractInstMatch[1];
     try {
-      const res = await db.prepare(
-        "SELECT i.*, c.student_name, c.sozlesme_no FROM installments i JOIN contracts c ON i.contract_id = c.id WHERE (i.contract_id = ? OR c.sozlesme_no = ?) AND (c.is_deleted = 0 OR c.is_deleted IS NULL) ORDER BY i.installment_no ASC"
-      ).bind(contractId, contractId).all();
+      const res = await db.prepare(`
+        SELECT i.*, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no 
+        FROM installments i 
+        LEFT JOIN contracts c ON (i.contract_id = c.id OR i.contract_id = c.sozlesme_no) 
+        WHERE (i.contract_id = ? OR c.id = ? OR c.sozlesme_no = ?) 
+          AND (c.is_deleted = 0 OR c.is_deleted IS NULL) 
+        ORDER BY i.installment_no ASC
+      `).bind(contractId, contractId, contractId).all();
       const rows = (res.results || []).map(r => ({
         ...r,
         id: r.id,
@@ -415,11 +420,32 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     if (request.method === "GET") {
       const row = await db.prepare("SELECT * FROM contracts WHERE (id = ? OR sozlesme_no = ?) AND (is_deleted = 0 OR is_deleted IS NULL)").bind(contractId, contractId).first();
       if (!row) return errorResponse("Sözleşme bulunamadı", 404, "NOT_FOUND");
+      const instRes = await db.prepare(`
+        SELECT i.*, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no 
+        FROM installments i 
+        LEFT JOIN contracts c ON (i.contract_id = c.id OR i.contract_id = c.sozlesme_no) 
+        WHERE (i.contract_id = ? OR c.id = ? OR c.sozlesme_no = ?) 
+          AND (c.is_deleted = 0 OR c.is_deleted IS NULL) 
+        ORDER BY i.installment_no ASC
+      `).bind(contractId, contractId, contractId).all().catch(() => ({ results: [] }));
+      const installments = (instRes.results || []).map(r => ({
+        ...r,
+        id: r.id,
+        sozlesmeNo: row.sozlesme_no,
+        ogrenciAdi: row.student_name,
+        taksitNo: r.installment_no,
+        taksitTutari: r.amount,
+        vadeTarihi: r.due_date,
+        tahsilEdilen: r.paid_amount,
+        kalanTutar: Math.max(0, r.amount - (r.paid_amount || 0)),
+        durumText: r.status,
+      }));
       return json({
         ...row,
         sozlesmeNo: row.sozlesme_no,
         ogrenciAdi: row.student_name,
         brutTutar: row.brut_tutar,
+        installments,
       });
     }
   }

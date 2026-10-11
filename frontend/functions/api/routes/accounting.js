@@ -231,15 +231,35 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
 
     // Target specific installment
     let targetInst = null;
+    const contractKey = contract?.id || p.contract_id || "";
+    const contractNo = contract?.sozlesme_no || p.sozlesme_no || "";
+
     if (p.installment_id) {
       targetInst = await db.prepare("SELECT * FROM installments WHERE id = ?").bind(p.installment_id).first().catch(() => null);
-    } else if (p.installment_no !== undefined && p.installment_no !== null && contract) {
-      targetInst = await db.prepare("SELECT * FROM installments WHERE (contract_id = ? OR sozlesme_no = ?) AND installment_no = ? LIMIT 1")
-        .bind(contract.id, contract.sozlesme_no, Number(p.installment_no)).first().catch(() => null);
+    } else if (p.installment_no !== undefined && p.installment_no !== null && (contractKey || contractNo)) {
+      targetInst = await db.prepare(`
+        SELECT * FROM installments 
+        WHERE (contract_id = ? OR contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?)) 
+          AND installment_no = ? 
+        LIMIT 1
+      `).bind(contractKey, contractNo, contractNo, Number(p.installment_no)).first().catch(() => null);
     }
-    if (!targetInst && contract) {
-      targetInst = await db.prepare("SELECT * FROM installments WHERE (contract_id = ? OR sozlesme_no = ?) AND paid_amount < amount ORDER BY installment_no ASC LIMIT 1")
-        .bind(contract.id, contract.sozlesme_no).first().catch(() => null);
+    if (!targetInst && (contractKey || contractNo)) {
+      targetInst = await db.prepare(`
+        SELECT * FROM installments 
+        WHERE (contract_id = ? OR contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?)) 
+          AND (paid_amount < amount OR paid_amount IS NULL OR status != 'Odendi') 
+        ORDER BY installment_no ASC 
+        LIMIT 1
+      `).bind(contractKey, contractNo, contractNo).first().catch(() => null);
+    }
+    if (!targetInst && student?.id && p.installment_no !== undefined && p.installment_no !== null) {
+      targetInst = await db.prepare("SELECT * FROM installments WHERE student_id = ? AND installment_no = ? LIMIT 1")
+        .bind(student.id, Number(p.installment_no)).first().catch(() => null);
+    }
+    if (!targetInst && student?.id) {
+      targetInst = await db.prepare("SELECT * FROM installments WHERE student_id = ? AND (paid_amount < amount OR paid_amount IS NULL OR status != 'Odendi') ORDER BY installment_no ASC LIMIT 1")
+        .bind(student.id).first().catch(() => null);
     }
 
     // IDEMPOTENCY GUARD: If target installment is already paid, reject duplicate payment!
