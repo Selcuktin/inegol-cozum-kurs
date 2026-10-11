@@ -111,6 +111,55 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     return cachedJson({ status: "ok", name: "İnegöl Çözüm Kurs Cloudflare Edge API", timestamp: new Date().toISOString() }, 30, 60, 120);
   }
 
+  // ---------------- OMNI SEARCH (Global Spotlight Across Students, Contracts, Payments) ----------------
+  if (path === "/search/omni" && request.method === "GET") {
+    if (!db) return json({ query: "", total: 0, students: [], contracts: [], payments: [] });
+    const q = String(url?.searchParams?.get("q") || "").trim();
+    if (!q || q.length < 2) {
+      return json({ query: q, total: 0, students: [], contracts: [], payments: [] });
+    }
+
+    const term = `%${q}%`;
+    const [studentsRes, contractsRes, paymentsRes] = await Promise.all([
+      db.prepare(`
+        SELECT id, student_name, student_tc, student_class, student_phone, parent_name, parent_phone, sozlesme_no, total_fee, paid_amount 
+        FROM students 
+        WHERE student_name LIKE ? OR student_tc LIKE ? OR student_phone LIKE ? OR parent_name LIKE ? OR parent_phone LIKE ? OR student_no LIKE ? OR sozlesme_no LIKE ?
+        ORDER BY student_name ASC 
+        LIMIT 8
+      `).bind(term, term, term, term, term, term, term).all().catch(() => ({ results: [] })),
+
+      db.prepare(`
+        SELECT id, sozlesme_no, student_name, parent_name, brut_tutar, sozlesme_tarihi, student_id
+        FROM contracts 
+        WHERE (is_deleted = 0 OR is_deleted IS NULL) AND (sozlesme_no LIKE ? OR student_name LIKE ? OR parent_name LIKE ?)
+        ORDER BY sozlesme_tarihi DESC 
+        LIMIT 6
+      `).bind(term, term, term).all().catch(() => ({ results: [] })),
+
+      db.prepare(`
+        SELECT p.id, p.student_id, p.amount, p.payment_date, p.method, p.note, p.receipt_no, s.student_name 
+        FROM payments p
+        LEFT JOIN students s ON p.student_id = s.id
+        WHERE (p.is_cancelled = 0 OR p.is_cancelled IS NULL) AND (p.receipt_no LIKE ? OR p.note LIKE ? OR s.student_name LIKE ?)
+        ORDER BY p.payment_date DESC 
+        LIMIT 6
+      `).bind(term, term, term).all().catch(() => ({ results: [] }))
+    ]);
+
+    const students = studentsRes.results || [];
+    const contracts = contractsRes.results || [];
+    const payments = paymentsRes.results || [];
+
+    return json({
+      query: q,
+      total: students.length + contracts.length + payments.length,
+      students,
+      contracts,
+      payments
+    });
+  }
+
   // ---------------- USERS & AUDIT ----------------
   if (path === "/users" && request.method === "GET") {
     if (!db) return json([]);

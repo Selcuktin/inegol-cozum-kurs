@@ -22,6 +22,7 @@ import { EdesisTestBenchModal } from "./components/EdesisTestBenchModal";
 import { TeachersPage } from "./components/TeachersPage";
 import { MonthlyReportPreview } from "./components/MonthlyReportPreview";
 import { KayitModulu } from "./components/KayitModulu";
+import { OmniSearchModal } from "./components/OmniSearchModal";
 import EdesisSozlesmeler from "./components/EdesisSozlesmeler";
 import EdesisOgrenciListesi from "./components/EdesisOgrenciListesi";
 import EdesisGelirListesi from "./components/EdesisGelirListesi";
@@ -293,6 +294,39 @@ export function MainApp({ me, onLogout }) {
   const [showGlobalHataKarnesi, setShowGlobalHataKarnesi] = useState(false);
   const [showGlobalPromissory, setShowGlobalPromissory] = useState(false);
   const [showGlobalAbsenceLetter, setShowGlobalAbsenceLetter] = useState(false);
+  const [showOmniSearch, setShowOmniSearch] = useState(false);
+
+  // Global Ctrl + K / Cmd + K shortcut for Omni Search
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowOmniSearch((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
+  const handleOmniSelectStudent = (student) => {
+    setSelected(student);
+    if (can(me, "page_students")) {
+      setPage("students");
+    }
+  };
+
+  const handleOmniSelectContract = () => {
+    if (can(me, "page_contracts")) {
+      setPage("contracts");
+    }
+  };
+
+  const handleOmniSelectPayment = () => {
+    if (can(me, "page_payments")) {
+      setPage("payments");
+      setAccountingTab("tahsilatlar");
+    }
+  };
 
   const [expandedTree, setExpandedTree] = useState({
     kayit: true, kayit_araclar: false, kayit_bursluluk: false,
@@ -548,16 +582,41 @@ export function MainApp({ me, onLogout }) {
               )}
             </div>
           </div>
-          <div className="top-search">
+          <div 
+            className="top-search" 
+            onClick={() => setShowOmniSearch(true)} 
+            style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
+            title="Genel Akıllı Arama (Kısayol: Ctrl + K)"
+          >
             <Search size={17} aria-hidden="true" />
             <input
               data-testid="global-search-input"
               role="searchbox"
               aria-label="Genel arama: öğrenci, veli veya telefon ara"
-              placeholder="Öğrenci, veli veya telefon ara..."
+              placeholder="Öğrenci, veli, sözleşme ara..."
               value={search}
+              onFocus={() => setShowOmniSearch(true)}
               onChange={(e) => { setSearch(e.target.value); if (can(me, "page_students")) setPage("students"); }}
             />
+            <span
+              onClick={(e) => { e.stopPropagation(); setShowOmniSearch(true); }}
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                background: "#f1f5f9",
+                color: "#64748b",
+                padding: "2px 7px",
+                borderRadius: "5px",
+                border: "1px solid #cbd5e1",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                marginLeft: "auto",
+                marginRight: "6px"
+              }}
+              title="Klavye Kısayolu"
+            >
+              Ctrl K
+            </span>
           </div>
           <div className="top-actions">
             <span className="today-label">{new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
@@ -703,6 +762,14 @@ export function MainApp({ me, onLogout }) {
       {showGlobalHataKarnesi && <HataKarnesiModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", student_class: "TYT-AYT" }} onClose={() => setShowGlobalHataKarnesi(false)} />}
       {showGlobalPromissory && <PromissoryNoteModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", total_fee: 55000, installment_count: 10 }} onClose={() => setShowGlobalPromissory(false)} />}
       {showGlobalAbsenceLetter && <AbsenceLetterModal student={data.students?.[0] || { student_name: "Örnek Öğrenci" }} daysAbsent={10} onClose={() => setShowGlobalAbsenceLetter(false)} />}
+      
+      <OmniSearchModal
+        isOpen={showOmniSearch}
+        onClose={() => setShowOmniSearch(false)}
+        onSelectStudent={handleOmniSelectStudent}
+        onSelectContract={handleOmniSelectContract}
+        onSelectPayment={handleOmniSelectPayment}
+      />
     </div>
   );
 }
