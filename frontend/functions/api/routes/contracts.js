@@ -102,7 +102,11 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
     const studentName = String(body.student_name || body.ogrenciAdi || "").trim();
     if (!studentName) return errorResponse("Öğrenci adı zorunludur", 422, "VALIDATION_ERROR");
 
-    const brutTutar = Number(body.total_amount || body.brutTutar || 75000);
+    const brutTutar = (body.total_amount !== undefined && body.total_amount !== null && body.total_amount !== "")
+      ? Math.max(0, Number(body.total_amount))
+      : (body.brutTutar !== undefined && body.brutTutar !== null && body.brutTutar !== "")
+        ? Math.max(0, Number(body.brutTutar))
+        : 75000;
     const taksitSayisi = parseInt(body.installment_count || body.taksitSayisi) || 10;
     const netTutar = Math.round((brutTutar / 1.1) * 100) / 100;
     const kdvTutari = Math.round((brutTutar - netTutar) * 100) / 100;
@@ -182,6 +186,7 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
     const baseAmt = Math.floor((brutTutar / taksitSayisi) * 100) / 100;
     const remainder = Math.round((brutTutar - (baseAmt * taksitSayisi)) * 100) / 100;
     const baseDate = new Date(date);
+    const contractInstStmts = [];
 
     for (let i = 1; i <= taksitSayisi; i++) {
       const isLast = (i === taksitSayisi);
@@ -192,12 +197,23 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
       const dueDate = dueDateObj.toISOString().split("T")[0];
       const instId = `inst_${id}_${i}`;
 
-      await db.prepare(`
-        INSERT OR REPLACE INTO installments (
-          id, contract_id, income_id, student_id, installment_no, total_installments,
-          due_date, amount, paid_amount, status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'Bekliyor', datetime('now'))
-      `).bind(instId, id, glrId, studentId, i, taksitSayisi, dueDate, amt).run().catch((e) => console.error("Installment insert error:", e));
+      contractInstStmts.push(
+        db.prepare(`
+          INSERT OR REPLACE INTO installments (
+            id, contract_id, income_id, student_id, installment_no, total_installments,
+            due_date, amount, paid_amount, status, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'Bekliyor', datetime('now'))
+        `).bind(instId, id, glrId, studentId, i, taksitSayisi, dueDate, amt)
+      );
+    }
+    if (contractInstStmts.length > 0) {
+      if (typeof db.batch === "function") {
+        await db.batch(contractInstStmts).catch((e) => console.error("Installment batch error:", e));
+      } else {
+        for (const stmt of contractInstStmts) {
+          await stmt.run().catch(() => {});
+        }
+      }
     }
 
     await logAction(db, user, "contract.create", "contract", id, `${studentName} · ${sozlesmeNo} · ${brutTutar} ₺`);
@@ -311,12 +327,17 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
       }
 
       // Full Cascade Purge: Permanently delete payments, installments, incomes, and contract
-      await db.batch([
+      const deleteStmts = [
         db.prepare("DELETE FROM payments WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?) OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.student_id),
         db.prepare("DELETE FROM installments WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?) OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.student_id),
         db.prepare("DELETE FROM student_incomes WHERE contract_id = ? OR sozlesme_no = ? OR id = ? OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.id, row.student_id),
         db.prepare("DELETE FROM contracts WHERE id = ? OR sozlesme_no = ?").bind(row.id, row.sozlesme_no)
-      ]);
+      ];
+      if (typeof db.batch === "function") {
+        await db.batch(deleteStmts);
+      } else {
+        for (const s of deleteStmts) await s.run().catch(() => {});
+      }
 
       await logAction(db, user, "contract.delete", "contract", row.id, `${row.sozlesme_no} sözleşmesi ve ilişkili tüm kayıtlar silindi`);
       return json({ success: true, ok: true, deleted_id: row.id, deleted_sozlesme: row.sozlesme_no });

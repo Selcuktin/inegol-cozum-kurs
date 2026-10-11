@@ -8,17 +8,22 @@ export async function getDynamicAccountingSummary(db, students = []) {
   let overdueRow = null;
 
   try {
-    cRow = await db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(brut_tutar), 0) as rev FROM contracts WHERE is_deleted = 0").first();
-    iRow = await db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0").first();
-    pRow = await db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)").first();
-    
-    // Dynamic computation from real installments table
-    instRow = await db.prepare("SELECT COUNT(*) as cnt FROM installments").first().catch(() => null);
-    overdueRow = await db.prepare(`
-      SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt 
-      FROM installments 
-      WHERE (status = 'Gecikmis' OR (due_date < date('now') AND paid_amount < amount))
-    `).first().catch(() => null);
+    const [cRowRes, iRowRes, pRowRes, instRowRes, overdueRowRes] = await Promise.all([
+      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(brut_tutar), 0) as rev FROM contracts WHERE is_deleted = 0").first().catch(() => null),
+      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0").first().catch(() => null),
+      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)").first().catch(() => null),
+      db.prepare("SELECT COUNT(*) as cnt FROM installments").first().catch(() => null),
+      db.prepare(`
+        SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt 
+        FROM installments 
+        WHERE (status = 'Gecikmis' OR (due_date < date('now') AND paid_amount < amount))
+      `).first().catch(() => null)
+    ]);
+    cRow = cRowRes;
+    iRow = iRowRes;
+    pRow = pRowRes;
+    instRow = instRowRes;
+    overdueRow = overdueRowRes;
   } catch (err) {
     console.error("Dynamic accounting summary query error:", err);
   }
@@ -53,25 +58,27 @@ export async function getDynamicAccountingSummary(db, students = []) {
 export async function handleAccountingRoutes({ request, db, path, user }) {
   // 1. GET /dashboard
   if (path === "/dashboard" && request.method === "GET") {
-    const studentsRes = await db.prepare("SELECT * FROM students ORDER BY created_at DESC, id DESC").all();
-    const classesRes = await db.prepare("SELECT * FROM classes").all();
-    const paymentsRes = await db.prepare(`
-      SELECT p.*, s.student_name, s.student_class, s.student_no, s.parent_name, s.parent_phone, s.sozlesme_no
-      FROM payments p
-      LEFT JOIN students s ON p.student_id = s.id
-      ORDER BY p.payment_date DESC, p.created_at DESC
-    `).all().catch(() => ({ results: [] }));
-    const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC LIMIT 100").all();
-    const teachersRes = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all();
-    const contractsRes = await db.prepare(`
-      SELECT c.*,
-        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p 
-         WHERE (p.contract_id = c.id OR (p.student_id = c.student_id AND c.student_id IS NOT NULL AND c.student_id != '')) 
-           AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
-      FROM contracts c 
-      WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL) 
-      ORDER BY c.sozlesme_tarihi DESC
-    `).all().catch(() => ({ results: [] }));
+    const [studentsRes, classesRes, paymentsRes, expensesRes, teachersRes, contractsRes] = await Promise.all([
+      db.prepare("SELECT * FROM students ORDER BY created_at DESC, id DESC").all().catch(() => ({ results: [] })),
+      db.prepare("SELECT * FROM classes").all().catch(() => ({ results: [] })),
+      db.prepare(`
+        SELECT p.*, s.student_name, s.student_class, s.student_no, s.parent_name, s.parent_phone, s.sozlesme_no
+        FROM payments p
+        LEFT JOIN students s ON p.student_id = s.id
+        ORDER BY p.payment_date DESC, p.created_at DESC
+      `).all().catch(() => ({ results: [] })),
+      db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC LIMIT 100").all().catch(() => ({ results: [] })),
+      db.prepare("SELECT * FROM teachers ORDER BY name ASC").all().catch(() => ({ results: [] })),
+      db.prepare(`
+        SELECT c.*,
+          (SELECT COALESCE(SUM(p.amount), 0) FROM payments p 
+           WHERE (p.contract_id = c.id OR (p.student_id = c.student_id AND c.student_id IS NOT NULL AND c.student_id != '')) 
+             AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
+        FROM contracts c 
+        WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL) 
+        ORDER BY c.sozlesme_tarihi DESC
+      `).all().catch(() => ({ results: [] }))
+    ]);
 
     const students = (studentsRes.results || []).map(enrichStudent);
     const accountingSummary = await getDynamicAccountingSummary(db, students);
@@ -264,7 +271,11 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
       );
     }
 
-    await db.batch(batchStmts);
+    if (typeof db.batch === "function") {
+      await db.batch(batchStmts);
+    } else {
+      for (const s of batchStmts) await s.run().catch(() => {});
+    }
 
     await logAction(db, user, "payment.create", "payment", id, `${student.student_name} · ${amount} ₺ · ${payMethod}`);
     return json({ id, student_id: student.id, student_name: student.student_name, amount, payment_date: payDate, ...p }, 201);
@@ -333,7 +344,11 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
     }
 
     if (stmts.length > 0) {
-      await db.batch(stmts);
+      if (typeof db.batch === "function") {
+        await db.batch(stmts);
+      } else {
+        for (const s of stmts) await s.run().catch(() => {});
+      }
     }
 
     await logAction(db, user, "payment.cancel", "payment", payId || "", "Tahsilat iptal edildi");
@@ -375,7 +390,11 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
       );
     }
 
-    await db.batch(stmts);
+    if (typeof db.batch === "function") {
+      await db.batch(stmts);
+    } else {
+      for (const s of stmts) await s.run().catch(() => {});
+    }
     await logAction(db, user, "payment.delete", "payment", payId, `${pay.amount} ₺ tahsilat iptal edildi`);
     return json({ ok: true });
   }

@@ -44,8 +44,48 @@ export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) 
   if (path === "/reminders" && request.method === "GET") {
     if (!db) return json([]);
     const days = parseInt(url.searchParams.get("days")) || 7;
-    const studentsRes = await db.prepare("SELECT * FROM students").all();
-    const paymentsRes = await db.prepare("SELECT * FROM payments").all();
+
+    try {
+      const instRows = await db.prepare(`
+        SELECT 
+          i.student_id,
+          COALESCE(s.student_name, '') as student_name,
+          COALESCE(s.parent_name, '') as parent_name,
+          COALESCE(s.parent_phone, s.student_phone, '') as parent_phone,
+          i.installment_no,
+          (i.amount - i.paid_amount) as amount_due,
+          i.due_date,
+          CASE WHEN i.due_date < date('now') THEN 'overdue' ELSE 'upcoming' END as status
+        FROM installments i
+        JOIN students s ON (i.student_id = s.id OR ('stu-' || i.student_id) = s.id OR i.student_id = ('stu-' || s.id))
+        WHERE (i.status != 'Odendi' AND i.paid_amount < i.amount)
+          AND (i.due_date <= date('now', '+' || ? || ' days'))
+        ORDER BY (CASE WHEN i.due_date < date('now') THEN 0 ELSE 1 END) ASC, i.due_date ASC
+        LIMIT 200
+      `).bind(days).all().catch(() => ({ results: [] }));
+
+      if (instRows?.results?.length > 0) {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const msPerDay = 24 * 3600 * 1000;
+        const items = instRows.results.map((r) => {
+          const diffDays = Math.round(
+            (new Date(r.due_date + "T12:00:00Z").getTime() - new Date(todayStr + "T12:00:00Z").getTime()) / msPerDay
+          );
+          return {
+            ...r,
+            days_diff: diffDays,
+          };
+        });
+        return json(items);
+      }
+    } catch (err) {
+      console.warn("[Exams] Reminders query error:", err);
+    }
+
+    const [studentsRes, paymentsRes] = await Promise.all([
+      db.prepare("SELECT * FROM students").all().catch(() => ({ results: [] })),
+      db.prepare("SELECT * FROM payments").all().catch(() => ({ results: [] }))
+    ]);
 
     const students = studentsRes.results || [];
     const payments = paymentsRes.results || [];
@@ -100,11 +140,11 @@ export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) 
   if (path === "/reports/monthly" && request.method === "GET") {
     if (!db) return errorResponse("Database connection unavailable", 500);
     const month = url.searchParams.get("month") || new Date().toISOString().slice(0, 7);
-    const studentsRes = await db.prepare("SELECT * FROM students").all();
-    const paymentsRes = await db
-      .prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date ASC")
-      .all();
-    const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date ASC").all();
+    const [studentsRes, paymentsRes, expensesRes] = await Promise.all([
+      db.prepare("SELECT * FROM students").all().catch(() => ({ results: [] })),
+      db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date ASC").all().catch(() => ({ results: [] })),
+      db.prepare("SELECT * FROM expenses ORDER BY expense_date ASC").all().catch(() => ({ results: [] }))
+    ]);
 
     const students = studentsRes.results || [];
     const payments = paymentsRes.results || [];

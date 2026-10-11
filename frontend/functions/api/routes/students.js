@@ -75,27 +75,29 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
       ) AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
       WHERE 1=1
     `;
-    const params = [];
+    let whereClause = "";
+    const whereParams = [];
 
     if (search) {
-      query += ` AND (s.student_name LIKE ? OR s.student_tc LIKE ? OR s.parent_name LIKE ? OR s.parent_phone LIKE ? OR s.student_no LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      whereClause += ` AND (s.student_name LIKE ? OR s.student_tc LIKE ? OR s.parent_name LIKE ? OR s.parent_phone LIKE ? OR s.student_no LIKE ?)`;
+      whereParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     if (classFilter) {
-      query += ` AND s.student_class = ?`;
-      params.push(classFilter);
+      whereClause += ` AND s.student_class = ?`;
+      whereParams.push(classFilter);
     }
     if (period && period !== "all") {
-      query += ` AND (s.program = ? OR s.program LIKE ?)`;
-      params.push(period, `${period}%`);
+      whereClause += ` AND (s.program = ? OR s.program LIKE ?)`;
+      whereParams.push(period, `${period}%`);
     }
 
-    query += ` ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
+    query += whereClause + ` ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?`;
+    const queryParams = [...whereParams, limit, offset];
 
-    const result = await db.prepare(query).bind(...params).all();
-    const countQuery = `SELECT count(*) as total FROM students WHERE 1=1`;
-    const totalRow = await db.prepare(countQuery).first().catch(() => ({ total: 0 }));
+    const [result, totalRow] = await Promise.all([
+      db.prepare(query).bind(...queryParams).all(),
+      db.prepare(`SELECT count(*) as total FROM students s WHERE 1=1 ${whereClause}`).bind(...whereParams).first().catch(() => ({ total: 0 }))
+    ]);
 
     const rows = (result.results || []).map(enrichStudent);
 
@@ -229,7 +231,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
       }
       await db.prepare("UPDATE students SET sozlesme_no = ? WHERE id = ?").bind(sozlesmeNo, id).run().catch(() => {});
 
-      const gross = Math.max(0, Number(s.total_fee) || 75000);
+      const gross = (s.total_fee !== undefined && s.total_fee !== null && s.total_fee !== "") ? Math.max(0, Number(s.total_fee)) : 75000;
       const inst = Math.max(1, parseInt(s.installment_count) || 10);
       const net = Math.round((gross / 1.1) * 100) / 100;
       const vat = Math.round((gross - net) * 100) / 100;
@@ -284,10 +286,11 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
         "UPDATE student_incomes SET is_deleted = 1 WHERE (student_name = ? COLLATE NOCASE OR (student_id = ? AND student_id != '') OR contract_id = ?) AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
       ).bind(s.student_name, id, contractId, glrId).run().catch(() => {});
 
-      // Insert installments into installments table
+      // Insert installments into installments table via atomic db.batch
       const baseAmt = Math.floor((gross / inst) * 100) / 100;
       const remainder = Math.round((gross - (baseAmt * inst)) * 100) / 100;
       const baseDate = new Date();
+      const instStmts = [];
 
       for (let i = 1; i <= inst; i++) {
         const isLast = (i === inst);
@@ -298,12 +301,23 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
         const dueDate = dueDateObj.toISOString().split("T")[0];
         const instId = `inst_${contractId}_${i}`;
 
-        await db.prepare(`
-          INSERT OR REPLACE INTO installments (
-            id, contract_id, income_id, student_id, installment_no, total_installments,
-            due_date, amount, paid_amount, status, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'Bekliyor', datetime('now'))
-        `).bind(instId, contractId, glrId, id, i, inst, dueDate, amt).run().catch((e) => console.error("Auto installment insert error:", e));
+        instStmts.push(
+          db.prepare(`
+            INSERT OR REPLACE INTO installments (
+              id, contract_id, income_id, student_id, installment_no, total_installments,
+              due_date, amount, paid_amount, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'Bekliyor', datetime('now'))
+          `).bind(instId, contractId, glrId, id, i, inst, dueDate, amt)
+        );
+      }
+      if (instStmts.length > 0) {
+        if (typeof db.batch === "function") {
+          await db.batch(instStmts).catch((e) => console.error("Auto installment batch insert error:", e));
+        } else {
+          for (const stmt of instStmts) {
+            await stmt.run().catch(() => {});
+          }
+        }
       }
     } catch (err) {
       console.error("Auto contract generation error:", err);
@@ -515,13 +529,18 @@ export async function handleStudentsRoutes({ request, db, url, path, user }) {
       const targetName = student.student_name;
 
       // Full Cascade Purge: Permanently delete payments, installments, incomes, contracts, and student
-      await db.batch([
+      const deleteStmts = [
         db.prepare("DELETE FROM payments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE student_id = ? OR LOWER(student_name) = LOWER(?))").bind(targetId, targetId, targetId, targetId, targetName),
         db.prepare("DELETE FROM installments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE student_id = ? OR LOWER(student_name) = LOWER(?))").bind(targetId, targetId, targetId, targetId, targetName),
         db.prepare("DELETE FROM student_incomes WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')").bind(targetId, targetId, targetId, targetName),
         db.prepare("DELETE FROM contracts WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')").bind(targetId, targetId, targetId, targetName),
         db.prepare("DELETE FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?").bind(targetId, targetId, targetId)
-      ]);
+      ];
+      if (typeof db.batch === "function") {
+        await db.batch(deleteStmts);
+      } else {
+        for (const s of deleteStmts) await s.run().catch(() => {});
+      }
 
       await logAction(db, user, "student.delete", "student", targetId, `${targetName} ve ilişkili tüm kayıtlar silindi`);
       return json({ ok: true, deleted_id: targetId, deleted_name: targetName });

@@ -7,52 +7,52 @@ const DEFAULT_TEACHERS = [
     name: "Kamer Selçukarslan",
     branch: "Rehberlik & Yöneticilik",
     title: "Kurum Müdürü / Öğretmen (EDS No: 80973)",
-    phone: "0530 505 46 19",
-    email: "kamerselcukarslan96@gmail.com",
+    phone: "0224 711 00 00",
+    email: "rehberlik@inegolcozumkurs.com",
     classes: "Tüm Kademeler",
     weekly_hours: 24,
     status: "Aktif",
     role: "admin",
-    notes: "Edesis Sistem Yöneticisi & Rehberlik Koordinatörü. TC: 27145371796"
+    notes: "Edesis Sistem Yöneticisi & Rehberlik Koordinatörü"
   },
   {
     id: "eds-tch-80974",
     name: "Yeliz Arcan",
     branch: "Eğitmen",
     title: "Kurum Öğretmeni (EDS No: 80974)",
-    phone: "0543 563 21 45",
-    email: "arcan857@gmail.com",
+    phone: "0224 711 00 00",
+    email: "ortaokul@inegolcozumkurs.com",
     classes: "Ortaokul & LGS Grupları",
     weekly_hours: 22,
     status: "Aktif",
     role: "ogretmen",
-    notes: "Edesis Aktif Kadro. TC: 19558624156"
+    notes: "Edesis Aktif Kadro"
   },
   {
     id: "eds-tch-80975",
     name: "Zeyneb Yolcu",
     branch: "Eğitmen",
     title: "Kurum Öğretmeni (EDS No: 80975)",
-    phone: "0534 512 75 45",
-    email: "yolcuzeyneb@gmail.com",
+    phone: "0224 711 00 00",
+    email: "ilkokul@inegolcozumkurs.com",
     classes: "İlkokul & Ara Sınıflar",
     weekly_hours: 20,
     status: "Aktif",
     role: "ogretmen",
-    notes: "Edesis Aktif Kadro. TC: 24703453390"
+    notes: "Edesis Aktif Kadro"
   },
   {
     id: "eds-tch-80976",
     name: "Sinem Kartal",
     branch: "Eğitmen",
     title: "Kurum Öğretmeni (EDS No: 80976)",
-    phone: "0545 940 28 37",
-    email: "sinemkartal12@gmail.com",
+    phone: "0224 711 00 00",
+    email: "lise@inegolcozumkurs.com",
     classes: "Lise & YKS Grupları",
     weekly_hours: 22,
     status: "Aktif",
     role: "ogretmen",
-    notes: "Edesis Aktif Kadro. TC: 20392596646"
+    notes: "Edesis Aktif Kadro"
   },
   {
     id: "eds-tch-idari-001",

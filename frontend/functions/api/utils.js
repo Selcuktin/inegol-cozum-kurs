@@ -107,30 +107,38 @@ export function requireRole(user, allowedRoles = [ROLE_ADMIN]) {
   return null;
 }
 
-export async function logAction(db, user, action, target_type = "", target_id = "", detail = "") {
-  if (!db) return;
-  try {
-    const id = "log_" + crypto.randomUUID().slice(0, 12);
-    await db
-      .prepare(
-        "INSERT INTO audit_logs (id, user_id, user_name, user_email, user_role, action, target_type, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-      )
-      .bind(
-        id,
-        user?.user_id || "",
-        user?.name || "",
-        user?.email || "",
-        user?.role || "",
-        action,
-        target_type,
-        target_id,
-        detail,
-        new Date().toISOString()
-      )
-      .run();
-  } catch (err) {
-    console.error("Audit log error:", err);
+export function logAction(db, user, action, target_type = "", target_id = "", detail = "", waitUntil = null) {
+  if (!db) return Promise.resolve();
+  const task = (async () => {
+    try {
+      const id = "log_" + crypto.randomUUID().slice(0, 12);
+      await db
+        .prepare(
+          "INSERT INTO audit_logs (id, user_id, user_name, user_email, user_role, action, target_type, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(
+          id,
+          user?.user_id || "",
+          user?.name || "",
+          user?.email || "",
+          user?.role || "",
+          action,
+          target_type,
+          target_id,
+          detail,
+          new Date().toISOString()
+        )
+        .run();
+    } catch (err) {
+      console.error("Audit log error:", err);
+    }
+  })();
+
+  if (typeof waitUntil === "function") {
+    waitUntil(task);
+    return Promise.resolve();
   }
+  return task;
 }
 
 export async function getNextSequence(db, seqName, prefix = "", padLength = 5, fallbackInitial = 1) {

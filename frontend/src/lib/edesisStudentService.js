@@ -7,7 +7,14 @@ import AccountingService, { trNorm } from "./edesisAccountingService.js";
 function getApiUrl() {
   if (typeof localStorage !== "undefined") {
     const custom = localStorage.getItem("custom_api_url");
-    if (custom) return custom.replace(/\/$/, "");
+    if (custom && !custom.includes("loca.lt") && !custom.includes("lvh.me")) {
+      try {
+        const u = new URL(custom);
+        if (u.protocol === "http:" || u.protocol === "https:") {
+          return custom.replace(/\/$/, "");
+        }
+      } catch {}
+    }
   }
   return "";
 }

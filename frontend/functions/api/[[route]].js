@@ -50,6 +50,12 @@ export async function onRequest(context) {
       url,
       path,
       user,
+      context,
+      waitUntil: (p) => {
+        if (typeof context?.waitUntil === "function") {
+          context.waitUntil(p);
+        }
+      },
     };
 
     // 4. Dispatch through domain sub-routers in prioritized sequence

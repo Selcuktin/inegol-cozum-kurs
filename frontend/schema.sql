@@ -189,6 +189,11 @@ CREATE TABLE IF NOT EXISTS installments (
 CREATE INDEX IF NOT EXISTS idx_installments_contract ON installments(contract_id);
 CREATE INDEX IF NOT EXISTS idx_installments_student ON installments(student_id);
 CREATE INDEX IF NOT EXISTS idx_installments_due ON installments(due_date);
+CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
+CREATE INDEX IF NOT EXISTS idx_payments_contract ON payments(contract_id);
+CREATE INDEX IF NOT EXISTS idx_contracts_student ON contracts(student_id);
+CREATE INDEX IF NOT EXISTS idx_incomes_student ON student_incomes(student_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 
 CREATE TABLE IF NOT EXISTS system_sequences (
   name TEXT PRIMARY KEY,
