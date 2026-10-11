@@ -34,6 +34,8 @@
 | G2 | **Auth yok sayılıyor**: `/auth/me` token yoksa misafiri "Yönetici/admin" olarak döndürüyor. Router'da `user` çözümleniyor ama **mutasyon endpoint'lerinde rol kontrolü yok** — öğrenci silme, sözleşme silme, tahsilat iptali anonim çağrılabilir. | `auth.js:47-57`, tüm routerlar | Yetkisiz veri silme/değiştirme |
 | G3 | **`Access-Control-Allow-Origin: *`** + cookie bazlı oturum. Herhangi bir siteden API çağrılabilir. | `utils.js:13` | CSRF benzeri kötüye kullanım |
 | G4 | **Sözleşme dosyaları D1'de base64 metin sütununda** (10MB'a kadar). D1 satır limiti ~2MB → büyük yükleme sessizce kırılır; ayrıca R2 kullanılmamış. | `students.js` contract-upload | Yükleme bozulması + DB şişmesi |
+| G5 | **Backup/Restore anonim ve kimlik doğrulamasız**: `POST /backup` ve `POST /backup/restore` hiçbir token/rol kontrolü yapmıyor (`system.js:207,233`). GitHub Actions cron'u (`daily-backup.yml`) secret'siz curl atıyor; CORS `*` ile birleşince **herkes production DB'yi snapshot edebilir veya restore ile silebilir**. | `system.js:207,233`, `.github/workflows/daily-backup.yml` | Veri silintisi / ele geçirme |
+| G6 | **Restore işlemi transactional değil**: Backup `/backup/restore` her tabloyu `DELETE FROM t` + satır satır `INSERT` (10+ round trip) yapıyor; db.batch() YOK, try-catch ile hata yutuluyor. Ortada sıkıntı da: pre-restore yedeği kaydediliyor ama **işlem yarısında hata olursa production DB yarısı boş kalır** → kaydedilmeyen satırlar gider. | `system.js:268-288` | Yarım-silinmiş production verisi |
 
 ### 2.2 Veri bütünlüğü — kök neden
 
@@ -66,6 +68,15 @@ WHERE s.id = c.student_id
 | H5 | `getDynamicAccountingSummary` içinde `taksitlerCount = instRow?.cnt || 603` — **603 sabit fallback**; gerçek veri yoksa yanlış KPI gösterir. | `accounting.js:47` |
 | H6 | `student_incomes.kalan_alacak` `MAX(0, brut - tahsilat)` ile güncelleniyor ama frontend servis kendi kopyasında bileşik alanları ayrı formülle tutuyor; tek doğruluk kaynağı net değil. | `accounting.js` + servis katmanı |
 
+### 2.3b Deployment & CI/CD eksikleri
+
+| # | Sorun | Konum |
+|---|---|---|
+| D1 | **Deploy pipeline yok**: Sadece `daily-backup.yml` var; deploy elle `craco build && npx wrangler pages deploy build --commit-dirty=true` ile yapılıyor. `--commit-dirty=true` + elle deploy → hangi kodun yayında olduğu git'ten doğrulanamıyor; CI'da test/verify aden dağıtım pipeline'ı yok. | `frontend/package.json:67`, `.github/workflows/` |
+| D2 | **Migration klasörü yok**: `schema.sql` + `migration_*.sql` repo kökte duruyor; `wrangler d1 migrations` yapısı kurulmamış. Yeni tablo/sütun geldiğinde production D1'e şemayı elle execute etmek unutulabilir — "no such table" hatalarını yaratır. | repo kökü |
+| D3 | `compatibility_date = "2024-09-01"` bayat — güncel runtime davranışı ve D1 yeni özelliklerinden geri kalır. | `frontend/wrangler.toml:3` |
+| D4 | **Backup snapshot'ı tek satırda JSON olarak D1'e yazılır** (`snapshot_data` TEXT): 17 tablo × veri büyüdüğünde D1 ~2MB satır limitine çarpar; o günün backup'ı sessizce tamamlanamamış olur. Ayrıca snapshot sonrası `SELECT * FROM " + t` döngüsü tablo adını string birleştirme ile kuruyor — hardcoded liste ile kontrol altında ama pattern kırılgan. | `system.js:173,216`, `BACKUP_TABLES` |
+
 ### 2.4 Performans & ölçeklenebilirlik
 
 | # | Sorun | Konum |
@@ -84,6 +95,8 @@ WHERE s.id = c.student_id
 | E2 | `atob/btoa` byte-byte döngüsü büyük dosyada bellek patlaması — 10MB sözleşme için. Chunked encoding gerekli (veya R2). | `students.js` upload |
 | E3 | `toISOString().split("T")[0]` UTC kullanır — Türkiye'de gece yarısı civarı **bir gün geriden vade tarihi** üretir. `9aa478c` commit'inde timezone düzeltmesi yapılmış ama backend'de hâlâ UTC-dünyalı yerler var. | `students.js`, `contracts.js` |
 | E4 | Axios/network hataları çoğunlukla `catch {}` içinde yutuluyor; kullanıcıya "kaydedildi" hissi verip arkada fail olabilir. | Servis katmanı |
+| E5 | `console.log`/`console.warn`/`console.error` üretim kodunda 38+ noktada — edge tersibilirása eski log sızmaları; SPA'da kullanıcı verisi loglanıyor olabilir (öğrenci adı, araama terimleri). `terser drop_console` veya build-time strip önerilir. | frontend/src (tests hariç) |
+| E6 | Backup API cron security: GitHub Actions curl'i secret'siz — bu tesadüfen "çalışıyor", ama secret rotasyonu/iptali backup'ı sessiz öldürür; ayrıca POST auth'suz olduğundan (G5) bilenler manuel snapshot da üretebilir. | `.github/workflows/daily-backup.yml` |
 | E5 | `purgeClientStorage` tek tuşla IndexedDB + ServiceWorker + cookie temizliği — PWA'da kullanıcı tüm offline veriyi kaybedebilir (onay dialogu var ama geri alınamaz). | `App.js` |
 
 ---
@@ -132,41 +145,124 @@ WHERE s.id = c.student_id
 1. Admin/personel parolasını koddan çıkar → `env.ADMIN_PASSWORD` / `env.STAFF_PASSWORD` (Pages secret). GitHub geçmişinde şifre kaldığı için parolaları **rotate et**.
 2. `/auth/me` misafirde gerçek guest döndürsün (admin default olmasın).
 3. Her mutasyon endpoint'e `requireRole(user, minRole)` kontrolü.
+4. **Backup/restore'ı auth altına al** (G5): `POST /backup` ve `POST /backup/restore` admin rolü istesin; GitHub Actions cron'unu `Authorization: Bearer ${{ secrets.BACKUP_TOKEN }}` ile güçlendir ve backend'de token doğrula.
+5. **Restore'u `db.batch()` ile transactional hale getir** (G6) — yarısı silinmiş bırakmasın.
 
 ### Faz 1 — ID normalizasyonu migration (1-2 gün)
 4. Tek seferlik script: tüm `contract.student_id`, `installments.student_id`, `payments.student_id` değerlerini `students.id` formatına normalize et.
 5. Sözleşme/income matching'den **isim eşleştirmesini kaldır**; `students.id` bazlı eşleşme + indeks.
 6. Kaskad silme işlemlerini ID bazlı hale getir.
 
+### Faz 1b — Deployment altyapısı (1 gün)
+7. Migration klasörü kur: `frontend/migrations/0001_init.sql` …; `wrangler d1 migrations apply DB --remote` pipeline'a girsin (D2).
+8. GitHub Actions deploy workflow'u: test → build → `wrangler pages deploy` (commit-dirty olmadan) → production.
+9. `compatibility_date` güncelle (D3).
+10. Backup snapshot'ı D1 satırı yerine R2 objesine yaz; D1'e yalnızca metadata/pointer bırak (D4, G4 ile aynı R2 kurulumu).
+11. Production console.log'ları `terser drop_console` veya build-time strip ile temizle (E5).
+
 ### Faz 2 — API temizliği (2-3 gün)
-7. `students.js` POST ve `contracts.js` POST'taki otomatik sözleşme+gelir+taksit üretimini **ortak fonksiyona** al ve `db.batch()` ile tek seferde yaz.
-8. `computeInstallmentPlan` tek doğruluk kaynağı olsun (backend), frontend servis okuma yapar.
-9. `GET /dashboard`'a alan seçimi / limit ekle; localStorage mirror boyuta bağlan.
-10. `getNextSequence`'ı atomik `INSERT INTO system_sequences ... RETURNING` yapısına çevir; CREATE TABLE'ı migration'a taşı.
-11. `POST /payments`'te koşullu UPDATE: `WHERE paid_amount + ? <= amount`.
+12. `students.js` POST'taki ve `contracts.js` POST'taki otomatik sözleşme+gelir+taksit üretimini **ortak fonksiyona** al ve `db.batch()` ile tek seferde yaz.
+13. `computeInstallmentPlan` tek doğruluk kaynağı olsun (backend), frontend servis okuma yapar.
+14. `GET /dashboard`'a alan seçimi / limit ekle; localStorage mirror boyuta bağlan.
+15. `getNextSequence`'ı atomik `INSERT INTO system_sequences ... RETURNING` yapısına çevir; CREATE TABLE'ı migration'a taşı.
+16. `POST /payments`'te koşullu UPDATE: `WHERE paid_amount + ? <= amount`.
 
 ### Faz 3 — Kalite (2 gün)
-12. Axios interceptor: ağ hatası → kullanıcıya görünen toast; sessiz `catch {}` bloklarını azalt.
-13. Sözleşme yüklemesini R2'ye taşı (D1 satır limitine takılma).
-14. Backend router'lar için `vitest + miniflare` tabanlı test ekle (özellikle accounting ödeme akışı).
-15. README ve TEST_READY'yi gerçek değerlerle güncelle.
+17. Axios interceptor: ağ hatası → kullanıcıya görünen toast; sessiz `catch {}` bloklarını azalt.
+18. Sözleşme yüklemesini R2'ye taşı (D1 satır limitine takılma).
+19. Backend router'lar için `vitest + miniflare` tabanlı test ekle (özellikle accounting ödeme akışı).
+20. README ve TEST_READY'yi gerçek değerlerle güncelle.
 
 ### Faz 4 — İsteğe bağlı
-16. CRA → Vite geçişi (build/CI hızlanır, 60+ resolutions geriler).
-17. 1000+ satırlı modülleri parçala.
+21. CRA → Vite geçişi (build/CI hızlanır, 60+ resolutions geriler).
+22. 1000+ satırlı modülleri parçala.
 
 ---
 
-## 7. 🔎 ÖZET — En önemli 5
+## 7. 🔎 ÖZET — En önemli 6
 
 | # | Konu | Ne yapılacak |
 |---|---|---|
 | 1 | Kod içine gömülü şifreler | env'e taşı, parolaları rotate et |
-| 2 | student_name üzerinden matching/silme | ID bazlı matching'e geç |
-| 3 | 10+ round trip student/contract POST | Ortak fonksiyon + db.batch() |
-| 4 | `|| 603` sabit fallback | Gerçek sayı, yoksa 0 |
-| 5 | Auth guard mutasyonlarda yok | requireRole + guest default kaldır |
+| 2 | Backup/restore anonim + transactional değil | Auth + db.batch() (G5/G6) |
+| 3 | student_name üzerinden matching/silme | ID bazlı matching'e geç |
+| 4 | Deploy pipeline ve D1 migrations yok | CI/CD + migrations klasörü |
+| 5 | 10+ round trip student/contract POST | Ortak fonksiyon + db.batch() |
+| 6 | `|| 603` sabit fallback | Gerçek sayı, yoksa 0 |
 
 ---
 
 *Analiz, çalışma dizinindeki 11 commitlenmemiş değişikliği de içerir. Test suite tamamen geçiyor: 21/21 suite, 203/203 test (5.3 sn).*
+
+---
+
+## 8. 📎 EK — İkinci AI Raporundan Doğrulanıp Entegre Edilenler (2026-10-11)
+
+Bu EK bölümü, ikinci bir agentın hazırladığı karşılaştırma raporunun bu projeye göre doğrulanması sonucu oluşturulmuştur.
+
+Karşılaştırma için alınan ikinci agent raporu incelendi. Raporun büyük kısmı bu projeye **spesifik değil** (Next.js App Router, Prisma/Drizzle ORM, "use client" hydration hataları, kurs video yükleme/presigned URL, TUS protokolü — **bu projede hiçbiri yok**; proje CRA/craco + Pages Functions + doğrudan D1 SQL kullanıyor). Ancak doğrulama sonrası, kod üzerinde teyit edilen **5 gerçek bulgu** bu rapora entegre edildi:
+
+### Entegre Edilen Doğrulanmış Bulgu
+
+**1. Backup/Restore endpoint'leri anonim ve transactional değil (YENİ KRİTİK — G5/G6 olarak eklendi):**
+- `POST /backup` ve `POST /backup/restore` hiçbir token/rol kontrolü yapmıyor (`system.js:207,233`).
+- Mevcut `daily-backup.yml` GitHub Actions workflow'u secret'siz anonim curl atıyor (`https://inegol-cozum-kurs.pages.dev/api/backup`) — şu an çalışıyor çünkü gerekli bir kontrol yok.
+- Kritik risk: CORS `*` ile birleşince, **herhangi biri** tüm production veritabanını snapshot edebilir veya restore ile silebilir/yeniden yükleyebilir.
+
+**2. Restore process'i transactional değil (G6):** Her tablo `DELETE FROM` + satır satır `INSERT` (10+ round trip, db.batch() yok, try-catch hata siliyor). Yarıda hata olursa production DB yarısı boş kalır.
+
+**3. Migration klasörü yok (D2):** `schema.sql` + `migration_*.sql` repo kökte duruyor; `wrangler d1 migrations` yapısı kurulmamış. Yeni şema değişikliğinde production D1'e elle execute etmek unutulabilir — bu, diğer raporda belirtildiği gibi "no such table" hatalarını doğrudan yaratır.
+
+**4. `compatibility_date = "2024-09-01"` bayat (D3):** `frontend/wrangler.toml` güncel runtime davranışından geri kalıyor; `nodejs_compat` flag'i ve D1 yeni özelliklerinin denemelerine kapatır.
+
+**5. `console.log` miktarı (E5):** Üretim kodunda (tests hariç) 38+ `console.log/warn/error` nokta var. SPA'da kullanıcı kişisel verisi loglanıyor olabilir; build-time strip önerilir. (diğer raporun "console temizliği" önerisi doğruydu)
+
+### Diğer Rapordan Elenenler (Bu Projede Geçerli Olmayanlar)
+
+| İddia | Doğrulama Sonucu |
+|---|---|
+| Next.js App Router / "use client" hydration | ❌ CRA/craco + kendine özgü hash routing, Next.js yok |
+| Prisma → Drizzle ORM geçişi | ❌ Proje ORM'siz, doğrudan D1 raw SQL (`db.prepare`) çalışıyor |
+| R2 presigned URL CORS | ❌ R2 henüz hiç kullanılmıyor (öneri: eklenmeli — G4) |
+| Video yükleme / TUS protokolü | ❌ Kurs videosu/yükleme iş akışı yok |
+| `fs`/Node-native modül import | ✅ Doğrulandı: backend'de Node-only import yok, Workers-safe ES modules kullanılmış — bu konuda sorun yok |
+
+### Eklenen Faz: 1b — Deployment Altyapısı
+
+Diğer raporun "CI/CD + migration" vurgusu doğru; rapora **Faz 1b** olarak işlendi:
+
+```yaml
+# .github/workflows/deploy.yml (önerilen yaklaşım)
+name: Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: yarn }
+      - run: cd frontend && yarn install --frozen-lockfile
+      - run: cd frontend && CI=true yarn test --watchAll=false
+      - run: cd frontend && yarn build
+      - run: npx wrangler d1 migrations apply DB --remote
+        env: { CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }} }
+      - run: cd frontend && npx wrangler pages deploy build --project-name inegol-cozum-kurs
+        env: { CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }} }
+```
+
+ve backup cron'unun güvenli hali:
+
+```yaml
+# daily-backup.yml (düzeltme)
+- name: Trigger Daily Backup
+  run: |
+    curl -s -f -X POST "$URL/api/backup" \
+      -H "Authorization: Bearer ${{ secrets.BACKUP_TOKEN }}" \
+      -H 'Content-Type: application/json' \
+      -d '{"notes": "GitHub Actions 20:00 TRT"}'
+```
+
+Backend'de `BACKUP_TOKEN` env secret'ı doğrulacak; auth'suz hali kapatılmalı. Ek olarak (G5) admin rolü kontrolü de istensin.
