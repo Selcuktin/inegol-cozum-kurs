@@ -144,6 +144,31 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     return json(res.results || []);
   }
 
+  // ---------------- SECURITY OVERVIEW (Cloudflare Edge & Access Shield) ----------------
+  if (path === "/security/overview" && request.method === "GET") {
+    if (!db) return json({ ok: false, error: "Database unavailable" }, 500);
+    const user = currentUser || await getCurrentUser(request, db).catch(() => null);
+    if (!user || user.role !== ROLE_ADMIN) {
+      return errorResponse("Güvenlik paneline erişim yetkiniz yok", 403, "FORBIDDEN");
+    }
+
+    const [failedRes, foreignRes, activeSessionsRes, recentEventsRes] = await Promise.all([
+      db.prepare("SELECT COUNT(*) as cnt FROM audit_logs WHERE action = 'security.failed_login' AND created_at >= datetime('now', '-24 hours')").first().catch(() => ({ cnt: 0 })),
+      db.prepare("SELECT COUNT(*) as cnt FROM audit_logs WHERE action = 'security.foreign_access' AND created_at >= datetime('now', '-24 hours')").first().catch(() => ({ cnt: 0 })),
+      db.prepare("SELECT COUNT(*) as cnt FROM user_sessions WHERE expires_at > datetime('now')").first().catch(() => ({ cnt: 0 })),
+      db.prepare("SELECT * FROM audit_logs WHERE action LIKE 'security.%' ORDER BY created_at DESC LIMIT 20").all().catch(() => ({ results: [] }))
+    ]);
+
+    return json({
+      ok: true,
+      shield_status: "active",
+      failed_logins_24h: failedRes?.cnt || 0,
+      foreign_access_24h: foreignRes?.cnt || 0,
+      active_sessions_count: activeSessionsRes?.cnt || 0,
+      recent_security_events: recentEventsRes?.results || []
+    });
+  }
+
   // ---------------- EXPORT ----------------
   const exportMatch = path.match(/^\/export\/([^\/]+)$/);
   if (exportMatch && request.method === "GET") {

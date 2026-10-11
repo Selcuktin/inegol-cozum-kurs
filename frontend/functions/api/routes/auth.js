@@ -1,6 +1,11 @@
 import { json, errorResponse, ROLE_ADMIN, ROLE_LABELS, logAction, parseCookies } from "../utils.js";
 
-export async function handleAuthRoutes({ request, db, env, path, user }) {
+export async function handleAuthRoutes({ request, db, env, path, user, waitUntil }) {
+  const clientIp = request?.headers?.get("cf-connecting-ip") || request?.headers?.get("x-real-ip") || "unknown";
+  const clientCountry = (request?.headers?.get("cf-ipcountry") || request?.cf?.country || "TR").toUpperCase();
+  const clientAsOrg = request?.cf?.asOrganization || request?.cf?.asn || "";
+  const isForeign = clientCountry && !["TR", "XX", "T1"].includes(clientCountry);
+
   // Reset cookies and clear site data across all devices
   if (path === "/system/reset-cookies" || path === "/auth/clear-all-cookies") {
     return json({ ok: true, message: "Tüm cihaz çerezleri ve önbellek sıfırlandı" }, 200, {
@@ -9,7 +14,7 @@ export async function handleAuthRoutes({ request, db, env, path, user }) {
     });
   }
 
-  // Quick Login
+  // Quick Login with Geo & IP Guard
   if (path === "/auth/quick-login" && request.method === "POST") {
     const body = await request.json().catch(() => ({}));
     const role = body.role in ROLE_LABELS ? body.role : ROLE_ADMIN;
@@ -23,10 +28,28 @@ export async function handleAuthRoutes({ request, db, env, path, user }) {
 
     if (role === ROLE_ADMIN) {
       if (!password || !adminPasswords.includes(password)) {
+        await logAction(
+          db,
+          { user_id: "guest", email: body.email || "admin@inegolcozumkurs.com", name: "Bilinmeyen Ziyaretçi", role: "guest" },
+          "security.failed_login",
+          "security",
+          clientIp,
+          `Hatalı yönetici parolası denemesi (IP: ${clientIp}, Ülke: ${clientCountry}, AS: ${clientAsOrg || "Bilinmiyor"})`,
+          waitUntil
+        );
         return errorResponse("Hatalı yönetici parolası!", 401, "AUTH_FAILED");
       }
     } else {
       if (password !== staffPassword) {
+        await logAction(
+          db,
+          { user_id: "guest", email: body.email || `${role}@inegolcozumkurs.com`, name: "Bilinmeyen Ziyaretçi", role: "guest" },
+          "security.failed_login",
+          "security",
+          clientIp,
+          `Hatalı personel şifresi denemesi (Rol: ${role}, IP: ${clientIp}, Ülke: ${clientCountry})`,
+          waitUntil
+        );
         return errorResponse("Hatalı personel şifresi!", 401, "AUTH_FAILED");
       }
     }
@@ -50,7 +73,23 @@ export async function handleAuthRoutes({ request, db, env, path, user }) {
       .bind(sessionToken, dbUser.user_id)
       .run();
 
-    await logAction(db, dbUser, "auth.quick_login", "user", dbUser.user_id, `Hızlı giriş yapıldı (${ROLE_LABELS[role] || role})`);
+    const auditDetail = isForeign
+      ? `Hızlı giriş yapıldı (${ROLE_LABELS[role] || role}) · [DİKKAT: Yurtdışı Erişim - Ülke: ${clientCountry}, IP: ${clientIp}]`
+      : `Hızlı giriş yapıldı (${ROLE_LABELS[role] || role}) · IP: ${clientIp}`;
+
+    await logAction(db, dbUser, "auth.quick_login", "user", dbUser.user_id, auditDetail, waitUntil);
+
+    if (isForeign) {
+      await logAction(
+        db,
+        dbUser,
+        "security.foreign_access",
+        "user",
+        dbUser.user_id,
+        `Yurtdışı IP erişimi ile oturum açıldı (Ülke: ${clientCountry}, IP: ${clientIp}, AS: ${clientAsOrg || "Bilinmiyor"})`,
+        waitUntil
+      );
+    }
 
     return json(
       {
@@ -108,6 +147,7 @@ export async function handleAuthRoutes({ request, db, env, path, user }) {
     const token = cookies["session_token"] || (request.headers.get("Authorization") || "").replace(/^Bearer\s+/, "");
     if (token && db) {
       await db.prepare("DELETE FROM user_sessions WHERE session_token = ?").bind(token).run().catch(() => {});
+      await logAction(db, user, "auth.logout", "user", user?.user_id || token, `Oturum kapatıldı (IP: ${clientIp})`, waitUntil);
     }
     return json(
       { ok: true },
