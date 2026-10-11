@@ -250,13 +250,6 @@ export default function EdesisSozlesmeDetay({
           el.style.borderColor = "#e2e8f0";
         }, 2500);
 
-        const targetTaksitNo = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("cozum_target_taksit_no") : null;
-        if (targetTaksitNo && Array.isArray(localInstallments) && localInstallments.length > 0) {
-          const targetInst = localInstallments.find((t) => String(t.taksitNo) === String(targetTaksitNo) && t.durum !== 1);
-          if (targetInst) {
-            handleOpenCollect(targetInst);
-          }
-        }
         try {
           sessionStorage.removeItem("cozum_scroll_to_tahsilat");
           sessionStorage.removeItem("cozum_target_taksit_no");
@@ -271,7 +264,7 @@ export default function EdesisSozlesmeDetay({
 
     window.addEventListener("cozum_scroll_to_tahsilat", handleScroll);
     return () => window.removeEventListener("cozum_scroll_to_tahsilat", handleScroll);
-  }, [localInstallments]);
+  }, []);
 
   const handleConfirmCollect = () => {
     if (!collectModal || !collectModal.taksit) return;

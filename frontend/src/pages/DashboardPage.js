@@ -324,7 +324,7 @@ export function DashboardPage({
                           if (item.student_name) sessionStorage.setItem("cozum_open_contract_student", item.student_name);
                           if (item.student?.id) sessionStorage.setItem("cozum_open_contract_student_id", String(item.student.id));
                         } catch {}
-                        if (item.student && onSelect) onSelect(item.student);
+                        if (onSelect) onSelect(null);
                         if (onNavigate) onNavigate("documents");
                         if (typeof window !== "undefined" && targetNo) {
                           window.location.hash = `documents?id=${encodeURIComponent(targetNo)}`;
@@ -426,7 +426,7 @@ export function DashboardPage({
                               sessionStorage.setItem("cozum_scroll_to_tahsilat", "1");
                               if (item.installment_no) sessionStorage.setItem("cozum_target_taksit_no", String(item.installment_no));
                             } catch {}
-                            if (item.student && onSelect) onSelect(item.student);
+                            if (onSelect) onSelect(null);
                             if (onNavigate) onNavigate("documents");
                             if (typeof window !== "undefined" && targetNo) {
                               window.location.hash = `documents?id=${encodeURIComponent(targetNo)}`;
