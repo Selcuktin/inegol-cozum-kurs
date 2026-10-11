@@ -63,33 +63,50 @@ export async function handleAccountingRoutes({ request, db, path, user }) {
     `).all().catch(() => ({ results: [] }));
     const expensesRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC LIMIT 100").all();
     const teachersRes = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all();
-    const contractsRes = await db.prepare("SELECT * FROM contracts WHERE (is_deleted = 0 OR is_deleted IS NULL) ORDER BY sozlesme_tarihi DESC").all().catch(() => ({ results: [] }));
+    const contractsRes = await db.prepare(`
+      SELECT c.*,
+        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p 
+         WHERE (p.contract_id = c.id OR (p.student_id = c.student_id AND c.student_id IS NOT NULL AND c.student_id != '')) 
+           AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
+      FROM contracts c 
+      WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL) 
+      ORDER BY c.sozlesme_tarihi DESC
+    `).all().catch(() => ({ results: [] }));
 
     const students = (studentsRes.results || []).map(enrichStudent);
     const accountingSummary = await getDynamicAccountingSummary(db, students);
-    const contracts = (contractsRes.results || []).map((r) => ({
-      ...r,
-      sozlesmeNo: r.sozlesme_no,
-      sozlesmeTarihi: r.sozlesme_tarihi,
-      ogrenciAdi: r.student_name,
-      ogrenciAdiSoyadi: r.student_name,
-      ogrenciNo: r.student_no,
-      ogrenciId: r.student_id,
-      sinifAdi: r.student_class,
-      veliAdi: r.parent_name,
-      veliTelefon: r.parent_phone,
-      musteriUnvan: r.parent_name || r.student_name,
-      donemId: r.period_id || 113,
-      donemAdi: r.period_name || "2026-2027",
-      netTutar: Number(r.net_tutar) || 0,
-      kdvTutari: Number(r.kdv_tutari) || 0,
-      brutTutar: Number(r.brut_tutar) || 0,
-      taksitSayisi: parseInt(r.taksit_sayisi) || 1,
-      odemeTuru: r.odeme_turu || 1,
-      odemeTuruText: r.odeme_turu_text || (r.taksit_sayisi > 1 ? `Taksitli (${r.taksit_sayisi} Taksit)` : "Peşin"),
-      durum: r.durum != null ? r.durum : 1,
-      durumText: r.durum === 3 ? "İptal Edildi" : r.durum === 0 ? "Taslak" : "Aktif",
-    }));
+    const contracts = (contractsRes.results || []).map((r) => {
+      const gross = Number(r.brut_tutar) || 0;
+      const paid = Number(r.calculated_paid) || 0;
+      const remaining = Math.max(0, gross - paid);
+      return {
+        ...r,
+        sozlesmeNo: r.sozlesme_no,
+        sozlesmeTarihi: r.sozlesme_tarihi,
+        ogrenciAdi: r.student_name,
+        ogrenciAdiSoyadi: r.student_name,
+        ogrenciNo: r.student_no,
+        ogrenciId: r.student_id,
+        sinifAdi: r.student_class,
+        veliAdi: r.parent_name,
+        veliTelefon: r.parent_phone,
+        musteriUnvan: r.parent_name || r.student_name,
+        donemId: r.period_id || 113,
+        donemAdi: r.period_name || "2026-2027",
+        netTutar: Number(r.net_tutar) || 0,
+        kdvTutari: Number(r.kdv_tutari) || 0,
+        brutTutar: gross,
+        toplamTahsilat: paid,
+        toplam_tahsilat: paid,
+        kalanAlacak: remaining,
+        kalan_alacak: remaining,
+        taksitSayisi: parseInt(r.taksit_sayisi) || 1,
+        odemeTuru: r.odeme_turu || 1,
+        odemeTuruText: r.odeme_turu_text || (r.taksit_sayisi > 1 ? `Taksitli (${r.taksit_sayisi} Taksit)` : "Peşin"),
+        durum: r.durum != null ? r.durum : 1,
+        durumText: r.durum === 3 ? "İptal Edildi" : r.durum === 0 ? "Taslak" : "Aktif",
+      };
+    });
 
     return json({
       students,

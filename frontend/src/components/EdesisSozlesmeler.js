@@ -64,7 +64,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const gelirMap = useMemo(() => {
     const map = {};
     (AccountingService.getIncomes(students) || []).forEach((g) => {
-      if (g.sozlesmeNo) {
+      if (g.sozlesmeNo && !g.is_deleted) {
         map[g.sozlesmeNo] = g;
       }
     });
@@ -1127,17 +1127,18 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                         {(() => {
                           const sNo = c.sozlesmeNo || c.sozlesme_no;
                           const matchingGelir = gelirMap[sNo];
+                          const isGelirMatchValid = matchingGelir && !matchingGelir.is_deleted && (!matchingGelir.student_name || trNorm(matchingGelir.student_name) === trNorm(c.ogrenciAdi || c.student_name));
                           const gross = Number(c.brutTutar !== undefined ? c.brutTutar : (c.brut_tutar !== undefined ? c.brut_tutar : 0));
                           const collected = c.toplamTahsilat !== undefined 
                             ? Number(c.toplamTahsilat) 
                             : (c.toplam_tahsilat !== undefined 
                               ? Number(c.toplam_tahsilat) 
-                              : (matchingGelir ? Number(matchingGelir.toplamTahsilat) : 0));
+                              : (isGelirMatchValid ? Number(matchingGelir.toplamTahsilat) : 0));
                           const remaining = c.kalanAlacak !== undefined 
                             ? Number(c.kalanAlacak) 
                             : (c.kalan_alacak !== undefined 
                               ? Number(c.kalan_alacak) 
-                              : (matchingGelir ? Number(matchingGelir.kalanAlacak) : Math.max(0, gross - collected)));
+                              : (isGelirMatchValid ? Number(matchingGelir.kalanAlacak) : Math.max(0, gross - collected)));
                           const pct = gross > 0 ? Math.min(100, Math.max(0, (collected / gross) * 100)) : 0;
                           return (
                             <div>
@@ -1181,11 +1182,12 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                         {(() => {
                           const sNo = c.sozlesmeNo || c.sozlesme_no;
                           const matchingGelir = gelirMap[sNo];
+                          const isGelirMatchValid = matchingGelir && !matchingGelir.is_deleted && (!matchingGelir.student_name || trNorm(matchingGelir.student_name) === trNorm(c.ogrenciAdi || c.student_name));
                           const collected = c.toplamTahsilat !== undefined 
                             ? Number(c.toplamTahsilat) 
                             : (c.toplam_tahsilat !== undefined 
                               ? Number(c.toplam_tahsilat) 
-                              : (matchingGelir ? Number(matchingGelir.toplamTahsilat) : 0));
+                              : (isGelirMatchValid ? Number(matchingGelir.toplamTahsilat) : 0));
                           return (
                             <span style={{ fontWeight: 700, fontSize: "13px", color: "#f59e0b" }}>
                               {fmtCurrency(collected)}

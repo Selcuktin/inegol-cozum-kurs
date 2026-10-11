@@ -116,12 +116,12 @@ export function DashboardPage({
 
     const pending = (insts || []).filter((i) => {
       const remaining = Number(i.kalanTutar !== undefined ? i.kalanTutar : (i.taksitTutari - (i.tahsilEdilen || 0)));
-      return remaining > 0;
+      return remaining >= 1;
     });
 
     if (pending.length > 0) {
       pending.sort((a, b) => new Date(a.vadeTarihi || a.due_date || "2099-12-31") - new Date(b.vadeTarihi || b.due_date || "2099-12-31"));
-      return pending.slice(0, 8).map((inst) => {
+      return pending.map((inst) => {
         const s = studentsList.find((st) =>
           (st.id && String(st.id) === String(inst.studentId || inst.student_id)) ||
           (st.student_name && trNorm(st.student_name) === trNorm(inst.ogrenciAdi || inst.ogrenciAdiSoyadi || ""))
@@ -188,20 +188,21 @@ export function DashboardPage({
   const [installmentFilter, setInstallmentFilter] = useState("upcoming");
 
   const displayedInstallments = useMemo(() => {
-    if (installmentFilter === "all") return upcomingInstallments;
+    const valid = upcomingInstallments.filter((it) => it.amount >= 1);
+    if (installmentFilter === "all") {
+      return valid.slice(0, 8);
+    }
     if (installmentFilter === "overdue") {
-      const filtered = upcomingInstallments.filter((item) => {
+      return valid.filter((item) => {
         const badge = getVadeBadge(item.due_date);
         return badge.isOverdue;
-      });
-      return filtered;
+      }).slice(0, 8);
     }
-    // "upcoming" (default)
-    const filtered = upcomingInstallments.filter((item) => {
+    // "upcoming" (default): strictly show only non-overdue items, closest due date first
+    return valid.filter((item) => {
       const badge = getVadeBadge(item.due_date);
       return !badge.isOverdue;
-    });
-    return filtered.length > 0 ? filtered : upcomingInstallments;
+    }).slice(0, 8);
   }, [upcomingInstallments, installmentFilter]);
 
   return (

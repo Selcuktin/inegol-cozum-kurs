@@ -136,25 +136,38 @@ export async function logAction(db, user, action, target_type = "", target_id = 
 export async function getNextSequence(db, seqName, prefix = "", padLength = 5, fallbackInitial = 1) {
   if (!db) return `${prefix}${Date.now().toString().slice(-padLength)}`;
   try {
-    const res = await db.prepare(
+    let res = await db.prepare(
       "UPDATE system_sequences SET current_val = current_val + 1, updated_at = datetime('now') WHERE name = ? RETURNING current_val"
     ).bind(seqName).first().catch(() => null);
 
-    if (res && res.current_val != null) {
-      const val = res.current_val;
-      return prefix ? `${prefix}${String(val).padStart(padLength, "0")}` : val;
+    if (!res || res.current_val == null) {
+      await db.prepare(
+        "INSERT OR IGNORE INTO system_sequences (name, current_val, updated_at) VALUES (?, ?, datetime('now'))"
+      ).bind(seqName, fallbackInitial).run().catch(() => {});
+
+      res = await db.prepare(
+        "UPDATE system_sequences SET current_val = current_val + 1, updated_at = datetime('now') WHERE name = ? RETURNING current_val"
+      ).bind(seqName).first().catch(() => null);
     }
 
-    await db.prepare(
-      "INSERT OR IGNORE INTO system_sequences (name, current_val, updated_at) VALUES (?, ?, datetime('now'))"
-    ).bind(seqName, fallbackInitial).run().catch(() => {});
+    let val = res?.current_val != null ? res.current_val : (fallbackInitial + 1);
 
-    const retry = await db.prepare(
-      "UPDATE system_sequences SET current_val = current_val + 1, updated_at = datetime('now') WHERE name = ? RETURNING current_val"
-    ).bind(seqName).first().catch(() => null);
+    // Collision guard: Guarantee generated sequence is strictly higher than any existing record in DB
+    if (seqName === "SZL_2026") {
+      const maxRow = await db.prepare("SELECT MAX(CAST(SUBSTR(sozlesme_no, 8) AS INTEGER)) as max_val FROM contracts WHERE sozlesme_no LIKE 'SZL2026%'").first().catch(() => null);
+      if (maxRow?.max_val != null && val <= maxRow.max_val) {
+        val = maxRow.max_val + 1;
+        await db.prepare("UPDATE system_sequences SET current_val = ?, updated_at = datetime('now') WHERE name = ?").bind(val, seqName).run().catch(() => {});
+      }
+    } else if (seqName === "GLR_2026") {
+      const maxRow = await db.prepare("SELECT MAX(CAST(SUBSTR(gelir_kodu, 8) AS INTEGER)) as max_val FROM student_incomes WHERE gelir_kodu LIKE 'GLR2026%'").first().catch(() => null);
+      if (maxRow?.max_val != null && val <= maxRow.max_val) {
+        val = maxRow.max_val + 1;
+        await db.prepare("UPDATE system_sequences SET current_val = ?, updated_at = datetime('now') WHERE name = ?").bind(val, seqName).run().catch(() => {});
+      }
+    }
 
-    const finalVal = retry?.current_val != null ? retry.current_val : (fallbackInitial + 1);
-    return prefix ? `${prefix}${String(finalVal).padStart(padLength, "0")}` : finalVal;
+    return prefix ? `${prefix}${String(val).padStart(padLength, "0")}` : val;
   } catch (err) {
     console.error(`[SequenceService] Error getting next sequence for ${seqName}:`, err);
     return `${prefix}${Date.now().toString().slice(-padLength)}`;

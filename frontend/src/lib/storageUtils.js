@@ -1,5 +1,5 @@
 // Storage cache-busting & purge utilities for web & PWA
-export const CLIENT_STORAGE_VERSION = "cozum_v8_20261010_data_normalization_fix";
+export const CLIENT_STORAGE_VERSION = "cozum_v9_20261011_tahsilat_eyup_sync_fix";
 
 export async function purgeClientStorage(preserveAuth = true) {
   if (typeof window === "undefined") return;

@@ -72,6 +72,17 @@ export function formatContractRecord(r) {
   const date = r.sozlesme_tarihi || r.sozlesmeTarihi || "";
   const st = r.durum != null ? r.durum : 1;
 
+  const paid = r.toplamTahsilat !== undefined 
+    ? Number(r.toplamTahsilat) 
+    : (r.toplam_tahsilat !== undefined 
+      ? Number(r.toplam_tahsilat) 
+      : (r.calculated_paid !== undefined ? Number(r.calculated_paid) : 0));
+  const remaining = r.kalanAlacak !== undefined 
+    ? Number(r.kalanAlacak) 
+    : (r.kalan_alacak !== undefined 
+      ? Number(r.kalan_alacak) 
+      : Math.max(0, gross - paid));
+
   return {
     ...r,
     id: r.id,
@@ -105,6 +116,10 @@ export function formatContractRecord(r) {
     kdv_tutari: vat,
     brutTutar: gross,
     brut_tutar: gross,
+    toplamTahsilat: paid,
+    toplam_tahsilat: paid,
+    kalanAlacak: remaining,
+    kalan_alacak: remaining,
     taksitSayisi: instCount,
     taksit_sayisi: instCount,
     odemeTuru: r.odeme_turu || r.odemeTuru || 1,
@@ -410,7 +425,29 @@ export const AccountingService = {
     if (Array.isArray(remoteStudents) && remoteStudents.length > 0) {
       this.getContracts(remoteStudents);
     }
-    let list = [..._memory.incomes];
+    let list = (_memory.incomes || []).filter((i) => !i.is_deleted);
+
+    // Sync income collections from contracts if contract has authoritative data
+    if (list.length > 0 && _memory.contracts.length > 0) {
+      const contractMap = {};
+      _memory.contracts.forEach((c) => {
+        if (c.sozlesmeNo) contractMap[c.sozlesmeNo] = c;
+      });
+      list = list.map((inc) => {
+        const matchingContract = inc.sozlesmeNo ? contractMap[inc.sozlesmeNo] : null;
+        if (matchingContract && matchingContract.toplamTahsilat !== undefined) {
+          const authPaid = Number(matchingContract.toplamTahsilat) || 0;
+          const gross = Number(inc.brutTutar) || Number(matchingContract.brutTutar) || 0;
+          return {
+            ...inc,
+            toplamTahsilat: authPaid,
+            kalanAlacak: Math.max(0, gross - authPaid),
+            tamTahsilEdildiMi: gross > 0 && authPaid >= gross
+          };
+        }
+        return inc;
+      });
+    }
 
     if (list.length === 0 && typeof window !== "undefined") {
       this.fetchIncomes().then((incs) => {
@@ -420,7 +457,7 @@ export const AccountingService = {
 
     // Synthesize income objects from contracts if empty
     if (list.length === 0 && _memory.contracts.length > 0) {
-      list = _memory.contracts.map((c) => ({
+      list = _memory.contracts.filter((c) => !c.is_deleted).map((c) => ({
         id: c.id,
         gelirKodu: `GLR${(c.sozlesmeNo || "SZL202600150").replace(/\D/g, "")}`,
         sozlesmeNo: c.sozlesmeNo,
@@ -431,9 +468,9 @@ export const AccountingService = {
         netTutar: c.netTutar,
         kdvTutari: c.kdvTutari,
         brutTutar: c.brutTutar,
-        toplamTahsilat: 0,
-        kalanAlacak: c.brutTutar,
-        tamTahsilEdildiMi: false,
+        toplamTahsilat: Number(c.toplamTahsilat) || 0,
+        kalanAlacak: c.kalanAlacak !== undefined ? Number(c.kalanAlacak) : c.brutTutar,
+        tamTahsilEdildiMi: (Number(c.toplamTahsilat) || 0) >= (Number(c.brutTutar) || 0),
         gelirTarihi: c.sozlesmeTarihi,
         vadeTarihi: c.sozlesmeTarihi,
         taksitSayisi: c.taksitSayisi,

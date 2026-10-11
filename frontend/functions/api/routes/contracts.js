@@ -13,7 +13,7 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
         s.student_tc,
         s.parent_tc,
         s.id as student_full_id,
-        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE (p.contract_id = c.id OR p.student_id = c.student_id) AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
+        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE (p.contract_id = c.id OR (p.student_id = c.student_id AND c.student_id IS NOT NULL AND c.student_id != '')) AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
       FROM contracts c
       LEFT JOIN students s ON (
         c.student_id = s.id
@@ -312,9 +312,9 @@ export async function handleContractsRoutes({ request, db, url, path, user }) {
 
       // Full Cascade Purge: Permanently delete payments, installments, incomes, and contract
       await db.batch([
-        db.prepare("DELETE FROM payments WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?)").bind(row.id, row.sozlesme_no),
-        db.prepare("DELETE FROM installments WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?)").bind(row.id, row.sozlesme_no),
-        db.prepare("DELETE FROM student_incomes WHERE contract_id = ? OR sozlesme_no = ? OR id = ?").bind(row.id, row.sozlesme_no, row.id),
+        db.prepare("DELETE FROM payments WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?) OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.student_id),
+        db.prepare("DELETE FROM installments WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?) OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.student_id),
+        db.prepare("DELETE FROM student_incomes WHERE contract_id = ? OR sozlesme_no = ? OR id = ? OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.id, row.student_id),
         db.prepare("DELETE FROM contracts WHERE id = ? OR sozlesme_no = ?").bind(row.id, row.sozlesme_no)
       ]);
 
