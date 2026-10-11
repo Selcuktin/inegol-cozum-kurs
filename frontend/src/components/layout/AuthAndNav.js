@@ -112,7 +112,8 @@ export function Login({ onLoginSuccess, API: apiProp }) {
         axios.defaults.headers.common["Authorization"] = `Bearer ${res.data.session_token}`;
       }
       if (onLoginSuccess) {
-        onLoginSuccess(res.data);
+        const userObj = res.data?.user ? { ...res.data, ...res.data.user } : res.data;
+        onLoginSuccess(userObj);
       }
     } catch (e) {
       setQuickError(e.response?.data?.detail || "Giriş başarısız oldu. Lütfen şifrenizi kontrol edin.");

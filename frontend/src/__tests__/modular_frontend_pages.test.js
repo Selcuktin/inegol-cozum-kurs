@@ -34,6 +34,13 @@ describe("AŞAMA 4: Modüler Frontend Mimarisi, Sayfalar & AuthGuard TDD Test Pa
       expect(can(adminUser, "page_attendance")).toBe(true);
       expect(can(teacherUser, "page_attendance")).toBe(true);
       expect(can(muhasebeUser, "page_attendance")).toBe(false);
+
+      // Nested quick-login response shape resilience: { ok: true, user: { role: 'admin' }, session_token: '...' }
+      expect(can({ ok: true, user: { role: "admin" } }, "page_students")).toBe(true);
+      expect(can({ ok: true, user: { role: "muhasebe" } }, "page_students")).toBe(true);
+      expect(can({ ok: true, user: { role: "ogretmen" } }, "page_users")).toBe(false);
+      expect(can(null, "page_students")).toBe(false);
+      expect(can({}, "page_students")).toBe(false);
     });
 
     test("AuthGuard yetkisiz kullanıcıyı engeller ve güvenlik uyarısı gösterir", async () => {

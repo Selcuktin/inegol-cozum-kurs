@@ -27,9 +27,10 @@ export const CAN = {
 };
 
 export const can = (me, action) => {
-  if (!me || !me.role) return false;
-  if (Array.isArray(action)) return action.includes(me.role);
-  return (CAN[action] || []).includes(me.role);
+  const role = me?.role || me?.user?.role;
+  if (!role) return false;
+  if (Array.isArray(action)) return action.includes(role);
+  return (CAN[action] || []).includes(role);
 };
 
 export function AuthGuard({ me, action, children, fallback = null }) {

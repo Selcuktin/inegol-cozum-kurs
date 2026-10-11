@@ -91,10 +91,12 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
       );
     }
 
+    const userPayload = { ...dbUser, role_label: ROLE_LABELS[dbUser.role] || dbUser.role };
     return json(
       {
         ok: true,
-        user: { ...dbUser, role_label: ROLE_LABELS[dbUser.role] || dbUser.role },
+        user: userPayload,
+        ...userPayload,
         session_token: sessionToken,
       },
       200,
@@ -120,10 +122,12 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
     const u = await db.prepare("SELECT * FROM users WHERE user_id = ?").bind(session.user_id).first();
     if (!u) return errorResponse("Kullanıcı bulunamadı", 404, "USER_NOT_FOUND");
 
+    const uPayload = { ...u, role_label: ROLE_LABELS[u.role] || u.role };
     return json(
       {
         ok: true,
-        user: { ...u, role_label: ROLE_LABELS[u.role] || u.role },
+        user: uPayload,
+        ...uPayload,
         session_token: token,
       },
       200,

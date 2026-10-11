@@ -114,7 +114,18 @@ function App() {
 
   if (hasSessionInUrl) return <AuthCallback API={API} />;
   if (authState === "checking") return <div className="auth-screen"><div className="auth-card"><h1>Yükleniyor...</h1></div></div>;
-  if (authState === "guest") return <Login API={API} onLoginSuccess={(user) => { setMe(user); setAuthState("authed"); }} />;
+  if (authState === "guest") {
+    return (
+      <Login
+        API={API}
+        onLoginSuccess={(userData) => {
+          const user = userData?.user ? { ...userData, ...userData.user } : userData;
+          setMe(user);
+          setAuthState("authed");
+        }}
+      />
+    );
+  }
   return (
     <MainApp
       me={me}
@@ -532,8 +543,8 @@ export function MainApp({ me, onLogout }) {
           </button>
           <button data-testid="nav-logout" className="nav-item" onClick={onLogout}><LogOut size={18} /><span>Çıkış yap</span></button>
           <div className="profile">
-            {me?.picture ? <img className="avatar" src={me.picture} alt="" /> : <div className="avatar">{(me?.name || "İÇ").slice(0, 2).toUpperCase()}</div>}
-            <div><b>{me?.name || "Kurs Yönetimi"}</b><small data-testid="user-role">{ROLE_LABEL[me?.role] || me?.role_label || "Kullanıcı"}</small></div>
+            {(me?.picture || me?.user?.picture) ? <img className="avatar" src={me?.picture || me?.user?.picture} alt="" /> : <div className="avatar">{((me?.name || me?.user?.name) || "İÇ").slice(0, 2).toUpperCase()}</div>}
+            <div><b>{me?.name || me?.user?.name || "Kurs Yönetimi"}</b><small data-testid="user-role">{ROLE_LABEL[me?.role || me?.user?.role] || me?.role_label || me?.user?.role_label || "Kullanıcı"}</small></div>
             <ChevronRight size={16} />
           </div>
         </div>
@@ -622,9 +633,9 @@ export function MainApp({ me, onLogout }) {
             <span className="today-label">{new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
             <button data-testid="notifications-button" className="icon-btn" aria-label="Bildirimler"><Bell size={18} aria-hidden="true" /><i aria-hidden="true" /></button>
             <div className="user-mini">
-              {me?.picture ? <img className="avatar" src={me.picture} alt="" /> : <div className="avatar">{(me?.name || "İÇ").slice(0, 2).toUpperCase()}</div>}
-              <span data-testid="user-name">{me?.name || "Yönetici"}</span>
-              <span data-testid="user-role-pill" className={`role-pill role-${me?.role}`}>{ROLE_LABEL[me?.role] || me?.role_label}</span>
+              {(me?.picture || me?.user?.picture) ? <img className="avatar" src={me?.picture || me?.user?.picture} alt="" /> : <div className="avatar">{((me?.name || me?.user?.name) || "İÇ").slice(0, 2).toUpperCase()}</div>}
+              <span data-testid="user-name">{me?.name || me?.user?.name || "Yönetici"}</span>
+              <span data-testid="user-role-pill" className={`role-pill role-${me?.role || me?.user?.role}`}>{ROLE_LABEL[me?.role || me?.user?.role] || me?.role_label || me?.user?.role_label}</span>
               <button data-testid="logout-button" className="icon-btn" title="Çıkış yap" aria-label="Oturumu kapat ve güvenli çıkış yap" onClick={onLogout}><LogOut size={16} aria-hidden="true" /></button>
             </div>
           </div>
