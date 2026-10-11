@@ -147,6 +147,8 @@ WHERE s.id = c.student_id
 3. Her mutasyon endpoint'e `requireRole(user, minRole)` kontrolü.
 4. **Backup/restore'ı auth altına al** (G5): `POST /backup` ve `POST /backup/restore` admin rolü istesin; GitHub Actions cron'unu `Authorization: Bearer ${{ secrets.BACKUP_TOKEN }}` ile güçlendir ve backend'de token doğrula.
 5. **Restore'u `db.batch()` ile transactional hale getir** (G6) — yarısı silinmiş bırakmasın.
+6. **`/users GET` ve `/audit-logs GET`'e admin rol kontrolü ekle** (EK-2 teyidi) — okuma endpoint'leri de geniş açık.
+7. **`schema.sql` seed'ini temiz PII'siz veriyle değiştir** (EK-2 S2 / KVKK) — isim/telefon/e-postaları örnek verilerle değiştir ya da seed'i repo'dan çıkar.
 
 ### Faz 1 — ID normalizasyonu migration (1-2 gün)
 4. Tek seferlik script: tüm `contract.student_id`, `installments.student_id`, `payments.student_id` değerlerini `students.id` formatına normalize et.
@@ -154,11 +156,12 @@ WHERE s.id = c.student_id
 6. Kaskad silme işlemlerini ID bazlı hale getir.
 
 ### Faz 1b — Deployment altyapısı (1 gün)
-7. Migration klasörü kur: `frontend/migrations/0001_init.sql` …; `wrangler d1 migrations apply DB --remote` pipeline'a girsin (D2).
-8. GitHub Actions deploy workflow'u: test → build → `wrangler pages deploy` (commit-dirty olmadan) → production.
-9. `compatibility_date` güncelle (D3).
-10. Backup snapshot'ı D1 satırı yerine R2 objesine yaz; D1'e yalnızca metadata/pointer bırak (D4, G4 ile aynı R2 kurulumu).
-11. Production console.log'ları `terser drop_console` veya build-time strip ile temizle (E5).
+8. Migration klasörü kur: `frontend/migrations/0001_init.sql` …; `wrangler d1 migrations apply DB --remote` pipeline'a girsin (D2).
+9. GitHub Actions deploy workflow'u: test → build → `wrangler pages deploy` (commit-dirty olmadan) → production.
+10. `compatibility_date` güncelle (D3).
+11. Backup snapshot'ı D1 satırı yerine R2 objesine yaz; D1'e yalnızca metadata/pointer bırak (D4, G4 ile aynı R2 kurulumu).
+12. Production console.log'ları `terser drop_console` veya build-time strip ile temizle (E5).
+13. **`@emergentbase/*` bağımlılıklarını devDeps'e indir/optional yap ve CI'da temiz install doğrula** (EK-2 S1) — `assets.emergent.sh` hostu uptime garantisi olmadan temiz kurulumu kırıyor; `auth.emergentagent.com` login linkini de temizle.
 
 ### Faz 2 — API temizliği (2-3 gün)
 12. `students.js` POST'taki ve `contracts.js` POST'taki otomatik sözleşme+gelir+taksit üretimini **ortak fonksiyona** al ve `db.batch()` ile tek seferde yaz.
@@ -266,3 +269,53 @@ ve backup cron'unun güvenli hali:
 ```
 
 Backend'de `BACKUP_TOKEN` env secret'ı doğrulacak; auth'suz hali kapatılmalı. Ek olarak (G5) admin rolü kontrolü de istensin.
+
+---
+
+## 9. 📎 EK-2 — Üçüncü AI Raporundan Doğrulanıp Entegre Edilenler (2026-10-11)
+
+Üçüncü agent raporu ("Genel Altyapı ve Hata Analiz Raporu") incelendi. Bu rapor ilk iki raporun bulgularının çoğunu teyit ediyor (hardcoded şifreler, backup auth, CORS wildcard, büyük dosyalar, README bayatlığı) — bunlar zaten G1/G2/G3 ve Orta Düzey başlıklarında mevcut. **Yeni doğrulanan 3 bulgu** eklendi:
+
+### Yeni Doğrulanmış Bulgu
+
+**1. ✅ HIGH — `@emergentbase/*` bağımlılıkları dış hosta bağımlı ve temiz kurulumu kırıyor (YENİ — S1):**
+`frontend/package.json:84-85`:
+```json
+"@emergentbase/overlay": "https://assets.emergent.sh/npm/emergentbase-overlay-0.1.29.tgz",
+"@emergentbase/visual-edits": "https://assets.emergent.sh/npm/emergentbase-visual-edits-1.0.13.tgz"
+```
+Bu iki paket `assets.emergent.sh`'den tar.gz olarak çekiliyor — **üçüncü raporun `ENOTFOUND` gözlemi gerçek** (bu host, Emergent AI platformunun özel deps hostu; uptime garantisi yok).
+- **Etki:** Temiz clone → `yarn install` kırılır → `craco not found` → hiçbir test/build koşamaz. CI/CD ve yeni geliştirici onboarding bloklanır.
+- **Önemli bağlam (bizim tespit):** Kod içinde bu paketler **yalnızca `craco.config.js:74-92`'de dev-server overlay için** kullanılıyor ve `fail-open` tasarlanmış (`DISABLE_EMERGENT_OVERLAY=true` desteği + try-catch). Üretim build'inde gerekli değil.
+- **Ayrıca:** `AuthAndNav.js:127`'de eks 3. parti login hostu var (`auth.emergentagent.com`) —Login ekranında SSL/redirect kırılma riski (temel auth akışı buna bağlı, çift mekanizma: quick-login + bu link).
+- **Çözüm:** `@emergentbase/*`'ı devDependencies'den çıkar veya optional yap (overlay yalnızca dev-server'da kullanılıyor, fail-open). CI'da temiz install doğrula. `auth.emergentagent.com` linkini kaldır veya gerçek OAuth flow'una taşı.
+
+**2. ✅ HIGH — `schema.sql` içinde gerçek PII var (YENİ — P6 / KVKK):**
+- `frontend/schema.sql:232+`: Gerçek görünümlü telefon numaraları (`'0532 440 21 18'`), öğrenci/veli ad-soyadları ("Eylül Yılmaz", "Arda Demir")
+- `frontend/schema.sql:246-249`: **Gerçek görünümlü e-posta ve yönetici adları** (`kayrasemihseymen@gmail.com`, `Semih Seymen`)
+- `frontend/schema.sql:419+`: Sözleşme seed'lerinde ad, sınıf, tutar bilgileri + **Azure blob URL'leri** (`sinavzastoragewest.blob.core.windows.net`)
+
+Repo GitHub'daysa bu **KVKK/GDPR riski** — gerçek görünümlü kişisel verinin kodla dağıtılması. Ya temiz seed (`student-001/002`, `ornek@ornek.com`) ile değiştir, ya seed'i repo'dan çıkar ve `wrangler d1 execute` ile yönet.
+
+**3. ✅ MEDIUM — `.specify` spec metrikleri gerçek kodla uyumsuz (YENİ):**
+`.specify/specs/codebase_modularization_and_stability/` altında `spec.md/plan.md/tasks.md` mevcut; ancak "tamamlandı" kabul metrikleri bayat satır sayıları içeriyor — güncel kod ölçüleriyle (örn. 203 test, güncel dosya boyutları) uyumsuz.
+- **Çözüm:** Spec metriklerini güncel kod ölçüleriyle (örn. satır sayıları, test sayısı 203) hizalayın.
+
+### Üçüncü Raporun Teyit Ettiği Kapalı Konu
+
+| İddia | Doğrulama Sonucu |
+|---|---|
+| Hardcoded şifreler / guest-admin | ✅ Zaten G1/G2 — Rapor dedüp ediyor |
+| Backup auth eksik | ✅ Zaten G5 (Faz 0 maddeleri) — doğruluyor |
+| CORS wildcard | ✅ Zaten G3 |
+| Büyük dosyalar (EdesisSozlesmeler ~1936, MuhasebeV2Dashboard ~1775) | ✅ Zaten Orta Düzey §4 |
+| Mock testsayıcı / README bayat | ✅ Zaten Orta Düzey §3 |
+| `/users`, `/audit-logs` role-gated sınırlı | ✅ Kısmi doğru: `/users/role` rol kontrolü var (system.js:66-71), ama `/users GET` ve `/audit-logs GET` okuma endpoint'leri geniş açık; Faz 0 #3 kapsamına eklendi |
+
+### Güncellenmiş Özet — En Önemli Ekleme
+
+| # (Özet §7'ye ilave) | Konu | Ne yapılacak |
+|---|---|---|
+| 7 | `assets.emergent.sh` temiz kurulum kırıyor | Bağımlılıyı devDeps'e indir veya optional yap; CI'da temiz install doğrula (S1) |
+| 8 | `schema.sql` gerçek PII (KVKK) | Temiz seed verisiyle değiştir (S2) |
+| 9 | `auth.emergentagent.com` login çakışması | Quick-login dışındaki login akışını temizle (S3) |
