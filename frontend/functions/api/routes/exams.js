@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions - Exams & Reports Router (Exams, Results, OMR Templates, Printer Profiles, Reminders, Monthly PDF)
-import { json, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, getEffectiveTotalFee, computeInstallmentPlan, generateMonthlyPdf } from "../utils.js";
+import { json, cachedJson, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, getEffectiveTotalFee, computeInstallmentPlan, generateMonthlyPdf } from "../utils.js";
 
 export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) {
   const isObj = typeof ctxOrPath === "object" && ctxOrPath !== null && ctxOrPath.request;
@@ -12,31 +12,31 @@ export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) 
 
   // ---------------- OPTICAL (OMR & TEMPLATES) ----------------
   if (path === "/optical/templates" && request.method === "GET") {
-    if (!db) return json([]);
+    if (!db) return cachedJson([], 120, 600, 1200);
     try {
       const res = await db.prepare("SELECT * FROM optical_templates ORDER BY name ASC").all();
-      return json(res.results || []);
+      return cachedJson(res.results || [], 120, 600, 1200);
     } catch {
-      return json([
+      return cachedJson([
         { id: "opt-lgs-90", name: "LGS 90 Soru Tek Oturum Standart Form", exam_type: "LGS", paper_size: "A4", question_count: 90, columns_count: 4 },
         { id: "opt-tyt-120", name: "TYT 120 Soru Standart ÖSYM Formu", exam_type: "TYT", paper_size: "A4", question_count: 120, columns_count: 4 },
         { id: "opt-ayt-160", name: "AYT 160 Soru 4 Branş Formu", exam_type: "AYT", paper_size: "A4", question_count: 160, columns_count: 4 },
         { id: "opt-kds-60", name: "KDS / HBS 60 Soru Ara Sınıf Formu", exam_type: "KDS", paper_size: "A5", question_count: 60, columns_count: 3 }
-      ]);
+      ], 120, 600, 1200);
     }
   }
 
   if (path === "/optical/printer-profiles" && request.method === "GET") {
-    if (!db) return json([]);
+    if (!db) return cachedJson([], 120, 600, 1200);
     try {
       const res = await db.prepare("SELECT * FROM optical_printer_profiles ORDER BY name ASC").all();
-      return json(res.results || []);
+      return cachedJson(res.results || [], 120, 600, 1200);
     } catch {
-      return json([
+      return cachedJson([
         { id: "p-def", name: "Varsayılan Yazıcı (Standart A4)", offset_x_mm: 0, offset_y_mm: 0, is_default: 1 },
         { id: "p-epson", name: "Epson L8050 Yüksek Hızlı Fotoğraf/Optik", offset_x_mm: 1.2, offset_y_mm: -0.8, is_default: 0 },
         { id: "p-hp", name: "HP LaserJet Pro Enterprise", offset_x_mm: -0.5, offset_y_mm: 1.0, is_default: 0 }
-      ]);
+      ], 120, 600, 1200);
     }
   }
 

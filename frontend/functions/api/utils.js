@@ -29,6 +29,14 @@ export function json(data, status = 200, extraHeaders = {}) {
   });
 }
 
+export function cachedJson(data, maxAge = 60, sMaxAge = 300, swr = 600, status = 200) {
+  return json(data, status, {
+    "Cache-Control": `public, max-age=${maxAge}, s-maxage=${sMaxAge}, stale-while-revalidate=${swr}`,
+    "Pragma": "public",
+    "Expires": new Date(Date.now() + maxAge * 1000).toUTCString(),
+  });
+}
+
 export function errorResponse(error, status = 400, code = "BAD_REQUEST", details = null) {
   return json(
     {

@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions - Academic Router (Classes, Teachers, Attendance, Schedules, Homework, Mentorship)
-import { json, errorResponse, successResponse, getCurrentUser, logAction } from "../utils.js";
+import { json, cachedJson, errorResponse, successResponse, getCurrentUser, logAction } from "../utils.js";
 
 const DEFAULT_TEACHERS = [
   {
@@ -134,7 +134,7 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
   if (path === "/classes" && request.method === "GET") {
     if (!db) return json([]);
     const res = await db.prepare("SELECT * FROM classes ORDER BY name ASC").all();
-    return json(res.results || []);
+    return cachedJson(res.results || [], 60, 300, 600);
   }
 
   if (path === "/classes" && request.method === "POST") {
@@ -195,7 +195,7 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
   // ---------------- TEACHERS ----------------
   if ((path === "/teachers" || path.endsWith("/Ogretmens/GetAll") || path.endsWith("/Ogretmens/GetAllOgretmenWithBranslar")) && request.method === "GET") {
     const teachers = await getTeachersList(db);
-    return json(teachers);
+    return cachedJson(teachers, 60, 300, 600);
   }
 
   if (path === "/teachers" && request.method === "POST") {

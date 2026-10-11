@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions - System Router (Users, Roles, Audit Logs, Export, 20:00 Daily Backup, Restore, Status)
-import { json, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, ROLE_ADMIN, ROLE_LABELS } from "../utils.js";
+import { json, cachedJson, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, ROLE_ADMIN, ROLE_LABELS } from "../utils.js";
 
 const BACKUP_TABLES = [
   "users",
@@ -108,7 +108,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
 
   // ---------------- STATUS CHECK ----------------
   if (path === "/status" || path === "") {
-    return json({ status: "ok", name: "İnegöl Çözüm Kurs Cloudflare Edge API", timestamp: new Date().toISOString() });
+    return cachedJson({ status: "ok", name: "İnegöl Çözüm Kurs Cloudflare Edge API", timestamp: new Date().toISOString() }, 30, 60, 120);
   }
 
   // ---------------- USERS & AUDIT ----------------
