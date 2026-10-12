@@ -176,4 +176,45 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
       }
     });
   });
+
+  describe("4. cozum2026 Admin and Staff Quick Login", () => {
+    it("should authenticate admin with password 'cozum2026'", async () => {
+      const req = new Request("https://inegol-cozum-kurs.pages.dev/api/auth/quick-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "admin", password: "cozum2026" })
+      });
+      const res = await onRequest({ request: req, env: mockEnv });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.ok).toBe(true);
+      expect(data.session_token).toBeTruthy();
+    });
+
+    it("should authenticate staff with password 'cozum2026' or '4321'", async () => {
+      const req = new Request("https://inegol-cozum-kurs.pages.dev/api/auth/quick-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "muhasebe", password: "cozum2026" })
+      });
+      const res = await onRequest({ request: req, env: mockEnv });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.ok).toBe(true);
+      expect(data.session_token).toBeTruthy();
+    });
+
+    it("should reject wrong password with 401 AUTH_FAILED", async () => {
+      const req = new Request("https://inegol-cozum-kurs.pages.dev/api/auth/quick-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "admin", password: "wrong_password_99" })
+      });
+      const res = await onRequest({ request: req, env: mockEnv });
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.ok).toBe(false);
+      expect(data.code).toBe("AUTH_FAILED");
+    });
+  });
 });
