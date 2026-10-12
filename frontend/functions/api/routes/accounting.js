@@ -73,7 +73,7 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
       instRowRes,
       overdueRowRes
     ] = await Promise.all([
-      db.prepare("SELECT * FROM students ORDER BY created_at DESC, id DESC").all().catch(() => ({ results: [] })),
+      db.prepare("SELECT *, CASE WHEN signed_contract_path != '' AND signed_contract_path IS NOT NULL THEN 'stored' ELSE '' END as signed_contract_path FROM students ORDER BY created_at DESC, id DESC").all().catch(() => ({ results: [] })),
       db.prepare("SELECT * FROM classes").all().catch(() => ({ results: [] })),
       db.prepare(`
         SELECT p.*, s.student_name, s.student_class, s.student_no, s.parent_name, s.parent_phone, s.sozlesme_no

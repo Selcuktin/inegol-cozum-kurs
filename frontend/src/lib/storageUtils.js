@@ -1,5 +1,7 @@
+import { isAllowedBackendUrl } from "./utils.js";
+
 // Storage cache-busting & purge utilities for web & PWA
-export const CLIENT_STORAGE_VERSION = "cozum_v9_20261011_tahsilat_eyup_sync_fix";
+export const CLIENT_STORAGE_VERSION = "cozum_v10_20261012_audit_sec_cache_purge";
 
 export async function purgeClientStorage(preserveAuth = true) {
   if (typeof window === "undefined") return;
@@ -13,7 +15,7 @@ export async function purgeClientStorage(preserveAuth = true) {
 
     if (preserveAuth) {
       if (token) localStorage.setItem("session_token", token);
-      if (customApi) localStorage.setItem("custom_api_url", customApi);
+      if (customApi && isAllowedBackendUrl(customApi)) localStorage.setItem("custom_api_url", customApi);
     }
     localStorage.setItem("cozum_app_version", CLIENT_STORAGE_VERSION);
 

@@ -3,6 +3,7 @@
 // NO static JSON imports, NO localStorage tombstones, NO protectedKeys hack lists.
 
 import { roundKurus } from "./installmentService.js";
+import { isAllowedBackendUrl } from "./utils.js";
 
 export const ENABLE_KASA_BANKA = false;
 
@@ -20,13 +21,8 @@ export function trNorm(str) {
 function getApiUrl() {
   if (typeof localStorage !== "undefined") {
     const custom = localStorage.getItem("custom_api_url");
-    if (custom && !custom.includes("loca.lt") && !custom.includes("lvh.me")) {
-      try {
-        const u = new URL(custom);
-        if (u.protocol === "http:" || u.protocol === "https:") {
-          return custom.replace(/\/$/, "");
-        }
-      } catch {}
+    if (custom && isAllowedBackendUrl(custom)) {
+      return custom.replace(/\/$/, "");
     }
   }
   return "";

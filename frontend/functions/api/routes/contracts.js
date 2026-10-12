@@ -204,16 +204,24 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     // Atomically insert installments with strict UNIQUE(contract_id, installment_no)
     const baseAmt = Math.floor((brutTutar / taksitSayisi) * 100) / 100;
     const remainder = Math.round((brutTutar - (baseAmt * taksitSayisi)) * 100) / 100;
-    const baseDate = new Date(date);
+    let baseYear = new Date().getFullYear();
+    let baseMonth = new Date().getMonth();
+    if (date && date.length >= 7) {
+      const parts = date.slice(0, 10).split("-");
+      if (parts.length >= 2 && !isNaN(parseInt(parts[0])) && !isNaN(parseInt(parts[1]))) {
+        baseYear = parseInt(parts[0]);
+        baseMonth = parseInt(parts[1]) - 1;
+      }
+    }
     const contractInstStmts = [];
 
     for (let i = 1; i <= taksitSayisi; i++) {
       const isLast = (i === taksitSayisi);
       const amt = isLast ? Math.round((baseAmt + remainder) * 100) / 100 : baseAmt;
-      const dueDateObj = new Date(baseDate);
-      dueDateObj.setMonth(dueDateObj.getMonth() + i - 1);
-      dueDateObj.setDate(15);
-      const dueDate = dueDateObj.toISOString().split("T")[0];
+      const targetMonthIndex = baseMonth + i - 1;
+      const targetYear = baseYear + Math.floor(targetMonthIndex / 12);
+      const targetMonth = (targetMonthIndex % 12) + 1;
+      const dueDate = `${targetYear}-${String(targetMonth).padStart(2, "0")}-15`;
       const instId = `inst_${id}_${i}`;
 
       contractInstStmts.push(

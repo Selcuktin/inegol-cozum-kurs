@@ -3,17 +3,13 @@
 // NO static JSON imports, NO localStorage tombstones, NO protectedKeys hack lists.
 
 import AccountingService, { trNorm } from "./edesisAccountingService.js";
+import { isAllowedBackendUrl } from "./utils.js";
 
 function getApiUrl() {
   if (typeof localStorage !== "undefined") {
     const custom = localStorage.getItem("custom_api_url");
-    if (custom && !custom.includes("loca.lt") && !custom.includes("lvh.me")) {
-      try {
-        const u = new URL(custom);
-        if (u.protocol === "http:" || u.protocol === "https:") {
-          return custom.replace(/\/$/, "");
-        }
-      } catch {}
+    if (custom && isAllowedBackendUrl(custom)) {
+      return custom.replace(/\/$/, "");
     }
   }
   return "";

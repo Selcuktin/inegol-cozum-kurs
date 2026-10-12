@@ -66,7 +66,8 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
         c.durum as contract_status,
         c.is_signed as contract_is_signed,
         c.sozlesme_tarihi as contract_date,
-        c.brut_tutar as contract_amount
+        c.brut_tutar as contract_amount,
+        CASE WHEN s.signed_contract_path != '' AND s.signed_contract_path IS NOT NULL THEN 'stored' ELSE '' END as signed_contract_path
       FROM students s
       LEFT JOIN contracts c ON (
         s.id = c.student_id 
@@ -417,13 +418,17 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
       if (arrayBuffer.byteLength > 1.5 * 1024 * 1024) {
         return errorResponse("R2 depolama bağlanmadığı için 1.5MB üzeri dosyalar yüklenemez", 413, "FILE_TOO_LARGE");
       }
-      let binary = "";
-      const bytes = new Uint8Array(arrayBuffer);
-      const len = bytes.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
+      if (typeof Buffer !== "undefined") {
+        storagePath = Buffer.from(arrayBuffer).toString("base64");
+      } else {
+        let binary = "";
+        const bytes = new Uint8Array(arrayBuffer);
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        storagePath = btoa(binary);
       }
-      storagePath = btoa(binary);
     }
 
     await db
@@ -462,11 +467,15 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
       });
     }
 
-    const binary = atob(student.signed_contract_path);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binary.charCodeAt(i);
+    let bytes;
+    if (typeof Buffer !== "undefined") {
+      bytes = Buffer.from(student.signed_contract_path, "base64");
+    } else {
+      const binary = atob(student.signed_contract_path);
+      bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
     }
 
     return new Response(bytes, {

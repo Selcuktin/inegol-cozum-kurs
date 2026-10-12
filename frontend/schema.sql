@@ -54,11 +54,37 @@ CREATE TABLE IF NOT EXISTS students (
   ing_muaf INTEGER DEFAULT 0,
   uses_service INTEGER DEFAULT 0,
   diploma_grade REAL DEFAULT 0,
+  sozlesme_no TEXT DEFAULT '',
   primary_parent TEXT DEFAULT 'baba',
   health_notes TEXT DEFAULT '',
   created_at TEXT DEFAULT '',
   created_by TEXT DEFAULT '',
   created_by_name TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS teachers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  title TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  classes TEXT DEFAULT '',
+  weekly_hours INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'Aktif',
+  role TEXT DEFAULT 'ogretmen',
+  notes TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS system_backups (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  backup_type TEXT NOT NULL,
+  snapshot_data TEXT NOT NULL,
+  table_counts TEXT NOT NULL,
+  created_by TEXT DEFAULT 'Sistem',
+  notes TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS classes (

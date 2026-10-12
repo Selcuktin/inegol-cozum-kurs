@@ -66,3 +66,19 @@ export function formatTrtDateTime(dateVal) {
     second: "2-digit"
   });
 }
+
+export function isAllowedBackendUrl(urlStr) {
+  if (!urlStr || typeof urlStr !== "string") return false;
+  try {
+    const parsed = new URL(urlStr);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (typeof window !== "undefined" && parsed.origin === window.location.origin) return true;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+    if (host === "inegol-cozum-kurs.pages.dev" || host.endsWith(".inegol-cozum-kurs.pages.dev")) return true;
+    if (host === "inegolcozumkurs.com" || host.endsWith(".inegolcozumkurs.com")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}

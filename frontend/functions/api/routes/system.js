@@ -410,8 +410,10 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     const createdBy = isTokenAuthed ? "Otomatik Servis (Token)" : (user?.name || "Yönetici");
     const snapJson = JSON.stringify(snap);
     const countsJson = JSON.stringify(counts);
+    // Protect D1 SQLite row limit (~2MB): if snapJson > 1.5MB, write placeholder to D1 and rely on R2
+    const d1SnapData = snapJson.length > 1500000 ? "{}" : snapJson;
     await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'manual', ?, ?, ?, ?)")
-      .bind(bId, new Date().toISOString(), snapJson, countsJson, createdBy, notes)
+      .bind(bId, new Date().toISOString(), d1SnapData, countsJson, createdBy, notes)
       .run();
 
     const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
@@ -443,13 +445,14 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
 
     const bRow = await db.prepare("SELECT * FROM system_backups WHERE id = ?").bind(backupId).first().catch(() => null);
     let snap;
-    if (bRow) {
+    if (bRow && bRow.snapshot_data && bRow.snapshot_data !== "{}") {
       try {
         snap = JSON.parse(bRow.snapshot_data);
       } catch {
         return errorResponse("Yedek verisi çözülemedi", 400);
       }
-    } else {
+    }
+    if (!snap) {
       const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
       if (r2Bucket && typeof r2Bucket.get === "function") {
         const r2Obj = await r2Bucket.get(`${backupId}.json`).catch(() => null);
