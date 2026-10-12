@@ -237,8 +237,16 @@ export function enrichStudent(s) {
     }
   }
 
+  const resolvedParentPhone =
+    (s.parent_phone || "").trim() ||
+    (s.primary_parent === "anne" ? (s.mother_phone || s.mother_work_phone || "") :
+     s.primary_parent === "guardian" || s.primary_parent === "vasi" ? (s.guardian_phone || s.guardian_home_phone || s.guardian_work_phone || "") :
+     (s.father_work_phone || s.father_phone || "")) ||
+    (s.mother_phone || s.guardian_phone || s.father_phone || "").trim();
+
   return {
     ...s,
+    parent_phone: resolvedParentPhone,
     program: prog,
     donem_id: s.donem_id || 113,
     donem_adi: s.donem_adi || prog,

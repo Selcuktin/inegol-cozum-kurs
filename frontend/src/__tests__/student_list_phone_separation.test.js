@@ -79,4 +79,39 @@ describe("EdesisOgrenciListesi - Student and Parent Phone Separation", () => {
     expect(veliAyse.textContent).toContain("—");
     expect(veliAyse.textContent).not.toContain("0555 777 66 55");
   });
+
+  test("resolves mother_phone under Veli cell when parent_phone is empty", async () => {
+    const mockStudentWithMother = [
+      {
+        id: "std-4",
+        student_no: "3534",
+        student_name: "Mustafa Sevinç",
+        student_tc: "25297437896",
+        student_phone: "",
+        parent_name: "Sevgi Sevinç",
+        parent_relation: "Anne",
+        parent_phone: "", // direct parent_phone is empty
+        primary_parent: "anne",
+        mother_name: "Sevgi Sevinç",
+        mother_phone: "64852152980",
+        program: "2026-2027",
+        total_fee: 70000,
+        status: "Aktif",
+        student_class: "3-A"
+      }
+    ];
+
+    const { getByText } = await render(
+      <EdesisOgrenciListesi
+        students={mockStudentWithMother}
+        onRefresh={() => {}}
+        onEditStudent={() => {}}
+        onDeleteStudent={() => {}}
+      />
+    );
+
+    expect(getByText("Sevgi Sevinç")).toBeTruthy();
+    const veliSevgi = getByText("Sevgi Sevinç").closest("td");
+    expect(veliSevgi.textContent).toContain("64852152980");
+  });
 });

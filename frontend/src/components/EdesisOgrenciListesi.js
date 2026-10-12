@@ -251,6 +251,9 @@ export default function EdesisOgrenciListesi({
           trIncludes(s.student_email, q) ||
           trIncludes(s.parent_name, q) ||
           trIncludes(s.parent_phone, q) ||
+          trIncludes(s.mother_phone, q) ||
+          trIncludes(s.guardian_phone, q) ||
+          trIncludes(s.father_work_phone, q) ||
           trIncludes(s.secondary_parent_name, q) ||
           trIncludes(s.secondary_parent_phone, q) ||
           trIncludes(s.student_class, q) ||
@@ -699,7 +702,20 @@ export default function EdesisOgrenciListesi({
                   const openUpwards = (idx >= paginatedStudents.length - 2 && paginatedStudents.length > 3);
                   const isChecked = selectedIds.has(s.id);
                   const studentPhone = s.student_phone || s.phone || "";
-                  const parentPhone = s.parent_phone || s.parentPhone || s.veli_telefon || s.veliTelefon || "";
+                  const parentPhone = (
+                    s.parent_phone ||
+                    s.parentPhone ||
+                    s.veli_telefon ||
+                    s.veliTelefon ||
+                    (s.primary_parent === "anne" ? (s.mother_phone || s.mother_work_phone) : "") ||
+                    (s.primary_parent === "guardian" || s.primary_parent === "vasi" ? (s.guardian_phone || s.guardian_home_phone || s.guardian_work_phone) : "") ||
+                    (s.primary_parent === "baba" ? (s.father_work_phone || s.father_phone) : "") ||
+                    s.mother_phone ||
+                    s.father_work_phone ||
+                    s.guardian_phone ||
+                    s.father_phone ||
+                    ""
+                  ).trim();
                   const emailPrefix = s.student_no || String(s.id || "").replace(/\D/g, "").slice(-4) || "ogrenci";
                   const initials = (s.student_name || "Ö")
                     .split(" ")

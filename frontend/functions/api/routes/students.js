@@ -127,6 +127,13 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
     }
 
     const id = s.id || "student-" + crypto.randomUUID().slice(0, 8);
+    const resolvedParentPhone =
+      (s.parent_phone || "").trim() ||
+      (s.primary_parent === "anne" ? (s.mother_phone || s.mother_work_phone || "") :
+       s.primary_parent === "guardian" || s.primary_parent === "vasi" ? (s.guardian_phone || s.guardian_home_phone || s.guardian_work_phone || "") :
+       (s.father_work_phone || s.father_phone || "")) ||
+      (s.mother_phone || s.guardian_phone || s.father_phone || "").trim();
+
     await db
       .prepare(`
         INSERT OR REPLACE INTO students (
@@ -160,7 +167,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
         s.student_tc || "",
         s.student_address || "",
         s.parent_name || "",
-        s.parent_phone || "",
+        resolvedParentPhone,
         s.parent_tc || "",
         s.parent_address || "",
         s.mother_tc || "",
@@ -252,7 +259,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
         )
       `).bind(
         contractId, sozlesmeNo, id, s.student_name, s.student_no || "", s.student_class || "Genel",
-        s.parent_name || "", s.parent_phone || "", periodId, periodName, net, vat, gross,
+        s.parent_name || "", resolvedParentPhone, periodId, periodName, net, vat, gross,
         inst > 1 ? 1 : 2, inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim", inst, user?.name || "Yönetici"
       ).run();
 
@@ -531,6 +538,17 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
         if (k in patch) {
           sets.push(`${k} = ?`);
           values.push(typeof patch[k] === "object" ? JSON.stringify(patch[k]) : patch[k]);
+        }
+      }
+
+      if (!patch.parent_phone && (patch.mother_phone || patch.guardian_phone || existing.mother_phone || existing.guardian_phone)) {
+        const pPhone =
+          ((patch.primary_parent || existing.primary_parent) === "anne" ? (patch.mother_phone || existing.mother_phone || "") : "") ||
+          ((patch.primary_parent || existing.primary_parent) === "guardian" || (patch.primary_parent || existing.primary_parent) === "vasi" ? (patch.guardian_phone || existing.guardian_phone || "") : "") ||
+          patch.mother_phone || existing.mother_phone || patch.guardian_phone || existing.guardian_phone || "";
+        if (pPhone && !sets.some((s) => s.startsWith("parent_phone"))) {
+          sets.push("parent_phone = ?");
+          values.push(pPhone);
         }
       }
 

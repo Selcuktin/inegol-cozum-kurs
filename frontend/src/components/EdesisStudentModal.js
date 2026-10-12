@@ -111,8 +111,17 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
       try {
         extras = typeof initialData.extra_fees === "string" ? JSON.parse(initialData.extra_fees || "{}") : (initialData.extra_fees || {});
       } catch {}
+      const resolvedParentPhone =
+        initialData.parent_phone ||
+        (initialData.primary_parent === "anne" ? (initialData.mother_phone || initialData.mother_work_phone) : "") ||
+        (initialData.primary_parent === "guardian" || initialData.primary_parent === "vasi" ? (initialData.guardian_phone || initialData.guardian_home_phone) : "") ||
+        initialData.father_work_phone ||
+        initialData.mother_phone ||
+        initialData.guardian_phone ||
+        "";
       setFormData({
         ...initialData,
+        parent_phone: resolvedParentPhone,
         extra_kaynak: extras.kaynak !== undefined ? Number(extras.kaynak) : 4500,
         extra_dijital: extras.dijital !== undefined ? Number(extras.dijital) : 0,
         extra_dnm: extras.dnm !== undefined ? Number(extras.dnm) : 3500,
@@ -231,6 +240,15 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
       formData.guardian_name?.trim() ||
       "Belirtilmedi";
 
+    const resolvedParentPhone =
+      formData.parent_phone?.trim() ||
+      (formData.primary_parent === "anne" ? (formData.mother_phone || formData.mother_work_phone)?.trim() : "") ||
+      (formData.primary_parent === "guardian" || formData.primary_parent === "vasi" ? (formData.guardian_phone || formData.guardian_home_phone || formData.guardian_work_phone)?.trim() : "") ||
+      formData.father_work_phone?.trim() ||
+      formData.mother_phone?.trim() ||
+      formData.guardian_phone?.trim() ||
+      "";
+
     setLoading(true);
     try {
       const extraSum =
@@ -244,6 +262,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         ...formData,
         student_name: formData.student_name.trim(),
         parent_name: resolvedParent,
+        parent_phone: resolvedParentPhone,
         total_fee: grossFee || Number(formData.total_fee || 0),
         installment_count: Number(formData.installment_count || 1),
         discount_amount: Number(formData.discount_amount || 0),
