@@ -362,9 +362,9 @@ export default function EdesisOgrenciListesi({
       s.birth_date || "",
       s.student_class || "",
       s.department || "",
-      s.student_phone || s.parent_phone || "",
+      s.student_phone || s.phone || "",
       s.parent_name || "",
-      s.parent_phone || s.student_phone || "",
+      s.parent_phone || s.parentPhone || "",
       s.status || ""
     ]);
 
@@ -698,7 +698,8 @@ export default function EdesisOgrenciListesi({
                   const isMenuOpen = openDropdownId === s.id;
                   const openUpwards = (idx >= paginatedStudents.length - 2 && paginatedStudents.length > 3);
                   const isChecked = selectedIds.has(s.id);
-                  const displayPhone = s.parent_phone || s.student_phone || s.phone || "";
+                  const studentPhone = s.student_phone || s.phone || "";
+                  const parentPhone = s.parent_phone || s.parentPhone || s.veli_telefon || s.veliTelefon || "";
                   const emailPrefix = s.student_no || String(s.id || "").replace(/\D/g, "").slice(-4) || "ogrenci";
                   const initials = (s.student_name || "Ö")
                     .split(" ")
@@ -917,7 +918,7 @@ export default function EdesisOgrenciListesi({
 
                       {/* 8. İletişim */}
                       <td style={{ padding: "5px 3px", width: "105px", whiteSpace: "nowrap" }}>
-                        <div style={{ fontSize: "10px", color: "#334155" }}>{s.student_phone || s.parent_phone || "—"}</div>
+                        <div style={{ fontSize: "10px", color: "#334155" }}>{studentPhone || "—"}</div>
                         <div style={{ fontSize: "9px", color: "#94a3b8" }}>{s.student_email || `${emailPrefix}@edesis.com`}</div>
                       </td>
 
@@ -950,10 +951,10 @@ export default function EdesisOgrenciListesi({
                           )}
                         </div>
                         <div style={{ fontSize: "9px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <span>{displayPhone || "—"}</span>
-                          {displayPhone && (
+                          <span>{parentPhone || "—"}</span>
+                          {parentPhone && (
                             <a
-                              href={`https://wa.me/90${displayPhone.replace(/\D/g, "").replace(/^0/, "")}`}
+                              href={`https://wa.me/90${parentPhone.replace(/\D/g, "").replace(/^0/, "")}`}
                               target="_blank"
                               rel="noreferrer"
                               title="WhatsApp"
