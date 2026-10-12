@@ -57,7 +57,9 @@ export function StudentProfileModal({
     axios
       .get(`${API}/students/${student.id}/detail`)
       .then((r) => setDetail(r.data))
-      .catch(() => {})
+      .catch((err) => {
+        console.warn("[StudentProfile] Failed to fetch student detail:", err);
+      })
       .finally(() => setLoading(false));
   };
 

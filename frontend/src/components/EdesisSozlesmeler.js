@@ -42,7 +42,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const [contractsList, setContractsList] = useState(() => AccountingService.getContracts(students, propContracts));
 
   useEffect(() => {
-    AccountingService.syncDeletedWithRemote().catch(() => {});
+    AccountingService.syncDeletedWithRemote().catch((err) => console.warn("[Sozlesmeler] Sync deleted error:", err));
   }, []);
 
   useEffect(() => {

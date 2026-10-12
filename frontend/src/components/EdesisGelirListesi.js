@@ -40,7 +40,7 @@ export default function EdesisGelirListesi({
   const [incomesList, setIncomesList] = useState(() => AccountingService.getIncomes(students));
 
   useEffect(() => {
-    AccountingService.syncDeletedWithRemote().catch(() => {});
+    AccountingService.syncDeletedWithRemote().catch((err) => console.warn("[GelirListesi] Sync deleted error:", err));
   }, []);
 
   useEffect(() => {
