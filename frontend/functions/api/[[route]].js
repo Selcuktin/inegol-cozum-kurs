@@ -1,6 +1,6 @@
 // Cloudflare Pages Functions - Modular API Dispatcher
 // Clean, maintainable router replacing the monolithic 3,000+ line router
-import { CORS_HEADERS, getCorsHeaders, json, errorResponse, getCurrentUser } from "./utils.js";
+import { getCorsHeaders, errorResponse, getCurrentUser } from "./utils.js";
 import { handleAuthRoutes } from "./routes/auth.js";
 import { handleStudentsRoutes } from "./routes/students.js";
 import { handleContractsRoutes } from "./routes/contracts.js";
@@ -32,7 +32,6 @@ export async function onRequest(context) {
     // 3. Resolve Current Authenticated User (if token present)
     user = await getCurrentUser(request, db).catch(() => null);
 
-    // Context bundle passed to each domain sub-router
     const ctx = {
       request,
       db,
@@ -42,9 +41,7 @@ export async function onRequest(context) {
       user,
       context,
       waitUntil: (p) => {
-        if (typeof context?.waitUntil === "function") {
-          context.waitUntil(p);
-        }
+        if (typeof context?.waitUntil === "function") context.waitUntil(p);
       },
     };
 
@@ -57,7 +54,6 @@ export async function onRequest(context) {
           Object.entries(cors).forEach(([k, v]) => res.headers.set(k, v));
         } catch {}
       }
-      // Structured JSON logging for mutations and error responses
       if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method) || (res && res.status >= 400)) {
         console.log(JSON.stringify({
           time: new Date().toISOString(),
@@ -75,7 +71,7 @@ export async function onRequest(context) {
       return res;
     };
 
-    // 4. Dispatch through domain sub-routers in prioritized sequence
+    // 4. Dispatch Auth domain routes first
     let response = await handleAuthRoutes(ctx);
     if (response) return finalize(response);
 
@@ -92,33 +88,33 @@ export async function onRequest(context) {
       return finalize(errorResponse(`Endpoint bulunamadı: ${path}`, 404, "NOT_FOUND"));
     }
 
-    // Sensitive GET Read Guard (/users, /audit-logs)
-    if (request.method === "GET" && ["/users", "/audit-logs"].includes(path) && !user) {
-      return finalize(errorResponse("Bu verileri görüntülemek için oturum açmanız gerekmektedir.", 401, "UNAUTHORIZED"));
+    // Sensitive paths (/users, /audit-logs): Require authentication & Admin role
+    if (path.startsWith("/users") || path.startsWith("/audit-logs")) {
+      if (!user) return finalize(errorResponse("Bu verileri görüntülemek için oturum açmanız gerekmektedir.", 401, "UNAUTHORIZED"));
+      if (user.role !== "admin") return finalize(errorResponse("Yalnızca yönetici bu bilgilere erişebilir ve yönetebilir.", 403, "FORBIDDEN"));
     }
 
-    // G2: Centralized Mutation Auth Guard (Protects students, contracts, accounting, academic, exams)
-    if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method) && !user) {
-      return finalize(errorResponse("Bu işlem için oturum açmanız gerekmektedir (Yetkisiz Erişim).", 401, "UNAUTHORIZED"));
+    // Centralized Mutation Guard & RBAC Matrix
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method)) {
+      if (!user) return finalize(errorResponse("Bu işlem için oturum açmanız gerekmektedir (Yetkisiz Erişim).", 401, "UNAUTHORIZED"));
+      if (request.method === "DELETE" && user.role !== "admin") {
+        return finalize(errorResponse("Kayıt silme işlemi yalnızca yönetici yetkisi ile gerçekleştirilebilir.", 403, "FORBIDDEN"));
+      }
+      const isFin = ["/contracts", "/payments", "/expenses", "/student-incomes", "/accounting"].some((p) => path.startsWith(p));
+      if (isFin && user.role !== "admin" && user.role !== "muhasebe") {
+        return finalize(errorResponse("Finansal işlem yapma yetkiniz bulunmamaktadır.", 403, "FORBIDDEN"));
+      }
+      if (path.startsWith("/students") && user.role !== "admin" && user.role !== "muhasebe") {
+        return finalize(errorResponse("Öğrenci kayıt veya düzenleme yetkiniz bulunmamaktadır.", 403, "FORBIDDEN"));
+      }
     }
 
-    response = await handleStudentsRoutes(ctx);
-    if (response) return finalize(response);
-
-    response = await handleContractsRoutes(ctx);
-    if (response) return finalize(response);
-
-    response = await handleAccountingRoutes(ctx);
-    if (response) return finalize(response);
-
-    response = await handleAcademicRoutes(ctx);
-    if (response) return finalize(response);
-
-    response = await handleExamRoutes(ctx);
-    if (response) return finalize(response);
-
-    response = await handleSystemRoutes(ctx);
-    if (response) return finalize(response);
+    // Dispatch sequentially through domain handlers
+    const handlers = [handleStudentsRoutes, handleContractsRoutes, handleAccountingRoutes, handleAcademicRoutes, handleExamRoutes, handleSystemRoutes];
+    for (const handler of handlers) {
+      response = await handler(ctx);
+      if (response) return finalize(response);
+    }
 
     // 5. Standard 404 Response if no route matched
     return finalize(errorResponse(`Endpoint bulunamadı: ${path}`, 404, "NOT_FOUND"));
@@ -133,11 +129,6 @@ export async function onRequest(context) {
       stack: err.stack,
       duration_ms: Date.now() - startTime
     }));
-    return errorResponse(
-      `Sunucu hatası: ${err.message || String(err)}`,
-      500,
-      "SERVER_ERROR",
-      err.stack ? { stack: err.stack } : null
-    );
+    return errorResponse(`Sunucu hatası: ${err.message || String(err)}`, 500, "SERVER_ERROR");
   }
 }

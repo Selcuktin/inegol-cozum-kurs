@@ -13,20 +13,48 @@ import {
 export const LOGO = "/assets/logo.jpeg";
 export const ROLE_LABEL = { admin: "Yönetici", muhasebe: "Muhasebe", ogretmen: "Öğretmen" };
 
+export const isAllowedBackendUrl = (urlStr) => {
+  if (!urlStr || typeof urlStr !== "string") return false;
+  try {
+    const parsed = new URL(urlStr);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (typeof window !== "undefined" && parsed.origin === window.location.origin) return true;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+    if (host === "inegol-cozum-kurs.pages.dev" || host.endsWith(".inegol-cozum-kurs.pages.dev")) return true;
+    if (host === "inegolcozumkurs.com" || host.endsWith(".inegolcozumkurs.com")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 export const getBackendBaseUrl = () => {
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
     const queryApi = params.get("api");
     if (queryApi) {
       const clean = queryApi.replace(/\/+$/, "");
-      localStorage.setItem("custom_api_url", clean);
-      return clean;
+      if (isAllowedBackendUrl(clean)) {
+        localStorage.setItem("custom_api_url", clean);
+        return clean;
+      } else {
+        console.warn("[Security] Unauthorized custom api url rejected:", queryApi);
+        localStorage.removeItem("custom_api_url");
+      }
     }
     const saved = localStorage.getItem("custom_api_url");
-    if (saved && !saved.includes("loca.lt")) return saved;
+    if (saved && !saved.includes("loca.lt")) {
+      if (isAllowedBackendUrl(saved)) {
+        return saved;
+      } else {
+        localStorage.removeItem("custom_api_url");
+      }
+    }
   }
   if (process.env.REACT_APP_BACKEND_URL && !process.env.REACT_APP_BACKEND_URL.includes("localhost")) {
-    return process.env.REACT_APP_BACKEND_URL.replace(/\/+$/, "");
+    const envUrl = process.env.REACT_APP_BACKEND_URL.replace(/\/+$/, "");
+    if (isAllowedBackendUrl(envUrl)) return envUrl;
   }
   return "";
 };

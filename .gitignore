@@ -57,3 +57,4 @@ credentials.json
 .freebuff/
 .dev.vars
 *.dev.vars
+memory/*credential*

@@ -188,14 +188,25 @@ export async function getNextSequence(db, seqName, prefix = "", padLength = 5, f
     let val = res?.current_val != null ? res.current_val : (fallbackInitial + 1);
 
     // Collision guard: Guarantee generated sequence is strictly higher than any existing record in DB
+    const safeFirst = async (query) => {
+      try {
+        const stmt = db.prepare(query);
+        if (typeof stmt?.first === "function") return await stmt.first();
+        if (typeof stmt?.bind === "function") return await stmt.bind().first();
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
     if (seqName === "SZL_2026") {
-      const maxRow = await db.prepare("SELECT MAX(CAST(SUBSTR(sozlesme_no, 8) AS INTEGER)) as max_val FROM contracts WHERE sozlesme_no LIKE 'SZL2026%'").first().catch(() => null);
+      const maxRow = await safeFirst("SELECT MAX(CAST(SUBSTR(sozlesme_no, 8) AS INTEGER)) as max_val FROM contracts WHERE sozlesme_no LIKE 'SZL2026%'");
       if (maxRow?.max_val != null && val <= maxRow.max_val) {
         val = maxRow.max_val + 1;
         await db.prepare("UPDATE system_sequences SET current_val = ?, updated_at = datetime('now') WHERE name = ?").bind(val, seqName).run().catch(() => {});
       }
     } else if (seqName === "GLR_2026") {
-      const maxRow = await db.prepare("SELECT MAX(CAST(SUBSTR(gelir_kodu, 8) AS INTEGER)) as max_val FROM student_incomes WHERE gelir_kodu LIKE 'GLR2026%'").first().catch(() => null);
+      const maxRow = await safeFirst("SELECT MAX(CAST(SUBSTR(gelir_kodu, 8) AS INTEGER)) as max_val FROM student_incomes WHERE gelir_kodu LIKE 'GLR2026%'");
       if (maxRow?.max_val != null && val <= maxRow.max_val) {
         val = maxRow.max_val + 1;
         await db.prepare("UPDATE system_sequences SET current_val = ?, updated_at = datetime('now') WHERE name = ?").bind(val, seqName).run().catch(() => {});

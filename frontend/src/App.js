@@ -97,7 +97,15 @@ function App() {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const urlToken = sp.get("token");
-      if (urlToken) localStorage.setItem("session_token", urlToken);
+      if (urlToken) {
+        localStorage.setItem("session_token", urlToken);
+        sp.delete("token");
+        const cleanQuery = sp.toString() ? `?${sp.toString()}` : "";
+        const cleanUrl = window.location.pathname + cleanQuery + window.location.hash;
+        try {
+          window.history.replaceState({}, document.title, cleanUrl);
+        } catch {}
+      }
     }
     const token = localStorage.getItem("session_token");
     if (token) axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;

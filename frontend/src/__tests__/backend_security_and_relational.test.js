@@ -217,4 +217,69 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
       expect(data.code).toBe("AUTH_FAILED");
     });
   });
+
+  describe("5. Centralized RBAC Role Authorization Matrix", () => {
+    const teacherEnv = {
+      ...mockEnv,
+      DB: {
+        prepare: (query) => ({
+          bind: (...params) => ({
+            first: async () => ({ user_id: "u_teacher", email: "teacher@example.com", name: "Öğretmen", role: "ogretmen" }),
+            all: async () => ({ results: [] }),
+            run: async () => ({ success: true })
+          }),
+          first: async () => ({ user_id: "u_teacher", email: "teacher@example.com", name: "Öğretmen", role: "ogretmen" }),
+          all: async () => ({ results: [] }),
+          run: async () => ({ success: true })
+        })
+      }
+    };
+
+    it("should block non-admin users from DELETE operations (403 FORBIDDEN)", async () => {
+      const req = new Request("https://inegol-cozum-kurs.pages.dev/api/students/std_123", {
+        method: "DELETE",
+        headers: { "Authorization": "Bearer tok_teacher" }
+      });
+      const res = await onRequest({ request: req, env: teacherEnv });
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.code).toBe("FORBIDDEN");
+    });
+
+    it("should block non-admin users from accessing /users and /audit-logs (403 FORBIDDEN)", async () => {
+      for (const p of ["/users", "/audit-logs"]) {
+        const req = new Request(`https://inegol-cozum-kurs.pages.dev/api${p}`, {
+          method: "GET",
+          headers: { "Authorization": "Bearer tok_teacher" }
+        });
+        const res = await onRequest({ request: req, env: teacherEnv });
+        expect(res.status).toBe(403);
+        const data = await res.json();
+        expect(data.code).toBe("FORBIDDEN");
+      }
+    });
+
+    it("should block teachers from financial mutations (403 FORBIDDEN)", async () => {
+      const req = new Request("https://inegol-cozum-kurs.pages.dev/api/contracts", {
+        method: "POST",
+        headers: { "Authorization": "Bearer tok_teacher", "Content-Type": "application/json" },
+        body: JSON.stringify({ student_name: "Test" })
+      });
+      const res = await onRequest({ request: req, env: teacherEnv });
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.code).toBe("FORBIDDEN");
+    });
+  });
+
+  describe("6. API Security Hardening: Whitelist & Stack Trace Protection", () => {
+    it("should reject malicious custom API URLs", () => {
+      const { isAllowedBackendUrl } = require("../components/layout/AuthAndNav");
+      expect(isAllowedBackendUrl("https://evil-attacker.com")).toBe(false);
+      expect(isAllowedBackendUrl("http://attacker.com/api")).toBe(false);
+      expect(isAllowedBackendUrl("javascript:alert(1)")).toBe(false);
+      expect(isAllowedBackendUrl("https://inegol-cozum-kurs.pages.dev")).toBe(true);
+      expect(isAllowedBackendUrl("http://localhost:3000")).toBe(true);
+    });
+  });
 });

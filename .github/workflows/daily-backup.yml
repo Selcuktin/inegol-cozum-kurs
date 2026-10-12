@@ -16,5 +16,5 @@ jobs:
           curl -s -f -X POST "https://inegol-cozum-kurs.pages.dev/api/backup" \
             -H "Authorization: Bearer ${{ secrets.BACKUP_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"notes": "GitHub Actions 20:00 TRT Günlük Otomatik Snapshot"}' || true
-          echo "Triggered."
+            -d '{"notes": "GitHub Actions 20:00 TRT Günlük Otomatik Snapshot"}'
+          echo "Triggered successfully."
