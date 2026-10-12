@@ -54,11 +54,37 @@ CREATE TABLE IF NOT EXISTS students (
   ing_muaf INTEGER DEFAULT 0,
   uses_service INTEGER DEFAULT 0,
   diploma_grade REAL DEFAULT 0,
+  sozlesme_no TEXT DEFAULT '',
   primary_parent TEXT DEFAULT 'baba',
   health_notes TEXT DEFAULT '',
   created_at TEXT DEFAULT '',
   created_by TEXT DEFAULT '',
   created_by_name TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS teachers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  title TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  classes TEXT DEFAULT '',
+  weekly_hours INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'Aktif',
+  role TEXT DEFAULT 'ogretmen',
+  notes TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS system_backups (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  backup_type TEXT NOT NULL,
+  snapshot_data TEXT NOT NULL,
+  table_counts TEXT NOT NULL,
+  created_by TEXT DEFAULT 'Sistem',
+  notes TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS classes (
@@ -197,7 +223,6 @@ CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
 CREATE INDEX IF NOT EXISTS idx_payments_contract ON payments(contract_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_student ON contracts(student_id);
 CREATE INDEX IF NOT EXISTS idx_incomes_student ON student_incomes(student_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_students_name ON students(student_name);
 CREATE INDEX IF NOT EXISTS idx_students_tc ON students(student_tc);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(student_class);
@@ -239,6 +264,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   detail TEXT DEFAULT '',
   created_at TEXT DEFAULT ''
 );
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 
 -- Seed initial students
 INSERT OR IGNORE INTO students (id, student_name, student_phone, school, student_class, student_tc, student_address, parent_name, parent_phone, parent_tc, parent_address, program, total_fee, paid_amount, installment_count, due_date, created_at)

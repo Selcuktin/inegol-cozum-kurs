@@ -239,7 +239,18 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
   const exportMatch = path.match(/^\/export\/([^\/]+)$/);
   if (exportMatch && request.method === "GET") {
     if (!db) return errorResponse("Database connection unavailable", 500);
+    const user = currentUser || await getCurrentUser(request, db).catch(() => null);
+    if (!user) return errorResponse("Dışa aktarma işlemi için oturum açmanız gerekmektedir.", 401, "UNAUTHORIZED");
+
     const kind = exportMatch[1];
+    if (kind === "audit" && user.role !== ROLE_ADMIN) {
+      return errorResponse("Denetim kayıtlarını yalnızca yönetici dışa aktarabilir.", 403, "FORBIDDEN");
+    }
+    if (["all", "payments", "expenses", "students"].includes(kind) && user.role !== ROLE_ADMIN && user.role !== "muhasebe") {
+      return errorResponse("Bu verileri dışa aktarma yetkiniz bulunmamaktadır.", 403, "FORBIDDEN");
+    }
+
+    const escCsv = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     let csv = "\uFEFF"; // UTF-8 BOM for Excel
 
     if (kind === "students" || kind === "all") {
@@ -248,7 +259,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       const res = await db.prepare("SELECT * FROM students ORDER BY student_name ASC").all();
       for (const s of res.results || []) {
         const rem = (Number(s.total_fee) || 0) - (Number(s.paid_amount) || 0);
-        csv += `"${s.student_name || ""}";"${s.student_phone || ""}";"${s.school || ""}";"${s.student_class || ""}";"${s.parent_name || ""}";"${s.parent_phone || ""}";"${s.program || ""}";${s.total_fee || 0};${s.paid_amount || 0};${rem};${s.installment_count || 1};"${s.due_date || ""}"\n`;
+        csv += `${escCsv(s.student_name)};${escCsv(s.student_phone)};${escCsv(s.school)};${escCsv(s.student_class)};${escCsv(s.parent_name)};${escCsv(s.parent_phone)};${escCsv(s.program)};${s.total_fee || 0};${s.paid_amount || 0};${rem};${s.installment_count || 1};${escCsv(s.due_date)}\n`;
       }
       csv += "\n";
     }
@@ -258,7 +269,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       csv += "Tarih;Öğrenci;Tutar;Yöntem;Banka;Açıklama;Kaydeden\n";
       const pRes = await db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date DESC").all();
       for (const p of pRes.results || []) {
-        csv += `"${p.payment_date || ""}";"${p.student_name || ""}";${p.amount || 0};"${p.method || ""}";"${p.bank || ""}";"${p.note || ""}";"${p.created_by_name || ""}"\n`;
+        csv += `${escCsv(p.payment_date)};${escCsv(p.student_name)};${p.amount || 0};${escCsv(p.method)};${escCsv(p.bank)};${escCsv(p.note)};${escCsv(p.created_by_name)}\n`;
       }
       csv += "\n";
     }
@@ -268,7 +279,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       csv += "Tarih;Başlık;Kategori;Kasa/Hesap;Tutar;Kaydeden\n";
       const eRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all();
       for (const e of eRes.results || []) {
-        csv += `"${e.expense_date || ""}";"${e.title || ""}";"${e.category || ""}";"${e.account || "Nakit Ana Kasa"}";${e.amount || 0};"${e.created_by_name || ""}"\n`;
+        csv += `${escCsv(e.expense_date)};${escCsv(e.title)};${escCsv(e.category)};${escCsv(e.account || "Nakit Ana Kasa")};${e.amount || 0};${escCsv(e.created_by_name)}\n`;
       }
       csv += "\n";
     }
@@ -278,7 +289,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       csv += "Tarih;Kullanıcı;E-posta;İşlem;Detay\n";
       const aRes = await db.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500").all();
       for (const a of aRes.results || []) {
-        csv += `"${a.created_at || ""}";"${a.user_name || ""}";"${a.user_email || ""}";"${a.action || ""}";"${a.detail || ""}"\n`;
+        csv += `${escCsv(a.created_at)};${escCsv(a.user_name)};${escCsv(a.user_email)};${escCsv(a.action)};${escCsv(a.detail)}\n`;
       }
     }
 

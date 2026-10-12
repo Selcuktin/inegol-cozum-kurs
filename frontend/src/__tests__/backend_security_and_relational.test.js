@@ -4,8 +4,8 @@ import { handleStudentsRoutes } from "../../functions/api/routes/students.js";
 
 describe("Backend Security, Authorization Guards & Relational Integrity Test Suite", () => {
   const mockEnv = {
-    ADMIN_PASSWORD: "secret_admin_pass",
-    STAFF_PASSWORD: "secret_staff_pass",
+    ADMIN_PASSWORD: "cozum2026",
+    STAFF_PASSWORD: "4321",
     BACKUP_TOKEN: "secret_backup_token_2026",
     DB: {
       prepare: (query) => ({
@@ -40,6 +40,20 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
     it("should return 401 for unauthenticated sensitive GET endpoints (/users, /audit-logs)", async () => {
       const sensitivePaths = ["/users", "/audit-logs"];
       for (const p of sensitivePaths) {
+        const req = new Request(`https://inegol-cozum-kurs.pages.dev/api${p}`, {
+          method: "GET"
+        });
+        const res = await onRequest({ request: req, env: mockEnv });
+        expect(res.status).toBe(401);
+        const data = await res.json();
+        expect(data.ok).toBe(false);
+        expect(data.code).toBe("UNAUTHORIZED");
+      }
+    });
+
+    it("should return 401 UNAUTHORIZED for unauthenticated data GET endpoints (/students, /dashboard, /contracts, /export/students)", async () => {
+      const publicBlockedPaths = ["/students", "/dashboard", "/contracts", "/payments", "/student-incomes", "/installments", "/attendance", "/teachers", "/export/students"];
+      for (const p of publicBlockedPaths) {
         const req = new Request(`https://inegol-cozum-kurs.pages.dev/api${p}`, {
           method: "GET"
         });
@@ -216,6 +230,19 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
       expect(data.ok).toBe(false);
       expect(data.code).toBe("AUTH_FAILED");
     });
+
+    it("should reject old password if ADMIN_PASSWORD is rotated to a new secret", async () => {
+      const rotatedEnv = { ...mockEnv, ADMIN_PASSWORD: "new_rotated_super_secret_2026" };
+      const req = new Request("https://inegol-cozum-kurs.pages.dev/api/auth/quick-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "admin", password: "cozum2026" })
+      });
+      const res = await onRequest({ request: req, env: rotatedEnv });
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.code).toBe("AUTH_FAILED");
+    });
   });
 
   describe("5. Centralized RBAC Role Authorization Matrix", () => {
@@ -269,6 +296,20 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
       expect(res.status).toBe(403);
       const data = await res.json();
       expect(data.code).toBe("FORBIDDEN");
+    });
+
+    it("should block non-admin users from /classes and /teachers mutations (403 FORBIDDEN)", async () => {
+      for (const p of ["/classes", "/teachers"]) {
+        const req = new Request(`https://inegol-cozum-kurs.pages.dev/api${p}`, {
+          method: "POST",
+          headers: { "Authorization": "Bearer tok_teacher", "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Deneme" })
+        });
+        const res = await onRequest({ request: req, env: teacherEnv });
+        expect(res.status).toBe(403);
+        const data = await res.json();
+        expect(data.code).toBe("FORBIDDEN");
+      }
     });
   });
 

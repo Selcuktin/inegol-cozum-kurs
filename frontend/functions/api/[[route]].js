@@ -1,6 +1,6 @@
 // Cloudflare Pages Functions - Modular API Dispatcher
 // Clean, maintainable router replacing the monolithic 3,000+ line router
-import { getCorsHeaders, errorResponse, getCurrentUser } from "./utils.js";
+import { getCorsHeaders, errorResponse, getCurrentUser, cachedJson } from "./utils.js";
 import { handleAuthRoutes } from "./routes/auth.js";
 import { handleStudentsRoutes } from "./routes/students.js";
 import { handleContractsRoutes } from "./routes/contracts.js";
@@ -88,17 +88,28 @@ export async function onRequest(context) {
       return finalize(errorResponse(`Endpoint bulunamadı: ${path}`, 404, "NOT_FOUND"));
     }
 
-    // Sensitive paths (/users, /audit-logs): Require authentication & Admin role
-    if (path.startsWith("/users") || path.startsWith("/audit-logs")) {
-      if (!user) return finalize(errorResponse("Bu verileri görüntülemek için oturum açmanız gerekmektedir.", 401, "UNAUTHORIZED"));
+    // Public health & edge ping
+    if (path === "/status" || path === "/health") {
+      return finalize(cachedJson({ status: "ok", name: "İnegöl Çözüm Kurs Cloudflare Edge API", timestamp: new Date().toISOString() }, 30, 60, 120));
+    }
+
+    // Universal Auth Guard: All data routes require an authenticated session
+    if (!user) {
+      return finalize(errorResponse("Bu verilere erişmek için oturum açmanız gerekmektedir.", 401, "UNAUTHORIZED"));
+    }
+
+    // Sensitive paths (/users, /audit-logs, /security): Require Admin role
+    if (path.startsWith("/users") || path.startsWith("/audit-logs") || path.startsWith("/security")) {
       if (user.role !== "admin") return finalize(errorResponse("Yalnızca yönetici bu bilgilere erişebilir ve yönetebilir.", 403, "FORBIDDEN"));
     }
 
-    // Centralized Mutation Guard & RBAC Matrix
+    // Centralized Mutation Guard & Institutional RBAC Matrix
     if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method)) {
-      if (!user) return finalize(errorResponse("Bu işlem için oturum açmanız gerekmektedir (Yetkisiz Erişim).", 401, "UNAUTHORIZED"));
       if (request.method === "DELETE" && user.role !== "admin") {
         return finalize(errorResponse("Kayıt silme işlemi yalnızca yönetici yetkisi ile gerçekleştirilebilir.", 403, "FORBIDDEN"));
+      }
+      if ((path.startsWith("/classes") || path.startsWith("/teachers")) && user.role !== "admin") {
+        return finalize(errorResponse("Sınıf ve öğretmen yönetimi yalnızca yönetici yetkisi ile gerçekleştirilebilir.", 403, "FORBIDDEN"));
       }
       const isFin = ["/contracts", "/payments", "/expenses", "/student-incomes", "/accounting"].some((p) => path.startsWith(p));
       if (isFin && user.role !== "admin" && user.role !== "muhasebe") {

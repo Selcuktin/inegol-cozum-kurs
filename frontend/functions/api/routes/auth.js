@@ -20,17 +20,18 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
     const role = body.role in ROLE_LABELS ? body.role : ROLE_ADMIN;
     const password = String(body.password || "").trim();
 
-    // Read from environment secrets while ensuring cozum2026 is always valid
+    // Read from environment secrets; fallback to defaults only when no env secret is configured
     const configuredAdminPasswords = env?.ADMIN_PASSWORDS
       ? env.ADMIN_PASSWORDS.split(",").map(p => p.trim()).filter(Boolean)
       : (env?.ADMIN_PASSWORD ? [env.ADMIN_PASSWORD.trim()] : []);
-    const adminPasswords = Array.from(new Set([...configuredAdminPasswords, "cozum2026"]));
-    const staffPasswords = Array.from(new Set([
-      (env?.STAFF_PASSWORD || "").trim(),
-      "4321",
-      "cozum2026",
-      ...adminPasswords
-    ].filter(Boolean)));
+    const adminPasswords = configuredAdminPasswords.length > 0
+      ? configuredAdminPasswords
+      : ["cozum2026"];
+
+    const configuredStaffPassword = (env?.STAFF_PASSWORD || "").trim();
+    const staffPasswords = configuredStaffPassword
+      ? Array.from(new Set([configuredStaffPassword, ...adminPasswords]))
+      : Array.from(new Set(["4321", ...adminPasswords]));
 
     if (role === ROLE_ADMIN) {
       if (!password || !adminPasswords.includes(password)) {

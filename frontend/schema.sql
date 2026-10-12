@@ -223,7 +223,6 @@ CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
 CREATE INDEX IF NOT EXISTS idx_payments_contract ON payments(contract_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_student ON contracts(student_id);
 CREATE INDEX IF NOT EXISTS idx_incomes_student ON student_incomes(student_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_students_name ON students(student_name);
 CREATE INDEX IF NOT EXISTS idx_students_tc ON students(student_tc);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(student_class);
@@ -265,6 +264,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   detail TEXT DEFAULT '',
   created_at TEXT DEFAULT ''
 );
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 
 -- Seed initial students
 INSERT OR IGNORE INTO students (id, student_name, student_phone, school, student_class, student_tc, student_address, parent_name, parent_phone, parent_tc, parent_address, program, total_fee, paid_amount, installment_count, due_date, created_at)
