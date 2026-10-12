@@ -92,6 +92,7 @@ export default function EdesisSozlesmeDetay({
     const szlNo = contract.sozlesmeNo || contract.sozlesme_no || "";
     const ogrNo = String(contract.ogrenciNo || contract.student_no || "");
     const allStudents = [...(Array.isArray(students) ? students : []), ...StudentService.getAllStudents()];
+    void accountingTick;
     return allStudents.find((s) => {
       if (!s) return false;
       if (szlNo && s.sozlesme_no === szlNo) return true;
@@ -181,6 +182,7 @@ export default function EdesisSozlesmeDetay({
       "28.06.2027", "28.07.2027"
     ];
 
+    void accountingTick;
     return Array.from({ length: count }, (_, i) => ({
       taksitNo: i + 1,
       vadeTarihi: dates[i] || `28.${String(i + 1).padStart(2, "0")}.2027`,
@@ -196,7 +198,7 @@ export default function EdesisSozlesmeDetay({
 
   React.useEffect(() => {
     setLocalInstallments(installments);
-  }, [accountingTick, contract?.id, contract?.sozlesmeNo, contract?.brutTutar]);
+  }, [installments, accountingTick, contract?.id, contract?.sozlesmeNo, contract?.brutTutar]);
 
   // Calculations: Dynamically derive from installments if present, ensuring increasing an installment immediately reflects in total!
   const installmentsSum = (localInstallments && localInstallments.length > 0)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { X, Camera } from "lucide-react";
 import { Button } from "../pages/DashboardPage";
@@ -515,13 +515,13 @@ export function CameraCapture({ photo, setPhoto, videoRef: externalRef }) {
   const [streamError, setStreamError] = useState("");
   const fileInputRef = useRef(null);
 
-  const stopStream = () => {
+  const stopStream = useCallback(() => {
     if (videoRef.current && videoRef.current.srcObject) {
       videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
     setIsStreaming(false);
-  };
+  }, [videoRef]);
 
   const startStream = async (mode = facingMode) => {
     stopStream();
@@ -573,7 +573,7 @@ export function CameraCapture({ photo, setPhoto, videoRef: externalRef }) {
 
   useEffect(() => {
     return () => stopStream();
-  }, []);
+  }, [stopStream]);
 
   return (
     <div className="camera-box">

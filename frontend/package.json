@@ -63,7 +63,8 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test",
+    "test": "craco test --watchAll=false",
+    "test:watch": "craco test",
     "deploy": "craco build && npx wrangler pages deploy build --project-name inegol-cozum-kurs --branch main --commit-dirty=true"
   },
   "browserslist": {

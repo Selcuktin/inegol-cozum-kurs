@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import {
   Award,
@@ -90,7 +90,7 @@ export function ExamsPage({ me, API, students, classes }) {
     return () => window.removeEventListener("click", handleOutsideClick);
   }, []);
 
-  const loadExams = async () => {
+  const loadExams = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/exams`);
@@ -111,11 +111,12 @@ export function ExamsPage({ me, API, students, classes }) {
       setExams(fullList);
 
       // Otomatik seçim: Önceden seçili sınav varsa onu güncelle, yoksa katılımcısı olan ilk sınavı seç
-      const toSelect = selectedExam
-        ? fullList.find((x) => x.id === selectedExam.id) || fullList[0]
-        : fullList.find((x) => (x.participant_count || (x.results || []).length) > 0) || fullList[0];
-
-      setSelectedExam(toSelect || null);
+      setSelectedExam((prev) => {
+        if (prev) {
+          return fullList.find((x) => x.id === prev.id) || fullList[0] || null;
+        }
+        return fullList.find((x) => (x.participant_count || (x.results || []).length) > 0) || fullList[0] || null;
+      });
     } catch (err) {
       console.error("Exams load error:", err);
       setExams([]);
@@ -123,11 +124,11 @@ export function ExamsPage({ me, API, students, classes }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API]);
 
   useEffect(() => {
     loadExams();
-  }, []);
+  }, [loadExams]);
 
   const openExamDetail = async (exam) => {
     try {

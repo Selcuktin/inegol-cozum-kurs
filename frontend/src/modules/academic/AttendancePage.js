@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Check, FileText, MessageCircle } from "lucide-react";
 import { AbsenceLetterModal } from "../../components/AbsenceLetterModal";
@@ -18,7 +18,7 @@ export function AttendancePage({ me, API, classes }) {
   const [selectedSlot, setSelectedSlot] = useState("1. Ders (09:00 - 09:45)");
   const [selectedStudentForLetter, setSelectedStudentForLetter] = useState(null);
 
-  const loadAttendance = async () => {
+  const loadAttendance = useCallback(async () => {
     setLoading(true);
     try {
       let url = `${API}/attendance?date=${selectedDate}`;
@@ -30,11 +30,11 @@ export function AttendancePage({ me, API, classes }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API, selectedDate, selectedClass]);
 
   useEffect(() => {
     loadAttendance();
-  }, [selectedDate, selectedClass]);
+  }, [loadAttendance]);
 
   const setStatus = (studentId, status) => {
     setRecords((prev) =>

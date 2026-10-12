@@ -1229,10 +1229,10 @@ export const AccountingService = {
       localStorage.removeItem("cozum_ssot_summary_v2");
     }
     if (typeof window !== "undefined" && typeof fetch === "function") {
-      this.fetchContracts().catch(() => {});
-      this.fetchInstallments().catch(() => {});
-      this.fetchCollections().catch(() => {});
-      this.fetchSummary().catch(() => {});
+      this.fetchContracts().catch((err) => console.warn("[AccountingService] Background fetchContracts notice:", err?.message || err));
+      this.fetchInstallments().catch((err) => console.warn("[AccountingService] Background fetchInstallments notice:", err?.message || err));
+      this.fetchCollections().catch((err) => console.warn("[AccountingService] Background fetchCollections notice:", err?.message || err));
+      this.fetchSummary().catch((err) => console.warn("[AccountingService] Background fetchSummary notice:", err?.message || err));
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
   }

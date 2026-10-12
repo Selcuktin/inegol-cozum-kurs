@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import {
   AlertTriangle,
@@ -40,7 +40,7 @@ export function HomeworkPage({ me, API, classes, students }) {
   const [newDueDate, setNewDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [newDesc, setNewDesc] = useState("");
 
-  const loadHomework = async () => {
+  const loadHomework = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/homework`);
@@ -50,11 +50,11 @@ export function HomeworkPage({ me, API, classes, students }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API]);
 
   useEffect(() => {
     loadHomework();
-  }, []);
+  }, [loadHomework]);
 
   const openSubmissions = async (hw) => {
     setSelectedHw(hw);
@@ -422,7 +422,7 @@ export function MentorshipPage({ me, API, students }) {
   const [nextDate, setNextDate] = useState("");
   const [notes, setNotes] = useState("");
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/mentorship`);
@@ -432,11 +432,11 @@ export function MentorshipPage({ me, API, students }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API]);
 
   useEffect(() => {
     loadSessions();
-  }, []);
+  }, [loadSessions]);
 
   const handleCreateSession = async (e) => {
     e.preventDefault();

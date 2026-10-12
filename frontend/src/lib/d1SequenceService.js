@@ -14,7 +14,9 @@ export async function getNextSequence(db, seqName, prefix = "", padLength = 5, f
         current_val INTEGER NOT NULL,
         updated_at TEXT DEFAULT (datetime('now'))
       )
-    `).run().catch(() => {});
+    `).run().catch((err) => {
+      console.warn(`[SequenceService] Note on system_sequences table prepare:`, err?.message || err);
+    });
 
     // 2. Atomic increment using UPDATE ... RETURNING
     const res = await db.prepare(
@@ -29,7 +31,9 @@ export async function getNextSequence(db, seqName, prefix = "", padLength = 5, f
     // 3. If sequence row does not exist yet, initialize it
     await db.prepare(
       "INSERT OR IGNORE INTO system_sequences (name, current_val, updated_at) VALUES (?, ?, datetime('now'))"
-    ).bind(seqName, fallbackInitial).run().catch(() => {});
+    ).bind(seqName, fallbackInitial).run().catch((err) => {
+      console.warn(`[SequenceService] Note on initial sequence seed for ${seqName}:`, err?.message || err);
+    });
 
     const retry = await db.prepare(
       "UPDATE system_sequences SET current_val = current_val + 1, updated_at = datetime('now') WHERE name = ? RETURNING current_val"

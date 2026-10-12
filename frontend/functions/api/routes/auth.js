@@ -116,7 +116,7 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
   // Session exchange
   if (path === "/auth/session" && request.method === "POST") {
     const body = await request.json().catch(() => ({}));
-    const token = body.session_token;
+    const token = body?.session_token || body?.session_id || body?.sessionId || request.headers?.get("X-Session-ID");
     if (!token) return errorResponse("Token gerekli", 400, "MISSING_TOKEN");
 
     const session = await db

@@ -148,6 +148,8 @@ function App() {
   );
 }
 
+const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
+
 export function MainApp({ me, onLogout }) {
   const [data, setData] = useState(() => {
     try {
@@ -161,7 +163,6 @@ export function MainApp({ me, onLogout }) {
     } catch (e) {}
     return { summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] };
   });
-  const validPages = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const fullHash = window.location.hash.replace(/^#/, "");
@@ -189,9 +190,9 @@ export function MainApp({ me, onLogout }) {
           try { sessionStorage.setItem("cozum_kayit_tab", decodeURIComponent(m[1])); } catch {}
         }
       }
-      if (cleanHash && validPages.includes(cleanHash)) return cleanHash;
+      if (cleanHash && VALID_PAGES.includes(cleanHash)) return cleanHash;
       const saved = localStorage.getItem("active_page");
-      if (saved && validPages.includes(saved)) return saved;
+      if (saved && VALID_PAGES.includes(saved)) return saved;
     }
     return "dashboard";
   };
@@ -235,7 +236,7 @@ export function MainApp({ me, onLogout }) {
         setPageState("payments");
         setAccountingTab("backup");
         localStorage.setItem("active_page", "payments");
-      } else if (cleanHash && validPages.includes(cleanHash)) {
+      } else if (cleanHash && VALID_PAGES.includes(cleanHash)) {
         if (cleanHash === "gelir" && fullHash.includes("?id=")) {
           const m = fullHash.match(/\?id=([^&]+)/);
           if (m && m[1]) {

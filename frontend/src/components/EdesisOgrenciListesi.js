@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Users,
   UserPlus,
@@ -115,6 +115,7 @@ export default function EdesisOgrenciListesi({
   }, []);
 
   const allContracts = useMemo(() => {
+    void contractsTick;
     try {
       return AccountingService.getContracts(students);
     } catch {
@@ -329,14 +330,14 @@ export default function EdesisOgrenciListesi({
   };
 
   // Open Edit Modal (1:1 with EdesisStudentModal - 3rd image)
-  const handleOpenEdit = (student) => {
+  const handleOpenEdit = useCallback((student) => {
     setOpenDropdownId(null);
     if (onEditStudent) {
       onEditStudent(student);
       return;
     }
     setEditingStudent(student);
-  };
+  }, [onEditStudent]);
 
   // Auto-open edit modal if requested via sessionStorage (e.g. from Sözleşme Detay)
   useEffect(() => {
@@ -353,7 +354,7 @@ export default function EdesisOgrenciListesi({
         }
       }
     } catch (e) {}
-  }, [students]);
+  }, [students, handleOpenEdit]);
 
   // Export CSV
   const handleExportCSV = () => {

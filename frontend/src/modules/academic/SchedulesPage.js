@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Calendar, Clock, Columns, Plus, Printer, Trash2, X } from "lucide-react";
 import { trIncludes } from "../../lib/utils";
@@ -59,7 +59,7 @@ export function SchedulesPage({ me, API, classes }) {
   const [formTeacher, setFormTeacher] = useState("");
   const [formRoom, setFormRoom] = useState("Derslik 1");
 
-  const loadSchedules = async () => {
+  const loadSchedules = useCallback(async () => {
     setLoading(true);
     try {
       let url = `${API}/schedules`;
@@ -71,11 +71,11 @@ export function SchedulesPage({ me, API, classes }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API, selectedClassId]);
 
   useEffect(() => {
     loadSchedules();
-  }, [selectedClassId]);
+  }, [loadSchedules]);
 
   const teacherList = useMemo(() => {
     const set = new Set();

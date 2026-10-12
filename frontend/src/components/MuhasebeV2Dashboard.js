@@ -344,6 +344,7 @@ export function MuhasebeV2Dashboard({
 
   // Ekstra eklenen gelirler ve tahsilatların canlı KPI katkısı (Taksit bölme ve gelir eklemeler anında yansısın)
   const extraStats = useMemo(() => {
+    void accountingVersion;
     const allIncomes = AccountingService.getIncomes();
     const customIncomes = allIncomes.filter(g => g.id > 1700000000000);
     const relevantIncomes = periodFilter === "2026-2027"
@@ -365,10 +366,11 @@ export function MuhasebeV2Dashboard({
       extraGross,
       extraColl: Math.max(extraColl, extraDirectColl)
     };
-  }, [accountingVersion, periodFilter]);
+  }, [accountingVersion, periodFilter, payments]);
 
   // 1. ÖĞRENCİ GERÇEK TAKSİT PLANLARI HARİTASI (Edesis 664 Taksit Birebir Entegrasyonu)
   const studentPlansMap = useMemo(() => {
+    void accountingVersion;
     const byName = {};
     const bySozlesme = {};
     const rawTaksitler = AccountingService.getInstallments() || [];
@@ -696,6 +698,7 @@ export function MuhasebeV2Dashboard({
 
   // 4. 12 AYLIK DİNAMİK GELİR & TAHSİLAT TREND GRAFİĞİ (GAP-4)
   const monthlyTrends = useMemo(() => {
+    void accountingVersion;
     const MONTH_NAMES = [
       "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
       "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
@@ -791,6 +794,7 @@ export function MuhasebeV2Dashboard({
 
   // 5. GELİR KATEGORİLERİ & TAHSİLAT YÖNTEMLERİ DAĞILIMI (GAP-6)
   const incomeCategoryData = useMemo(() => {
+    void accountingVersion;
     const allIncomes = AccountingService.getIncomes();
     if (isRealEdesisData && allIncomes?.length > 0) {
       const catMap = {};
@@ -880,7 +884,7 @@ export function MuhasebeV2Dashboard({
       { name: "Halkbank Havale", value: registers.halkbankInflow, color: "#2563eb", pct: Math.round((registers.halkbankInflow / total) * 100) },
       { name: "Senet / Bono", value: registers.senetInflow, color: "#7c3aed", pct: Math.round((registers.senetInflow / total) * 100) },
     ].filter(item => item.value > 0);
-  }, [registers, totalCollected, isRealEdesisData]);
+  }, [registers, totalCollected, isRealEdesisData, payments]);
 
   // Filtered Payments List (Kasalar Tab & Tahsilatlar Tab)
   const filteredPaymentsList = useMemo(() => {

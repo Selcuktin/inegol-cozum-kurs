@@ -65,12 +65,14 @@ async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUnt
     await r2Bucket.put(`${preId}.json`, preSnapJson).catch(() => {});
   }
 
-  // 2. Tabloları temizle ve seçili snapshot'ı atomik db.batch() ile geri yükle
+  // 2. Tabloları temizle ve seçili snapshot'ı atomik db.batch() ile geri yükle; hata anında preSnap'e otomatik rollback uygula
   const restoredCounts = {};
-  for (const t of BACKUP_TABLES) {
-    const rows = snap.tables?.[t];
-    if (Array.isArray(rows)) {
-      try {
+  const touchedTables = [];
+  try {
+    for (const t of BACKUP_TABLES) {
+      const rows = snap.tables?.[t];
+      if (Array.isArray(rows)) {
+        touchedTables.push(t);
         const statements = [
           db.prepare("DELETE FROM " + t)
         ];
@@ -90,10 +92,39 @@ async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUnt
           await db.batch(chunk);
         }
         restoredCounts[t] = rows.length;
-      } catch (err) {
-        console.error(`Restore error on table ${t}:`, err);
       }
     }
+  } catch (err) {
+    console.error("Geri yükleme hatası, otomatik geri alma (rollback) başlatılıyor:", err);
+    let rollbackOk = true;
+    for (const rt of touchedTables) {
+      try {
+        const preRows = preSnap.tables?.[rt] || [];
+        const rbStmts = [db.prepare("DELETE FROM " + rt)];
+        for (const pr of preRows) {
+          const keys = Object.keys(pr);
+          if (keys.length > 0) {
+            const placeholders = keys.map(() => "?").join(", ");
+            const cols = keys.join(", ");
+            const values = keys.map(k => pr[k]);
+            rbStmts.push(db.prepare(`INSERT INTO ${rt} (${cols}) VALUES (${placeholders})`).bind(...values));
+          }
+        }
+        for (let i = 0; i < rbStmts.length; i += 100) {
+          await db.batch(rbStmts.slice(i, i + 100));
+        }
+      } catch (rbErr) {
+        rollbackOk = false;
+        console.error(`Rollback hatası (${rt}):`, rbErr);
+      }
+    }
+    await logAction(db, user, "system.backup_restore_failed", "backup", backupId, `Geri yükleme başarısız oldu (${err.message}). Otomatik rollback: ${rollbackOk ? 'başarılı' : 'kısmi'}. Kurtarma noktası: ${preId}`, waitUntil);
+    return {
+      ok: false,
+      error: `Geri yükleme işlemi sırasında hata oluştu: ${err.message}. Veritabanı önceki kararlı durumuna (${preId}) geri alındı.`,
+      rolled_back: rollbackOk,
+      safety_backup_id: preId
+    };
   }
 
   await logAction(db, user, "system.backup_restore", "backup", backupId, notes || `Veritabanı ${backupId} yedeğinden geri yüklendi`, waitUntil);
@@ -476,6 +507,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (!snap) return errorResponse("Yedek bulunamadı", 404);
 
     const result = await restoreSnapshotData(db, snap, user, backupId, `Veritabanı ${backupId} yedeğinden geri yüklendi`, ctxOrPath?.waitUntil, env);
+    if (!result.ok) return errorResponse(result.error || "Geri yükleme başarısız oldu", 500, "RESTORE_FAILED", result);
     return json(result);
   }
 
@@ -512,6 +544,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     }
 
     const result = await restoreSnapshotData(db, rawSnap, user, backupId, notes, ctxOrPath?.waitUntil, env);
+    if (!result.ok) return errorResponse(result.error || "Geri yükleme başarısız oldu", 500, "RESTORE_FAILED", result);
     return json(result);
   }
 
