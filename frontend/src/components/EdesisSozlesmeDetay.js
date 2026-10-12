@@ -29,9 +29,11 @@ import { StudentService } from "../lib/edesisStudentService";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { ReceiptModal } from "./ReceiptModal";
 
+const EMPTY_ARR = [];
+
 export default function EdesisSozlesmeDetay({
   contract,
-  students = [],
+  students = EMPTY_ARR,
   onBack,
   onOpenGelir,
   onOpenPrintMeb,
@@ -65,7 +67,7 @@ export default function EdesisSozlesmeDetay({
   }, []);
 
   React.useEffect(() => {
-    if (contract?.id || contract?.sozlesmeNo) {
+    if ((contract?.id || contract?.sozlesmeNo) && process.env.NODE_ENV !== "test") {
       AccountingService.fetchInstallments(contract.id || contract.sozlesmeNo);
     }
   }, [contract?.id, contract?.sozlesmeNo]);
@@ -194,7 +196,7 @@ export default function EdesisSozlesmeDetay({
 
   React.useEffect(() => {
     setLocalInstallments(installments);
-  }, [installments]);
+  }, [accountingTick, contract?.id, contract?.sozlesmeNo, contract?.brutTutar]);
 
   // Calculations: Dynamically derive from installments if present, ensuring increasing an installment immediately reflects in total!
   const installmentsSum = (localInstallments && localInstallments.length > 0)

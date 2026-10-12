@@ -20,11 +20,11 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
     const role = body.role in ROLE_LABELS ? body.role : ROLE_ADMIN;
     const password = String(body.password || "").trim();
 
-    // Use environment secret if configured; fallback for local dev compatibility
+    // Read strictly from environment secrets
     const adminPasswords = env?.ADMIN_PASSWORDS
       ? env.ADMIN_PASSWORDS.split(",").map(p => p.trim())
-      : (env?.ADMIN_PASSWORD ? [env.ADMIN_PASSWORD.trim()] : ["cozum2026", "admin4321"]);
-    const staffPassword = (env?.STAFF_PASSWORD || "4321").trim();
+      : (env?.ADMIN_PASSWORD ? [env.ADMIN_PASSWORD.trim()] : []);
+    const staffPassword = (env?.STAFF_PASSWORD || "").trim();
 
     if (role === ROLE_ADMIN) {
       if (!password || !adminPasswords.includes(password)) {

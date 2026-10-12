@@ -9,8 +9,10 @@ import {
   cleanup,
   fireEvent,
   mockStudents,
-  mockPayments
+  mockPayments,
+  mockContracts
 } from "./test_helpers";
+import AccountingService from "../lib/edesisAccountingService";
 
 describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
   let originalPrint;
@@ -19,6 +21,7 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
     jest.clearAllMocks();
     originalPrint = window.print;
     window.print = jest.fn();
+    AccountingService.setInitialData({ contracts: mockContracts, installments: [], collections: mockPayments });
   });
 
   afterEach(async () => {

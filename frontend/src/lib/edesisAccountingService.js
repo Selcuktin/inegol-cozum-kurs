@@ -254,37 +254,10 @@ export const AccountingService = {
     }
 
     let list = _memory.contracts.map(formatContractRecord);
-
-    // In unit test environment (Jest) where no remote D1 backend exists:
-    if (process.env.NODE_ENV === "test" && Array.isArray(remoteStudents) && remoteStudents.length > 0) {
-      const existingNames = new Set(_memory.contracts.map((c) => trNorm(c.ogrenciAdi || c.student_name)));
-      const existingNos = new Set(_memory.contracts.map((c) => trNorm(c.sozlesmeNo)));
-      const existingIds = new Set(_memory.contracts.flatMap((c) => {
-        const sid = String(c.studentId || c.student_id || "");
-        return [sid, sid.replace(/^stu-/, "")];
-      }));
-
-      remoteStudents.forEach((st) => {
-        if (!st || st.has_contract === false || st.contract_deleted) return;
-        if (!st.has_contract && !st.sozlesme_no && Number(st.total_fee || 0) <= 0) return;
-        const sName = trNorm(st.student_name);
-        if (!sName || existingNames.has(sName)) return;
-        const cleanId = String(st.id || "").replace(/^stu-/, "");
-        if (st.id && (existingIds.has(String(st.id)) || existingIds.has(cleanId))) return;
-        if (st.sozlesme_no && existingNos.has(trNorm(st.sozlesme_no))) return;
-
-        const synth = this.buildSyntheticContractForStudent(st);
-        if (synth) {
-          list.push(synth);
-          _memory.contracts.push(synth);
-          existingNames.add(sName);
-          existingNos.add(trNorm(synth.sozlesmeNo));
-        }
-      });
-    }
+    // Real D1 contracts from _memory.contracts are the Single Source of Truth
 
     // Trigger background fetch if memory is empty
-    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
+    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
       _memory.isFetching = true;
       this.fetchContracts().finally(() => {
         _memory.isFetching = false;
@@ -362,7 +335,7 @@ export const AccountingService = {
   getInstallments(remoteStudents = []) {
     let list = [..._memory.installments];
 
-    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
+    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
       this.fetchInstallments().then((insts) => {
         if (insts.length > 0) window.dispatchEvent(new Event("cozum_accounting_updated"));
       });
@@ -456,7 +429,7 @@ export const AccountingService = {
       });
     }
 
-    if (list.length === 0 && typeof window !== "undefined") {
+    if (list.length === 0 && typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
       this.fetchIncomes().then((incs) => {
         if (incs.length > 0) window.dispatchEvent(new Event("cozum_accounting_updated"));
       });
@@ -520,7 +493,7 @@ export const AccountingService = {
 
     let list = _memory.collections.map(formatCollectionRecord);
 
-    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
+    if (list.length === 0 && !_memory.isFetching && typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
       this.fetchCollections().then((colls) => {
         if (colls && colls.length > 0) window.dispatchEvent(new Event("cozum_accounting_updated"));
       });
@@ -579,21 +552,26 @@ export const AccountingService = {
 
     // Remote sync guard: only fire remote POST if remote sync wasn't explicitly skipped
     // and neither contract_id nor a pre-assigned sozlesmeNo was provided (which indicates the contract already exists on the server).
-    if (typeof fetch === "function" && !incomeData.skipRemoteSync && !incomeData.contract_id && !incomeData.sozlesmeNo) {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test" && !incomeData.skipRemoteSync && !incomeData.contract_id && !incomeData.sozlesmeNo) {
       const apiUrl = getApiUrl();
-      fetch(`${apiUrl}/api/contracts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          student_id: incomeData.studentId || incomeData.student_id || "",
-          student_name: studentName,
-          parent_name: incomeData.veliAdi || studentName,
-          student_class: incomeData.sinifAdi || "8-A",
-          total_amount: gross,
-          installment_count: count,
-          contract_date: new Date().toISOString()
-        })
-      }).catch((err) => console.warn("[AccountingService] Remote contract POST error:", err));
+      try {
+        const p = fetch(`${apiUrl}/api/contracts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: incomeData.studentId || incomeData.student_id || "",
+            student_name: studentName,
+            parent_name: incomeData.veliAdi || studentName,
+            student_class: incomeData.sinifAdi || "8-A",
+            total_amount: gross,
+            installment_count: count,
+            contract_date: new Date().toISOString()
+          })
+        });
+        if (p && typeof p.catch === "function") p.catch((err) => console.warn("[AccountingService] Remote contract POST error:", err));
+      } catch (err) {
+        console.warn("[AccountingService] Remote contract POST error:", err);
+      }
     }
 
     const newContract = {
@@ -734,12 +712,17 @@ export const AccountingService = {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
 
-    if (typeof fetch === "function") {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       const rawBase = getApiUrl() || "";
       const base = rawBase.replace(/\/api\/?$/, "").replace(/\/+$/, "");
-      fetch(`${base}/api/contracts/${encodeURIComponent(targetKey)}`, {
-        method: "DELETE"
-      }).catch((err) => console.warn("[AccountingService] Remote contract DELETE error:", err));
+      try {
+        const p = fetch(`${base}/api/contracts/${encodeURIComponent(targetKey)}`, {
+          method: "DELETE"
+        });
+        if (p && typeof p.catch === "function") p.catch((err) => console.warn("[AccountingService] Remote contract DELETE error:", err));
+      } catch (err) {
+        console.warn("[AccountingService] Remote contract DELETE error:", err);
+      }
     }
 
     return true;
@@ -797,13 +780,18 @@ export const AccountingService = {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
 
-    if (typeof fetch === "function") {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       const apiUrl = getApiUrl();
-      fetch(`${apiUrl}/api/contracts/${encodeURIComponent(idOrSzl)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch)
-      }).catch((err) => console.warn("[AccountingService] Remote contract PATCH error:", err));
+      try {
+        const p = fetch(`${apiUrl}/api/contracts/${encodeURIComponent(idOrSzl)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch)
+        });
+        if (p && typeof p.catch === "function") p.catch((err) => console.warn("[AccountingService] Remote contract PATCH error:", err));
+      } catch (err) {
+        console.warn("[AccountingService] Remote contract PATCH error:", err);
+      }
     }
 
     return true;
@@ -854,13 +842,18 @@ export const AccountingService = {
     writeCache("cozum_ssot_contracts_v2", _memory.contracts);
     writeCache("cozum_ssot_installments_v2", _memory.installments);
 
-    if (typeof fetch === "function") {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       const apiUrl = getApiUrl();
-      fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/installments`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ installments })
-      }).catch((err) => console.warn("[AccountingService] Remote installments sync error:", err));
+      try {
+        const p = fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/installments`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ installments })
+        });
+        if (p && typeof p.catch === "function") p.catch((err) => console.warn("[AccountingService] Remote installments sync error:", err));
+      } catch (err) {
+        console.warn("[AccountingService] Remote installments sync error:", err);
+      }
     }
 
     if (typeof window !== "undefined") {
@@ -1058,29 +1051,36 @@ export const AccountingService = {
     writeCache("cozum_ssot_incomes_v2", _memory.incomes);
 
     // Sync to remote API if not already persisted
-    if (!paymentData.alreadyPersisted && typeof fetch === "function") {
+    if (!paymentData.alreadyPersisted && typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       const apiUrl = getApiUrl();
-      fetch(`${apiUrl}/api/payments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          student_id: sId,
-          student_name: sName,
-          sozlesme_no: szlNo,
-          contract_id: cntId,
-          installment_no: targetInstNo,
-          installment_id: targetInstId,
-          amount,
-          method: payMethod,
-          bank: payBank,
-          payment_date: payDate,
-          note: payNote
-        })
-      }).then(() => {
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("cozum_students_updated"));
+      try {
+        const p = fetch(`${apiUrl}/api/payments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: sId,
+            student_name: sName,
+            sozlesme_no: szlNo,
+            contract_id: cntId,
+            installment_no: targetInstNo,
+            installment_id: targetInstId,
+            amount,
+            method: payMethod,
+            bank: payBank,
+            payment_date: payDate,
+            note: payNote
+          })
+        });
+        if (p && typeof p.then === "function") {
+          p.then(() => {
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new Event("cozum_students_updated"));
+            }
+          }).catch((err) => console.warn("[AccountingService] Remote payment POST error:", err));
         }
-      }).catch((err) => console.warn("[AccountingService] Remote payment POST error:", err));
+      } catch (err) {
+        console.warn("[AccountingService] Remote payment POST error:", err);
+      }
     }
 
     if (typeof window !== "undefined") {
@@ -1173,25 +1173,32 @@ export const AccountingService = {
     writeCache("cozum_ssot_incomes_v2", _memory.incomes);
 
     // 4. Remote API call to Cloudflare D1
-    if (typeof fetch === "function") {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       const apiUrl = getApiUrl();
-      fetch(`${apiUrl}/api/payments/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          student_id: sId,
-          sozlesme_no: szlNo,
-          contract_id: cntId,
-          installment_no: targetInstNo,
-          installment_id: targetInstId,
-          payment_id: cancelData.payment_id,
-          amount
-        })
-      }).then(() => {
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("cozum_students_updated"));
+      try {
+        const p = fetch(`${apiUrl}/api/payments/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: sId,
+            sozlesme_no: szlNo,
+            contract_id: cntId,
+            installment_no: targetInstNo,
+            installment_id: targetInstId,
+            payment_id: cancelData.payment_id,
+            amount
+          })
+        });
+        if (p && typeof p.then === "function") {
+          p.then(() => {
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new Event("cozum_students_updated"));
+            }
+          }).catch((err) => console.warn("[AccountingService] Remote cancel payment error:", err));
         }
-      }).catch((err) => console.warn("[AccountingService] Remote cancel payment error:", err));
+      } catch (err) {
+        console.warn("[AccountingService] Remote cancel payment error:", err);
+      }
     }
 
     if (typeof window !== "undefined") {
@@ -1199,49 +1206,6 @@ export const AccountingService = {
     }
   },
 
-  buildSyntheticContractForStudent(st) {
-    if (!st) return null;
-    const fee = Number(st.total_fee || 0);
-    let extraSum = 0;
-    try {
-      const extras = typeof st.extra_fees === "string" ? JSON.parse(st.extra_fees || "{}") : (st.extra_fees || {});
-      extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
-    } catch {}
-    const disc = Number(st.discount_amount || 0);
-    const gross = Math.max(0, fee + extraSum - disc) || fee || 75000;
-    const count = Math.max(1, parseInt(st.installment_count) || 8);
-    const net = roundKurus(gross / 1.1);
-    const vat = roundKurus(gross - net);
-    const sName = trNorm(st.student_name) || "ÖĞRENCİ";
-    const szlNo = st.sozlesme_no || `SZL2026${String(Date.now()).slice(-5)}`;
-
-    return {
-      id: st.id ? `cnt_${st.id}` : `cnt_${Date.now()}`,
-      sozlesmeNo: szlNo,
-      sozlesme_no: szlNo,
-      studentId: st.id,
-      student_id: st.id,
-      ogrenciId: st.id,
-      ogrenciAdi: sName,
-      student_name: sName,
-      ogrenciAdiSoyadi: sName,
-      sinifAdi: st.student_class || "8-A",
-      parentName: st.parent_name ? trNorm(st.parent_name) : sName,
-      musteriUnvan: st.parent_name ? trNorm(st.parent_name) : sName,
-      netTutar: net,
-      kdvTutari: vat,
-      brutTutar: gross,
-      taksitSayisi: count,
-      odemeTuru: 1,
-      odemeTuruText: `Taksitli (${count} Taksit)`,
-      donemId: st.donem_id || 113,
-      donemAdi: "2026-2027",
-      durum: 1,
-      durumText: "Aktif",
-      isSigned: false,
-      sozlesmeTarihi: st.created_at || new Date().toISOString()
-    };
-  },
 
   setInitialData({ contracts = [], incomes = [], installments = [], collections = [], summary = null } = {}) {
     if (contracts && contracts.length) _memory.contracts = [...contracts];

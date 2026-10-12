@@ -316,6 +316,48 @@ export const mockSchedules = [
   }
 ];
 
+export const mockContracts = [
+  {
+    id: "SZL202600135",
+    sozlesmeNo: "SZL202600135",
+    sozlesme_no: "SZL202600135",
+    studentId: "stu-1",
+    student_id: "stu-1",
+    ogrenciAdi: "Ahmet Yılmaz",
+    musteriUnvan: "Ahmet Yılmaz",
+    sinifAdi: "12-SAY-A",
+    donemAdi: "2026-2027",
+    donemId: 113,
+    brutTutar: 80000,
+    netTutar: 72727.27,
+    kdvTutari: 7272.73,
+    taksitSayisi: 8,
+    durum: 1,
+    durumText: "Aktif",
+    sozlesmeTarihi: "2026-10-03T00:00:00"
+  },
+  {
+    id: "SZL202600136",
+    sozlesmeNo: "SZL202600136",
+    sozlesme_no: "SZL202600136",
+    studentId: "stu-2",
+    student_id: "stu-2",
+    ogrenciAdi: "Zeynep Kaya",
+    musteriUnvan: "Ayşe Kaya",
+    sinifAdi: "11-EA-B",
+    donemAdi: "2026-2027",
+    donemId: 113,
+    brutTutar: 45000,
+    netTutar: 40909.09,
+    kdvTutari: 4090.91,
+    taksitSayisi: 5,
+    durum: 1,
+    durumText: "Aktif",
+    sozlesmeTarihi: "2026-09-01T00:00:00"
+  }
+];
+
+
 describe("Test Harness Infrastructure", () => {
   test("test helpers and fixtures initialized correctly", () => {
     expect(render).toBeDefined();

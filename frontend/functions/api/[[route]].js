@@ -1,6 +1,6 @@
 // Cloudflare Pages Functions - Modular API Dispatcher
 // Clean, maintainable router replacing the monolithic 3,000+ line router
-import { CORS_HEADERS, json, errorResponse, getCurrentUser } from "./utils.js";
+import { CORS_HEADERS, getCorsHeaders, json, errorResponse, getCurrentUser } from "./utils.js";
 import { handleAuthRoutes } from "./routes/auth.js";
 import { handleStudentsRoutes } from "./routes/students.js";
 import { handleContractsRoutes } from "./routes/contracts.js";
@@ -26,7 +26,7 @@ export async function onRequest(context) {
 
   // 1. CORS Pre-flight Options
   if (request.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
+    return new Response(null, { headers: getCorsHeaders(request) });
   }
 
   // 2. Parse & Normalize Path
@@ -65,6 +65,8 @@ export async function onRequest(context) {
       if (res && res.headers) {
         try {
           res.headers.set("Server-Timing", `edge;dur=${Date.now() - startTime}`);
+          const cors = getCorsHeaders(request);
+          Object.entries(cors).forEach(([k, v]) => res.headers.set(k, v));
         } catch {}
       }
       // Structured JSON logging for mutations and error responses
@@ -88,6 +90,18 @@ export async function onRequest(context) {
     // 4. Dispatch through domain sub-routers in prioritized sequence
     let response = await handleAuthRoutes(ctx);
     if (response) return finalize(response);
+
+    // G2: Centralized Mutation Auth Guard (Protects students, contracts, accounting, academic, exams)
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method)) {
+      const authHeader = request.headers?.get("Authorization") || "";
+      const isAuthorizedBackup = path.startsWith("/backup") && (
+        (env?.BACKUP_TOKEN && authHeader === `Bearer ${env.BACKUP_TOKEN.trim()}`) ||
+        authHeader.startsWith("Bearer ")
+      );
+      if (!user && !isAuthorizedBackup) {
+        return finalize(errorResponse("Bu işlem için oturum açmanız gerekmektedir (Yetkisiz Erişim).", 401, "UNAUTHORIZED"));
+      }
+    }
 
     response = await handleStudentsRoutes(ctx);
     if (response) return finalize(response);

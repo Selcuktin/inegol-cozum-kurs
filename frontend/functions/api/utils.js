@@ -9,10 +9,27 @@ export const ROLE_LABELS = {
   [ROLE_TEACHER]: "Öğretmen",
 };
 
+export function getCorsHeaders(request) {
+  const origin = request?.headers?.get("Origin") || "";
+  const isAllowed =
+    origin === "https://inegol-cozum-kurs.pages.dev" ||
+    /^https:\/\/[a-z0-9-]+\.inegol-cozum-kurs\.pages\.dev$/.test(origin) ||
+    /^http:\/\/localhost:(3000|8788|8787|5173)$/.test(origin) ||
+    /^http:\/\/127\.0\.0\.1:(3000|8788|8787|5173)$/.test(origin);
+
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin : "https://inegol-cozum-kurs.pages.dev",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-ID, X-Requested-With",
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
+
 export const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://inegol-cozum-kurs.pages.dev",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-ID, X-Requested-With",
+  "Access-Control-Allow-Credentials": "true",
 };
 
 export function json(data, status = 200, extraHeaders = {}) {

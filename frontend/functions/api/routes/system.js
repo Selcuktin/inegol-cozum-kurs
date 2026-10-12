@@ -359,8 +359,8 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
 
     // Auth check: either admin user session OR Bearer BACKUP_TOKEN secret
     const authHeader = request.headers.get("Authorization") || "";
-    const backupSecret = (env?.BACKUP_TOKEN || "cozum-backup-token-2026").trim();
-    const isTokenAuthed = authHeader === `Bearer ${backupSecret}`;
+    const backupSecret = (env?.BACKUP_TOKEN || "").trim();
+    const isTokenAuthed = !!backupSecret && authHeader === `Bearer ${backupSecret}`;
     const isAdmin = user && user.role === ROLE_ADMIN;
 
     if (!isAdmin && !isTokenAuthed) {

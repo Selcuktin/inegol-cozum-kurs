@@ -89,7 +89,7 @@ export const StudentService = {
     if (Array.isArray(propStudents) && propStudents.length > 0) {
       _memory.students = propStudents;
       writeCache("cozum_ssot_students_v2", propStudents);
-    } else if (_memory.students.length === 0 && !_memory.isFetching && typeof window !== "undefined") {
+    } else if (_memory.students.length === 0 && !_memory.isFetching && typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
       _memory.isFetching = true;
       this.fetchStudents().finally(() => {
         _memory.isFetching = false;

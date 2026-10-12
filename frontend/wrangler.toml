@@ -8,3 +8,8 @@ binding = "DB"
 database_name = "inegol-cozum-db"
 database_id = "2e4de05a-6062-4349-a3be-09d5c59608c1"
 
+[vars]
+ADMIN_PASSWORD = "cozum2026"
+STAFF_PASSWORD = "4321"
+BACKUP_TOKEN = "cozum-backup-token-2026"
+

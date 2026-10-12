@@ -35,7 +35,7 @@ export async function getDynamicAccountingSummary(db, students = [], preloadedSu
   const totalCollected = (pRow?.total_paid ? Number(pRow.total_paid) : (iRow?.coll ? Number(iRow.coll) : 0));
   const totalRemaining = Math.max(0, totalRevenue - totalCollected);
   const gelirlerCount = iRow?.cnt || 0;
-  const taksitlerCount = instRow?.cnt || 603;
+  const taksitlerCount = instRow?.cnt || 0;
   const tahsilatlarCount = pRow?.cnt || 0;
   const activeKesinCount = students.filter((s) => s.is_kesin_kayit).length;
 
@@ -180,15 +180,15 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     const amount = Number(p.amount) || 0;
     if (amount <= 0) return errorResponse("Geçersiz tahsilat tutarı", 422, "VALIDATION_ERROR");
 
-    // Resilient student resolution
+    // Resilient student resolution strictly by ID, TC, or Contract
     let student = null;
     if (p.student_id) {
       const cleanId = String(p.student_id).replace(/^stu-/, "");
       student = await db.prepare(`
         SELECT * FROM students 
-        WHERE id = ? OR id = ? OR ('stu-' || id) = ? OR sozlesme_no = ? OR student_tc = ? OR LOWER(TRIM(student_name)) = LOWER(TRIM(?))
+        WHERE id = ? OR id = ? OR ('stu-' || id) = ? OR student_tc = ? OR sozlesme_no = ?
         LIMIT 1
-      `).bind(p.student_id, cleanId, p.student_id, p.student_id, p.student_id, p.student_id).first().catch(() => null);
+      `).bind(p.student_id, cleanId, p.student_id, p.student_id, p.student_id).first().catch(() => null);
     }
     if (!student && p.sozlesme_no) {
       student = await db.prepare(`
@@ -197,10 +197,6 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
         WHERE s.sozlesme_no = ? OR c.sozlesme_no = ?
         LIMIT 1
       `).bind(p.sozlesme_no, p.sozlesme_no).first().catch(() => null);
-    }
-    if (!student && p.student_name) {
-      student = await db.prepare("SELECT * FROM students WHERE LOWER(TRIM(student_name)) = LOWER(TRIM(?)) LIMIT 1")
-        .bind(p.student_name).first().catch(() => null);
     }
     if (!student && p.contract_id) {
       student = await db.prepare(`
@@ -211,7 +207,7 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     }
     if (!student) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
 
-    // Resilient contract resolution
+    // Resilient contract resolution strictly by IDs
     let contract = null;
     if (p.contract_id) {
       contract = await db.prepare("SELECT * FROM contracts WHERE id = ? LIMIT 1").bind(p.contract_id).first().catch(() => null);
@@ -223,10 +219,10 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
       const cleanStudentId = String(student.id).replace(/^stu-/, "");
       contract = await db.prepare(`
         SELECT * FROM contracts 
-        WHERE (student_id = ? OR student_id = ? OR ('stu-' || student_id) = ? OR LOWER(TRIM(student_name)) = LOWER(TRIM(?)))
+        WHERE (student_id = ? OR student_id = ? OR ('stu-' || student_id) = ?)
           AND (is_deleted = 0 OR is_deleted IS NULL)
         LIMIT 1
-      `).bind(student.id, cleanStudentId, student.id, student.student_name).first().catch(() => null);
+      `).bind(student.id, cleanStudentId, student.id).first().catch(() => null);
     }
 
     // Target specific installment
