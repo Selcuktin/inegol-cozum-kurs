@@ -1915,8 +1915,11 @@ export default function EdesisSozlesmeDetay({
             student_name: contract?.ogrenciAdi || contract?.musteriUnvan || student?.student_name,
             total_fee: brutTutar,
             installment_count: contract?.taksitSayisi || localInstallments?.length || 10,
-            parent_name: student?.parent_name || contract?.musteriUnvan
+            parent_name: student?.parent_name || contract?.musteriUnvan,
+            extra_fees: {},
+            discount_amount: 0
           }}
+          installments={localInstallments}
           onClose={() => setShowPromissoryModal(false)}
         />
       )}
