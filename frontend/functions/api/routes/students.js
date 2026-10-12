@@ -217,10 +217,10 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
     let sozlesmeNo = s.sozlesme_no;
     let contractId = "cnt_" + crypto.randomUUID().slice(0, 10);
     try {
-      await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR student_name = ? COLLATE NOCASE) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(id, s.student_name).run().catch(() => {});
-      await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR student_name = ? COLLATE NOCASE) AND is_deleted = 1").bind(id, s.student_name).run().catch(() => {});
+      await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR sozlesme_no = ?) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(id, sozlesmeNo || "").run().catch(() => {});
+      await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR sozlesme_no = ?) AND is_deleted = 1").bind(id, sozlesmeNo || "").run().catch(() => {});
 
-      const existingContract = await db.prepare("SELECT * FROM contracts WHERE (student_id = ? OR student_name = ? COLLATE NOCASE) AND (is_deleted = 0 OR is_deleted IS NULL) LIMIT 1").bind(id, s.student_name).first().catch(() => null);
+      const existingContract = await db.prepare("SELECT * FROM contracts WHERE (student_id = ? OR (sozlesme_no = ? AND sozlesme_no != '')) AND (is_deleted = 0 OR is_deleted IS NULL) LIMIT 1").bind(id, sozlesmeNo || "").first().catch(() => null);
       if (existingContract) {
         sozlesmeNo = existingContract.sozlesme_no;
         contractId = existingContract.id;
@@ -256,10 +256,10 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
         inst > 1 ? 1 : 2, inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim", inst, user?.name || "Yönetici"
       ).run();
 
-      // Inactivate any orphaned duplicate contracts for this student
+      // Inactivate any orphaned duplicate contracts for this student strictly by student_id
       await db.prepare(
-        "UPDATE contracts SET is_deleted = 1 WHERE (student_name = ? COLLATE NOCASE OR (student_id = ? AND student_id != '')) AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
-      ).bind(s.student_name, id, contractId).run().catch(() => {});
+        "UPDATE contracts SET is_deleted = 1 WHERE student_id = ? AND student_id != '' AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
+      ).bind(id, contractId).run().catch(() => {});
 
       const gelirKodu = s.gelir_kodu || (await getNextSequence(db, "GLR_2026", "GLR2026", 5, 158));
       const glrId = "glr_" + crypto.randomUUID().slice(0, 10);
@@ -281,24 +281,26 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
         gross, s.due_date || new Date().toISOString(), inst > 1 ? 1 : 0, inst, inst
       ).run().catch((e) => console.error("Auto income insert error:", e));
 
-      // Inactivate any duplicate income rows for this student
+      // Inactivate any duplicate income rows strictly by student_id or contract_id
       await db.prepare(
-        "UPDATE student_incomes SET is_deleted = 1 WHERE (student_name = ? COLLATE NOCASE OR (student_id = ? AND student_id != '') OR contract_id = ?) AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
-      ).bind(s.student_name, id, contractId, glrId).run().catch(() => {});
+        "UPDATE student_incomes SET is_deleted = 1 WHERE ((student_id = ? AND student_id != '') OR contract_id = ?) AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
+      ).bind(id, contractId, glrId).run().catch(() => {});
 
       // Insert installments into installments table via atomic db.batch
       const baseAmt = Math.floor((gross / inst) * 100) / 100;
       const remainder = Math.round((gross - (baseAmt * inst)) * 100) / 100;
       const baseDate = new Date();
+      const baseYear = baseDate.getFullYear();
+      const baseMonth = baseDate.getMonth();
       const instStmts = [];
 
       for (let i = 1; i <= inst; i++) {
         const isLast = (i === inst);
         const amt = isLast ? Math.round((baseAmt + remainder) * 100) / 100 : baseAmt;
-        const dueDateObj = new Date(baseDate);
-        dueDateObj.setMonth(dueDateObj.getMonth() + i - 1);
-        dueDateObj.setDate(15);
-        const dueDate = dueDateObj.toISOString().split("T")[0];
+        const targetMonthIndex = baseMonth + i - 1;
+        const targetYear = baseYear + Math.floor(targetMonthIndex / 12);
+        const targetMonth = (targetMonthIndex % 12) + 1;
+        const dueDate = `${targetYear}-${String(targetMonth).padStart(2, "0")}-15`;
         const instId = `inst_${contractId}_${i}`;
 
         instStmts.push(
@@ -392,22 +394,36 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
       return errorResponse("Dosya boyutu 10MB'dan büyük olamaz", 413, "FILE_TOO_LARGE");
     }
 
-    let binary = "";
-    const bytes = new Uint8Array(arrayBuffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const base64 = btoa(binary);
-
     const filename = request.headers.get("X-Filename") || "sozlesme.pdf";
     const contentType = request.headers.get("X-Content-Type") || request.headers.get("Content-Type") || "application/pdf";
+    const r2Bucket = env?.FILES || env?.R2 || env?.BUCKET || env?.CONTRACTS;
+
+    let storagePath = "";
+    if (r2Bucket && typeof r2Bucket.put === "function") {
+      const r2Key = `contracts/${studentId}_${Date.now()}.pdf`;
+      await r2Bucket.put(r2Key, arrayBuffer, {
+        httpMetadata: { contentType },
+        customMetadata: { filename, studentId }
+      });
+      storagePath = r2Key;
+    } else {
+      if (arrayBuffer.byteLength > 1.5 * 1024 * 1024) {
+        return errorResponse("R2 depolama bağlanmadığı için 1.5MB üzeri dosyalar yüklenemez", 413, "FILE_TOO_LARGE");
+      }
+      let binary = "";
+      const bytes = new Uint8Array(arrayBuffer);
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      storagePath = btoa(binary);
+    }
 
     await db
       .prepare(
         "UPDATE students SET signed_contract_path = ?, signed_contract_filename = ?, signed_contract_content_type = ?, signed_contract_uploaded_at = datetime('now') WHERE id = ?"
       )
-      .bind(base64, filename, contentType, studentId)
+      .bind(storagePath, filename, contentType, studentId)
       .run();
 
     await logAction(db, user, "student.contract_upload", "student", studentId, `${student.student_name} için sözleşme yüklendi (${filename})`, waitUntil);
@@ -423,15 +439,28 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
       return errorResponse("Yüklenmiş sözleşme bulunamadı", 404, "NOT_FOUND");
     }
 
+    const contentType = student.signed_contract_content_type || "application/pdf";
+    const filename = student.signed_contract_filename || "sozlesme.pdf";
+    const r2Bucket = env?.FILES || env?.R2 || env?.BUCKET || env?.CONTRACTS;
+
+    if (student.signed_contract_path.startsWith("contracts/") && r2Bucket && typeof r2Bucket.get === "function") {
+      const r2Obj = await r2Bucket.get(student.signed_contract_path);
+      if (!r2Obj) return errorResponse("Dosya R2 depolamada bulunamadı", 404, "NOT_FOUND");
+      return new Response(r2Obj.body, {
+        headers: {
+          "Content-Type": contentType,
+          "Content-Disposition": `inline; filename="${filename}"`,
+          ...CORS_HEADERS,
+        },
+      });
+    }
+
     const binary = atob(student.signed_contract_path);
     const len = binary.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
-
-    const contentType = student.signed_contract_content_type || "application/pdf";
-    const filename = student.signed_contract_filename || "sozlesme.pdf";
 
     return new Response(bytes, {
       headers: {
@@ -457,7 +486,7 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
     if (request.method === "PATCH") {
       const patch = await request.json().catch(() => ({}));
       const decodedId = decodeURIComponent(studentId);
-      let existing = await db.prepare("SELECT * FROM students WHERE id = ? OR LOWER(student_name) = LOWER(?)").bind(decodedId, decodedId).first();
+      let existing = await db.prepare("SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?").bind(decodedId, decodedId, decodedId).first();
 
       if (!existing) {
         const insertId = decodedId || `student-${Date.now().toString(36)}`;
@@ -518,8 +547,8 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
     if (request.method === "DELETE") {
       const decodedId = decodeURIComponent(studentId);
       const student = await db.prepare(
-        "SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ? OR LOWER(student_name) = LOWER(?)"
-      ).bind(decodedId, decodedId, decodedId, decodedId).first();
+        "SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?"
+      ).bind(decodedId, decodedId, decodedId).first();
 
       if (!student) {
         return json({ ok: true, deleted_id: decodedId, already_deleted: true });
@@ -528,12 +557,12 @@ export async function handleStudentsRoutes({ request, db, url, path, user, waitU
       const targetId = student.id;
       const targetName = student.student_name;
 
-      // Full Cascade Purge: Permanently delete payments, installments, incomes, contracts, and student
+      // Full Cascade Purge strictly by student targetId: Permanently delete payments, installments, incomes, contracts, and student
       const deleteStmts = [
-        db.prepare("DELETE FROM payments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE student_id = ? OR LOWER(student_name) = LOWER(?))").bind(targetId, targetId, targetId, targetId, targetName),
-        db.prepare("DELETE FROM installments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE student_id = ? OR LOWER(student_name) = LOWER(?))").bind(targetId, targetId, targetId, targetId, targetName),
-        db.prepare("DELETE FROM student_incomes WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')").bind(targetId, targetId, targetId, targetName),
-        db.prepare("DELETE FROM contracts WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != '')").bind(targetId, targetId, targetId, targetName),
+        db.prepare("DELETE FROM payments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ?)").bind(targetId, targetId, targetId, targetId, targetId, targetId),
+        db.prepare("DELETE FROM installments WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR contract_id IN (SELECT id FROM contracts WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ?)").bind(targetId, targetId, targetId, targetId, targetId, targetId),
+        db.prepare("DELETE FROM student_incomes WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ?").bind(targetId, targetId, targetId),
+        db.prepare("DELETE FROM contracts WHERE student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ?").bind(targetId, targetId, targetId),
         db.prepare("DELETE FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?").bind(targetId, targetId, targetId)
       ];
       if (typeof db.batch === "function") {

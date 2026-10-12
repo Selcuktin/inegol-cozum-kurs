@@ -9,15 +9,7 @@ import { handleAcademicRoutes } from "./routes/academic.js";
 import { handleExamRoutes } from "./routes/exams.js";
 import { handleSystemRoutes } from "./routes/system.js";
 
-export {
-  handleAuthRoutes,
-  handleStudentsRoutes,
-  handleContractsRoutes,
-  handleAccountingRoutes,
-  handleAcademicRoutes,
-  handleExamRoutes,
-  handleSystemRoutes,
-};
+export { handleAuthRoutes, handleStudentsRoutes, handleContractsRoutes, handleAccountingRoutes, handleAcademicRoutes, handleExamRoutes, handleSystemRoutes };
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -26,18 +18,14 @@ export async function onRequest(context) {
 
   // 1. CORS Pre-flight Options
   if (request.method === "OPTIONS") {
-    return new Response(null, { headers: getCorsHeaders(request) });
+    return new Response(null, { headers: getCorsHeaders(request, env) });
   }
 
   // 2. Parse & Normalize Path
   const url = new URL(request.url);
   let path = url.pathname.replace(/^(\/api)+/, "") || "/";
-  if (!path.startsWith("/")) {
-    path = "/" + path;
-  }
-  if (path.length > 1 && path.endsWith("/")) {
-    path = path.slice(0, -1);
-  }
+  if (!path.startsWith("/")) path = "/" + path;
+  if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
 
   let user = null;
   try {
@@ -91,16 +79,27 @@ export async function onRequest(context) {
     let response = await handleAuthRoutes(ctx);
     if (response) return finalize(response);
 
-    // G2: Centralized Mutation Auth Guard (Protects students, contracts, accounting, academic, exams)
-    if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method)) {
+    // Fast isolated path for /backup (closes bypass and avoids touching subsequent routers)
+    if (path.startsWith("/backup")) {
       const authHeader = request.headers?.get("Authorization") || "";
-      const isAuthorizedBackup = path.startsWith("/backup") && (
-        (env?.BACKUP_TOKEN && authHeader === `Bearer ${env.BACKUP_TOKEN.trim()}`) ||
-        authHeader.startsWith("Bearer ")
-      );
-      if (!user && !isAuthorizedBackup) {
-        return finalize(errorResponse("Bu işlem için oturum açmanız gerekmektedir (Yetkisiz Erişim).", 401, "UNAUTHORIZED"));
+      const backupSecret = (env?.BACKUP_TOKEN || "").trim();
+      const isTokenAuthed = !!backupSecret && authHeader === `Bearer ${backupSecret}`;
+      if (!user && !isTokenAuthed) {
+        return finalize(errorResponse("Yedekleme servisi için geçerli oturum veya token gereklidir.", 401, "UNAUTHORIZED"));
       }
+      const backupRes = await handleSystemRoutes(ctx);
+      if (backupRes) return finalize(backupRes);
+      return finalize(errorResponse(`Endpoint bulunamadı: ${path}`, 404, "NOT_FOUND"));
+    }
+
+    // Sensitive GET Read Guard (/users, /audit-logs)
+    if (request.method === "GET" && ["/users", "/audit-logs"].includes(path) && !user) {
+      return finalize(errorResponse("Bu verileri görüntülemek için oturum açmanız gerekmektedir.", 401, "UNAUTHORIZED"));
+    }
+
+    // G2: Centralized Mutation Auth Guard (Protects students, contracts, accounting, academic, exams)
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method) && !user) {
+      return finalize(errorResponse("Bu işlem için oturum açmanız gerekmektedir (Yetkisiz Erişim).", 401, "UNAUTHORIZED"));
     }
 
     response = await handleStudentsRoutes(ctx);

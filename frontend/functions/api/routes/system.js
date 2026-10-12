@@ -37,7 +37,7 @@ async function ensureBackupTable(db) {
   `).run().catch(() => {});
 }
 
-async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUntil = null) {
+async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUntil = null, env = null) {
   // 1. Mevcut durumu güvenlik için pre_restore olarak yedekle
   const preSnap = { version: 1, created_at: new Date().toISOString(), tables: {} };
   const preCounts = {};
@@ -52,9 +52,18 @@ async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUnt
     }
   }
   const preId = "backup_prerestore_" + Date.now();
+  const preSnapJson = JSON.stringify(preSnap);
+  const preCountsJson = JSON.stringify(preCounts);
+  // Protect D1 SQLite row limit (~2MB): if preSnapJson > 1.5MB, write empty object to D1
+  const d1SnapData = preSnapJson.length > 1500000 ? "{}" : preSnapJson;
   await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'pre_restore', ?, ?, 'Sistem Güvenlik', ?)")
-    .bind(preId, new Date().toISOString(), JSON.stringify(preSnap), JSON.stringify(preCounts), `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
+    .bind(preId, new Date().toISOString(), d1SnapData, preCountsJson, `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
     .run().catch(() => {});
+
+  const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
+  if (r2Bucket && typeof r2Bucket.put === "function") {
+    await r2Bucket.put(`${preId}.json`, preSnapJson).catch(() => {});
+  }
 
   // 2. Tabloları temizle ve seçili snapshot'ı atomik db.batch() ile geri yükle
   const restoredCounts = {};
@@ -163,6 +172,10 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
   // ---------------- USERS & AUDIT ----------------
   if (path === "/users" && request.method === "GET") {
     if (!db) return json([]);
+    const user = currentUser || await getCurrentUser(request, db).catch(() => null);
+    if (!user) {
+      return errorResponse("Kullanıcı listesini görüntülemek için oturum açmanız gerekmektedir", 401, "UNAUTHORIZED");
+    }
     const res = await db.prepare("SELECT user_id, email, name, picture, role, created_at FROM users").all();
     const users = (res.results || []).map((u) => ({
       ...u,
@@ -189,6 +202,10 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
 
   if (path === "/audit-logs" && request.method === "GET") {
     if (!db) return json([]);
+    const user = currentUser || await getCurrentUser(request, db).catch(() => null);
+    if (!user || user.role !== ROLE_ADMIN) {
+      return errorResponse("Denetim kayıtlarını görüntüleme yetkiniz yok", 403, "FORBIDDEN");
+    }
     const res = await db.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200").all();
     return json(res.results || []);
   }
@@ -277,6 +294,14 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
   // ---------------- BACKUP & RESTORE (20:00 DAILY SNAPSHOT & 1-CLICK RESTORE & R2) ----------------
   if (path === "/backup" && request.method === "GET") {
     if (!db) return json({ backups: [], schedule: "Her gün 20:00 (TRT)", status: "inactive" });
+    const user = currentUser || await getCurrentUser(request, db).catch(() => null);
+    const authHeader = request.headers.get("Authorization") || "";
+    const backupSecret = (env?.BACKUP_TOKEN || "").trim();
+    const isTokenAuthed = !!backupSecret && authHeader === `Bearer ${backupSecret}`;
+    const isAdmin = user && user.role === ROLE_ADMIN;
+    if (!isAdmin && !isTokenAuthed) {
+      return errorResponse("Yedekleme durumunu görüntülemek için yetkiniz yok", 401, "UNAUTHORIZED");
+    }
     await ensureBackupTable(db);
     const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
 
@@ -436,7 +461,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     }
     if (!snap) return errorResponse("Yedek bulunamadı", 404);
 
-    const result = await restoreSnapshotData(db, snap, user, backupId, `Veritabanı ${backupId} yedeğinden geri yüklendi`, ctxOrPath?.waitUntil);
+    const result = await restoreSnapshotData(db, snap, user, backupId, `Veritabanı ${backupId} yedeğinden geri yüklendi`, ctxOrPath?.waitUntil, env);
     return json(result);
   }
 
@@ -472,7 +497,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       await r2Bucket.put(`${backupId}.json`, JSON.stringify(rawSnap)).catch(() => {});
     }
 
-    const result = await restoreSnapshotData(db, rawSnap, user, backupId, notes, ctxOrPath?.waitUntil);
+    const result = await restoreSnapshotData(db, rawSnap, user, backupId, notes, ctxOrPath?.waitUntil, env);
     return json(result);
   }
 

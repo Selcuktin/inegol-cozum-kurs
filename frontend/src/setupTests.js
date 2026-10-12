@@ -2,6 +2,13 @@
 // Automatically loaded by CRA / CRACO before running test suites
 
 // 1. Real global.fetch mock preventing external network leaks during unit tests
+const nodeCrypto = require("crypto");
+if (!global.crypto) {
+  global.crypto = nodeCrypto.webcrypto || nodeCrypto;
+}
+if (!globalThis.crypto) {
+  globalThis.crypto = global.crypto;
+}
 const defaultFetchMock = jest.fn((url, options) => {
   return Promise.resolve({
     ok: true,

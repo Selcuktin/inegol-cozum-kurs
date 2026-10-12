@@ -9,10 +9,12 @@ export const ROLE_LABELS = {
   [ROLE_TEACHER]: "Öğretmen",
 };
 
-export function getCorsHeaders(request) {
+export function getCorsHeaders(request, env = null) {
   const origin = request?.headers?.get("Origin") || "";
+  const customOrigin = env?.ALLOWED_ORIGIN || "";
   const isAllowed =
     origin === "https://inegol-cozum-kurs.pages.dev" ||
+    (customOrigin && origin === customOrigin) ||
     /^https:\/\/[a-z0-9-]+\.inegol-cozum-kurs\.pages\.dev$/.test(origin) ||
     /^http:\/\/localhost:(3000|8788|8787|5173)$/.test(origin) ||
     /^http:\/\/127\.0\.0\.1:(3000|8788|8787|5173)$/.test(origin);

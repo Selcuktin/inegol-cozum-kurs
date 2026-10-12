@@ -55,3 +55,5 @@ credentials.json
 *.key
 .credentials
 .freebuff/
+.dev.vars
+*.dev.vars

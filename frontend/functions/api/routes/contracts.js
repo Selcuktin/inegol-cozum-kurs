@@ -132,17 +132,17 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
 
     const studentId = body.student_id ? String(body.student_id) : "student-" + crypto.randomUUID().slice(0, 8);
 
-    // Clean prior tombstones
-    await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(studentId, studentName.toLowerCase()).run().catch(() => {});
-    await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR LOWER(student_name) = LOWER(?)) AND is_deleted = 1").bind(studentId, studentName.toLowerCase()).run().catch(() => {});
+    // Clean prior tombstones strictly by student_id or contract id
+    await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR id = ? OR sozlesme_no = ?) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(studentId, body.id || "", body.sozlesme_no || "").run().catch(() => {});
+    await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR contract_id = ? OR sozlesme_no = ?) AND is_deleted = 1").bind(studentId, body.id || "", body.sozlesme_no || "").run().catch(() => {});
 
-    // Reuse existing active contract if one already exists for this student
+    // Reuse existing active contract strictly by student_id or sozlesme_no
     const existingContract = await db.prepare(`
       SELECT * FROM contracts 
-      WHERE ((student_id = ? AND student_id != '') OR (LOWER(student_name) = LOWER(?) AND student_name != ''))
+      WHERE ((student_id = ? AND student_id != '') OR (sozlesme_no = ? AND sozlesme_no != ''))
         AND (is_deleted = 0 OR is_deleted IS NULL)
       LIMIT 1
-    `).bind(studentId, studentName.toLowerCase()).first().catch(() => null);
+    `).bind(studentId, body.sozlesme_no || "").first().catch(() => null);
 
     let sozlesmeNo = existingContract?.sozlesme_no || body.sozlesme_no || body.sozlesmeNo;
     let id = existingContract?.id || "cnt_" + crypto.randomUUID().slice(0, 10);
@@ -175,10 +175,10 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       `Taksitli (${taksitSayisi} Taksit)`, taksitSayisi, date, user?.name || "Yönetici"
     ).run();
 
-    // Inactivate any duplicate contract rows that may have been created earlier for this student
+    // Inactivate any duplicate contract rows strictly by student_id
     await db.prepare(
-      "UPDATE contracts SET is_deleted = 1 WHERE (LOWER(student_name) = LOWER(?) OR (student_id = ? AND student_id != '')) AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
-    ).bind(studentName.toLowerCase(), studentId, id).run().catch(() => {});
+      "UPDATE contracts SET is_deleted = 1 WHERE student_id = ? AND student_id != '' AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
+    ).bind(studentId, id).run().catch(() => {});
 
     // Atomic income code
     const gelirKodu = await getNextSequence(db, "GLR_2026", "GLR2026", 5, 158);
@@ -340,10 +340,10 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       const decodedKey = decodeURIComponent(contractId);
       const row = await db.prepare(`
         SELECT * FROM contracts 
-        WHERE (id = ? OR sozlesme_no = ? OR student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ? OR (LOWER(student_name) = LOWER(?) AND student_name != ''))
+        WHERE (id = ? OR sozlesme_no = ? OR student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ?)
           AND (is_deleted = 0 OR is_deleted IS NULL)
         LIMIT 1
-      `).bind(decodedKey, decodedKey, decodedKey, decodedKey, decodedKey, decodedKey).first();
+      `).bind(decodedKey, decodedKey, decodedKey, decodedKey, decodedKey).first();
 
       if (!row) {
         // Idempotent: already deleted or not found
@@ -388,21 +388,21 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         WHERE id = ?
       `).bind(brut, net, kdv, inst, odemeTuru, odemeTuruText, dateStr, row.id).run();
 
-      // Sync student total_fee and installment_count
-      if (row.student_id || row.student_name) {
+      // Sync student total_fee and installment_count strictly by student_id
+      if (row.student_id) {
         await db.prepare(`
           UPDATE students SET total_fee = ?, installment_count = ?
-          WHERE id = ? OR LOWER(student_name) = LOWER(?)
-        `).bind(brut, inst, row.student_id || "", row.student_name).run().catch(() => {});
+          WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?
+        `).bind(brut, inst, row.student_id, row.student_id, row.student_id).run().catch(() => {});
       }
 
-      // Sync student_incomes
+      // Sync student_incomes strictly by contract_id or sozlesme_no
       await db.prepare(`
         UPDATE student_incomes SET
           brut_tutar = ?, net_tutar = ?, kdv_tutari = ?,
           taksit_sayisi = ?, kalan_alacak = MAX(0, ? - toplam_tahsilat)
-        WHERE contract_id = ? OR sozlesme_no = ? OR LOWER(student_name) = LOWER(?)
-      `).bind(brut, net, kdv, inst, brut, row.id, row.sozlesme_no, row.student_name).run().catch(() => {});
+        WHERE contract_id = ? OR sozlesme_no = ?
+      `).bind(brut, net, kdv, inst, brut, row.id, row.sozlesme_no).run().catch(() => {});
 
       await logAction(db, user, "contract.update", "contract", row.id, `${row.sozlesme_no} güncellendi: ${brut} TL`, waitUntil);
 

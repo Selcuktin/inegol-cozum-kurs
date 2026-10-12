@@ -1,0 +1,6 @@
+# Cloudflare Pages / Wrangler Local Development Environment Variables
+# Copy this file to .dev.vars (which is ignored by git) for local development
+ADMIN_PASSWORD=your_secure_admin_password
+STAFF_PASSWORD=your_secure_staff_password
+BACKUP_TOKEN=your_secure_backup_token
+ALLOWED_ORIGIN=https://inegol-cozum-kurs.pages.dev
