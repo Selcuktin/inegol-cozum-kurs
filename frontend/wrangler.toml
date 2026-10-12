@@ -7,9 +7,7 @@ binding = "DB"
 database_name = "inegol-cozum-db"
 database_id = "2e4de05a-6062-4349-a3be-09d5c59608c1"
 
-# NOTE: Cloudflare Dashboard üzerinden R2 aktif edilip 'inegol-cozum-backups' bucket'ı
-# oluşturulduğunda aşağıdaki bloğun yorumunu kaldırarak R2 binding'ini devreye alabilirsiniz:
-# [[r2_buckets]]
-# binding = "BACKUPS"
-# bucket_name = "inegol-cozum-backups"
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "inegol-cozum-backups"
 
