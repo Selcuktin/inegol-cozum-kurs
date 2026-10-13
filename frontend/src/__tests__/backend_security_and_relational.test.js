@@ -205,17 +205,25 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
       expect(data.session_token).toBeTruthy();
     });
 
-    it("should authenticate staff with password 'cozum2026' or '4321'", async () => {
-      const req = new Request("https://inegol-cozum-kurs.pages.dev/api/auth/quick-login", {
+    it("should reject staff/teacher quick login with 403 STAFF_LOGIN_DISABLED", async () => {
+      const reqMuhasebe = new Request("https://inegol-cozum-kurs.pages.dev/api/auth/quick-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: "muhasebe", password: "cozum2026" })
       });
-      const res = await onRequest({ request: req, env: mockEnv });
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.ok).toBe(true);
-      expect(data.session_token).toBeTruthy();
+      const resMuhasebe = await onRequest({ request: reqMuhasebe, env: mockEnv });
+      expect(resMuhasebe.status).toBe(403);
+      const dataMuhasebe = await resMuhasebe.json();
+      expect(dataMuhasebe.ok).toBe(false);
+      expect(dataMuhasebe.code).toBe("STAFF_LOGIN_DISABLED");
+
+      const reqOgretmen = new Request("https://inegol-cozum-kurs.pages.dev/api/auth/quick-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "ogretmen", password: "cozum2026" })
+      });
+      const resOgretmen = await onRequest({ request: reqOgretmen, env: mockEnv });
+      expect(resOgretmen.status).toBe(403);
     });
 
     it("should reject wrong password with 401 AUTH_FAILED", async () => {

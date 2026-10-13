@@ -14,10 +14,22 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
     });
   }
 
-  // Quick Login with Geo & IP Guard
+  // Quick Login with Geo & IP Guard (Enforced Admin-Only)
   if (path === "/auth/quick-login" && request.method === "POST") {
     const body = await request.json().catch(() => ({}));
-    const role = body.role in ROLE_LABELS ? body.role : ROLE_ADMIN;
+    if (body.role && body.role !== ROLE_ADMIN) {
+      await logAction(
+        db,
+        { user_id: "guest", email: "guest@inegolcozumkurs.com", name: "Bilinmeyen Ziyaretçi", role: "guest" },
+        "security.disabled_staff_login_attempt",
+        "security",
+        clientIp,
+        `Personel girişi reddedildi (Talep edilen rol: ${body.role}, IP: ${clientIp})`,
+        waitUntil
+      );
+      return errorResponse("Personel girişi devre dışı bırakılmıştır. Yalnızca Yönetici girişi yapılabilir.", 403, "STAFF_LOGIN_DISABLED");
+    }
+
     const password = String(body.password || "").trim();
 
     // Read from environment secrets; fallback to defaults only when no env secret is configured
@@ -28,50 +40,30 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
       ? configuredAdminPasswords
       : ["cozum2026"];
 
-    const configuredStaffPassword = (env?.STAFF_PASSWORD || "").trim();
-    const staffPasswords = configuredStaffPassword
-      ? Array.from(new Set([configuredStaffPassword, ...adminPasswords]))
-      : Array.from(new Set(["4321", ...adminPasswords]));
-
-    if (role === ROLE_ADMIN) {
-      if (!password || !adminPasswords.includes(password)) {
-        await logAction(
-          db,
-          { user_id: "guest", email: body.email || "admin@inegolcozumkurs.com", name: "Bilinmeyen Ziyaretçi", role: "guest" },
-          "security.failed_login",
-          "security",
-          clientIp,
-          `Hatalı yönetici parolası denemesi (IP: ${clientIp}, Ülke: ${clientCountry}, AS: ${clientAsOrg || "Bilinmiyor"})`,
-          waitUntil
-        );
-        return errorResponse("Hatalı yönetici parolası!", 401, "AUTH_FAILED");
-      }
-    } else {
-      if (!password || !staffPasswords.includes(password)) {
-        await logAction(
-          db,
-          { user_id: "guest", email: body.email || `${role}@inegolcozumkurs.com`, name: "Bilinmeyen Ziyaretçi", role: "guest" },
-          "security.failed_login",
-          "security",
-          clientIp,
-          `Hatalı personel şifresi denemesi (Rol: ${role}, IP: ${clientIp}, Ülke: ${clientCountry})`,
-          waitUntil
-        );
-        return errorResponse("Hatalı personel şifresi!", 401, "AUTH_FAILED");
-      }
+    if (!password || !adminPasswords.includes(password)) {
+      await logAction(
+        db,
+        { user_id: "guest", email: "admin@inegolcozumkurs.com", name: "Bilinmeyen Ziyaretçi", role: "guest" },
+        "security.failed_login",
+        "security",
+        clientIp,
+        `Hatalı yönetici parolası denemesi (IP: ${clientIp}, Ülke: ${clientCountry}, AS: ${clientAsOrg || "Bilinmiyor"})`,
+        waitUntil
+      );
+      return errorResponse("Hatalı yönetici parolası!", 401, "AUTH_FAILED");
     }
 
-    const email = body.email || (role === ROLE_ADMIN ? "admin@inegolcozumkurs.com" : `${role}@inegolcozumkurs.com`);
+    const email = "admin@inegolcozumkurs.com";
     let dbUser = await db.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
 
     if (!dbUser) {
-      const userId = "usr_" + crypto.randomUUID().slice(0, 10);
-      const name = role === ROLE_ADMIN ? "Yönetici" : ROLE_LABELS[role] || "Kullanıcı";
+      const userId = "usr_admin_root";
+      const name = "Yönetici";
       await db
         .prepare("INSERT INTO users (user_id, email, name, role, created_at) VALUES (?, ?, ?, ?, datetime('now'))")
-        .bind(userId, email, name, role)
+        .bind(userId, email, name, ROLE_ADMIN)
         .run();
-      dbUser = { user_id: userId, email, name, role };
+      dbUser = { user_id: userId, email, name, role: ROLE_ADMIN };
     }
 
     const sessionToken = "tok_" + crypto.randomUUID().replace(/-/g, "");
@@ -81,8 +73,8 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
       .run();
 
     const auditDetail = isForeign
-      ? `Hızlı giriş yapıldı (${ROLE_LABELS[role] || role}) · [DİKKAT: Yurtdışı Erişim - Ülke: ${clientCountry}, IP: ${clientIp}]`
-      : `Hızlı giriş yapıldı (${ROLE_LABELS[role] || role}) · IP: ${clientIp}`;
+      ? `Yönetici girişi yapıldı · [DİKKAT: Yurtdışı Erişim - Ülke: ${clientCountry}, IP: ${clientIp}]`
+      : `Yönetici girişi yapıldı · IP: ${clientIp}`;
 
     await logAction(db, dbUser, "auth.quick_login", "user", dbUser.user_id, auditDetail, waitUntil);
 

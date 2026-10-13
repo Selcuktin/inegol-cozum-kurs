@@ -123,18 +123,18 @@ export function Login({ onLoginSuccess, API: apiProp }) {
   const apiBase = apiProp || API;
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickError, setQuickError] = useState("");
-  const [activeRole, setActiveRole] = useState(null); // 'admin' | 'muhasebe' | 'ogretmen' | null
-  const [rolePassword, setRolePassword] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
 
-  const handleQuickLogin = async (role, password) => {
-    if (!password || !password.trim()) {
-      setQuickError("Lütfen giriş şifresini yazınız.");
+  const handleAdminLogin = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!adminPassword || !adminPassword.trim()) {
+      setQuickError("Lütfen yönetici parolasını giriniz.");
       return;
     }
     setQuickLoading(true);
     setQuickError("");
     try {
-      const res = await axios.post(`${apiBase}/auth/quick-login`, { role, password: password.trim() });
+      const res = await axios.post(`${apiBase}/auth/quick-login`, { role: "admin", password: adminPassword.trim() });
       if (res.data?.session_token) {
         localStorage.setItem("session_token", res.data.session_token);
         axios.defaults.headers.common["Authorization"] = `Bearer ${res.data.session_token}`;
@@ -144,7 +144,7 @@ export function Login({ onLoginSuccess, API: apiProp }) {
         onLoginSuccess(userObj);
       }
     } catch (e) {
-      setQuickError(e.response?.data?.detail || "Giriş başarısız oldu. Lütfen şifrenizi kontrol edin.");
+      setQuickError(e.response?.data?.detail || "Giriş başarısız oldu. Lütfen parolanızı kontrol edin.");
     } finally {
       setQuickLoading(false);
     }
@@ -162,146 +162,63 @@ export function Login({ onLoginSuccess, API: apiProp }) {
         <Brand tight />
         <h1>Yönetim paneline giriş</h1>
         <p>
-          Sadece yetkilendirilmiş <b>İnegöl Çözüm Kurs</b> personeli giriş yapabilir.
+          Sadece yetkilendirilmiş <b>İnegöl Çözüm Kurs</b> yöneticisi giriş yapabilir.
         </p>
 
-        {activeRole ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleQuickLogin(activeRole, rolePassword);
-            }}
+        <form
+          onSubmit={handleAdminLogin}
+          style={{
+            margin: "16px 0",
+            padding: "16px",
+            borderRadius: "12px",
+            background: "var(--bg-secondary, #f8fafc)",
+            border: "1px solid var(--border)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.04)"
+          }}
+        >
+          <div style={{ marginBottom: "12px" }}>
+            <label style={{ display: "block", fontSize: "12px", color: "var(--muted)", marginBottom: "6px", fontWeight: "600" }}>
+              Yönetici Parolasını Giriniz:
+            </label>
+            <input
+              type="password"
+              data-testid="admin-password-input"
+              autoFocus
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Yönetici parolası"
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                fontSize: "14px",
+                boxSizing: "border-box"
+              }}
+            />
+          </div>
+
+          {quickError && (
+            <div className="modal-error" style={{ marginBottom: "12px", fontSize: "12px" }}>
+              {quickError}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            data-testid="quick-login-admin"
+            className="btn"
+            disabled={quickLoading || !adminPassword}
             style={{
-              margin: "16px 0",
-              padding: "16px",
-              borderRadius: "12px",
-              background: "var(--bg-secondary, #f8fafc)",
-              border: "1px solid var(--border)",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.04)"
+              width: "100%",
+              justifyContent: "center",
+              background: "#1d4ed8",
+              fontWeight: "600"
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <div style={{ fontWeight: "700", fontSize: "14px", color: "var(--text)" }}>
-                {activeRole === "admin" && "👑 Yönetici Girişi"}
-                {activeRole === "muhasebe" && "💼 Muhasebe Girişi"}
-                {activeRole === "ogretmen" && "📚 Öğretmen Girişi"}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveRole(null);
-                  setRolePassword("");
-                  setQuickError("");
-                }}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: "12px", padding: "4px" }}
-              >
-                ✕ Geri Dön
-              </button>
-            </div>
-
-            <div style={{ marginBottom: "12px" }}>
-              <label style={{ display: "block", fontSize: "12px", color: "var(--muted)", marginBottom: "6px", fontWeight: "600" }}>
-                {activeRole === "admin" ? "Yönetici Parolasını Giriniz:" : "Giriş Şifresini Giriniz (4321):"}
-              </label>
-              <input
-                type="password"
-                autoFocus
-                value={rolePassword}
-                onChange={(e) => setRolePassword(e.target.value)}
-                placeholder={activeRole === "admin" ? "Yönetici parolası" : "Şifre (4321)"}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  fontSize: "14px",
-                  boxSizing: "border-box"
-                }}
-              />
-            </div>
-
-            {quickError && (
-              <div className="modal-error" style={{ marginBottom: "12px", fontSize: "12px" }}>
-                {quickError}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="submit"
-                className="btn"
-                disabled={quickLoading || !rolePassword}
-                style={{
-                  flex: 1,
-                  justifyContent: "center",
-                  background: activeRole === "admin" ? "#1d4ed8" : "#2563eb",
-                  fontWeight: "600"
-                }}
-              >
-                {quickLoading ? "Giriş Yapılıyor..." : "Giriş Yap"}
-              </button>
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => {
-                  setActiveRole(null);
-                  setRolePassword("");
-                  setQuickError("");
-                }}
-              >
-                İptal
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div style={{ display: "grid", gap: "8px", margin: "16px 0" }}>
-            <button
-              data-testid="quick-login-admin"
-              className="btn"
-              style={{ width: "100%", justifyContent: "center", background: "#1d4ed8" }}
-              disabled={quickLoading}
-              onClick={() => {
-                setActiveRole("admin");
-                setRolePassword("");
-                setQuickError("");
-              }}
-            >
-              👑 Yönetici Olarak Hızlı Giriş (Admin)
-            </button>
-            <button
-              data-testid="quick-login-muhasebe"
-              className="btn secondary"
-              style={{ width: "100%", justifyContent: "center" }}
-              disabled={quickLoading}
-              onClick={() => {
-                setActiveRole("muhasebe");
-                setRolePassword("");
-                setQuickError("");
-              }}
-            >
-              💼 Muhasebe Olarak Hızlı Giriş
-            </button>
-            <button
-              data-testid="quick-login-ogretmen"
-              className="btn secondary"
-              style={{ width: "100%", justifyContent: "center" }}
-              disabled={quickLoading}
-              onClick={() => {
-                setActiveRole("ogretmen");
-                setRolePassword("");
-                setQuickError("");
-              }}
-            >
-              📚 Öğretmen Olarak Hızlı Giriş
-            </button>
-          </div>
-        )}
-
-        {quickError && !activeRole && (
-          <div className="modal-error" style={{ marginBottom: "12px" }}>
-            {quickError}
-          </div>
-        )}
+            {quickLoading ? "Giriş Yapılıyor..." : "👑 Yönetici Girişi Yap"}
+          </button>
+        </form>
 
         <div style={{ textAlign: "center", margin: "12px 0 10px", color: "var(--muted)", fontSize: "11px", fontWeight: "600" }}>
           VEYA BULUT GİRİŞİ
@@ -317,45 +234,8 @@ export function Login({ onLoginSuccess, API: apiProp }) {
           Google ile giriş yap
         </button>
         <div className="auth-foot">
-          <ShieldCheck size={13} /> Yetkili personel dışı erişim engellenir
+          <ShieldCheck size={13} /> Yetkili yönetici dışı erişim engellenir
         </div>
-
-        {typeof window !== "undefined" && window.location.search.includes("dev=1") && (
-          <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px dashed var(--border)", fontSize: "11px", color: "var(--muted)", textAlign: "center" }}>
-            <details>
-              <summary style={{ cursor: "pointer", userSelect: "none" }}>
-                ⚙️ Sunucu API: <span style={{ color: "var(--primary)", fontWeight: "600" }}>{getBackendBaseUrl() || "Yerel (Varsayılan)"}</span>
-              </summary>
-              <div style={{ marginTop: "8px", display: "grid", gap: "6px" }}>
-                <input
-                  type="text"
-                  placeholder="Örn: http://192.168.1.5:8000"
-                  defaultValue={localStorage.getItem("custom_api_url") || ""}
-                  id="custom-api-input"
-                  style={{ fontSize: "11px", padding: "6px 8px", borderRadius: "6px", border: "1px solid var(--border)", width: "100%", boxSizing: "border-box" }}
-                />
-                <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
-                  <button
-                    type="button"
-                    className="small-btn"
-                    onClick={() => {
-                      const el = document.getElementById("custom-api-input");
-                      const val = el ? el.value.trim().replace(/\/+$/, "") : "";
-                      if (val) {
-                        localStorage.setItem("custom_api_url", val);
-                      } else {
-                        localStorage.removeItem("custom_api_url");
-                      }
-                      window.location.reload();
-                    }}
-                  >
-                    Kaydet & Yenile
-                  </button>
-                </div>
-              </div>
-            </details>
-          </div>
-        )}
       </div>
     </div>
   );
