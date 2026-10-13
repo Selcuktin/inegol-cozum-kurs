@@ -18,7 +18,8 @@ Sıfırdan başlamak yerine bu projenin üzerine yazmak; Cloudflare ayarlarını
 1. **Cloudflare D1 (SQLite Edge):** Tüm veriler tek bir sunucusuz D1 veritabanında tutulur.
 2. **Cloudflare Pages Functions (`/api/[[route]].js`):** Edesis'in kullandığı ABP Controller uç noktalarını (`GetSummary`, `GetRecentRegistrations`, `GetClassCapacities`, `GetGradeDistribution`, `GetMissingDataAlerts`) doğrudan karşılar.
 3. **Responsive UI (Mobile-First + Desktop ERP):** Masaüstünde geniş sol menü ve veri tabloları; mobilde bottom navigation (alt menü), touch-friendly kartlar ve PWA desteği.
-4. **8 Rol Tabanlı Yetkilendirme (RBAC):** Token deşifresinde tespit edilen `Admin`, `Muhasebe`, `Ogrenci`, `Ogretmen`, `SinavSorumlusu`, `User`, `Veli`, `Yonetici` rolleri.
+4. **Sertleştirilmiş Yetkilendirme (Admin-Only Giriş):** Güvenlik denetimi kararı doğrultusunda personel/öğretmen/muhasebe hızlı girişleri tamamen kaldırılmıştır. Sisteme yalnızca yetkili Yönetici (Admin) parolası ve Google bulut doğrulaması ile giriş yapılabilir.
+5. **Universal Auth Guard & KVKK:** Tüm API veri uçları oturumsuz anonim erişime kapatılmıştır (HTTP 401). Gerçek öğrenci/öğretmen kişisel verilerini içeren tohum ve migration scriptleri repodan çıkarılmıştır.
 
 ---
 
