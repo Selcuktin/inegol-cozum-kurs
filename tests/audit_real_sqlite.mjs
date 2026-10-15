@@ -614,6 +614,21 @@ await check('notes reject invalid input, oversized storage and unauthorized writ
   equal((await request(db,url,'POST',{text:'No access'},{headers:{Authorization:'Bearer notes-teacher'}})).status,403);
 });
 
+await check('cancelled contract remains visible with no receivable and rejects financial edits',async db=>{
+  const c=await student(db);await pay(db,c,100);
+  db.sql.prepare("UPDATE contracts SET durum=3,iptal_nedeni='Source cancellation',iptal_tarihi='2026-08-18' WHERE id=?").run(c.id);
+  db.sql.prepare('UPDATE student_incomes SET durum=4,kalan_alacak=0 WHERE contract_id=?').run(c.id);
+  const before=rows(db,'SELECT * FROM payments');
+  const list=await request(db,'/contracts?status=cancelled');equal(list.data.length,1);
+  equal(list.data[0].durum,3);equal(list.data[0].kalanAlacak,0);equal(list.data[0].toplamTahsilat,100);
+  const dashboard=(await request(db,'/dashboard')).data;
+  equal(dashboard.contracts.find(r=>r.id===c.id).kalanAlacak,0);equal(dashboard.accounting.totalRevenue,0);equal(dashboard.accounting.totalRemaining,0);
+  equal((await request(db,'/contracts/'+c.id,'PATCH',{brutTutar:2000})).status,409);
+  equal((await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:[]})).status,409);
+  equal((await request(db,'/payments','POST',{student_id:c.student_id,contract_id:c.id,amount:50})).status,422);
+  assert.deepEqual(rows(db,'SELECT * FROM payments'),before);
+});
+
 Object.assign(console, originalConsole);
 const summary = { tested_at: new Date().toISOString(), runtime: process.version, database: 'isolated in-memory SQLite; actual production router and SQL', passed: results.filter(r => r.passed).length, failed: results.filter(r => !r.passed).length, results };
 mkdirSync(root + 'test_reports', { recursive: true });

@@ -1,8 +1,29 @@
 import AccountingService from '../lib/edesisAccountingService';
+import React from 'react';
+import EdesisSozlesmeDetay from '../components/EdesisSozlesmeDetay';
+import {render,cleanup} from './test_helpers';
 
 describe('Contract and Installment Dynamic Edits', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+  afterEach(cleanup);
+
+  test('cancelled detail shows actual status and preserved payment without inventing installments',async()=>{
+    AccountingService.setInitialData({contracts:[],incomes:[],installments:[],collections:[]});
+    const contract={id:'cancelled-demo',sozlesmeNo:'SZL-DEMO-CANCEL',ogrenciAdi:'Örnek Öğrenci',brutTutar:1000,netTutar:1000,kdvTutari:0,toplamTahsilat:100,kalanAlacak:0,taksitSayisi:9,durum:3,iptal_nedeni:'Hatalı sözleşme',iptal_tarihi:'2026-08-18',sozlesmeTarihi:'2026-07-16',donemAdi:'Örnek dönem'};
+    const {container,getByRole}=await render(<EdesisSozlesmeDetay contract={contract}/>);
+    expect(container.textContent).toContain('İptal Edildi');
+    expect(container.textContent).not.toContain('Aktif');
+    expect(container.textContent).toContain('Hatalı sözleşme');
+    expect(container.textContent).toContain('2026-08-18');
+    expect(container.textContent).toContain('Örnek dönem');
+    expect(container.textContent).toContain('100,00');
+    expect(container.textContent).not.toContain('1. Taksit');
+    expect(getByRole('button',{name:'Tutarları Düzenle'}).disabled).toBe(true);
+    const labels=[...container.querySelectorAll('div')].filter(e=>e.children.length===0&&e.textContent==='Kalan');
+    expect(labels.length).toBeGreaterThan(0);
+    for(const e of labels)expect(e.parentElement.textContent).toContain('0,00');
   });
 
   test('increasing installment amount automatically updates contract total (brutTutar)', () => {

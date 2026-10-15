@@ -56,6 +56,7 @@ export default function EdesisSozlesmeDetay({
   const [isSignedState, setIsSignedState] = useState(() => !!(contract?.isSigned || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));
   const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || "Osman Seymen (Yönetici)");
   const [accountingTick, setAccountingTick] = useState(0);
+  const isCancelled = Number(contract?.durum) === 3;
 
   React.useEffect(() => {
     const handleUpdate = () => setAccountingTick((t) => t + 1);
@@ -119,7 +120,7 @@ try {
 
   // Find installments for this contract
   const installments = useMemo(() => {
-    if (!contract) return [];
+    if (!contract || isCancelled) return [];
     const allTaksitler = AccountingService.getInstallments(students) || [];
     const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
     const cSozlesme = (contract.sozlesmeNo || "").trim();
@@ -197,7 +198,7 @@ try {
       durum: 0, // 0: Vadesi Gelmedi
       durumText: "Vadesi Gelmedi"
     }));
-  }, [contract, students, accountingTick]);
+  }, [contract, students, accountingTick, isCancelled]);
 
   const [localInstallments, setLocalInstallments] = useState(installments);
 
@@ -208,12 +209,12 @@ try {
   // Calculations: Dynamically derive from installments if present, ensuring increasing an installment immediately reflects in total!
   const installmentsSum = (localInstallments && localInstallments.length > 0)
     ? localInstallments.reduce((acc, it) => acc + (Number(it.taksitTutari) || 0), 0)
-    : (contract?.brutTutar || 81000.04);
+    : Number(contract?.brutTutar ?? contract?.brut_tutar ?? 0);
   const brutTutar = Math.round(installmentsSum * 100) / 100;
-  const netTutar = Math.round((brutTutar / 1.1) * 100) / 100;
-  const kdvTutari = Math.round((brutTutar - netTutar) * 100) / 100;
-  const totalPaid = (localInstallments || []).reduce((acc, it) => acc + (Number(it.tahsilEdilen) || 0), 0);
-  const totalRemaining = Math.max(0, brutTutar - totalPaid);
+  const netTutar = isCancelled ? Number(contract?.netTutar ?? contract?.net_tutar ?? 0) : Math.round((brutTutar / 1.1) * 100) / 100;
+  const kdvTutari = isCancelled ? Number(contract?.kdvTutari ?? contract?.kdv_tutari ?? 0) : Math.round((brutTutar - netTutar) * 100) / 100;
+  const totalPaid = isCancelled ? Number(contract?.toplamTahsilat ?? contract?.toplam_tahsilat ?? 0) : (localInstallments || []).reduce((acc, it) => acc + (Number(it.tahsilEdilen) || 0), 0);
+  const totalRemaining = isCancelled ? 0 : Math.max(0, brutTutar - totalPaid);
 
   const fmtTRY = (num) => {
     return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(num || 0);
@@ -616,16 +617,16 @@ try {
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>TARİH</div>
-                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>03.10.2026</div>
+                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>{(contract?.sozlesmeTarihi || contract?.sozlesme_tarihi || '').slice(0,10) || '—'}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>DÖNEM</div>
-                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>2026-2027</div>
+                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>{contract?.donemAdi || contract?.period_name || '—'}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>ONAY DURUMU</div>
-                <span style={{ display: "inline-block", background: "#10b981", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, marginTop: "3px" }}>
-                  Aktif
+                <span style={{ display: "inline-block", background: isCancelled ? '#dc2626' : Number(contract?.durum) === 0 ? '#d97706' : '#10b981', color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, marginTop: "3px" }}>
+                  {isCancelled ? 'İptal Edildi' : Number(contract?.durum) === 0 ? 'Taslak' : 'Aktif'}
                 </span>
               </div>
               <div>
@@ -634,6 +635,7 @@ try {
               </div>
             </div>
 
+            {isCancelled && <div role="status" style={{color:'#b91c1c',marginBottom:'16px'}}>İptal: {contract?.iptal_tarihi || '—'} · {contract?.iptal_nedeni || '—'}</div>}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px" }}>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>ÖDEME TÜRÜ</div>
@@ -725,6 +727,7 @@ try {
 
               <button
                 type="button"
+                disabled={isCancelled}
                 onClick={() => setEditAmountsModal(true)}
                 style={{
                   display: "inline-flex",

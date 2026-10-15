@@ -114,7 +114,7 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     const contracts = (contractsRes.results || []).map((r) => {
       const gross = Number(r.brut_tutar) || 0;
       const paid = Number(r.calculated_paid) || 0;
-      const remaining = Math.max(0, gross - paid);
+      const remaining = r.durum === 3 ? 0 : Math.max(0, gross - paid);
       return {
         ...r,
         sozlesmeNo: r.sozlesme_no,

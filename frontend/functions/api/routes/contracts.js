@@ -10,6 +10,7 @@ export function installmentWrite(db, plan, contractId, incomeId, studentId, coun
 
 // Both student editing and contract editing must update the same financial records.
 export async function getContractUpdateStatements(db, row, patch, syncStudent = true) {
+  if (row.durum === 3) return { error: errorResponse('İptal edilmiş sözleşmenin mali planı değiştirilemez',409,'CANCELLED_CONTRACT') };
   const gross = Number(patch.brutTutar ?? row.brut_tutar);
   const count = Number(patch.taksitSayisi ?? row.taksit_sayisi);
   if (!Number.isFinite(gross) || gross < 0 || !Number.isInteger(count) || count < 1 || count > 120 || (patch.due_date && !normalizeDate(patch.due_date))) return { error: errorResponse("Geçersiz tutar, taksit sayısı veya tarih", 422, "VALIDATION_ERROR") };
@@ -101,7 +102,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       const rows = (res.results || []).map(r => {
         const gross = Number(r.brut_tutar || 0);
         const paid = Number(r.calculated_paid !== undefined ? r.calculated_paid : 0);
-        const remaining = Math.max(0, gross - paid);
+        const remaining = r.durum === 3 ? 0 : Math.max(0, gross - paid);
         const parentName = r.resolved_parent_name || r.parent_name || "";
         const parentPhone = r.resolved_parent_phone || r.parent_phone || "";
         const studentTc = r.resolved_student_tc || r.student_tc || "";
@@ -551,6 +552,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     `).bind(rawId, rawId).first();
 
     if (!contract) return errorResponse("Sözleşme bulunamadı", 404, "NOT_FOUND");
+    if (contract.durum === 3) return errorResponse('İptal edilmiş sözleşmenin mali planı değiştirilemez',409,'CANCELLED_CONTRACT');
     if (!Array.isArray(installments) || installments.length === 0 || installments.length > 120) return errorResponse("Geçersiz taksit planı", 422, "VALIDATION_ERROR");
     const previous = (await db.prepare("SELECT * FROM installments WHERE contract_id=?").bind(contract.id).all()).results || [];
     const seen = new Set();
