@@ -4,8 +4,8 @@ import { generateContractInstallments } from "../../../src/lib/installmentServic
 // Shared bulk write avoids D1's query/parameter ceilings for long plans.
 export function installmentWrite(db, plan, contractId, incomeId, studentId, count) {
   return db.prepare(`INSERT INTO installments(id,contract_id,income_id,student_id,installment_no,total_installments,due_date,amount,paid_amount,status,created_at)
-    SELECT json_extract(value,'$.id'),?,?,?,json_extract(value,'$.installment_no'),?,json_extract(value,'$.due_date'),json_extract(value,'$.amount'),0,'Bekliyor',datetime('now') FROM json_each(?) WHERE 1
-    ON CONFLICT(contract_id,installment_no) DO UPDATE SET amount=excluded.amount,due_date=excluded.due_date,total_installments=excluded.total_installments,status=CASE WHEN installments.paid_amount>=excluded.amount THEN 'Odendi' WHEN installments.paid_amount>0 THEN 'KismenOdendi' ELSE 'Bekliyor' END`).bind(contractId,incomeId,studentId,count,JSON.stringify(plan));
+    SELECT json_extract(value,'$.id'),?,?,?,json_extract(value,'$.installment_no'),?,json_extract(value,'$.due_date'),json_extract(value,'$.amount'),0,'Bekliyor',datetime('now') FROM json_each(?) WHERE EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)
+    ON CONFLICT(contract_id,installment_no) DO UPDATE SET amount=excluded.amount,due_date=excluded.due_date,total_installments=excluded.total_installments,status=CASE WHEN installments.paid_amount>=excluded.amount THEN 'Odendi' WHEN installments.paid_amount>0 THEN 'KismenOdendi' ELSE 'Bekliyor' END`).bind(contractId,incomeId,studentId,count,JSON.stringify(plan),contractId);
 }
 
 // Both student editing and contract editing must update the same financial records.
@@ -19,17 +19,18 @@ export async function getContractUpdateStatements(db, row, patch, syncStudent = 
   const taxFactor = Number(row.net_tutar)>0 && Number(row.brut_tutar)>0 ? Number(row.brut_tutar)/Number(row.net_tutar) : 1.1;
   const net = Math.round(gross / taxFactor * 100) / 100;
   const vat = Math.round((gross - net) * 100) / 100;
-  const statements = [db.prepare("UPDATE contracts SET brut_tutar=?, net_tutar=?, kdv_tutari=?, taksit_sayisi=?, odeme_turu=?, odeme_turu_text=?, sozlesme_tarihi=? WHERE id=?").bind(gross, net, vat, count, count > 1 ? 1 : 2, count > 1 ? `Taksitli (${count} Taksit)` : "Peşin", patch.sozlesmeTarihi || row.sozlesme_tarihi, row.id)];
+  const active="EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)";
+  const statements = [db.prepare("UPDATE contracts SET brut_tutar=?, net_tutar=?, kdv_tutari=?, taksit_sayisi=?, odeme_turu=?, odeme_turu_text=?, sozlesme_tarihi=? WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0").bind(gross, net, vat, count, count > 1 ? 1 : 2, count > 1 ? `Taksitli (${count} Taksit)` : "Peşin", patch.sozlesmeTarihi || row.sozlesme_tarihi, row.id)];
   if (changed) {
     const income = await db.prepare("SELECT id FROM student_incomes WHERE contract_id=? AND is_deleted=0 LIMIT 1").bind(row.id).first();
     const firstDue = normalizeDate(patch.due_date || old[0]?.due_date || row.sozlesme_tarihi);
     const plan = generateContractInstallments({ ...row, brut_tutar: gross, taksit_sayisi: count }, { startDate: firstDue || new Date().toISOString(), dueDay: firstDue ? Number(firstDue.slice(8, 10)) : 15 });
     if (old.some(i => Number(i.paid_amount) > (plan.find(p => p.installment_no === i.installment_no)?.amount ?? 0))) return { error: errorResponse("Yeni plan tahsil edilmiş taksitleri azaltamaz veya kaldıramaz", 409, "PAID_INSTALLMENT") };
-    statements.push(db.prepare("DELETE FROM installments WHERE contract_id=? AND installment_no>? AND paid_amount=0").bind(row.id, count));
+    statements.push(db.prepare(`DELETE FROM installments WHERE contract_id=? AND installment_no>? AND paid_amount=0 AND ${active}`).bind(row.id,count,row.id));
     statements.push(installmentWrite(db,plan,row.id,income?.id || "",row.student_id,count));
   }
-  statements.push(db.prepare("UPDATE student_incomes SET brut_tutar=?,net_tutar=?,kdv_tutari=?,taksit_sayisi=?,kalan_alacak=MAX(0,?-toplam_tahsilat),tam_tahsil_edildi_mi=CASE WHEN toplam_tahsilat>=? THEN 1 ELSE 0 END WHERE contract_id=? OR sozlesme_no=?").bind(gross,net,vat,count,gross,gross,row.id,row.sozlesme_no));
-  if (syncStudent) statements.push(db.prepare(`UPDATE students SET total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),installment_count=? WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=?)`).bind(gross,count,row.student_id,row.sozlesme_no));
+  statements.push(db.prepare(`UPDATE student_incomes SET brut_tutar=?,net_tutar=?,kdv_tutari=?,taksit_sayisi=?,kalan_alacak=MAX(0,?-toplam_tahsilat),tam_tahsil_edildi_mi=CASE WHEN toplam_tahsilat>=? THEN 1 ELSE 0 END WHERE (contract_id=? OR sozlesme_no=?) AND ${active}`).bind(gross,net,vat,count,gross,gross,row.id,row.sozlesme_no,row.id));
+  if (syncStudent) statements.push(db.prepare(`UPDATE students SET total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),installment_count=? WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=?) AND ${active}`).bind(gross,count,row.student_id,row.sozlesme_no,row.id));
   return { statements };
 }
 
@@ -282,6 +283,22 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     }
   }
 
+  const cancelMatch=path.match(/^\/contracts\/([^/]+)\/cancel$/);
+  if(cancelMatch && request.method==='POST'){
+    const key=decodeURIComponent(cancelMatch[1]);
+    const body=await request.json().catch(()=>({}));
+    if(typeof body?.reason!=='string'||body.reason.trim().length<5||body.reason.length>2000) return errorResponse('İptal nedeni 5–2000 karakter olmalıdır',422,'VALIDATION_ERROR');
+    const row=await db.prepare('SELECT * FROM contracts WHERE (id=? OR sozlesme_no=?) AND COALESCE(is_deleted,0)=0').bind(key,key).first();
+    if(!row)return errorResponse('Sözleşme bulunamadı',404,'NOT_FOUND');
+    if(row.durum===3)return json({ok:true,contract:row,already_cancelled:true});
+    await db.batch([
+      db.prepare("UPDATE contracts SET durum=3,iptal_nedeni=?,iptal_tarihi=date('now','+3 hours') WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0").bind(body.reason.trim(),row.id),
+      db.prepare('UPDATE student_incomes SET durum=4,kalan_alacak=0 WHERE (contract_id=? OR sozlesme_no=?) AND COALESCE(is_deleted,0)=0 AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum=3)').bind(row.id,row.sozlesme_no,row.id)
+    ]);
+    await logAction(db,user,'contract.cancel','contract',row.id,`${row.sozlesme_no} iptal edildi; tahsilat geçmişi korundu`,waitUntil);
+    return json({ok:true,contract:await db.prepare('SELECT * FROM contracts WHERE id=?').bind(row.id).first()});
+  }
+
   // 4. POST /contracts/:id/sign
   const contractSignMatch = path.match(/^\/contracts\/([^\/]+)\/sign$/);
   if (contractSignMatch && request.method === "POST") {
@@ -292,6 +309,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
 
     const row = await db.prepare("SELECT * FROM contracts WHERE (id = ? OR sozlesme_no = ?) AND is_deleted = 0").bind(targetId, targetId).first();
     if (!row) return errorResponse("Sözleşme bulunamadı", 404, "NOT_FOUND");
+    if (row.durum===3) return errorResponse('İptal edilmiş sözleşme imzalanamaz',409,'CANCELLED_CONTRACT');
 
     if (signerType === "kurum") {
       await db.prepare(`
@@ -324,7 +342,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const contractId = contractInstMatch[1];
     try {
       const res = await db.prepare(`
-        SELECT i.*, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no
+        SELECT i.*, c.durum AS contract_status, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no
         FROM installments i
         LEFT JOIN contracts c ON (i.contract_id = c.id OR i.contract_id = c.sozlesme_no)
         WHERE (i.contract_id = ? OR c.id = ? OR c.sozlesme_no = ?)
@@ -340,8 +358,8 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         taksitTutari: r.amount,
         vadeTarihi: normalizeDate(r.due_date),
         tahsilEdilen: r.paid_amount,
-        kalanTutar: Math.max(0, r.amount - (r.paid_amount || 0)),
-        durumText: r.status,
+        kalanTutar: r.contract_status===3 ? 0 : Math.max(0, r.amount - (r.paid_amount || 0)),
+        durumText: r.contract_status===3 ? 'İptal Edildi' : r.status,
       }));
       return json(rows);
     } catch (err) {
@@ -387,9 +405,9 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       const financial = await getContractUpdateStatements(db, row, patch);
       if (financial.error) return financial.error;
       await db.batch(financial.statements);
-      await logAction(db, user, "contract.update", "contract", row.id, `${row.sozlesme_no} güncellendi`, waitUntil);
-
       const updatedRow = await db.prepare("SELECT * FROM contracts WHERE id = ?").bind(row.id).first();
+      if(updatedRow.durum===3)return errorResponse('Sözleşme iptal edildi; değişiklik kaydedilmedi',409,'CANCELLED_CONTRACT');
+      await logAction(db, user, "contract.update", "contract", row.id, `${row.sozlesme_no} güncellendi`, waitUntil);
       return json({
         ...updatedRow,
         sozlesmeNo: updatedRow.sozlesme_no,
@@ -404,7 +422,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       const row = await db.prepare("SELECT * FROM contracts WHERE (id = ? OR sozlesme_no = ?) AND (is_deleted = 0 OR is_deleted IS NULL)").bind(contractId, contractId).first();
       if (!row) return errorResponse("Sözleşme bulunamadı", 404, "NOT_FOUND");
       const instRes = await db.prepare(`
-        SELECT i.*, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no
+        SELECT i.*, c.durum AS contract_status, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no
         FROM installments i
         LEFT JOIN contracts c ON (i.contract_id = c.id OR i.contract_id = c.sozlesme_no)
         WHERE (i.contract_id = ? OR c.id = ? OR c.sozlesme_no = ?)
@@ -420,8 +438,8 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         taksitTutari: r.amount,
         vadeTarihi: normalizeDate(r.due_date),
         tahsilEdilen: r.paid_amount,
-        kalanTutar: Math.max(0, r.amount - (r.paid_amount || 0)),
-        durumText: r.status,
+        kalanTutar: row.durum===3 ? 0 : Math.max(0, r.amount - (r.paid_amount || 0)),
+        durumText: row.durum===3 ? 'İptal Edildi' : r.status,
       }));
       return json({
         ...row,
@@ -440,7 +458,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const status = url.searchParams.get("status");
     const period = url.searchParams.get("period_id");
 
-    let query = "SELECT i.*, c.student_name, c.sozlesme_no, c.period_id FROM installments i JOIN contracts c ON i.contract_id = c.id WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)";
+    let query = "SELECT i.*, c.durum AS contract_status, c.student_name, c.sozlesme_no, c.period_id FROM installments i JOIN contracts c ON i.contract_id = c.id WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)";
     const params = [];
 
     if (contractId) {
@@ -474,8 +492,8 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         taksitTutari: r.amount,
         vadeTarihi: normalizeDate(r.due_date),
         tahsilEdilen: r.paid_amount,
-        kalanTutar: Math.max(0, r.amount - (r.paid_amount || 0)),
-        durumText: r.status,
+        kalanTutar: r.contract_status===3 ? 0 : Math.max(0, r.amount - (r.paid_amount || 0)),
+        durumText: r.contract_status===3 ? 'İptal Edildi' : r.status,
         toplamTutar: r.amount,
       }));
       return json(rows);
@@ -570,15 +588,17 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     }
     if (previous.some(i=>!seen.has(i.installment_no) && Number(i.paid_amount)>0)) return errorResponse("Tahsil edilmiş taksit kaldırılamaz",409,"PAID_INSTALLMENT");
     const income = await db.prepare("SELECT id FROM student_incomes WHERE contract_id=? AND is_deleted=0 LIMIT 1").bind(contract.id).first();
+    const active="EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)";
     const updates = [
-      db.prepare("DELETE FROM installments WHERE contract_id=? AND paid_amount=0 AND installment_no NOT IN (SELECT value FROM json_each(?))").bind(contract.id,JSON.stringify([...seen])),
+      db.prepare(`DELETE FROM installments WHERE contract_id=? AND paid_amount=0 AND installment_no NOT IN (SELECT value FROM json_each(?)) AND ${active}`).bind(contract.id,JSON.stringify([...seen]),contract.id),
       installmentWrite(db,plan,contract.id,income?.id || "",contract.student_id,installments.length),
-      db.prepare("UPDATE contracts SET taksit_sayisi=? WHERE id=?").bind(installments.length,contract.id),
-      db.prepare("UPDATE student_incomes SET taksit_sayisi=? WHERE contract_id=?").bind(installments.length,contract.id)
+      db.prepare("UPDATE contracts SET taksit_sayisi=? WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0").bind(installments.length,contract.id),
+      db.prepare(`UPDATE student_incomes SET taksit_sayisi=? WHERE contract_id=? AND ${active}`).bind(installments.length,contract.id,contract.id)
     ];
     const total = installments.reduce((sum,i)=>sum+Number(i.taksitTutari ?? i.amount),0);
     if (Math.abs(total-Number(contract.brut_tutar)) > 0.01) return errorResponse("Taksit toplamı sözleşme tutarına eşit olmalıdır", 422, "PLAN_TOTAL_MISMATCH");
     await db.batch(updates);
+    if((await db.prepare('SELECT durum FROM contracts WHERE id=?').bind(contract.id).first())?.durum===3)return errorResponse('Sözleşme iptal edildi; değişiklik kaydedilmedi',409,'CANCELLED_CONTRACT');
     await logAction(db,user,"installments.update","contract",contract.id,"Taksit planı güncellendi",waitUntil);
 
     return json({ ok: true, count: installments.length });

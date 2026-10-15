@@ -31,6 +31,7 @@ export async function getDynamicAccountingSummary(db, students = [], preloadedSu
           SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt
           FROM installments
           WHERE (date(CASE WHEN due_date LIKE '__.__.____' THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2) ELSE due_date END) < date('now','+3 hours') AND COALESCE(paid_amount,0) < amount)
+            AND EXISTS(SELECT 1 FROM contracts c WHERE c.id=installments.contract_id AND COALESCE(c.is_deleted,0)=0 AND c.durum<>3)
         `).first()
       ]);
       cRow = cRowRes;
@@ -106,6 +107,7 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
         SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt
         FROM installments
         WHERE (date(CASE WHEN due_date LIKE '__.__.____' THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2) ELSE due_date END) < date('now','+3 hours') AND COALESCE(paid_amount,0) < amount)
+          AND EXISTS(SELECT 1 FROM contracts c WHERE c.id=installments.contract_id AND COALESCE(c.is_deleted,0)=0 AND c.durum<>3)
       `).first()
     ]);
 
@@ -294,7 +296,8 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     const batchStmts = [
       db.prepare(`INSERT INTO payments(id,student_id,contract_id,installment_id,amount,method,bank,payment_date,note,status,is_cancelled,created_by,created_by_name,created_at)
         SELECT ?,?,?,?,?,?,?,?,?,'Pending',0,?,?,datetime('now') FROM installments WHERE id=? AND ROUND(COALESCE(paid_amount,0)+?,2)<=ROUND(amount,2)
-        ON CONFLICT(id) DO NOTHING`).bind(id,student.id,contractId,instId,amount,payMethod,payBank,payDate,payNote,user?.user_id || "",user?.name || "",instId,amount),
+        AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)
+        ON CONFLICT(id) DO NOTHING`).bind(id,student.id,contractId,instId,amount,payMethod,payBank,payDate,payNote,user?.user_id || "",user?.name || "",instId,amount,contractId),
       db.prepare(`UPDATE installments SET paid_amount=ROUND(COALESCE(paid_amount,0)+?,2),status=CASE WHEN ROUND(COALESCE(paid_amount,0)+?,2)>=ROUND(amount,2) THEN 'Odendi' ELSE 'KismenOdendi' END,payment_date=?,receipt_no=? WHERE id=? AND ${pending}`).bind(amount,amount,payDate,id,instId,id),
       db.prepare(`UPDATE students SET paid_amount=ROUND(COALESCE(paid_amount,0)+?,2) WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=?) AND ${pending}`).bind(amount,student.id,contract.sozlesme_no,id),
       db.prepare(`UPDATE student_incomes SET toplam_tahsilat=ROUND(toplam_tahsilat+?,2),kalan_alacak=MAX(0,ROUND(brut_tutar-toplam_tahsilat-?,2)),tam_tahsil_edildi_mi=CASE WHEN toplam_tahsilat+?>=brut_tutar THEN 1 ELSE 0 END WHERE (contract_id=? OR sozlesme_no=?) AND is_deleted=0 AND ${pending}`).bind(amount,amount,amount,contract.id,contract.sozlesme_no,id),
@@ -319,13 +322,14 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     if (!pay) return errorResponse("Tahsilat bulunamadı; hiçbir bakiye değiştirilmedi",404,"NOT_FOUND");
     if (pay.is_cancelled) return json({ok:true,cancelled_id:pay.id,already_cancelled:true});
     if (!pay.installment_id || !pay.contract_id) return errorResponse("Eski tahsilatın taksit bağlantısı yok. İptal öncesi bu kayıt uzlaştırılmalı",409,"LEGACY_PAYMENT_UNLINKED");
-    const active = "EXISTS (SELECT 1 FROM payments WHERE id=? AND COALESCE(is_cancelled,0)=0)";
+    const active = "EXISTS (SELECT 1 FROM payments p JOIN contracts c ON c.id=p.contract_id WHERE p.id=? AND COALESCE(p.is_cancelled,0)=0 AND c.durum<>3 AND COALESCE(c.is_deleted,0)=0)";
     await db.batch([
       db.prepare(`UPDATE installments SET paid_amount=MAX(0,ROUND(paid_amount-?,2)),status=CASE WHEN paid_amount-?>=amount THEN 'Odendi' WHEN paid_amount-?>0 THEN 'KismenOdendi' ELSE 'Bekliyor' END,payment_date=CASE WHEN paid_amount-?>0 THEN payment_date ELSE '' END,receipt_no=CASE WHEN paid_amount-?>0 THEN receipt_no ELSE '' END WHERE id=? AND ${active}`).bind(pay.amount,pay.amount,pay.amount,pay.amount,pay.amount,pay.installment_id,pay.id),
       db.prepare(`UPDATE students SET paid_amount=MAX(0,ROUND(paid_amount-?,2)) WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=(SELECT sozlesme_no FROM contracts WHERE id=?)) AND ${active}`).bind(pay.amount,pay.student_id,pay.contract_id,pay.id),
       db.prepare(`UPDATE student_incomes SET toplam_tahsilat=MAX(0,ROUND(toplam_tahsilat-?,2)),kalan_alacak=MAX(0,brut_tutar-MAX(0,ROUND(toplam_tahsilat-?,2))),tam_tahsil_edildi_mi=CASE WHEN MAX(0,toplam_tahsilat-?)>=brut_tutar THEN 1 ELSE 0 END WHERE contract_id=? AND ${active}`).bind(pay.amount,pay.amount,pay.amount,pay.contract_id,pay.id),
-      db.prepare("UPDATE payments SET is_cancelled=1,status='İptal Edildi' WHERE id=? AND COALESCE(is_cancelled,0)=0").bind(pay.id)
+      db.prepare("UPDATE payments SET is_cancelled=1,status='İptal Edildi' WHERE id=? AND COALESCE(is_cancelled,0)=0 AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)").bind(pay.id,pay.contract_id)
     ]);
+    if(!(await db.prepare('SELECT is_cancelled FROM payments WHERE id=?').bind(pay.id).first())?.is_cancelled) return errorResponse('İptal edilmiş sözleşmenin tahsilatını değiştirmeden önce iade/aktarım mutabakatı gerekir',409,'CANCELLED_CONTRACT');
     await logAction(db,user,"payment.cancel","payment",pay.id,"Tahsilat iptal edildi; diğer tahsilatlar korundu",waitUntil);
     return json({ok:true,cancelled_id:pay.id});
   }

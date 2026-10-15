@@ -629,6 +629,74 @@ await check('cancelled contract remains visible with no receivable and rejects f
   assert.deepEqual(rows(db,'SELECT * FROM payments'),before);
 });
 
+await check('contract cancellation persists without deleting history or changing the current contract',async db=>{
+  const current=await student(db,'cancel-current');const old=await student(db,'cancel-old');
+  for(const table of ['contracts','student_incomes','installments'])db.sql.prepare(`UPDATE ${table} SET student_id=? WHERE ${table==='contracts'?'id':'contract_id'}=?`).run(current.student_id,old.id);
+  old.student_id=current.student_id;await pay(db,current,100);await pay(db,old,200);
+  const before={students:rows(db,'SELECT * FROM students'),payments:rows(db,'SELECT * FROM payments'),installments:rows(db,'SELECT * FROM installments'),current:row(db,'SELECT * FROM contracts WHERE id=?',current.id)};
+  const path='/contracts/'+old.sozlesme_no+'/cancel';
+  equal((await request(db,path,'POST',{reason:'Hatalı eski sözleşme'})).status,200);
+  const cancelled=row(db,'SELECT * FROM contracts WHERE id=?',old.id);equal(cancelled.durum,3);equal(cancelled.is_deleted,0);equal(cancelled.iptal_nedeni,'Hatalı eski sözleşme');assert(cancelled.iptal_tarihi);
+  const income=row(db,'SELECT * FROM student_incomes WHERE contract_id=?',old.id);equal(income.toplam_tahsilat,200);equal(income.kalan_alacak,0);equal(income.durum,4);
+  for(const table of ['students','payments','installments'])assert.deepEqual(rows(db,'SELECT * FROM '+table),before[table]);
+  assert.deepEqual(row(db,'SELECT * FROM contracts WHERE id=?',current.id),before.current);
+  const repeated=await request(db,path,'POST',{reason:'Different retry reason'});equal(repeated.data.already_cancelled,true);equal(repeated.data.contract.iptal_nedeni,'Hatalı eski sözleşme');
+  for(const path of ['/installments?contract_id='+old.id,'/contracts/'+old.id+'/installments']){
+    const list=(await request(db,path)).data;equal(list.length,2);for(const i of list){equal(i.kalanTutar,0);equal(i.durumText,'İptal Edildi');}
+  }
+  const summary=(await request(db,'/accounting/summary')).data;equal(summary.totalRevenue,1000);equal(summary.totalRemaining,900);equal(summary.totalCollected,300);
+  equal((await request(db,'/contracts/'+old.id+'/sign','POST',{})).status,409);
+});
+await check('contract cancellation validates reasons, authorization and rolls back on write failure',async db=>{
+  const c=await student(db);const path='/contracts/'+c.id+'/cancel';
+  for(const reason of [null,42,'    ','tiny','x'.repeat(2001)])equal((await request(db,path,'POST',{reason})).status,422);
+  equal((await request(db,'/contracts/missing/cancel','POST',{reason:'Valid reason'})).status,404);
+  db.sql.exec("INSERT INTO user_sessions(session_token,user_id,expires_at) VALUES('cancel-teacher','user_teacher','2099-01-01')");
+  equal((await request(db,path,'POST',{reason:'Valid reason'},{headers:{Authorization:'Bearer cancel-teacher'}})).status,403);
+  const baseBatch=db.batch.bind(db);
+  db.batch=async statements=>{statements[1].execute=()=>{throw Error('Injected cancellation failure');};return baseBatch(statements);};
+  equal((await request(db,path,'POST',{reason:'Valid reason'})).status,500);
+  equal(row(db,'SELECT durum FROM contracts WHERE id=?',c.id).durum,1);
+  equal(row(db,'SELECT kalan_alacak FROM student_incomes WHERE contract_id=?',c.id).kalan_alacak,1000);
+});
+await check('cancellation winning a payment race blocks collection and cannot reopen debt via receipt cancellation',async db=>{
+  const c=await student(db);const receipt=await pay(db,c,100);const before=rows(db,'SELECT * FROM payments');
+  db.sql.prepare("UPDATE installments SET due_date='2000-01-01' WHERE contract_id=?").run(c.id);
+  equal((await request(db,'/accounting/summary')).data.overdueInstallmentsCount,2);
+  const baseBatch=db.batch.bind(db);
+  db.batch=async statements=>{db.batch=baseBatch;equal((await request(db,'/contracts/'+c.id+'/cancel','POST',{reason:'Concurrent cancellation'})).status,200);return baseBatch(statements);};
+  const res=await request(db,'/payments','POST',{student_id:c.student_id,contract_id:c.id,installment_no:1,amount:50});equal(res.status,409);
+  assert.deepEqual(rows(db,'SELECT * FROM payments'),before);equal(row(db,'SELECT toplam_tahsilat FROM student_incomes WHERE contract_id=?',c.id).toplam_tahsilat,100);
+  equal((await request(db,'/payments/cancel','POST',{payment_id:receipt.id})).status,409);
+  equal(row(db,'SELECT kalan_alacak FROM student_incomes WHERE contract_id=?',c.id).kalan_alacak,0);
+  assert.deepEqual(rows(db,'SELECT * FROM payments'),before);
+  equal((await request(db,'/dashboard')).data.accounting.overdueInstallmentsCount,0);
+  equal((await request(db,'/reminders?days=365')).data.length,0);
+});
+
+await check('contract, installment and student edits cannot race cancellation to rewrite closed history',async db=>{
+  for(const target of ['contract','installments','student']){
+    const c=await student(db,'race-'+target);await pay(db,c,100);
+    const before={student:row(db,'SELECT * FROM students WHERE id=?',c.student_id),installments:rows(db,'SELECT * FROM installments WHERE contract_id=?',c.id),payments:rows(db,'SELECT * FROM payments')};
+    const plan=before.installments.map(i=>({taksitNo:i.installment_no,taksitTutari:i.amount,vadeTarihi:i.due_date}));
+    const baseBatch=db.batch.bind(db);
+    db.batch=async statements=>{db.batch=baseBatch;equal((await request(db,'/contracts/'+c.id+'/cancel','POST',{reason:'Cancellation wins race'})).status,200);return baseBatch(statements);};
+    const res=target==='contract'?await request(db,'/contracts/'+c.id,'PATCH',{brutTutar:2000}):target==='student'?await request(db,'/students/'+c.student_id,'PATCH',{total_fee:2000}):await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:plan});
+    equal(res.status,409);equal(row(db,'SELECT brut_tutar FROM contracts WHERE id=?',c.id).brut_tutar,1000);
+    assert.deepEqual(row(db,'SELECT * FROM students WHERE id=?',c.student_id),before.student);
+    assert.deepEqual(rows(db,'SELECT * FROM installments WHERE contract_id=?',c.id),before.installments);
+    assert.deepEqual(rows(db,'SELECT * FROM payments'),before.payments);
+    equal(row(db,'SELECT kalan_alacak FROM student_incomes WHERE contract_id=?',c.id).kalan_alacak,0);
+  }
+});
+await check('student fee edits select its current contract even when older contracts were inserted first',async db=>{
+  const old=await student(db,'old-first');const current=await student(db,'current-second');
+  for(const table of ['contracts','student_incomes','installments'])db.sql.prepare(`UPDATE ${table} SET student_id=? WHERE ${table==='contracts'?'id':'contract_id'}=?`).run(current.student_id,old.id);
+  equal((await request(db,'/students/'+current.student_id,'PATCH',{total_fee:1200})).status,200);
+  equal(row(db,'SELECT brut_tutar FROM contracts WHERE id=?',current.id).brut_tutar,1200);
+  equal(row(db,'SELECT brut_tutar FROM contracts WHERE id=?',old.id).brut_tutar,1000);
+});
+
 Object.assign(console, originalConsole);
 const summary = { tested_at: new Date().toISOString(), runtime: process.version, database: 'isolated in-memory SQLite; actual production router and SQL', passed: results.filter(r => r.passed).length, failed: results.filter(r => !r.passed).length, results };
 mkdirSync(root + 'test_reports', { recursive: true });

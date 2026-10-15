@@ -64,6 +64,9 @@ describe("Phase 2: Modular API Router & Backend Architecture Test Suite", () => 
       const mockDb = {
         prepare: (query) => ({
           first: async () => {
+            if (query.includes("due_date LIKE")) {
+              return { cnt: 14, amt: 84000.50 };
+            }
             if (query.includes("contracts")) {
               return { cnt: 69, rev: 3500000 };
             }
@@ -72,10 +75,6 @@ describe("Phase 2: Modular API Router & Backend Architecture Test Suite", () => 
             }
             if (query.includes("payments")) {
               return { cnt: 120, total_paid: 1200000 };
-            }
-            if (query.includes("due_date LIKE")) {
-              // Real D1 dynamic response
-              return { cnt: 14, amt: 84000.50 };
             }
             if (query.includes("FROM installments")) {
               return { cnt: 603 };

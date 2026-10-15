@@ -3,6 +3,7 @@ import { render, cleanup, fireEvent } from "./test_helpers";
 import { GelirDetayModal } from "../components/GelirDetayModal";
 import edesisData from "../data/edesisAccountingData.json";
 import AccountingService from "../lib/edesisAccountingService";
+import EdesisGelirListesi from '../components/EdesisGelirListesi';
 
 describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
   beforeEach(() => {
@@ -27,6 +28,20 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
     await cleanup();
     const second=await render(<GelirDetayModal {...props}/>);
     expect(second.container.textContent).toContain('Kalıcı gelir notu');
+  });
+
+  test('cancelled income is labelled separately and excluded from paid and unpaid filters',async()=>{
+    AccountingService.setInitialData({contracts:[],installments:[],collections:[],incomes:[
+      {id:'income-cancelled',gelirKodu:'GLR-CANCELLED',ogrenciAdiSoyadi:'Örnek iptal',donemId:113,brutTutar:1000,toplamTahsilat:100,kalanAlacak:0,durum:4},
+      {id:'income-paid',gelirKodu:'GLR-PAID',ogrenciAdiSoyadi:'Örnek ödeme',donemId:113,brutTutar:100,toplamTahsilat:100,kalanAlacak:0,durum:3}
+    ]});
+    const {container,getByRole}=await render(<EdesisGelirListesi students={[]}/>);
+    const row=[...container.querySelectorAll('tr')].find(r=>r.textContent.includes('GLR-CANCELLED'));
+    expect(row.textContent).toContain('İptal Edildi');expect(row.textContent).not.toContain('Tam Ödendi');
+    await fireEvent.click(getByRole('button',{name:/Tam Tahsil Edildi/}));
+    expect(container.textContent).toContain('GLR-PAID');expect(container.textContent).not.toContain('GLR-CANCELLED');
+    await fireEvent.click(getByRole('button',{name:/Açık \/ Kısmi/}));
+    expect(container.textContent).not.toContain('GLR-CANCELLED');
   });
 
   test("renders GelirDetayModal for GLR202600150 (ÖRNEK ÖĞRENCİ) with 100% parity", async () => {

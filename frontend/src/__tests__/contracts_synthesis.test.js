@@ -1,10 +1,45 @@
 import AccountingService from "../lib/edesisAccountingService";
 import { StudentService } from "../lib/edesisStudentService";
+import React,{act} from 'react';
+import EdesisSozlesmeler from '../components/EdesisSozlesmeler';
+import {render,cleanup,fireEvent} from './test_helpers';
 
 describe("AccountingService and StudentService SSOT Contract Management", () => {
   beforeEach(() => {
     localStorage.clear();
     AccountingService.setInitialData({ contracts: [], incomes: [], installments: [], collections: [] });
+  });
+  afterEach(async()=>{await cleanup();jest.restoreAllMocks();});
+
+  test('contract cancellation waits for the server and displays persisted status despite stale props',async()=>{
+    const contract={id:'cancel-ui',sozlesmeNo:'SZL-CANCEL-UI',ogrenciAdi:'Örnek Öğrenci',brutTutar:1000,toplamTahsilat:100,kalanAlacak:900,durum:1};
+    const cancelled={...contract,durum:3,durumText:'İptal Edildi',kalanAlacak:0};
+    let resolvePost;let posted=false;
+    jest.spyOn(globalThis,'fetch').mockImplementation(async(url,options={})=>{
+      if(options.method==='POST'){posted=true;return new Promise(resolve=>{resolvePost=()=>resolve({ok:true,json:async()=>({ok:true,contract:cancelled})});});}
+      return {ok:true,json:async()=>String(url).endsWith('/contracts')?[cancelled]:[]};
+    });
+    const {container,getByText,getByRole}=await render(<EdesisSozlesmeler contracts={[contract]}/>);
+    await fireEvent.click(container.querySelector('[data-sozlesme-dropdown="cancel-ui"] button'));
+    await fireEvent.click([...container.querySelectorAll('div')].find(e=>e.textContent.trim()==='İptal Et'));
+    await fireEvent.change(container.querySelector('textarea'),{target:{value:'Hatalı sözleşme'}});
+    await fireEvent.click(getByRole('button',{name:'İptal Et'}));
+    expect(posted).toBe(true);
+    expect(getByRole('button',{name:'Kaydediliyor…'}).disabled).toBe(true);
+    expect(AccountingService.getContracts()[0].durum).toBe(1);
+    await act(async()=>{resolvePost();});
+    expect(container.querySelector('textarea')).toBeNull();
+    expect(AccountingService.getContracts()[0].durum).toBe(3);
+    const row=container.querySelector('[data-sozlesme-dropdown="cancel-ui"]').closest('tr');
+    expect(row.textContent).toContain('İptal');expect(row.textContent).not.toContain('Aktif');
+  });
+
+  test('failed cancellation preserves cached contracts and payment history',async()=>{
+    AccountingService.setInitialData({contracts:[{id:'cancel-fail',durum:1}],collections:[{id:'receipt-preserved',amount:100}]});
+    jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:false,status:500,json:async()=>({detail:'İptal kaydedilemedi'})});
+    await expect(AccountingService.cancelContract('cancel-fail','Hatalı sözleşme')).rejects.toThrow('İptal kaydedilemedi');
+    expect(AccountingService.getContracts()[0].durum).toBe(1);
+    expect(AccountingService.getCollections()[0].id).toBe('receipt-preserved');
   });
 
   test("loads and formats real persisted contracts without creating ghost synthetic contracts", () => {

@@ -29,7 +29,7 @@ export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) 
     const res=await db.prepare(`SELECT i.student_id,s.student_name,s.parent_name,COALESCE(s.parent_phone,s.student_phone,'') AS parent_phone,i.installment_no,i.amount-COALESCE(i.paid_amount,0) AS amount_due,
       CASE WHEN i.due_date LIKE '__.__.____' THEN substr(i.due_date,7,4)||'-'||substr(i.due_date,4,2)||'-'||substr(i.due_date,1,2) ELSE i.due_date END AS due_date
       FROM installments i JOIN students s ON s.id=i.student_id JOIN contracts c ON c.id=i.contract_id
-      WHERE COALESCE(c.is_deleted,0)=0 AND i.amount>COALESCE(i.paid_amount,0) AND date(CASE WHEN i.due_date LIKE '__.__.____' THEN substr(i.due_date,7,4)||'-'||substr(i.due_date,4,2)||'-'||substr(i.due_date,1,2) ELSE i.due_date END)<=date('now','+3 hours','+'||?||' days') ORDER BY due_date LIMIT 200`).bind(days).all();
+      WHERE COALESCE(c.is_deleted,0)=0 AND c.durum<>3 AND i.amount>COALESCE(i.paid_amount,0) AND date(CASE WHEN i.due_date LIKE '__.__.____' THEN substr(i.due_date,7,4)||'-'||substr(i.due_date,4,2)||'-'||substr(i.due_date,1,2) ELSE i.due_date END)<=date('now','+3 hours','+'||?||' days') ORDER BY due_date LIMIT 200`).bind(days).all();
     const today=new Date(Date.now()+3*3600000).toISOString().slice(0,10);
     return json((res.results || []).map(r=>({...r,days_diff:Math.round((Date.parse(r.due_date+'T12:00:00Z')-Date.parse(today+'T12:00:00Z'))/86400000),status:r.due_date<today ? 'overdue' : 'upcoming'})));
   }

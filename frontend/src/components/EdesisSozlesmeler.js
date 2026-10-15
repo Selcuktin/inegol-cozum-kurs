@@ -51,7 +51,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   useEffect(() => {
     const handleUpdate = () => {
-      setContractsList(AccountingService.getContracts(students, propContracts));
+      setContractsList(AccountingService.getContracts(students));
     };
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
@@ -144,7 +144,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     try {
       const targetKey = getTargetContractKey();
       if (targetKey) {
-        const all = AccountingService.getContracts(students, propContracts);
+        const all = AccountingService.getContracts(students);
         let found = findMatchingContract(targetKey, all);
         if (!found && typeof sessionStorage !== "undefined") {
           const sName = sessionStorage.getItem("cozum_open_contract_student");
@@ -238,6 +238,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const [showNewContractModal, setShowNewContractModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelling,setCancelling]=useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
   // Manage print isolation classes on body
@@ -495,17 +496,21 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   };
 
   // Cancel contract action
-  const handleConfirmCancel = () => {
-    if (!showCancelModal) return;
+  const handleConfirmCancel = async () => {
+    if (!showCancelModal || cancelling) return;
     if (!cancelReason || cancelReason.trim().length < 5) {
       alert("Lütfen en az 5 karakterlik iptal nedeni belirtiniz.");
       return;
     }
-    AccountingService.cancelContract(showCancelModal, cancelReason);
-    setContractsList(AccountingService.getContracts(students));
-    showToast(`⚠️ ${showCancelModal.sozlesmeNo} numaralı sözleşme iptal edildi.`);
-    setShowCancelModal(null);
-    setCancelReason("");
+    setCancelling(true);
+    try{
+      await AccountingService.cancelContract(showCancelModal, cancelReason);
+      setContractsList(AccountingService.getContracts(students));
+      showToast(`⚠️ ${showCancelModal.sozlesmeNo} numaralı sözleşme iptal edildi.`);
+      setShowCancelModal(null);
+      setCancelReason("");
+    }catch(error){window.alert(error.message || 'Sözleşme iptal edilemedi');}
+    finally{setCancelling(false);}
   };
 
   // Delete contract action
@@ -1471,8 +1476,9 @@ try {
       <CancelContractModal
         contract={showCancelModal}
         cancelReason={cancelReason}
+        saving={cancelling}
         setCancelReason={setCancelReason}
-        onClose={() => setShowCancelModal(null)}
+        onClose={() => {if(!cancelling)setShowCancelModal(null);}}
         onConfirm={handleConfirmCancel}
       />
 

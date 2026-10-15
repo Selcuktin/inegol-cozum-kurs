@@ -286,7 +286,7 @@ export const AccountingService = {
           : ((r.installment_no !== undefined && r.installment_no !== null) ? Number(r.installment_no) : 1);
         const amt = Number(r.taksitTutari || r.amount || 0);
         const paid = Number(r.tahsilEdilen || r.paid_amount || 0);
-        const rem = Math.max(0, amt - paid);
+        const rem = r.contract_status===3 ? 0 : Math.max(0, amt - paid);
 
         return {
           ...r,
@@ -309,7 +309,7 @@ export const AccountingService = {
           kalanTutar: rem,
           vadeTarihi: normalizeDate(r.due_date || r.vadeTarihi),
           due_date: r.due_date || r.vadeTarihi,
-          durumText: r.status || (paid >= amt && amt > 0 ? "Tam Ödendi" : paid > 0 ? "Kısmi Ödendi" : no === 0 ? "Peşinat" : "Bekliyor"),
+          durumText: r.contract_status===3 ? 'İptal Edildi' : r.status || (paid >= amt && amt > 0 ? "Tam Ödendi" : paid > 0 ? "Kısmi Ödendi" : no === 0 ? "Peşinat" : "Bekliyor"),
           receiptNo: r.receipt_no,
           paymentDate: r.payment_date
         };
@@ -345,6 +345,7 @@ export const AccountingService = {
     // Synthesize installments from active contracts if installments not yet cached
     if (list.length === 0 && _memory.contracts.length > 0) {
       _memory.contracts.forEach((cnt) => {
+        if(cnt.is_deleted || Number(cnt.durum)===3)return;
         const count = Math.max(1, cnt.taksitSayisi || 8);
         const total = Number(cnt.brutTutar) || 75000;
         const baseAmt = Math.floor((total / count) * 100) / 100;
@@ -722,6 +723,16 @@ export const AccountingService = {
     }
 
     return true;
+  },
+
+  async cancelContract(contractOrNo,reason) {
+    const key=typeof contractOrNo==='object' ? contractOrNo?.id || contractOrNo?.sozlesmeNo : contractOrNo;
+    if(!key)throw new Error('Sözleşme bulunamadı');
+    const res=await apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(key)}/cancel`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});
+    const saved=await res.json();
+    await Promise.all([this.fetchContracts(),this.fetchIncomes(),this.fetchInstallments()]);
+    if(typeof window!=='undefined')window.dispatchEvent(new Event('cozum_accounting_updated'));
+    return saved;
   },
 
   deleteIncome(incomeOrCode) {

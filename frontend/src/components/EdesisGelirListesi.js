@@ -160,6 +160,7 @@ export default function EdesisGelirListesi({
       }
 
       // Durum kontrolleri
+      if(Number(g.durum)===4 && statusQuickFilter!=='all')return false;
       const isFullyPaid = g.tamTahsilEdildiMi || (Number(g.kalanAlacak) <= 0);
       const isOverdue = g.vadesiGectiMi || (Number(g.kalanAlacak) > 0 && g.vadeTarihi && g.vadeTarihi.slice(0, 10) < todayStr);
 
@@ -233,6 +234,7 @@ export default function EdesisGelirListesi({
 
     filteredIncomes.forEach((g) => {
       count++;
+      if(Number(g.durum)===4)return;
       grossTotal += Number(g.brutTutar) || 0;
       collectedTotal += Number(g.toplamTahsilat) || 0;
       remainingTotal += Number(g.kalanAlacak) || 0;
@@ -287,7 +289,7 @@ export default function EdesisGelirListesi({
       `"${(Number(g.toplamTahsilat) || 0).toFixed(2)}"`,
       `"${(Number(g.kalanAlacak) || 0).toFixed(2)}"`,
       `"${g.taksitSayisi || 1}"`,
-      `"${g.tamTahsilEdildiMi || g.kalanAlacak <= 0 ? "Tam Ödendi" : (g.vadesiGectiMi ? "Vadesi Geçti" : "Açık / Taksitli")}"`
+      `"${Number(g.durum)===4 ? 'İptal Edildi' : g.tamTahsilEdildiMi || g.kalanAlacak <= 0 ? "Tam Ödendi" : (g.vadesiGectiMi ? "Vadesi Geçti" : "Açık / Taksitli")}"`
     ]);
 
     const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
@@ -1128,6 +1130,7 @@ try {
                 </tr>
               ) : (
                 paginatedIncomes.map((g, idx) => {
+                  const isCancelled=Number(g.durum)===4;
                   const isMenuOpen = openDropdownId === g.gelirKodu;
                   const openUpwards = (idx >= paginatedIncomes.length - 2 && paginatedIncomes.length > 3);
                   const isFullyPaid = g.tamTahsilEdildiMi || (Number(g.kalanAlacak) <= 0);
@@ -1229,7 +1232,7 @@ try {
                                 Sözleşme & Muhasebe Detayı
                               </div>
 
-                              {!isFullyPaid && (
+                              {!isCancelled && !isFullyPaid && (
                                 <div
                                   onClick={() => {
                                     setShowQuickCollectModal(g);
@@ -1485,19 +1488,19 @@ try {
                             borderRadius: "6px",
                             fontSize: "11px",
                             fontWeight: 700,
-                            background: isFullyPaid
+                            background: isCancelled ? '#fee2e2' : isFullyPaid
                               ? "#dcfce7"
                               : isOverdue
                               ? "#fee2e2"
                               : "#fef3c7",
-                            color: isFullyPaid
+                            color: isCancelled ? '#991b1b' : isFullyPaid
                               ? "#166534"
                               : isOverdue
                               ? "#991b1b"
                               : "#92400e"
                           }}
                         >
-                          {isFullyPaid ? "Tam Ödendi" : isOverdue ? "Vadesi Geçti" : "Açık / Taksitli"}
+                          {isCancelled ? 'İptal Edildi' : isFullyPaid ? "Tam Ödendi" : isOverdue ? "Vadesi Geçti" : "Açık / Taksitli"}
                         </span>
                       </td>
                     </tr>

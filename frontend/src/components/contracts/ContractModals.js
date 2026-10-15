@@ -1115,7 +1115,7 @@ export function ContractSummaryModal({ contract, onClose, onOpenMebPrint, onOpen
   );
 }
 
-export function CancelContractModal({ contract, cancelReason, setCancelReason, onClose, onConfirm }) {
+export function CancelContractModal({ contract, cancelReason, setCancelReason, onClose, onConfirm, saving=false }) {
   if (!contract) return null;
   return (
     <div
@@ -1154,12 +1154,14 @@ export function CancelContractModal({ contract, cancelReason, setCancelReason, o
           <b>{contract.sozlesmeNo}</b> numaralı ({contract.ogrenciAdi}) sözleşmesini iptal etmek üzeresiniz. Lütfen iptal gerekçesini yazınız:
         </p>
         <p style={{ fontSize: "11px", color: "#dc2626", fontWeight: 600, marginBottom: "12px" }}>
-          ⚠️ Dikkat: Bu işlem öğrencinin SÖZLEŞMESİNİ iptal eder (Tahsilat silme veya geri alma işlemi değildir).
+          Kalan sözleşme alacağı kapatılır ve yeni tahsilat durdurulur. Tahsilat geçmişi korunur; otomatik para iadesi yapılmaz.
         </p>
         <textarea
           rows={3}
           placeholder="İptal gerekçesi (Örn: Veli talebiyle kayıt iptali, nakil vb.)..."
           value={cancelReason}
+          disabled={saving}
+          maxLength={2000}
           onChange={(e) => setCancelReason(e.target.value)}
           style={{
             width: "100%",
@@ -1191,6 +1193,7 @@ export function CancelContractModal({ contract, cancelReason, setCancelReason, o
           <button
             type="button"
             onClick={onConfirm}
+            disabled={saving}
             style={{
               padding: "8px 16px",
               background: "#ef4444",
@@ -1202,7 +1205,7 @@ export function CancelContractModal({ contract, cancelReason, setCancelReason, o
               cursor: "pointer"
             }}
           >
-            İptal Et
+            {saving ? 'Kaydediliyor…' : 'İptal Et'}
           </button>
         </div>
       </div>

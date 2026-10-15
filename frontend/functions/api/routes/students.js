@@ -508,16 +508,20 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
 
       if (sets.length > 0) {
         values.push(targetId);
+        let financialContract=null;
         const updates = [db.prepare(`UPDATE students SET ${sets.join(", ")} WHERE id = ?`).bind(...values)];
         if (["total_fee", "extra_fees", "discount_amount", "installment_count", "due_date"].some(k => k in patch && JSON.stringify(patch[k]) !== JSON.stringify(existing[k]))) {
-          const contract = await db.prepare("SELECT * FROM contracts WHERE student_id = ? AND is_deleted = 0 LIMIT 1").bind(targetId).first();
+          const contract = await db.prepare("SELECT * FROM contracts WHERE student_id=? AND is_deleted=0 AND (sozlesme_no=? OR COALESCE(?,'')='') ORDER BY sozlesme_tarihi DESC LIMIT 1").bind(targetId,existing.sozlesme_no||'',existing.sozlesme_no||'').first();
           if (contract) {
             const financial = await getContractUpdateStatements(db, contract, { brutTutar: getEffectiveTotalFee({ ...existing, ...patch }), taksitSayisi: patch.installment_count ?? existing.installment_count, due_date: patch.due_date }, false);
             if (financial.error) return financial.error;
+            financialContract=contract;
+            updates[0]=db.prepare(`UPDATE students SET ${sets.join(', ')} WHERE id=? AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)`).bind(...values,contract.id);
             updates.push(...financial.statements);
           }
         }
         await db.batch(updates);
+        if(financialContract && (await db.prepare('SELECT durum FROM contracts WHERE id=?').bind(financialContract.id).first())?.durum===3)return errorResponse('Sözleşme iptal edildi; değişiklik kaydedilmedi',409,'CANCELLED_CONTRACT');
       }
 
       await logAction(db, user, "student.update", "student", targetId, `${existing.student_name} bilgileri güncellendi`, waitUntil);
