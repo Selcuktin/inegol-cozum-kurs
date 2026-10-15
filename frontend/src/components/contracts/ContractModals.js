@@ -1418,7 +1418,9 @@ export function NewContractWizardModal({
         </div>
 
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
+try {
+
             e.preventDefault();
             if (!contractStudentName.trim()) {
               showToast("⚠️ Lütfen öğrenci adını giriniz.");
@@ -1426,7 +1428,8 @@ export function NewContractWizardModal({
             }
 
             const finalParent = contractParentName.trim() || contractStudentName.trim();
-            const res = AccountingService.addNewIncome({
+            const res = await AccountingService.addNewIncome({
+              studentId: selectedStudentForContract?.id,
               ogrenciAdi: contractStudentName.trim(),
               veliAdi: finalParent,
               sinifAdi: contractStudentClass || "Genel",
@@ -1442,7 +1445,7 @@ export function NewContractWizardModal({
               allRegisteredStudents.find((st) => (st.student_name || "").trim().toUpperCase() === normName);
 
             if (targetStudent) {
-              StudentService.saveStudent({
+              await StudentService.saveStudent({
                 ...targetStudent,
                 has_contract: true,
                 sozlesme_no: res.contract?.sozlesmeNo || targetStudent.sozlesme_no,
@@ -1456,7 +1459,9 @@ export function NewContractWizardModal({
             setContractsList(AccountingService.getContracts(students));
             showToast(`✅ ${res.contract?.sozlesmeNo || "Yeni"} numaralı yeni sözleşme kaydedildi.`);
             onClose();
-          }}
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+}}
         >
           <div style={{ marginBottom: "16px", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
             <label

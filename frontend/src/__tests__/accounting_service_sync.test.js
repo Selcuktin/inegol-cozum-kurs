@@ -1,7 +1,11 @@
-import AccountingService from "../lib/edesisAccountingService";
+import AccountingService, { formatCollectionRecord } from "../lib/edesisAccountingService";
 import edesisData from "../data/edesisAccountingData.json";
 
 describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
+  test("collection uses the actual income code and leaves unknown links empty", () => {
+    expect(formatCollectionRecord({id:"p1",sozlesme_no:"SZL202600127",gelir_kodu:"GLR202600130"}).gelirKodu).toBe("GLR202600130");
+    expect(formatCollectionRecord({id:"p1",sozlesme_no:"SZL202600127"}).gelirKodu).toBe("");
+  });
   beforeEach(() => {
     localStorage.clear();
     AccountingService.setInitialData({
@@ -23,14 +27,14 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
     const installments = AccountingService.getInstallments();
     const collections = AccountingService.getCollections();
 
-    expect(incomes.length).toBe(129);
-    expect(contracts.length).toBe(121);
-    expect(installments.length).toBe(682);
-    expect(collections.length).toBe(164);
+    expect(incomes.length).toBe(edesisData.gelirler.length);
+    expect(contracts.length).toBe(edesisData.sozlesmeler.length);
+    expect(installments.length).toBe(edesisData.taksitler.length);
+    expect(collections.length).toBe(edesisData.tahsilatlar.length);
 
-    // Verify first authentic contract SZL202600150
-    expect(contracts[0].sozlesmeNo).toBe("SZL202600150");
-    expect(contracts[0].ogrenciAdi).toBe("HATİCE KÜBRA ÜNALAN");
+    // Verify first authentic contract SZL202600146
+    expect(contracts[0].sozlesmeNo).toBe("SZL202600146");
+    expect(contracts[0].ogrenciAdi).toBe("ÖRNEK ÖĞRENCİ");
   });
 
   test("2. Income Addition & Installment Splitting: 60.000 TL split into 6 monthly installments", () => {
@@ -61,16 +65,16 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
 
     // Incomes count should increment by 1
     const updatedIncomes = AccountingService.getIncomes();
-    expect(updatedIncomes.length).toBe(130);
+    expect(updatedIncomes.length).toBe(edesisData.gelirler.length + 1);
     expect(updatedIncomes[0].ogrenciAdiSoyadi).toBe("BARIŞ MANÇO");
 
     // Installments count should increment by 6
     const updatedInstallments = AccountingService.getInstallments();
-    expect(updatedInstallments.length).toBe(688);
+    expect(updatedInstallments.length).toBe(edesisData.taksitler.length + 6);
 
     // Contracts count should increment by 1
     const updatedContracts = AccountingService.getContracts();
-    expect(updatedContracts.length).toBe(122);
+    expect(updatedContracts.length).toBe(edesisData.sozlesmeler.length + 1);
   });
 
   test("3. Partial Collection & Debt Amortization: Collection reduces debt and allocates across installments", () => {
@@ -115,7 +119,7 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
 
     // Verify Collections count
     const collections = AccountingService.getCollections();
-    expect(collections.length).toBe(165);
+    expect(collections.length).toBe(edesisData.tahsilatlar.length + 1);
     expect(collections[0].tahsilatTutari).toBe(15000);
   });
 
@@ -127,8 +131,8 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
       taksitSayisi: 5
     });
 
-    expect(AccountingService.getIncomes().length).toBe(130);
-    expect(AccountingService.getInstallments().length).toBe(687);
+    expect(AccountingService.getIncomes().length).toBe(edesisData.gelirler.length + 1);
+    expect(AccountingService.getInstallments().length).toBe(edesisData.taksitler.length + 5);
 
     // Call resetCustomData and restore baseline
     AccountingService.resetCustomData();
@@ -140,14 +144,14 @@ describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
     });
 
     // Verify exact original counts restored
-    expect(AccountingService.getIncomes().length).toBe(129);
-    expect(AccountingService.getContracts().length).toBe(121);
-    expect(AccountingService.getInstallments().length).toBe(682);
-    expect(AccountingService.getCollections().length).toBe(164);
+    expect(AccountingService.getIncomes().length).toBe(edesisData.gelirler.length);
+    expect(AccountingService.getContracts().length).toBe(edesisData.sozlesmeler.length);
+    expect(AccountingService.getInstallments().length).toBe(edesisData.taksitler.length);
+    expect(AccountingService.getCollections().length).toBe(edesisData.tahsilatlar.length);
 
     // Ensure the underlying authentic file was NEVER mutated
-    expect(edesisData.gelirler.length).toBe(129);
-    expect(edesisData.taksitler.length).toBe(682);
+    expect(edesisData.gelirler.length).toBe(edesisData.gelirler.length);
+    expect(edesisData.taksitler.length).toBe(edesisData.taksitler.length);
   });
 
   test("5. Target Installment Collection: Specific installment is marked paid and persists across cache", () => {

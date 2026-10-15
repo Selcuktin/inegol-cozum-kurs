@@ -198,15 +198,15 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
           const sNameKey = typeof sessionStorage !== "undefined" ? trNorm(sessionStorage.getItem("cozum_open_contract_student") || "") : "";
           const sIdKey = typeof sessionStorage !== "undefined" ? String(sessionStorage.getItem("cozum_open_contract_student_id") || "") : "";
 
-          const st = students.find((s) => 
-            (s.id && String(s.id) === String(targetKey)) || 
+          const st = students.find((s) =>
+            (s.id && String(s.id) === String(targetKey)) ||
             (s.id && sIdKey && String(s.id) === sIdKey) ||
-            (s.sozlesme_no && String(s.sozlesme_no) === String(targetKey)) || 
+            (s.sozlesme_no && String(s.sozlesme_no) === String(targetKey)) ||
             (s.student_name && trNorm(s.student_name) === normKey) ||
             (s.student_name && sNameKey && trNorm(s.student_name) === sNameKey)
           );
           if (st) {
-            found = findMatchingContract(st.sozlesme_no, contractsList) || 
+            found = findMatchingContract(st.sozlesme_no, contractsList) ||
                     findMatchingContract(st.student_name, contractsList) ||
                     findMatchingContract(st.id, contractsList);
           }
@@ -509,9 +509,11 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   };
 
   // Delete contract action
-  const handleDeleteContract = (contract) => {
+  const handleDeleteContract = async (contract) => {
+try {
+
     if (window.confirm(`${contract.sozlesmeNo} sözleşmesini silmek istediğinize emin misiniz?`)) {
-      AccountingService.deleteContract(contract);
+      await AccountingService.deleteContract(contract);
       // Immediately filter from state so activeAmount and totalCount drop instantly on screen
       setContractsList((prev) =>
         prev.filter((c) => c.sozlesmeNo !== contract.sozlesmeNo && c.id !== contract.id)
@@ -519,7 +521,9 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
       showToast(`🗑️ ${contract.sozlesmeNo} sözleşmesi silindi.`);
     }
     setOpenDropdownId(null);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   const printStudent = useMemo(() => {
     if (!showMebPrintModal) return null;
@@ -1139,15 +1143,15 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                           const matchingGelir = gelirMap[sNo];
                           const isGelirMatchValid = matchingGelir && !matchingGelir.is_deleted && (!matchingGelir.student_name || trNorm(matchingGelir.student_name) === trNorm(c.ogrenciAdi || c.student_name));
                           const gross = Number(c.brutTutar !== undefined ? c.brutTutar : (c.brut_tutar !== undefined ? c.brut_tutar : 0));
-                          const collected = c.toplamTahsilat !== undefined 
-                            ? Number(c.toplamTahsilat) 
-                            : (c.toplam_tahsilat !== undefined 
-                              ? Number(c.toplam_tahsilat) 
+                          const collected = c.toplamTahsilat !== undefined
+                            ? Number(c.toplamTahsilat)
+                            : (c.toplam_tahsilat !== undefined
+                              ? Number(c.toplam_tahsilat)
                               : (isGelirMatchValid ? Number(matchingGelir.toplamTahsilat) : 0));
-                          const remaining = c.kalanAlacak !== undefined 
-                            ? Number(c.kalanAlacak) 
-                            : (c.kalan_alacak !== undefined 
-                              ? Number(c.kalan_alacak) 
+                          const remaining = c.kalanAlacak !== undefined
+                            ? Number(c.kalanAlacak)
+                            : (c.kalan_alacak !== undefined
+                              ? Number(c.kalan_alacak)
                               : (isGelirMatchValid ? Number(matchingGelir.kalanAlacak) : Math.max(0, gross - collected)));
                           const pct = gross > 0 ? Math.min(100, Math.max(0, (collected / gross) * 100)) : 0;
                           return (
@@ -1193,10 +1197,10 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                           const sNo = c.sozlesmeNo || c.sozlesme_no;
                           const matchingGelir = gelirMap[sNo];
                           const isGelirMatchValid = matchingGelir && !matchingGelir.is_deleted && (!matchingGelir.student_name || trNorm(matchingGelir.student_name) === trNorm(c.ogrenciAdi || c.student_name));
-                          const collected = c.toplamTahsilat !== undefined 
-                            ? Number(c.toplamTahsilat) 
-                            : (c.toplam_tahsilat !== undefined 
-                              ? Number(c.toplam_tahsilat) 
+                          const collected = c.toplamTahsilat !== undefined
+                            ? Number(c.toplamTahsilat)
+                            : (c.toplam_tahsilat !== undefined
+                              ? Number(c.toplam_tahsilat)
                               : (isGelirMatchValid ? Number(matchingGelir.toplamTahsilat) : 0));
                           return (
                             <span style={{ fontWeight: 700, fontSize: "13px", color: "#f59e0b" }}>

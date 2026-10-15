@@ -73,7 +73,7 @@ describe("Phase 2: Modular API Router & Backend Architecture Test Suite", () => 
             if (query.includes("payments")) {
               return { cnt: 120, total_paid: 1200000 };
             }
-            if (query.includes("WHERE (status = 'Gecikmis'")) {
+            if (query.includes("due_date LIKE")) {
               // Real D1 dynamic response
               return { cnt: 14, amt: 84000.50 };
             }

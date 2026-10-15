@@ -311,19 +311,25 @@ export default function EdesisGelirListesi({
   };
 
   // PRATİK GELİR EKLEME İŞLEMİ (Taksit bölme & sözleşme senkronizasyonu ile)
-  const handleAddNewIncome = (newIncomeData) => {
-    const res = AccountingService.addNewIncome(newIncomeData);
+  const handleAddNewIncome = async (newIncomeData) => {
+try {
+
+    const res = await AccountingService.addNewIncome(newIncomeData);
     setIncomesList(AccountingService.getIncomes());
     setShowNewIncomeModal(false);
     showToast(`✅ ${res.income.gelirKodu} numaralı yeni gelir ve ${res.installments.length} adet taksiti başarıyla eklendi.`);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   // PRATİK HIZLI TAHSİLAT ALMA İŞLEMİ
-  const handleQuickCollection = (gelir, collectAmount) => {
+  const handleQuickCollection = async (gelir, collectAmount) => {
+try {
+
     const amt = Number(collectAmount) || 0;
     if (amt <= 0) return;
 
-    AccountingService.recordCollection({
+    await AccountingService.recordCollection({
       gelirKodu: gelir.gelirKodu,
       sozlesmeNo: gelir.sozlesmeNo,
       amount: amt,
@@ -336,7 +342,9 @@ export default function EdesisGelirListesi({
     setIncomesList(AccountingService.getIncomes());
     setShowQuickCollectModal(null);
     showToast(`💰 ${gelir.gelirKodu} için ${fmtCurrency(amt)} tutarında tahsilat başarıyla kaydedildi.`);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   return (
     <div

@@ -4,53 +4,25 @@ import axios from "axios";
 import { openWhatsApp } from "../EdesisModules";
 
 export function EtutAppointmentModal({ API, students = [], classes = [], onClose }) {
-  const [appointments, setAppointments] = useState([
-    {
-      id: "etut-1",
-      teacher_name: "Ayşe Kaya (Matematik)",
-      student_id: "student-001",
-      student_name: "Eylül Yılmaz",
-      subject: "Matematik",
-      date: new Date().toISOString().slice(0, 10),
-      time_slot: "16:30 - 17:15",
-      room: "Birebir Odası 1",
-      topic: "Türev & İntegral Soru Çözümü",
-      status: "onaylandi"
-    },
-    {
-      id: "etut-2",
-      teacher_name: "Osman Seymen (Fizik)",
-      student_id: "student-002",
-      student_name: "Arda Demir",
-      subject: "Fizik",
-      date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-      time_slot: "15:30 - 16:15",
-      room: "Birebir Odası 2",
-      topic: "Kuvvet ve Hareket Eksik Konu Telafisi",
-      status: "bekliyor"
-    }
-  ]);
+  const [appointments, setAppointments] = useState([]);
+  const [error, setError] = useState("");
+  const [teachersList,setTeachersList] = useState([]);
+  const loadAppointments = async () => setAppointments((await axios.get(`${API}/appointments`)).data);
+  useEffect(()=>{
+    Promise.all([axios.get(`${API}/appointments`),axios.get(`${API}/teachers`)]).then(([a,t])=>{setAppointments(a.data);setTeachersList(t.data.map(x=>x.name));}).catch(e=>setError(e.response?.data?.detail || e.message));
+  },[API]);
 
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Form State
-  const [teacher, setTeacher] = useState("Ayşe Kaya (Matematik)");
-  const [studentId, setStudentId] = useState(students[0]?.id || "student-001");
+  const [teacher, setTeacher] = useState("");
+  const [studentId, setStudentId] = useState(students[0]?.id || "");
   const [subject, setSubject] = useState("Matematik");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [timeSlot, setTimeSlot] = useState("16:30 - 17:15");
   const [room, setRoom] = useState("Birebir Odası 1");
   const [topic, setTopic] = useState("");
-
-  const teachersList = [
-    "Ayşe Kaya (Matematik)",
-    "Osman Seymen (Fizik)",
-    "Mehmet Çelik (Geometri)",
-    "Zeynep Şahin (Türkçe/Edebiyat)",
-    "Burak Demir (Kimya)",
-    "Elif Yılmaz (Biyoloji)"
-  ];
 
   const timeSlots = [
     "09:00 - 09:45",
@@ -62,7 +34,9 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
     "17:30 - 18:15"
   ];
 
-  const handleAddAppointment = (e) => {
+  const handleAddAppointment = async (e) => {
+    setError(""); setLoading(true);
+    try {
     e.preventDefault();
     const st = students.find((s) => s.id === studentId);
     const newApp = {
@@ -78,19 +52,20 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
       status: "onaylandi"
     };
 
-    setAppointments((prev) => [newApp, ...prev]);
+    await axios.post(`${API}/appointments`,newApp);
+    await loadAppointments();
     setShowAddForm(false);
     setTopic("");
+    } catch(e) { setError(e.response?.data?.detail || e.message); } finally { setLoading(false); }
   };
 
-  const handleStatusChange = (id, newStatus) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
-    );
+  const handleStatusChange = async (id,status) => {
+    try { await axios.patch(`${API}/appointments/${id}`,{status}); await loadAppointments(); }
+    catch(e) { setError(e.response?.data?.detail || e.message); }
   };
-
-  const handleDelete = (id) => {
-    setAppointments((prev) => prev.filter((a) => a.id !== id));
+  const handleDelete = async id => {
+    try { await axios.delete(`${API}/appointments/${id}`); await loadAppointments(); }
+    catch(e) { setError(e.response?.data?.detail || e.message); }
   };
 
   const handleNotifyParent = (app) => {
@@ -102,9 +77,9 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
-      <div 
-        className="modal" 
-        onClick={(e) => e.stopPropagation()} 
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: "900px", width: "95vw", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
       >
         <div className="modal-head" style={{ borderBottom: "1px solid var(--border)", padding: "16px 20px" }}>
@@ -135,6 +110,7 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
                   <div className="form-group">
                     <label>Öğretmen Seçin</label>
                     <select value={teacher} onChange={(e) => setTeacher(e.target.value)}>
+                      <option value="">Öğretmen seçiniz</option>
                       {teachersList.map((t, idx) => (
                         <option key={idx} value={t}>{t}</option>
                       ))}
@@ -182,12 +158,13 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
 
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
                   <button type="button" className="btn secondary" onClick={() => setShowAddForm(false)}>İptal</button>
-                  <button type="submit" className="btn">Randevuyu Kaydet</button>
+                  <button type="submit" className="btn" disabled={loading}>Randevuyu Kaydet</button>
                 </div>
               </form>
             </div>
           )}
 
+          {error && <p role="alert">{error}</p>}
           {/* Randevular Tablosu */}
           <div className="table-responsive">
             <table>
@@ -229,8 +206,8 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
                         <span style={{ fontSize: "11px", color: "var(--muted)" }}>{app.room}</span>
                       </td>
                       <td>
-                        <select 
-                          value={app.status} 
+                        <select
+                          value={app.status}
                           onChange={(e) => handleStatusChange(app.id, e.target.value)}
                           style={{
                             padding: "4px 8px",
@@ -250,16 +227,16 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                          <button 
-                            className="btn-wa-notify" 
+                          <button
+                            className="btn-wa-notify"
                             title="Veliye WhatsApp ile Hatırlat"
                             onClick={() => handleNotifyParent(app)}
                           >
                             <MessageCircle size={14} /> Veliye Bildir
                           </button>
-                          <button 
-                            className="icon-btn" 
-                            title="Randevuyu Sil"
+                          <button
+                            className="icon-btn"
+                            title="Randevuyu İptal Et"
                             onClick={() => handleDelete(app.id)}
                           >
                             <Trash2 size={15} color="var(--danger)" />

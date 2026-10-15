@@ -1,124 +1,17 @@
 // Cloudflare Pages Functions - Academic Router (Classes, Teachers, Attendance, Schedules, Homework, Mentorship)
-import { json, cachedJson, errorResponse, successResponse, getCurrentUser, logAction } from "../utils.js";
-
-const DEFAULT_TEACHERS = [
-  {
-    id: "eds-tch-80973",
-    name: "Kamer Selçukarslan",
-    branch: "Rehberlik & Yöneticilik",
-    title: "Kurum Müdürü / Öğretmen (EDS No: 80973)",
-    phone: "0224 711 00 00",
-    email: "rehberlik@inegolcozumkurs.com",
-    classes: "Tüm Kademeler",
-    weekly_hours: 24,
-    status: "Aktif",
-    role: "admin",
-    notes: "Edesis Sistem Yöneticisi & Rehberlik Koordinatörü"
-  },
-  {
-    id: "eds-tch-80974",
-    name: "Yeliz Arcan",
-    branch: "Eğitmen",
-    title: "Kurum Öğretmeni (EDS No: 80974)",
-    phone: "0224 711 00 00",
-    email: "ortaokul@inegolcozumkurs.com",
-    classes: "Ortaokul & LGS Grupları",
-    weekly_hours: 22,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "Edesis Aktif Kadro"
-  },
-  {
-    id: "eds-tch-80975",
-    name: "Zeyneb Yolcu",
-    branch: "Eğitmen",
-    title: "Kurum Öğretmeni (EDS No: 80975)",
-    phone: "0224 711 00 00",
-    email: "ilkokul@inegolcozumkurs.com",
-    classes: "İlkokul & Ara Sınıflar",
-    weekly_hours: 20,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "Edesis Aktif Kadro"
-  },
-  {
-    id: "eds-tch-80976",
-    name: "Sinem Kartal",
-    branch: "Eğitmen",
-    title: "Kurum Öğretmeni (EDS No: 80976)",
-    phone: "0224 711 00 00",
-    email: "lise@inegolcozumkurs.com",
-    classes: "Lise & YKS Grupları",
-    weekly_hours: 22,
-    status: "Aktif",
-    role: "ogretmen",
-    notes: "Edesis Aktif Kadro"
-  },
-  {
-    id: "eds-tch-idari-001",
-    name: "Nevin Çakmak",
-    branch: "İdare",
-    title: "Kurucu Temsilcisi & İdari İşler",
-    phone: "0533 111 22 33",
-    email: "nevin.cakmak@inegolcozumkurs.com",
-    classes: "Tüm Kurum",
-    weekly_hours: 10,
-    status: "Aktif",
-    role: "admin",
-    notes: "Edesis Resmi Sözleşme Yetkilisi & MEB İdari Yazışmalar"
-  },
-  {
-    id: "eds-tch-idari-002",
-    name: "Osman Seymen",
-    branch: "İdare",
-    title: "Eğitim Koordinatörü & İdari Yönetici",
-    phone: "0532 222 33 44",
-    email: "osman.seymen@inegolcozumkurs.com",
-    classes: "Tüm Kurum",
-    weekly_hours: 12,
-    status: "Aktif",
-    role: "admin",
-    notes: "Edesis Sözleşme İmza Yetkilisi & Eğitim Koordinasyonu"
-  }
-];
+import { json, cachedJson, errorResponse, successResponse, getCurrentUser, logAction, normalizeDate } from "../utils.js";
 
 export async function getTeachersList(db) {
-  if (!db) return DEFAULT_TEACHERS;
-  try {
-    await db.prepare(`
-      CREATE TABLE IF NOT EXISTS teachers (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        branch TEXT NOT NULL,
-        title TEXT DEFAULT '',
-        phone TEXT DEFAULT '',
-        email TEXT DEFAULT '',
-        classes TEXT DEFAULT '',
-        weekly_hours INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'Aktif',
-        role TEXT DEFAULT 'ogretmen',
-        notes TEXT DEFAULT '',
-        created_at TEXT DEFAULT ''
-      )
-    `).run().catch(() => {});
+  if (!db) return [];
+  return (await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all()).results || [];
+}
 
-    const rows = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all();
-    if (rows && rows.results && rows.results.length > 0) {
-      return rows.results;
-    }
-
-    for (const t of DEFAULT_TEACHERS) {
-      await db.prepare(`
-        INSERT OR REPLACE INTO teachers (id, name, branch, title, phone, email, classes, weekly_hours, status, role, notes, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `).bind(t.id, t.name, t.branch, t.title, t.phone, t.email, t.classes, t.weekly_hours, t.status, t.role, t.notes).run().catch(() => {});
-    }
-
-    const seeded = await db.prepare("SELECT * FROM teachers ORDER BY name ASC").all().catch(() => null);
-    return seeded?.results?.length ? seeded.results : DEFAULT_TEACHERS;
-  } catch (err) {
-    return DEFAULT_TEACHERS;
-  }
+async function validateSchedule(db,body,id="") {
+  const slot = String(body.time_slot || "").replace(/\s/g,"");
+  const parts = slot.split('-');
+  if (!Number.isInteger(Number(body.day_of_week)) || Number(body.day_of_week)<1 || Number(body.day_of_week)>7 || parts.length!==2 || parts.some(t=>!/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) || parts[0]>=parts[1] || !body.subject?.trim() || !body.class_id) return errorResponse("Geçersiz gün, saat aralığı, sınıf veya ders",422);
+  const conflict = await db.prepare(`SELECT id FROM schedules WHERE id!=? AND day_of_week=? AND substr(replace(time_slot,' ',''),1,5)<? AND substr(replace(time_slot,' ',''),7,5)>? AND (class_id=? OR (teacher_name=? AND teacher_name!='') OR (room=? AND room!='')) LIMIT 1`).bind(id,Number(body.day_of_week),parts[1],parts[0],body.class_id,body.teacher_name || "",body.room || "").first();
+  return conflict ? errorResponse("Sınıf, öğretmen veya derslik bu saat aralığında dolu",409,"SCHEDULE_CONFLICT") : null;
 }
 
 export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) {
@@ -129,6 +22,31 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
   const db = (isObj ? ctxOrPath.db : maybeEnv?.DB) || env?.DB;
   const url = isObj ? ctxOrPath.url : maybeUrl;
   const currentUser = isObj ? ctxOrPath.user : null;
+
+  if (path === "/appointments" && request.method === "GET") {
+    return json((await db.prepare("SELECT a.*,s.student_name FROM appointments a JOIN students s ON s.id=a.student_id ORDER BY a.date DESC,a.time_slot").all()).results || []);
+  }
+  if (path === "/appointments" && request.method === "POST") {
+    const body = await request.json();
+    const date = normalizeDate(body.date);
+    if (!date || !body.subject?.trim() || !body.teacher_name?.trim() || !/^([01]\d|2[0-3]):[0-5]\d\s*-\s*([01]\d|2[0-3]):[0-5]\d$/.test(body.time_slot || "") || !await db.prepare("SELECT id FROM students WHERE id=?").bind(body.student_id || "").first()) return errorResponse("Geçersiz randevu bilgileri",422);
+    const [start,end] = body.time_slot.replace(/\s/g,"").split('-');
+    if(start>=end) return errorResponse("Bitiş saati başlangıçtan sonra olmalıdır",422);
+    const conflict = await db.prepare("SELECT id FROM appointments WHERE status!='iptal' AND date=? AND substr(replace(time_slot,' ',''),1,5)<? AND substr(replace(time_slot,' ',''),7,5)>? AND (student_id=? OR teacher_name=? OR (room=? AND room!='')) LIMIT 1").bind(date,end,start,body.student_id,body.teacher_name,body.room || "").first();
+    if(conflict) return errorResponse("Öğrenci, öğretmen veya derslik bu saat aralığında dolu",409);
+    const id="appointment-"+crypto.randomUUID();
+    await db.prepare("INSERT INTO appointments(id,student_id,teacher_name,subject,date,time_slot,room,topic,status,created_at) VALUES(?,?,?,?,?,?,?,?,'onaylandi',datetime('now'))").bind(id,body.student_id,body.teacher_name,body.subject,date,body.time_slot,body.room || "",body.topic || "").run();
+    await logAction(db,currentUser,"appointment.create","appointment",id,"Etüt randevusu oluşturuldu");
+    return json({id,ok:true},201);
+  }
+  const appointmentMatch = path.match(/^\/appointments\/([^/]+)$/);
+  if(appointmentMatch && ["PATCH","DELETE"].includes(request.method)) {
+    const body=request.method==="PATCH" ? await request.json() : {status:"iptal"};
+    if(!["bekliyor","onaylandi","tamamlandi","iptal"].includes(body.status)) return errorResponse("Geçersiz durum",422);
+    await db.prepare("UPDATE appointments SET status=? WHERE id=?").bind(body.status,appointmentMatch[1]).run();
+    await logAction(db,currentUser,"appointment.update","appointment",appointmentMatch[1],body.status);
+    return json({ok:true});
+  }
 
   // ---------------- CLASSES ----------------
   if (path === "/classes" && request.method === "GET") {
@@ -283,7 +201,7 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     const classId = url.searchParams.get("class_id");
 
     let query = `
-      SELECT 
+      SELECT
         s.id as student_id,
         s.student_name,
         s.student_class,
@@ -297,13 +215,14 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
         COALESCE(a.note, '') as note,
         COALESCE(a.notified_parent, 0) as notified_parent
       FROM students s
-      LEFT JOIN attendance a ON a.student_id = s.id AND a.date = ?
+      LEFT JOIN attendance a ON a.student_id = s.id AND a.date = ? AND (? = '' OR a.lesson_slot = ?)
     `;
-    const params = [date, date];
+    const slot = url.searchParams.get("lesson_slot") || "";
+    const params = [date, date, slot, slot];
 
     if (classId) {
-      query += " WHERE s.student_class = ? OR a.class_id = ?";
-      params.push(classId, classId);
+      query += " WHERE s.student_class = ? OR s.student_class = (SELECT name FROM classes WHERE id=?) OR a.class_id = ?";
+      params.push(classId, classId, classId);
     }
     query += " ORDER BY s.student_name ASC";
 
@@ -314,14 +233,17 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
   if (path === "/attendance" && request.method === "POST") {
     const user = await getCurrentUser(request, db);
     const body = await request.json();
-    const date = body.date || new Date().toISOString().slice(0, 10);
+    const date = normalizeDate(body.date || new Date().toISOString());
     const records = body.records || [];
+    if (!date || !Array.isArray(records) || !records.length || records.length>120) return errorResponse("Geçersiz yoklama",422);
 
+    const statements = [];
     for (const rec of records) {
-      if (!rec.student_id) continue;
+      if (!rec.student_id || !["geldi","gelmedi","gec","izinli","raporlu"].includes(rec.status || "geldi") || !await db.prepare("SELECT id FROM students WHERE id=?").bind(rec.student_id).first()) return errorResponse("Geçersiz öğrenci veya yoklama durumu",422);
       const aid = rec.attendance_id || "att-" + crypto.randomUUID().slice(0, 8);
-      await db.prepare("DELETE FROM attendance WHERE student_id = ? AND date = ?").bind(rec.student_id, date).run();
-      await db.prepare(`
+      const slot = rec.lesson_slot || body.lesson_slot || "Tüm Gün";
+      statements.push(db.prepare("DELETE FROM attendance WHERE student_id = ? AND date = ? AND lesson_slot = ?").bind(rec.student_id,date,slot));
+      statements.push(db.prepare(`
         INSERT INTO attendance (id, date, class_id, student_id, lesson_slot, status, note, notified_parent, created_by, created_by_name, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).bind(
@@ -329,14 +251,15 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
         date,
         rec.class_id || "",
         rec.student_id,
-        rec.lesson_slot || "Tüm Gün",
+        slot,
         rec.status || "geldi",
         rec.note || "",
         rec.notified_parent ? 1 : 0,
         user?.user_id || "",
         user?.name || ""
-      ).run();
+      ));
     }
+    await db.batch(statements);
 
     await logAction(db, user, "attendance.save", "attendance", date, `${date} tarihli ${records.length} yoklama kaydı kaydedildi`);
     return json({ ok: true, count: records.length });
@@ -374,6 +297,8 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
       return errorResponse("Ders adı ve saat aralığı zorunludur", 422);
     }
     const id = body.id || "sch-" + crypto.randomUUID().slice(0, 8);
+    const invalid = await validateSchedule(db,body);
+    if (invalid) return invalid;
     await db.prepare(`
       INSERT INTO schedules (id, class_id, day_of_week, time_slot, subject, teacher_name, room, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -395,6 +320,10 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     const user = await getCurrentUser(request, db);
     const id = scheduleIdMatch[1];
     const body = await request.json();
+    const previous = await db.prepare("SELECT * FROM schedules WHERE id=?").bind(id).first();
+    if (!previous) return errorResponse("Ders bulunamadı",404);
+    const invalid = await validateSchedule(db,{...previous,...body},id);
+    if (invalid) return invalid;
     await db.prepare(`
       UPDATE schedules SET
         class_id = COALESCE(?, class_id),
@@ -488,7 +417,7 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     if (!hw) return errorResponse("Ödev bulunamadı", 404);
 
     const res = await db.prepare(`
-      SELECT 
+      SELECT
         st.id as student_id,
         st.student_name,
         st.student_class,
@@ -498,8 +427,9 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
         COALESCE(sub.note, '') as note
       FROM students st
       LEFT JOIN homework_submissions sub ON sub.student_id = st.id AND sub.homework_id = ?
+      WHERE st.student_class = ? OR st.student_class = (SELECT name FROM classes WHERE id=?)
       ORDER BY st.student_name ASC
-    `).bind(hwId).all();
+    `).bind(hwId,hw.class_id,hw.class_id).all();
 
     return json({ homework: hw, students: res.results || [] });
   }

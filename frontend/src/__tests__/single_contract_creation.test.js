@@ -84,7 +84,8 @@ describe("Single Contract Creation & Duplicate Prevention Guarantee", () => {
       prepare: jest.fn().mockImplementation((query) => ({
         bind: jest.fn().mockReturnValue({
           first: jest.fn().mockImplementation(async () => {
-            if (query.includes("SELECT * FROM contracts")) {
+            if (query.includes("SELECT * FROM students")) return { id: "student-123" };
+                if (query.includes("SELECT * FROM contracts")) {
               return {
                 id: "cnt_existing_123",
                 sozlesme_no: "SZL202600154",

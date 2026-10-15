@@ -128,28 +128,6 @@ export default function EdesisVadeTakvimi({
 
   // 2. EDESİS KPI KARTLARI (media_1791241193046.png BİREBİR)
   const kpi = useMemo(() => {
-    // 2026-2027 döneminde Edesis'in tam değerleri:
-    // Toplam: ₺4.183.536 (535 taksit)
-    // Bekleyen: ₺3.497.846 (460 taksit)
-    // Gecikmiş: ₺216.350 (19 taksit ort. 38,7 gün)
-    // Tahsil Edilen: ₺469.340 (56 taksit)
-    // Performans: %27
-    if (period === "2026-2027") {
-      return {
-        toplamTutar: 4183536,
-        toplamAdet: 535,
-        bekleyenTutar: 3497846,
-        bekleyenAdet: 460,
-        gecikmisTutar: 216350,
-        gecikmisAdet: 19,
-        gecikmisOrtGun: "38,7",
-        tahsilTutar: 469340,
-        tahsilAdet: 56,
-        performansOran: 27,
-        haftalikDegisim: "%84 azaldı"
-      };
-    }
-
     // Diğer dönemler veya tümü seçildiğinde dinamik hesaplama
     let topTutar = 0;
     let bekleyenTutar = 0;

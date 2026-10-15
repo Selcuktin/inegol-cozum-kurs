@@ -50,7 +50,7 @@ export async function onRequest(context) {
       if (res && res.headers) {
         try {
           res.headers.set("Server-Timing", `edge;dur=${Date.now() - startTime}`);
-          const cors = getCorsHeaders(request);
+          const cors = getCorsHeaders(request, env);
           Object.entries(cors).forEach(([k, v]) => res.headers.set(k, v));
         } catch {}
       }
@@ -140,6 +140,6 @@ export async function onRequest(context) {
       stack: err.stack,
       duration_ms: Date.now() - startTime
     }));
-    return errorResponse(`Sunucu hatası: ${err.message || String(err)}`, 500, "SERVER_ERROR");
+    return errorResponse("İşlem tamamlanamadı. Lütfen tekrar deneyin veya yöneticiyle iletişime geçin.", 500, "SERVER_ERROR");
   }
 }

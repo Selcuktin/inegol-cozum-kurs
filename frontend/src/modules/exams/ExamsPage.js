@@ -180,22 +180,22 @@ export function ExamsPage({ me, API, students, classes }) {
     const divisor = selectedExam.exam_type === "LGS" ? 3 : 4;
     const tc = Number(resTurkC) || 0;
     const ti = Number(resTurkI) || 0;
-    const tNet = Math.max(0, tc - ti / divisor);
+    const tNet = tc - ti / divisor;
 
     const mc = Number(resMatC) || 0;
     const mi = Number(resMatI) || 0;
-    const mNet = Math.max(0, mc - mi / divisor);
+    const mNet = mc - mi / divisor;
 
     const sc = Number(resSciC) || 0;
     const si = Number(resSciI) || 0;
-    const fNet = Math.max(0, sc - si / divisor);
+    const fNet = sc - si / divisor;
 
     const socC = Number(resSocC) || 0;
     const socI = Number(resSocI) || 0;
-    const sNet = Math.max(0, socC - socI / divisor);
+    const sNet = socC - socI / divisor;
 
     const totalNet = Math.round((tNet + mNet + fNet + sNet) * 100) / 100;
-    const score = Math.round((100 + totalNet * 3.3) * 100) / 100;
+    const score = null;
 
     const weakArr = resWeakTopics
       ? resWeakTopics.split(",").map((s) => s.trim()).filter(Boolean)
@@ -978,7 +978,7 @@ export function ExamsPage({ me, API, students, classes }) {
                                 </strong>
                               </td>
                               <td style={{ textAlign: "right" }}>
-                                <strong style={{ fontSize: "14px" }}>{r.score}</strong>
+                                <strong style={{ fontSize: "14px" }}>{r.score ?? "—"}</strong>
                               </td>
                               <td style={{ textAlign: "center" }}>
                                 <div className="action-buttons-cell">
@@ -993,7 +993,7 @@ export function ExamsPage({ me, API, students, classes }) {
                                     className="btn-wa-trigger"
                                     title="Veliye WhatsApp Sonuç Mesajı Gönder"
                                     onClick={() => {
-                                      const text = `Sayın Velimiz, İnegöl Çözüm Kursu öğrencimiz ${r.student_name}, ${selectedExam.title} deneme sınavında Toplam ${r.total_net} Net ve ${r.score} Puan alarak derece yapmıştır. Detaylı karnesi hazırlanmıştır.`;
+                                      const text = `Sayın Velimiz, İnegöl Çözüm Kursu öğrencimiz ${r.student_name}, ${selectedExam.title} deneme sınavında Toplam ${r.total_net} Net alarak derece yapmıştır. Detaylı karnesi hazırlanmıştır.`;
                                       openWhatsApp(r.parent_phone || r.student_phone, text);
                                     }}
                                   >
@@ -1272,6 +1272,7 @@ export function ExamsPage({ me, API, students, classes }) {
       {showCevapKeyModal && (
         <EdesisCevapKeyModal
           exam={showCevapKeyModal}
+          API={API} students={students} classes={classes} onResultsUpdated={loadExams}
           onClose={() => setShowCevapKeyModal(null)}
         />
       )}

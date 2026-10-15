@@ -3,6 +3,10 @@
 export const ROLE_ADMIN = "admin";
 export const ROLE_ACCOUNTING = "muhasebe";
 export const ROLE_TEACHER = "ogretmen";
+
+import { normalizeDate } from "../../src/lib/installmentService.js";
+export { normalizeDate };
+
 export const ROLE_LABELS = {
   [ROLE_ADMIN]: "Yönetici",
   [ROLE_ACCOUNTING]: "Muhasebe",
@@ -22,7 +26,7 @@ export function getCorsHeaders(request, env = null) {
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : "https://inegol-cozum-kurs.pages.dev",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-ID, X-Requested-With",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-ID, X-Requested-With, Bypass-Tunnel-Reminder, X-Filename, X-Content-Type",
     "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -290,7 +294,7 @@ export function computeInstallmentPlan(student, payments) {
     let m = startMonth + i;
     let y = startYear + Math.floor((m - 1) / 12);
     m = ((m - 1) % 12) + 1;
-    const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, 28)).padStart(2, "0")}`;
+    const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, new Date(y, m, 0).getDate())).padStart(2, "0")}`;
 
     const installmentAmount = (i === n - 1) ? Math.max(0, Math.round((total - (per * (n - 1))) * 100) / 100) : per;
     const applied = Math.min(installmentAmount, paidRemaining);
@@ -390,16 +394,15 @@ endstream
 endobj
 xref
 0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000244 00000 n 
-0000000325 00000 n 
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+0000000244 00000 n
+0000000325 00000 n
 trailer
 << /Size 6 /Root 1 0 R >>
 startxref
 ${420 + streamLength}
 %%EOF`;
 }
-

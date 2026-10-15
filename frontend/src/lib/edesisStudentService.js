@@ -3,7 +3,7 @@
 // NO static JSON imports, NO localStorage tombstones, NO protectedKeys hack lists.
 
 import AccountingService, { trNorm } from "./edesisAccountingService.js";
-import { isAllowedBackendUrl } from "./utils.js";
+import { apiFetch, isAllowedBackendUrl } from "./utils.js";
 
 function getApiUrl() {
   if (typeof localStorage !== "undefined") {
@@ -36,12 +36,14 @@ function writeCache(key, value) {
   }
 }
 
+let cacheEpoch = 0;
 const _memory = {
   students: readCache("cozum_ssot_students_v2", []),
   isFetching: false,
 };
 
 export const StudentService = {
+  resetClientData() { cacheEpoch++; _memory.students=[]; if(typeof localStorage!=="undefined") localStorage.removeItem("cozum_ssot_students_v2"); },
   // Backward compatibility stubs
   getBaseStudents() { return _memory.students; },
   getCustomStudents() { return []; },
@@ -62,12 +64,14 @@ export const StudentService = {
 
   // 1. Fetch & Get Students (SSOT from /api/students)
   async fetchStudents() {
+    const epoch=cacheEpoch;
     if (typeof fetch === "undefined") return _memory.students;
     try {
       const apiUrl = getApiUrl();
-      const res = await fetch(`${apiUrl}/api/students`);
+      const res = await apiFetch(`${apiUrl}/api/students`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const rows = await res.json();
+      if (epoch!==cacheEpoch) return [];
       const list = Array.isArray(rows) ? rows : (rows?.items || rows?.data || []);
 
       _memory.students = list;
@@ -79,10 +83,10 @@ export const StudentService = {
     }
   },
 
-  getAllStudents(propStudents = []) {
-    let list = (Array.isArray(propStudents) && propStudents.length > 0) ? propStudents : _memory.students;
+  getAllStudents(propStudents = null) {
+    let list = Array.isArray(propStudents) ? propStudents : _memory.students;
 
-    if (Array.isArray(propStudents) && propStudents.length > 0) {
+    if (Array.isArray(propStudents)) {
       _memory.students = propStudents;
       writeCache("cozum_ssot_students_v2", propStudents);
     } else if (_memory.students.length === 0 && !_memory.isFetching && typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
@@ -98,7 +102,7 @@ export const StudentService = {
       return {
         ...s,
         has_contract: s.has_contract !== undefined ? s.has_contract : hasFee,
-        sozlesme_no: s.sozlesme_no || (hasFee ? `SZL2026${String(Date.now()).slice(-5)}` : null)
+        sozlesme_no: s.sozlesme_no || null
       };
     }).filter((s) => s && s.is_deleted !== 1).sort((a, b) => {
       const dateA = a.created_at ? new Date(String(a.created_at).replace(" ", "T")).getTime() : 0;
@@ -112,7 +116,7 @@ export const StudentService = {
   async saveStudent(student, apiBaseUrl = "", options = {}) {
     if (!student) return null;
     const id = student.id || `student-${crypto.randomUUID().slice(0, 8)}`;
-    const studentWithId = { ...student, id };
+    let studentWithId = { ...student, id };
 
     if (!options?.skipRemoteSync && !student?.skipRemoteSync) {
       try {
@@ -120,15 +124,17 @@ export const StudentService = {
         const base = rawBase.replace(/\/api\/?$/, "").replace(/\/+$/, "");
         const isExisting = _memory.students.some((s) => s.id === id);
         const url = isExisting ? `${base}/api/students/${encodeURIComponent(id)}` : `${base}/api/students`;
-        const method = isExisting ? "PUT" : "POST";
+        const method = isExisting ? "PATCH" : "POST";
 
-        await fetch(url, {
+        const response = await apiFetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(studentWithId)
         });
+        studentWithId = await response.json();
       } catch (err) {
         console.warn("[StudentService] Remote student SAVE error:", err);
+        throw err;
       }
     }
 
@@ -156,7 +162,7 @@ export const StudentService = {
     try {
       const rawBase = apiBaseUrl || getApiUrl() || "";
       const base = rawBase.replace(/\/api\/?$/, "").replace(/\/+$/, "");
-      const res = await fetch(`${base}/api/students/${encodeURIComponent(targetKey)}`, {
+      const res = await apiFetch(`${base}/api/students/${encodeURIComponent(targetKey)}`, {
         method: "DELETE"
       });
       if (!res.ok && res.status !== 404) {
@@ -164,6 +170,7 @@ export const StudentService = {
       }
     } catch (err) {
       console.warn("[StudentService] Remote student DELETE error:", err);
+      throw err;
     }
 
     const normId = trNorm(id || "");
@@ -173,12 +180,14 @@ export const StudentService = {
       const sId = trNorm(s.id || "");
       const sName = trNorm(s.student_name || "");
       if (normId && (sId === normId || sId === `stu-${normId}` || `stu-${sId}` === normId)) return false;
-      if (normName && sName === normName) return false;
+      if (!normId && normName && sName === normName) return false;
       return true;
     });
     writeCache("cozum_ssot_students_v2", _memory.students);
 
-    AccountingService.deleteContract(studentOrId);
+    await AccountingService.fetchContracts();
+    await AccountingService.fetchIncomes();
+    await AccountingService.fetchInstallments();
 
     // Also update cached dashboard data if present so App.js load() doesn't restore old student
     if (typeof localStorage !== "undefined") {
@@ -192,7 +201,7 @@ export const StudentService = {
               const sId = trNorm(s.id || "");
               const sName = trNorm(s.student_name || "");
               if (normId && (sId === normId || sId === `stu-${normId}` || `stu-${sId}` === normId)) return false;
-              if (normName && sName === normName) return false;
+              if (!normId && normName && sName === normName) return false;
               return true;
             });
             localStorage.setItem("cozum_dashboard_data_v1", JSON.stringify(parsed));

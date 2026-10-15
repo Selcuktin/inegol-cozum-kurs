@@ -1,3 +1,4 @@
+import { EdesisOptikSuiteModal } from "./EdesisOptikSuiteModal";
 import React, { useState, useMemo } from "react";
 import {
   AlertTriangle,
@@ -624,90 +625,8 @@ export function EdesisStudentReportsView({ students, exams, onOpenKarne }) {
 // ==========================================================
 // 1.D CEVAP ANAHTARI MODALI
 // ==========================================================
-export function EdesisCevapKeyModal({ exam, onClose }) {
-  const [booklet, setBooklet] = useState("A");
-  const isLGS = exam?.exam_type === "LGS";
-  const questionCount = isLGS ? 20 : 40;
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "600px" }}>
-        <div className="modal-head">
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Key size={18} color="#10b981" />
-            <h2>Cevap Anahtarı: {exam?.title}</h2>
-          </div>
-          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="modal-body">
-          <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-            <button
-              className={`btn small ${booklet === "A" ? "" : "secondary"}`}
-              onClick={() => setBooklet("A")}
-            >
-              A Kitapçığı
-            </button>
-            <button
-              className={`btn small ${booklet === "B" ? "" : "secondary"}`}
-              onClick={() => setBooklet("B")}
-            >
-              B Kitapçığı
-            </button>
-          </div>
-
-          <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-            <h4 style={{ margin: "0 0 10px 0" }}>Türkçe Cevap Dizilimi ({booklet} Kitapçığı)</h4>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {Array.from({ length: questionCount }).map((_, i) => {
-                const opt = ["A", "B", "C", "D", "E"][(i * 3 + 2) % (isLGS ? 4 : 5)];
-                return (
-                  <span
-                    key={i}
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "4px",
-                      padding: "3px 6px",
-                      fontSize: "11px",
-                      fontWeight: 600
-                    }}
-                  >
-                    {i + 1}: <b>{opt}</b>
-                  </span>
-                );
-              })}
-            </div>
-
-            <h4 style={{ margin: "16px 0 10px 0" }}>Matematik Cevap Dizilimi ({booklet} Kitapçığı)</h4>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {Array.from({ length: questionCount }).map((_, i) => {
-                const opt = ["B", "C", "A", "D", "E"][(i * 2 + 1) % (isLGS ? 4 : 5)];
-                return (
-                  <span
-                    key={i}
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "4px",
-                      padding: "3px 6px",
-                      fontSize: "11px",
-                      fontWeight: 600
-                    }}
-                  >
-                    {i + 1}: <b>{opt}</b>
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        <div className="modal-foot">
-          <button className="btn secondary" onClick={onClose}>Kapat</button>
-          <button className="btn" onClick={() => { alert("Cevap anahtarı güncellendi."); onClose(); }}>Kaydet</button>
-        </div>
-      </div>
-    </div>
-  );
+export function EdesisCevapKeyModal(props) {
+  return <EdesisOptikSuiteModal {...props} />;
 }
 
 // ==========================================================

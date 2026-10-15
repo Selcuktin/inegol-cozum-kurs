@@ -12,14 +12,14 @@ import {
   Upload,
   X
 } from "lucide-react";
-import { trIncludes } from "../../lib/utils";
+import { trIncludes, escapeHtml } from "../../lib/utils";
 
 // ==========================================================
 // 1.E OPTİK FORM VE OMR OKUYUCU SÜİTİ
 // ==========================================================
 export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], classes = [], onResultsUpdated }) {
   const [activeTab, setActiveTab] = useState("read"); // "read" | "template" | "calibrate" | "webcam"
-  
+
   // 1. OKUMA & PARSER STATE
   const [parsedRows, setParsedRows] = useState([]);
   const [, setRawText] = useState("");
@@ -27,9 +27,31 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
   const [savingResults, setSavingResults] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
 
+  const [answerKeys, setAnswerKeys] = useState(() => { try { return typeof exam?.answer_keys === "string" ? JSON.parse(exam.answer_keys) : (exam?.answer_keys || {}); } catch { return {}; } });
+  const [keyDraft, setKeyDraft] = useState(answerKeys);
+  const [keyBooklet, setKeyBooklet] = useState("A");
+  const subjectNames = {turkish:"Türkçe",history:"İnkılap Tarihi",religion:"Din Kültürü",english:"İngilizce",math:"Matematik",science:"Fen",social:"Sosyal",literature:"Edebiyat",geography:"Coğrafya",physics:"Fizik",chemistry:"Kimya",biology:"Biyoloji"};
+  const defaultSubjects = exam?.exam_type === "LGS" ? ["turkish","history","religion","english","math","science"] : exam?.exam_type === "AYT" ? ["literature","social","math","physics","chemistry","biology"] : ["turkish","social","math","science"];
+  const keySubjects = Object.keys(answerKeys[keyBooklet] || {}).length ? Object.keys(answerKeys[keyBooklet]) : defaultSubjects;
+  const saveAnswerKeys = async () => {
+    try {
+      const keys = Object.fromEntries(Object.entries(keyDraft).map(([book,subjects])=>[book,Object.fromEntries((Object.keys(answerKeys[book] || {}).length ? Object.keys(answerKeys[book]) : defaultSubjects).filter(subject=>subjects[subject]).map(subject=>[subject,subjects[subject]]))]).filter(([,subjects])=>Object.keys(subjects).length));
+      await axios.patch(`${API}/exams/${exam.id}`,{answer_keys:keys});
+      setAnswerKeys(keys); setParsedRows([]); setUploadMsg("Cevap anahtarı kaydedildi. TXT dosyasını tekrar yükleyiniz.");
+      onResultsUpdated?.();
+    } catch(error) { setUploadMsg(error.response?.data?.detail || error.message); }
+  };
+
   // 2. ŞABLON YÖNETİCİSİ STATE
   const [selectedTemplate, setSelectedTemplate] = useState("opt-lgs-90");
   const [customFmtDownloaded, setCustomFmtDownloaded] = useState(false);
+
+  const [printerProfiles,setPrinterProfiles]=useState([]);
+  React.useEffect(()=>{axios.get(`${API}/optical/printer-profiles`).then(r=>setPrinterProfiles(r.data)).catch(e=>setCalibrationSuccess(e.response?.data?.detail || e.message));},[API]);
+  const savePrinterProfile = async () => {
+    try { await axios.post(`${API}/optical/printer-profiles`,{id:printerProfile,name:printerProfiles.find(p=>p.id===printerProfile)?.name || "Varsayılan Yazıcı",offset_x_mm:offsetX,offset_y_mm:offsetY});setCalibrationSuccess("Profil veritabanına kaydedildi. Fiziksel ölçümü kalibrasyon sayfasıyla doğrulayınız."); }
+    catch(e) {setCalibrationSuccess(e.response?.data?.detail || e.message);}
+  };
 
   // 3. KALİBRASYON STATE
   const [printerProfile, setPrinterProfile] = useState("p-def");
@@ -48,18 +70,6 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
   const isLGS = exam?.exam_type === "LGS";
   const divisor = isLGS ? 3 : 4;
 
-  // Örnek Sekonic TXT yükleme fonksiyonu
-  const loadSampleData = () => {
-    const sampleLines = [
-      "001042Eylul Yilmaz        AABDCBCCDBAACDAABDCDBBCADCBACDDBBACDABCB",
-      "001089Arda Demir          BADBCBACDBAACDAABDCDBBCADCBACDDBBACDABCB",
-      "001150Osman Seymen        AABDCBCCDBAACDAABDCDBBCADCBACDDBBACDABCB",
-      "001205Ayse Kaya           AABDCBCCDBAACDAABDCDBBCADCBACDDBBACDABCB",
-      "001340Mehmet Celik        BADBCBACDBAACDAABDCDBBCADCBACDDBBACDABCB"
-    ];
-    parseRawText(sampleLines.join("\n"));
-  };
-
   // Fixed-width Parser Algoritması
   const parseRawText = (text) => {
     setRawText(text);
@@ -70,63 +80,46 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
       return;
     }
 
-    const keyA_T = "ABDCBCCDBAACDAABDCDB";
-    const keyA_M = "BCADCBACDDBBACDABCBD";
-    const keyB_T = "BACDBAACDAABDCDBABDC";
-    const keyB_M = "CADCBACDDBBACDABCBDC";
+    let keys;
+    try { keys = answerKeys; } catch {}
+    if (!keys || !Object.keys(keys).length) { setParsedRows([]); setUploadMsg("Önce sınava ait gerçek cevap anahtarını kaydediniz."); return; }
 
     const rows = lines.map((line, idx) => {
       // Fixed width sütun indeksleri (Sekonic standardı)
       const noRaw = line.substring(0, 6).trim();
       const nameRaw = line.substring(6, 26).trim() || `Öğrenci #${noRaw || idx + 1}`;
       const bookletRaw = (line.substring(26, 27).trim() || "A").toUpperCase();
-      const answersRaw = line.substring(27).replace(/\s+/g, "").toUpperCase();
+      const answersRaw = line.substring(27).toUpperCase();
 
-      // Ders cevap parçaları
-      const tAns = answersRaw.substring(0, 20);
-      const mAns = answersRaw.substring(20, 40);
-      const fAns = answersRaw.substring(40, 60);
-      const sAns = answersRaw.substring(60, 80);
-
-      const targetKeyT = bookletRaw === "B" ? keyB_T : keyA_T;
-      const targetKeyM = bookletRaw === "B" ? keyB_M : keyA_M;
-
-      // Net hesaplama
-      const calcLesson = (ans, key) => {
-        let d = 0, y = 0, b = 0;
-        for (let i = 0; i < 20; i++) {
-          const char = ans[i] || " ";
-          const correctChar = key[i] || "A";
-          if (char === " " || char === ".") b++;
-          else if (char === correctChar) d++;
-          else y++;
-        }
-        const net = Math.max(0, Math.round((d - (y / divisor)) * 100) / 100);
-        return { d, y, b, net };
-      };
-
-      const tRes = calcLesson(tAns, targetKeyT);
-      const mRes = calcLesson(mAns, targetKeyM);
-      const fRes = calcLesson(fAns, targetKeyT);
-      const sRes = calcLesson(sAns, targetKeyM);
-
-      const totalNet = Math.round((tRes.net + mRes.net + fRes.net + sRes.net) * 100) / 100;
-      const score = Math.round((100 + (totalNet * (isLGS ? 4.4 : 3.3))) * 100) / 100;
+      const bookKeys = keys[bookletRaw] || {};
+      const subjectResults = {};
+      let offset = 0;
+      for (const [subject,key] of Object.entries(bookKeys)) {
+        const ans = answersRaw.slice(offset,offset+key.length);
+        offset += key.length;
+        let d=0,y=0,b=0;
+        for(let i=0;i<key.length;i++) { const ch=ans[i] || ' '; if(ch===' ' || ch==='.') b++; else if(ch===key[i]) d++; else y++; }
+        subjectResults[subject]={d,y,b,net:Math.round((d-y/divisor)*100)/100};
+      }
+      const empty = {d:0,y:0,b:0,net:0};
+      const tRes=subjectResults.turkish || empty,mRes=subjectResults.math || empty,fRes=subjectResults.science || empty,sRes=subjectResults.social || empty;
+      const totalNet=Math.round(Object.values(subjectResults).reduce((sum,r)=>sum+r.net,0)*100)/100;
+      const score=null;
+      const isValid=Object.keys(bookKeys).length>0 && answersRaw.length===offset && /^[A-E. ]*$/.test(answersRaw);
 
       // Sistemdeki öğrenciyle eşleşme
-      const matchedStudent = students.find(s => 
-        (s.student_no && s.student_no.replace(/\D/g, "") === noRaw.replace(/\D/g, "")) ||
-        (s.student_name && trIncludes(s.student_name, nameRaw))
-      );
+      const matches = students.filter(s => s.student_no && String(s.student_no).replace(/^0+/, '') === noRaw.replace(/^0+/, ''));
+      const matchedStudent=matches.length===1 ? matches[0] : null;
 
       return {
         id: `parsed_${idx}`,
-        student_id: matchedStudent ? matchedStudent.id : (students[idx % students.length]?.id || `guest_${noRaw}`),
+        student_id: matchedStudent ? matchedStudent.id : null,
         no: noRaw || (matchedStudent ? matchedStudent.student_no : `10${idx + 1}`),
         name: matchedStudent ? matchedStudent.student_name : nameRaw,
-        student_class: matchedStudent ? matchedStudent.student_class : "11-A Sayısal",
+        student_class: matchedStudent ? matchedStudent.student_class : "",
         isMatched: !!matchedStudent,
-        booklet: bookletRaw === "B" ? "B" : "A",
+        isValid, subjectResults,
+        booklet: bookletRaw,
         tD: tRes.d, tY: tRes.y, tNet: tRes.net,
         mD: mRes.d, mY: mRes.y, mNet: mRes.net,
         fD: fRes.d, fY: fRes.y, fNet: fRes.net,
@@ -154,9 +147,10 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
   // Sonuçları Sınava ve D1 Veritabanına Kaydetme
   const saveResultsToExam = async () => {
     if (parsedRows.length === 0) {
-      alert("Lütfen önce bir optik dosya okutun veya örnek veri yükleyin.");
+      alert("Lütfen önce bir optik dosya okutun.");
       return;
     }
+    if (parsedRows.some(r => !r.isMatched || !r.isValid)) { alert("Eşleşmeyen öğrenci veya hatalı cevap uzunluğu var. Dosyayı düzeltmeden kayıt yapılamaz."); return; }
     setSavingResults(true);
     setSaveSuccessMsg("");
 
@@ -183,7 +177,8 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
       score: r.score,
       overall_rank: idx + 1,
       class_rank: idx + 1,
-      weak_topics: []
+      weak_topics: [],
+      subject_results: r.subjectResults
     }));
 
     try {
@@ -202,36 +197,17 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
     }
   };
 
-  // FMT Dosyası İndirme
+  // Alan Sırasını İndir (TXT)me
   const downloadFmtFile = () => {
-    const fmtContent = `[SEKONIC_OMR_FMT]
-FORM_NAME=${selectedTemplate.toUpperCase()}
-INSTITUTION_CODE=627201
-INSTITUTION_NAME=OZEL INEGOL COZUM KURS MERKEZI
-COLUMNS=4
-TOTAL_QUESTIONS=90
-OFFSET_X=${offsetX}
-OFFSET_Y=${offsetY}
-STUDENT_NO_START=1
-STUDENT_NO_LEN=6
-STUDENT_NAME_START=7
-STUDENT_NAME_LEN=20
-BOOKLET_START=27
-BOOKLET_LEN=1
-TURKCE_START=28
-TURKCE_LEN=20
-MATEMATIK_START=48
-MATEMATIK_LEN=20
-FEN_START=68
-FEN_LEN=20
-SOSYAL_START=88
-SOSYAL_LEN=20
-`;
+    const subjects=answerKeys.A;
+    if(!subjects) { setUploadMsg("Önce A kitapçığı cevap anahtarını kaydediniz."); return; }
+    let start=28;
+    const fmtContent=Object.entries(subjects).map(([subject,key])=>{const line=`${subject.toUpperCase()}_START=${start}\n${subject.toUpperCase()}_LEN=${key.length}`;start+=key.length;return line;}).join("\n");
     const blob = new Blob([fmtContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${selectedTemplate}_627201.fmt`;
+    a.download = `${selectedTemplate}_alan_sirasi.txt`;
     a.click();
     URL.revokeObjectURL(url);
     setCustomFmtDownloaded(true);
@@ -311,7 +287,7 @@ SOSYAL_LEN=20
 
     const win = window.open("", "_blank");
     const formsHtml = targetList.map((st, i) => `
-      <div style="page-break-after: always; padding: 15mm; font-family: Arial, sans-serif; position: relative;">
+      <div style="page-break-after: always; transform: translate(${offsetX}mm,${offsetY}mm); padding: 15mm; font-family: Arial, sans-serif; position: relative;">
         <!-- Zamanlama Çizgileri -->
         <div style="position: absolute; left: 5mm; top: 15mm; bottom: 15mm; width: 4mm; display: flex; flex-direction: column; justify-content: space-between;">
           ${Array.from({ length: 45 }).map(() => '<div style="width: 4mm; height: 1.5mm; background: #000;"></div>').join("")}
@@ -332,16 +308,16 @@ SOSYAL_LEN=20
           <div style="display: flex; gap: 20px; margin: 15px 0; background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px;">
             <div style="flex: 1;">
               <table style="width: 100%; font-size: 9pt; border-collapse: collapse;">
-                <tr><td style="font-weight: bold; width: 90px;">Öğrenci Adı:</td><td>${st.student_name}</td></tr>
+                <tr><td style="font-weight: bold; width: 90px;">Öğrenci Adı:</td><td>${escapeHtml(st.student_name)}</td></tr>
                 <tr><td style="font-weight: bold;">Okul No:</td><td><b>#${st.student_no || "100" + (i + 1)}</b></td></tr>
-                <tr><td style="font-weight: bold;">Sınıf / Şube:</td><td>${st.student_class || selectedClassForPrint}</td></tr>
-                <tr><td style="font-weight: bold;">T.C. Kimlik:</td><td>${st.student_tc || "10000000000"}</td></tr>
+                <tr><td style="font-weight: bold;">Sınıf / Şube:</td><td>${escapeHtml(st.student_class || selectedClassForPrint)}</td></tr>
+                <tr><td style="font-weight: bold;">T.C. Kimlik:</td><td>${escapeHtml(st.student_tc || "")}</td></tr>
               </table>
             </div>
             <div style="width: 140px; border-left: 1px solid #cbd5e1; padding-left: 12px; font-size: 8pt;">
               <div style="font-weight: bold; margin-bottom: 4px;">ÖĞRENCİ NO KODLAMASI:</div>
               <div style="display: flex; gap: 4px;">
-                ${String(st.student_no || "100" + (i + 1)).padStart(5, "0").split("").map(digit => `
+                ${String(st.student_no || "100" + (i + 1)).padStart(6, "0").split("").map(digit => `
                   <div style="display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 7pt;">
                     <b>${digit}</b>
                     ${Array.from({ length: 10 }).map((_, d) => `
@@ -355,10 +331,10 @@ SOSYAL_LEN=20
 
           <!-- 4 Branş Soru Optik Cevap Sütunları -->
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 15px;">
-            ${["TÜRKÇE", "MATEMATİK", "FEN BİLİMLERİ", "SOSYAL BİLGİLER"].map(br => `
+            ${Object.entries(answerKeys.A || {}).map(([subject,key]) => `
               <div style="border: 1px solid #94a3b8; border-radius: 4px; padding: 6px;">
-                <div style="background: #e2e8f0; font-weight: bold; font-size: 8pt; text-align: center; padding: 3px; margin-bottom: 6px;">${br}</div>
-                ${Array.from({ length: 20 }).map((_, q) => `
+                <div style="background: #e2e8f0; font-weight: bold; font-size: 8pt; text-align: center; padding: 3px; margin-bottom: 6px;">${subjectNames[subject] || subject}</div>
+                ${Array.from({ length: key.length }).map((_, q) => `
                   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 8pt;">
                     <span style="width: 16px; font-weight: bold;">${q + 1}</span>
                     <div style="display: flex; gap: 3px;">
@@ -379,7 +355,7 @@ SOSYAL_LEN=20
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Kişiselleştirilmiş Öğrenci Optik Form Baskısı - ${selectedClassForPrint}</title>
+        <title>Taslak Öğrenci Optik Formu (cihaz uyumluluğu doğrulanmalı) - ${escapeHtml(selectedClassForPrint)}</title>
         <style>
           @page { size: A4 portrait; margin: 0; }
           body { margin: 0; background: #fff; }
@@ -425,26 +401,8 @@ SOSYAL_LEN=20
 
   // WebCam ile Kareyi Yakala ve OMR Oku
   const captureAndScanFrame = () => {
-    // Görsel tarama simülasyonu
-    const randomStudent = students[Math.floor(Math.random() * students.length)] || {
-      id: "scan_1",
-      student_name: "Eylül Yılmaz",
-      student_no: "1042",
-      student_class: "11-A Sayısal"
-    };
-
-    setCameraScannedData({
-      no: randomStudent.student_no || "1042",
-      name: randomStudent.student_name,
-      booklet: "A",
-      turkishNet: (17.25).toFixed(2),
-      mathNet: (15.50).toFixed(2),
-      scienceNet: (16.00).toFixed(2),
-      socialNet: (18.00).toFixed(2),
-      totalNet: (66.75).toFixed(2),
-      score: (412.50).toFixed(2),
-      timestamp: new Date().toLocaleTimeString("tr-TR")
-    });
+    setCameraScannedData(null);
+    setCameraError("Görüntüden optik okuma desteklenmiyor. Cihazınızın doğrulanmış TXT çıktısını dosya okuma sekmesinden aktarınız.");
   };
 
   React.useEffect(() => {
@@ -457,9 +415,9 @@ SOSYAL_LEN=20
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div 
-        className="modal" 
-        onClick={(e) => e.stopPropagation()} 
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: "860px", width: "95vw", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
       >
         {/* Modal Başlığı */}
@@ -476,7 +434,7 @@ SOSYAL_LEN=20
                 </span>
               </div>
               <p style={{ margin: "2px 0 0 0", fontSize: "12px", color: "#64748b" }}>
-                Sınav: <b>{exam?.title}</b> ({exam?.exam_type || "TYT"}) · Sekonic & OMR Yüksek Hassasiyetli Motor
+                Sınav: <b>{exam?.title}</b> ({exam?.exam_type || "TYT"}) · Sabit genişlikli TXT sonuç aktarımı
               </p>
             </div>
           </div>
@@ -568,21 +526,27 @@ SOSYAL_LEN=20
 
         {/* Modal Gövdesi */}
         <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "18px 20px" }}>
-          
+
           {/* SEKME 1: OPTİK DOSYA OKU & PUANLA */}
           {activeTab === "read" && (
             <div>
+              <fieldset style={{marginBottom:16,padding:12}}>
+                <legend>Cevap anahtarı · dosyadaki ders sırasına göre</legend>
+                <label>Kitapçık <select value={keyBooklet} onChange={e=>setKeyBooklet(e.target.value)}>{["A","B","C","D"].map(b=><option key={b}>{b}</option>)}</select></label>
+                {keySubjects.map(subject=><label key={subject} style={{display:"block",marginTop:8}}>{subjectNames[subject] || subject}
+                  <input aria-label={`${keyBooklet} ${subjectNames[subject] || subject} cevapları`} value={keyDraft[keyBooklet]?.[subject] || ""} onChange={e=>setKeyDraft(prev=>({...prev,[keyBooklet]:{...prev[keyBooklet],[subject]:e.target.value.toUpperCase().replace(/\s/g,"")}}))} placeholder="ABCD…" style={{width:"100%"}} />
+                </label>)}
+                <button className="btn small" onClick={saveAnswerKeys}>Cevap Anahtarını Kaydet</button>
+                <p>Boş cevaplar TXT içinde boşluk veya nokta ile korunmalıdır. Netler hesaplanır; resmî puan yayınevinin puanlama modelini gerektirir.</p>
+              </fieldset>
               <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "14px", flexWrap: "wrap" }}>
                 <label className="btn small" style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", background: "#2563eb", color: "#fff" }}>
                   <Upload size={14} /> TXT / DAT Dosyası Seç
-                  <input type="file" accept=".txt,.dat,.csv,.fmt" style={{ display: "none" }} onChange={handleFileChange} />
+                  <input type="file" accept=".txt,.dat" style={{ display: "none" }} onChange={handleFileChange} />
                 </label>
-                <button className="btn small secondary" onClick={loadSampleData}>
-                  <RefreshCw size={14} /> Örnek Sekonic TXT Yükle
-                </button>
                 {parsedRows.length > 0 && (
-                  <button 
-                    className="btn small" 
+                  <button
+                    className="btn small"
                     style={{ background: "#16a34a", color: "#fff", display: "inline-flex", alignItems: "center", gap: "6px" }}
                     onClick={saveResultsToExam}
                     disabled={savingResults}
@@ -633,7 +597,7 @@ SOSYAL_LEN=20
                             <td>{r.fNet}</td>
                             <td>{r.sNet}</td>
                             <td><b style={{ color: "#2563eb" }}>{r.totalNet}</b></td>
-                            <td><b style={{ color: "#16a34a" }}>{r.score}</b></td>
+                            <td><b style={{ color: "#16a34a" }}>{r.score ?? "—"}</b></td>
                             <td>
                               <span style={{ fontSize: "11px", color: r.isMatched ? "#15803d" : "#b45309" }}>
                                 {r.isMatched ? "✓ Kayıtlı" : "Misafir"}
@@ -650,11 +614,8 @@ SOSYAL_LEN=20
                   <FileText size={32} color="#94a3b8" style={{ margin: "0 auto 8px auto" }} />
                   <h4 style={{ margin: 0, color: "#334155" }}>Henüz Optik Dosya Yüklenmedi</h4>
                   <p style={{ margin: "6px 0 14px 0", fontSize: "12px", color: "#64748b" }}>
-                    Sekonic veya OMR optik okuyucunuzun ürettiği <b>.TXT</b>, <b>.DAT</b> veya <b>.CSV</b> dosyasını yükleyin ya da hemen test etmek için örnek veriyi yükleyin.
+                    Sekonic veya OMR optik okuyucunuzun ürettiği <b>.TXT</b>, <b>.DAT</b> dosyasını yükleyin. Numara 6, ad 20, kitapçık 1 karakter; ardından cevaplar gelmelidir.
                   </p>
-                  <button className="btn small" onClick={loadSampleData}>
-                    Örnek Veriyle Test Et
-                  </button>
                 </div>
               )}
             </div>
@@ -666,8 +627,8 @@ SOSYAL_LEN=20
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "16px" }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontSize: "12px", fontWeight: "600" }}>Form Şablonu:</label>
-                  <select 
-                    value={selectedTemplate} 
+                  <select
+                    value={selectedTemplate}
                     onChange={(e) => setSelectedTemplate(e.target.value)}
                     style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
                   >
@@ -680,10 +641,10 @@ SOSYAL_LEN=20
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontSize: "12px", fontWeight: "600" }}>Kurum & Optik Kodu:</label>
-                  <input 
-                    type="text" 
-                    readOnly 
-                    value="627201 (İnegöl Çözüm Özel Kurs)" 
+                  <input
+                    type="text"
+                    readOnly
+                    value="627201 (İnegöl Çözüm Özel Kurs)"
                     style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", background: "#f1f5f9", fontSize: "13px" }}
                   />
                 </div>
@@ -721,11 +682,11 @@ SOSYAL_LEN=20
 
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <button className="btn small" onClick={downloadFmtFile} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  <Download size={14} /> Sekonic .FMT Dosyasını İndir
+                  <Download size={14} /> Ders Alan Sırasını İndir (TXT)
                 </button>
                 {customFmtDownloaded && (
                   <span style={{ fontSize: "12px", color: "#16a34a", fontWeight: "600" }}>
-                    ✓ .FMT dosyası bilgisayarınıza indirildi. SekOku/Datasis programına aktarabilirsiniz.
+                    ✓ Ders başlangıçları ve uzunlukları indirildi. Cihazın kendi FMT dosyası ayrıca üretici yazılımıyla hazırlanmalıdır.
                   </span>
                 )}
               </div>
@@ -745,8 +706,8 @@ SOSYAL_LEN=20
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontSize: "12px", fontWeight: "600" }}>Aktif Yazıcı Profili:</label>
-                  <select 
-                    value={printerProfile} 
+                  <select
+                    value={printerProfile}
                     onChange={(e) => {
                       setPrinterProfile(e.target.value);
                       if (e.target.value === "p-epson") { setOffsetX(1.2); setOffsetY(-0.8); }
@@ -755,16 +716,15 @@ SOSYAL_LEN=20
                     }}
                     style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
                   >
-                    <option value="p-def">Varsayılan Yazıcı (Standart A4)</option>
-                    <option value="p-epson">Epson L8050 Yüksek Hızlı Fotoğraf/Optik (+1.2mm / -0.8mm)</option>
-                    <option value="p-hp">HP LaserJet Pro Enterprise (-0.5mm / +1.0mm)</option>
+                    <option value="p-def">Varsayılan Yazıcı</option>
+                    {printerProfiles.filter(p=>p.id!=="p-def").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontSize: "12px", fontWeight: "600" }}>Baskı Alınacak Sınıf:</label>
-                  <select 
-                    value={selectedClassForPrint} 
+                  <select
+                    value={selectedClassForPrint}
                     onChange={(e) => setSelectedClassForPrint(e.target.value)}
                     style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
                   >
@@ -781,12 +741,12 @@ SOSYAL_LEN=20
                     <span style={{ fontSize: "12px", fontWeight: "600" }}>Yatay Ofset (X mm):</span>
                     <b style={{ color: "#2563eb" }}>{offsetX > 0 ? `+${offsetX}` : offsetX} mm</b>
                   </div>
-                  <input 
-                    type="range" 
-                    min="-15" 
-                    max="15" 
-                    step="0.1" 
-                    value={offsetX} 
+                  <input
+                    type="range"
+                    min="-15"
+                    max="15"
+                    step="0.1"
+                    value={offsetX}
                     onChange={(e) => setOffsetX(parseFloat(e.target.value))}
                     style={{ width: "100%" }}
                   />
@@ -798,12 +758,12 @@ SOSYAL_LEN=20
                     <span style={{ fontSize: "12px", fontWeight: "600" }}>Dikey Ofset (Y mm):</span>
                     <b style={{ color: "#2563eb" }}>{offsetY > 0 ? `+${offsetY}` : offsetY} mm</b>
                   </div>
-                  <input 
-                    type="range" 
-                    min="-15" 
-                    max="15" 
-                    step="0.1" 
-                    value={offsetY} 
+                  <input
+                    type="range"
+                    min="-15"
+                    max="15"
+                    step="0.1"
+                    value={offsetY}
                     onChange={(e) => setOffsetY(parseFloat(e.target.value))}
                     style={{ width: "100%" }}
                   />
@@ -824,12 +784,9 @@ SOSYAL_LEN=20
                 <button className="btn small" onClick={printPersonalizedOpticalForms} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#7c3aed", color: "#fff" }}>
                   <FileText size={14} /> Öğrenciye Özel Optik Form Basımı ({selectedClassForPrint})
                 </button>
-                <button 
-                  className="btn small secondary" 
-                  onClick={() => {
-                    setCalibrationSuccess("Yazıcı ofset profili kaydedildi ✓");
-                    setTimeout(() => setCalibrationSuccess(""), 3000);
-                  }}
+                <button
+                  className="btn small secondary"
+                  onClick={savePrinterProfile}
                 >
                   Ayarları Profile Kaydet
                 </button>

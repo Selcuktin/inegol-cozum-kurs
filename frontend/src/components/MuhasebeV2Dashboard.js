@@ -65,8 +65,6 @@ import AccountingService, { ENABLE_KASA_BANKA } from "../lib/edesisAccountingSer
 import { trIncludes, formatTrtDateTime } from "../lib/utils";
 
 import {
-  CANCELLED_STUDENT_NAMES,
-  ACTIVE_2026_CONTRACT_STUDENT_NAMES,
   getStudentCategory,
   fmtMoney,
   getEffectiveTotalFee,
@@ -77,8 +75,6 @@ import {
 } from "./tabs/muhasebeHelpers";
 
 export {
-  CANCELLED_STUDENT_NAMES,
-  ACTIVE_2026_CONTRACT_STUDENT_NAMES,
   getStudentCategory,
   fmtMoney,
   getEffectiveTotalFee,
@@ -87,12 +83,12 @@ export {
   getExpenseAccountInfo
 };
 
-export function MuhasebeV2Dashboard({ 
-  me, 
-  data = {}, 
-  onOpen, 
-  onSelectStudent, 
-  API, 
+export function MuhasebeV2Dashboard({
+  me,
+  data = {},
+  onOpen,
+  onSelectStudent,
+  API,
   reload,
   activeTab: propActiveTab,
   onTabChange,
@@ -139,7 +135,7 @@ export function MuhasebeV2Dashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRegisterFilter, setSelectedRegisterFilter] = useState("all");
   const [agingFilter, setAgingFilter] = useState("all"); // 'all' | '1-30' | '31-60' | '60+'
-  
+
   // Modals state
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [promissoryStudent, setPromissoryStudent] = useState(null);
@@ -147,8 +143,8 @@ export function MuhasebeV2Dashboard({
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
 
   const handleOpenUnifiedContract = (target) => {
-    const targetNo = typeof target === "string" 
-      ? target 
+    const targetNo = typeof target === "string"
+      ? target
       : (target?.sozlesmeNo || target?.gelirKodu || target?.ogrenciAdiSoyadi || target?.student_name || target?.student?.student_name);
     if (targetNo) {
       try {
@@ -329,7 +325,7 @@ export function MuhasebeV2Dashboard({
     return allStudents;
   }, [allStudents, periodFilter]);
 
-  const payments = useMemo(() => data.payments || [], [data.payments]);
+  const payments = useMemo(() => (data.payments || []).filter(p => !p.is_cancelled && !["İptal Edildi", "cancelled"].includes(p.status)), [data.payments]);
   const [expenses, setExpenses] = useState(data.expenses || []);
 
   useEffect(() => {
@@ -339,55 +335,13 @@ export function MuhasebeV2Dashboard({
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
-  // Gerçek Edesis Üretim Verisi Ayrımı (Büyük kurum veri tabanı vs test mock)
-  const isRealEdesisData = allStudents.length > 20;
-
-  // Ekstra eklenen gelirler ve tahsilatların canlı KPI katkısı (Taksit bölme ve gelir eklemeler anında yansısın)
-  const extraStats = useMemo(() => {
-    void accountingVersion;
-    const allIncomes = AccountingService.getIncomes();
-    const customIncomes = allIncomes.filter(g => g.id > 1700000000000);
-    const relevantIncomes = periodFilter === "2026-2027"
-      ? customIncomes.filter(g => g.donemId === 113 || g.donemAdi === "2026-2027")
-      : periodFilter === "2026-2027-YAZ"
-      ? customIncomes.filter(g => g.donemId === 142 || String(g.donemAdi).includes("YAZ"))
-      : periodFilter === "2025-2026"
-      ? customIncomes.filter(g => g.donemId === 40 || g.donemAdi === "2025-2026")
-      : customIncomes;
-
-    const extraGross = relevantIncomes.reduce((acc, g) => acc + (Number(g.brutTutar) || 0), 0);
-    const extraColl = relevantIncomes.reduce((acc, g) => acc + (Number(g.toplamTahsilat) || 0), 0);
-
-    const allCollections = AccountingService.getCollections(payments);
-    const customCollections = allCollections.filter(c => c.id > 1700000000000);
-    const extraDirectColl = customCollections.reduce((acc, c) => acc + (Number(c.tahsilatTutari) || 0), 0);
-
-    return {
-      extraGross,
-      extraColl: Math.max(extraColl, extraDirectColl)
-    };
-  }, [accountingVersion, periodFilter, payments]);
-
   // 1. ÖĞRENCİ GERÇEK TAKSİT PLANLARI HARİTASI (Edesis 664 Taksit Birebir Entegrasyonu)
   const studentPlansMap = useMemo(() => {
     void accountingVersion;
-    const byName = {};
     const bySozlesme = {};
     const rawTaksitler = AccountingService.getInstallments() || [];
 
-    const normalizeTr = (str) => (str || "")
-      .trim()
-      .replace(/i/g, "İ")
-      .replace(/ı/g, "I")
-      .toLocaleUpperCase("tr-TR")
-      .replace(/\s+/g, " ");
-
     rawTaksitler.forEach((t) => {
-      const name = normalizeTr(t.ogrenciAdiSoyadi || t.musteriUnvan);
-      if (name) {
-        if (!byName[name]) byName[name] = [];
-        byName[name].push(t);
-      }
       if (t.sozlesmeNo) {
         if (!bySozlesme[t.sozlesmeNo]) bySozlesme[t.sozlesmeNo] = [];
         bySozlesme[t.sozlesmeNo].push(t);
@@ -396,14 +350,13 @@ export function MuhasebeV2Dashboard({
 
     const map = {};
     students.forEach((s) => {
-      const sNorm = normalizeTr(s.student_name);
-      const rawList = byName[sNorm] || (s.sozlesme_no ? bySozlesme[s.sozlesme_no] : null) || [];
+      const rawList = (s.sozlesme_no ? bySozlesme[s.sozlesme_no] : null) || [];
       if (rawList.length > 0) {
         const sorted = [...rawList].sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0));
         map[s.id] = sorted.map((t, idx) => {
           const amt = Number(t.taksitTutari) || 0;
           const paid = Number(t.tahsilEdilen) || 0;
-          const remaining = Number(t.kalanTutar) !== undefined ? Number(t.kalanTutar) : Math.max(0, amt - paid);
+          const remaining = t.kalanTutar != null ? Number(t.kalanTutar) : Math.max(0, amt - paid);
           const status = remaining <= 0 ? "paid" : (paid > 0 ? "partial" : "pending");
           const dueStr = t.vadeTarihi ? String(t.vadeTarihi).slice(0, 10) : "";
           return {
@@ -427,59 +380,44 @@ export function MuhasebeV2Dashboard({
 
   // 2. ÜST FİNANSAL KPI HESAPLAMALARI (Edesis Muhasebe V2 Birebir Parite + Canlı Senkronizasyon)
   const totalContractRevenue = useMemo(() => {
-    if (isRealEdesisData) {
-      const baseRev = periodFilter === "2026-2027" ? 4190137.53 : 5265917;
-      return baseRev + extraStats.extraGross;
-    }
-    return students.reduce((sum, s) => sum + getEffectiveTotalFee(s), 0);
-  }, [students, isRealEdesisData, periodFilter, extraStats]);
+
+    if (Array.isArray(data.contracts)) return data.contracts.filter(c=>!c.is_deleted && c.durum!==3).reduce((sum,c)=>sum+Number(c.brut_tutar ?? c.brutTutar ?? 0),0);
+    return allStudents.reduce((sum,s)=>sum+getEffectiveTotalFee(s),0);
+  }, [data.contracts, allStudents]);
 
   const totalCollected = useMemo(() => {
-    if (isRealEdesisData) {
-      const baseColl = periodFilter === "2026-2027" ? 468441.18 : 973340;
-      return baseColl + extraStats.extraColl;
-    }
-    return payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  }, [payments, isRealEdesisData, periodFilter, extraStats]);
+
+    return payments.filter(p => !p.is_cancelled && p.status !== "İptal Edildi").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }, [payments, periodFilter]);
 
   const totalExpenses = useMemo(() => {
-    if (isRealEdesisData) {
-      return 100401.35;
-    }
+
     return expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  }, [expenses, isRealEdesisData]);
+  }, [expenses]);
 
   const totalRemaining = useMemo(() => {
+    if (Array.isArray(data.contracts)) return data.contracts.filter(c=>!c.is_deleted && c.durum!==3).reduce((sum,c)=>sum+Math.max(0,Number(c.kalan_alacak ?? c.kalanAlacak ?? (Number(c.brut_tutar ?? c.brutTutar ?? 0)-Number(c.toplam_tahsilat ?? c.toplamTahsilat ?? c.calculated_paid ?? 0)))),0);
     return Math.max(0, totalContractRevenue - totalCollected);
-  }, [totalContractRevenue, totalCollected]);
+  }, [data.contracts, totalContractRevenue, totalCollected]);
 
   const collectionRate = useMemo(() => {
-    return totalContractRevenue > 0 ? Math.round((totalCollected / totalContractRevenue) * 100) : 0;
-  }, [totalContractRevenue, totalCollected]);
+    return totalContractRevenue > 0 ? Math.round(((totalContractRevenue-totalRemaining) / totalContractRevenue) * 100) : 0;
+  }, [totalContractRevenue, totalRemaining]);
 
   const netCashBalance = useMemo(() => {
-    return Math.max(0, totalCollected - totalExpenses);
+    return totalCollected - totalExpenses;
   }, [totalCollected, totalExpenses]);
 
   const profitMarginFormatted = useMemo(() => {
-    if (isRealEdesisData && extraStats.extraGross === 0) {
-      return periodFilter === "2026-2027" ? "97,6" : "98,1";
-    }
+
     if (totalContractRevenue <= 0) return "0";
-    const net = Math.max(0, totalCollected - totalExpenses);
+    const net = totalCollected - totalExpenses;
     return String(Math.round((net / totalContractRevenue) * 100));
-  }, [isRealEdesisData, periodFilter, totalContractRevenue, totalCollected, totalExpenses, extraStats]);
+  }, [periodFilter, totalContractRevenue, totalCollected, totalExpenses]);
 
   // GAP-1: Bu Ay Vadesi Gelenler (Cari Ay Taksit Tahakkuku)
   const dueThisMonthData = useMemo(() => {
-    if (isRealEdesisData) {
-      return {
-        total: 468900,
-        count: 51,
-        remaining: 350530,
-        collected: 118370
-      };
-    }
+
     let total = 0;
     let count = 0;
     let remaining = 0;
@@ -499,7 +437,7 @@ export function MuhasebeV2Dashboard({
       remaining,
       collected: Math.max(0, total - remaining)
     };
-  }, [students, studentPlansMap, currentMonthStr, isRealEdesisData]);
+  }, [students, studentPlansMap, currentMonthStr]);
 
   // GAP-5: Taksit Yaşlandırma & Gecikme Takibi (Gerçek Vade Tarihine Göre)
   const overdueStudents = useMemo(() => {
@@ -547,28 +485,12 @@ export function MuhasebeV2Dashboard({
   }, [students, studentPlansMap, todayStr]);
 
   const totalOverdueDebt = useMemo(() => {
-    if (isRealEdesisData) {
-      return periodFilter === "2026-2027" ? 216350 : 651526;
-    }
+
     return overdueStudents.reduce((sum, s) => sum + s.remaining, 0);
-  }, [overdueStudents, isRealEdesisData, periodFilter]);
+  }, [overdueStudents, periodFilter]);
 
   const agingSummary = useMemo(() => {
-    if (isRealEdesisData) {
-      if (periodFilter === "2026-2027") {
-        return {
-          c1_30: { count: 5, sum: 48000, pct: 22 },
-          c31_60: { count: 3, sum: 56350, pct: 26 },
-          c60plus: { count: 4, sum: 112000, pct: 52 }
-        };
-      } else {
-        return {
-          c1_30: { count: 7, sum: 54330, pct: 8 },
-          c31_60: { count: 4, sum: 150001, pct: 23 },
-          c60plus: { count: 10, sum: 447195, pct: 69 }
-        };
-      }
-    }
+
 
     const c1_30 = overdueStudents.filter(s => s.agingCategory === "1-30");
     const c31_60 = overdueStudents.filter(s => s.agingCategory === "31-60");
@@ -587,34 +509,11 @@ export function MuhasebeV2Dashboard({
       c31_60: { count: c31_60.length, sum: sum31_60, pct: pct31_60 },
       c60plus: { count: c60plus.length, sum: sum60plus, pct: pct60plus }
     };
-  }, [overdueStudents, totalOverdueDebt, isRealEdesisData, periodFilter]);
+  }, [overdueStudents, totalOverdueDebt, periodFilter]);
 
   // 3. KASA & BANKA HESAP BAKİYELERİ (Edesis Canlı 975.438 ₺ Tam Parite)
   const registers = useMemo(() => {
-    if (isRealEdesisData) {
-      return {
-        vakifbankInflow: 440000,
-        vakifbankExpense: 0,
-        vakifbank: 440000,
 
-        halkbankInflow: 233438,
-        halkbankExpense: 0,
-        halkbank: 233438,
-
-        nakitInflow: 282000,
-        nakitExpense: 0,
-        nakit: 282000,
-
-        posInflow: 20000,
-        posExpense: 0,
-        pos: 20000,
-
-        senetInflow: 0,
-        senet: 0,
-
-        grossNakit: 282000
-      };
-    }
 
     let vakifbankInflow = 0;
     let halkbankInflow = 0;
@@ -668,33 +567,28 @@ export function MuhasebeV2Dashboard({
     return {
       vakifbankInflow,
       vakifbankExpense,
-      vakifbank: Math.max(0, vakifbankInflow - vakifbankExpense),
-      
+      vakifbank: vakifbankInflow - vakifbankExpense,
+
       halkbankInflow,
       halkbankExpense,
-      halkbank: Math.max(0, halkbankInflow - halkbankExpense),
+      halkbank: halkbankInflow - halkbankExpense,
 
       nakitInflow,
       nakitExpense,
-      nakit: Math.max(0, nakitInflow - nakitExpense),
+      nakit: nakitInflow - nakitExpense,
 
       posInflow,
       posExpense,
-      pos: Math.max(0, posInflow - posExpense),
+      pos: posInflow - posExpense,
 
       senetInflow,
       senet: senetInflow,
 
       grossNakit: nakitInflow
     };
-  }, [payments, expenses, isRealEdesisData]);
+  }, [payments, expenses]);
 
-  const netLiquidBalance = useMemo(() => {
-    if (isRealEdesisData) {
-      return 975438;
-    }
-    return Math.max(0, registers.vakifbank + registers.halkbank + registers.pos + registers.nakit);
-  }, [registers, isRealEdesisData]);
+  const netLiquidBalance = registers.vakifbank + registers.halkbank + registers.pos + registers.nakit;
 
   // 4. 12 AYLIK DİNAMİK GELİR & TAHSİLAT TREND GRAFİĞİ (GAP-4)
   const monthlyTrends = useMemo(() => {
@@ -705,58 +599,7 @@ export function MuhasebeV2Dashboard({
     ];
     const currentYear = new Date().getFullYear();
 
-    if (isRealEdesisData) {
-      const taksitlerByMonth = {};
-      const tahsilatlarByMonth = {};
 
-      const currentInstallments = AccountingService.getInstallments();
-      const currentCollections = AccountingService.getCollections(payments);
-
-      currentInstallments.forEach((t) => {
-        const date = t.vadeTarihi || "";
-        if (date.startsWith("2026")) {
-          const m = parseInt(date.slice(5, 7), 10);
-          const amt = Number(t.toplamTutar || t.taksitTutari || 0);
-          taksitlerByMonth[m] = (taksitlerByMonth[m] || 0) + amt;
-        }
-      });
-
-      currentCollections.forEach((th) => {
-        const date = th.tahsilatTarihi || "";
-        if (date.startsWith("2026")) {
-          const m = parseInt(date.slice(5, 7), 10);
-          const amt = Number(th.tahsilatTutari || 0);
-          tahsilatlarByMonth[m] = (tahsilatlarByMonth[m] || 0) + amt;
-        }
-      });
-
-      (payments || []).forEach((p) => {
-        const date = p.payment_date || "";
-        if (date.startsWith("2026")) {
-          const m = parseInt(date.slice(5, 7), 10);
-          const amt = Number(p.amount || 0);
-          tahsilatlarByMonth[m] = (tahsilatlarByMonth[m] || 0) + amt;
-        }
-      });
-
-      return MONTH_NAMES.map((name, idx) => {
-        const m = idx + 1;
-        const monthNum = String(m).padStart(2, "0");
-        const monthPrefix = `2026-${monthNum}`;
-        const plan = taksitlerByMonth[m] || 0;
-        const gerceklesen = tahsilatlarByMonth[m] || 0;
-        const uyum = plan > 0 ? Math.min(100, Math.round((gerceklesen / plan) * 100)) : (gerceklesen > 0 ? 100 : 0);
-
-        return {
-          ay: name,
-          ayKod: monthPrefix,
-          plan: Math.round(plan),
-          planlanan: Math.round(plan),
-          gerceklesen: Math.round(gerceklesen),
-          uyum
-        };
-      });
-    }
 
     return MONTH_NAMES.map((name, idx) => {
       const monthNum = String(idx + 1).padStart(2, "0");
@@ -790,30 +633,13 @@ export function MuhasebeV2Dashboard({
         uyum
       };
     });
-  }, [students, studentPlansMap, payments, isRealEdesisData, accountingVersion]);
+  }, [students, studentPlansMap, payments, accountingVersion]);
 
   // 5. GELİR KATEGORİLERİ & TAHSİLAT YÖNTEMLERİ DAĞILIMI (GAP-6)
   const incomeCategoryData = useMemo(() => {
     void accountingVersion;
     const allIncomes = AccountingService.getIncomes();
-    if (isRealEdesisData && allIncomes?.length > 0) {
-      const catMap = {};
-      allIncomes.forEach((g) => {
-        const cat = g.gelirKategoriAdi || "Öğrenci Sözleşmesi";
-        const amt = Number(g.brutTutar || 0);
-        catMap[cat] = (catMap[cat] || 0) + amt;
-      });
 
-      const colors = ["#2563eb", "#16a34a", "#ca8a04", "#9333ea", "#ea580c"];
-      const total = Object.values(catMap).reduce((a, b) => a + b, 0) || 1;
-
-      return Object.entries(catMap).map(([name, val], idx) => ({
-        name,
-        value: Math.round(val),
-        color: colors[idx % colors.length],
-        pct: Math.round((val / total) * 100)
-      }));
-    }
 
     let sozlesme = 0;
     let kitap = 0;
@@ -843,38 +669,11 @@ export function MuhasebeV2Dashboard({
       { name: "Deneme Kulübü", value: dnm, color: "#9333ea", pct: Math.round((dnm / total) * 100) },
       { name: "Etüt & Özel Ders", value: ozelDers, color: "#ea580c", pct: Math.round((ozelDers / total) * 100) },
     ].filter(item => item.value > 0);
-  }, [students, isRealEdesisData, accountingVersion]);
+  }, [students, accountingVersion]);
 
   const paymentMethodData = useMemo(() => {
     const allCollections = AccountingService.getCollections(payments);
-    if (isRealEdesisData && allCollections?.length > 0) {
-      const methodMap = {};
-      allCollections.forEach((th) => {
-        const rawKasa = th.kasaBankaAdi || "Diğer";
-        let name = rawKasa;
-        if (rawKasa.includes("BİREYSEL") || rawKasa.includes("BIREYSEL")) {
-          name = "Nevin Çakmak Bireysel (Nakit/EFT)";
-        } else if (rawKasa.includes("HALK")) {
-          name = "Halkbank Kurumsal";
-        } else if (rawKasa.includes("VAKIF")) {
-          name = "VakıfBank";
-        } else if (rawKasa.includes("KASA") || rawKasa.includes("NAKİT")) {
-          name = "Nakit Ana Kasa";
-        }
-        const amt = Number(th.tahsilatTutari || 0);
-        methodMap[name] = (methodMap[name] || 0) + amt;
-      });
 
-      const colors = ["#7c3aed", "#2563eb", "#16a34a", "#0284c7", "#f59e0b"];
-      const total = Object.values(methodMap).reduce((a, b) => a + b, 0) || 1;
-
-      return Object.entries(methodMap).map(([name, val], idx) => ({
-        name,
-        value: Math.round(val),
-        color: colors[idx % colors.length],
-        pct: Math.round((val / total) * 100)
-      }));
-    }
 
     const total = totalCollected || 1;
     return [
@@ -884,7 +683,7 @@ export function MuhasebeV2Dashboard({
       { name: "Halkbank Havale", value: registers.halkbankInflow, color: "#2563eb", pct: Math.round((registers.halkbankInflow / total) * 100) },
       { name: "Senet / Bono", value: registers.senetInflow, color: "#7c3aed", pct: Math.round((registers.senetInflow / total) * 100) },
     ].filter(item => item.value > 0);
-  }, [registers, totalCollected, isRealEdesisData, payments]);
+  }, [registers, totalCollected, payments]);
 
   // Filtered Payments List (Kasalar Tab & Tahsilatlar Tab)
   const filteredPaymentsList = useMemo(() => {
@@ -1061,16 +860,17 @@ export function MuhasebeV2Dashboard({
     setPayLoading(true);
     try {
       const amt = parseFloat(payAmount);
+      const studentObj = students.find(s => s.id === payStudentId);
       const res = await axios.post(`${API}/payments`, {
         student_id: payStudentId,
+        sozlesme_no: studentObj?.sozlesme_no,
         amount: amt,
         method: payMethod,
         bank: payMethod === "Banka Havale / EFT" ? payBank : "",
         payment_date: payDate,
         note: payNote
       });
-      const studentObj = students.find(s => s.id === payStudentId);
-      AccountingService.recordCollection({
+      await AccountingService.recordCollection({
         studentId: payStudentId,
         studentName: studentObj?.student_name,
         amount: amt,
@@ -1082,7 +882,7 @@ export function MuhasebeV2Dashboard({
         alreadyPersisted: true
       });
       setShowQuickPaymentModal(false);
-      
+
       setReceiptPayment({
         id: res.data?.id || `pmt-${Date.now()}`,
         student_id: payStudentId,
@@ -1093,7 +893,7 @@ export function MuhasebeV2Dashboard({
         payment_date: payDate,
         note: payNote
       });
-      
+
       setPayAmount("");
       setPayStudentId("");
       alert("Tahsilat başarıyla kaydedildi! Resmi tahsilat makbuzu ekrana getiriliyor...");
@@ -1107,7 +907,7 @@ export function MuhasebeV2Dashboard({
 
   return (
     <div className="muhasebe-v2-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      
+
       {/* 1. ÜST BAŞLIK VE HIZLI EYLEM DÜĞMELERİ */}
       <div className="page-head" style={{ marginBottom: "4px" }}>
         <div>
@@ -1206,30 +1006,30 @@ export function MuhasebeV2Dashboard({
         </div>
 
         <div className="head-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button 
-            className="btn" 
+          <button
+            className="btn"
             onClick={() => setShowQuickPaymentModal(true)}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#16a34a", color: "#fff", fontWeight: "700" }}
           >
             <Plus size={16} /> Hızlı Tahsilat Al (Makbuzlu)
           </button>
-          <button 
-            className="btn secondary" 
+          <button
+            className="btn secondary"
             onClick={() => setShowExpenseModal(true)}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <TrendingDown size={16} color="#ef4444" /> Gider Ekle
           </button>
-          <button 
-            className="btn secondary" 
+          <button
+            className="btn secondary"
             onClick={handleBulkWhatsAppReminder}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderColor: "#22c55e", color: "#16a34a" }}
             title="Vadesi geçmiş öğrencilerin velilerine tek tıkla WhatsApp borç bildirimi gönderir"
           >
             <MessageCircle size={16} /> Gecikenlere WhatsApp Hatırlat
           </button>
-          <button 
-            className="btn secondary" 
+          <button
+            className="btn secondary"
             onClick={() => onNavigate && onNavigate("documents")}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderColor: "#3b82f6", color: "#2563eb", fontWeight: "600" }}
             title="Edesis Resmi Sözleşmeler Sayfası"
@@ -1237,8 +1037,8 @@ export function MuhasebeV2Dashboard({
             <FileText size={16} /> 📄 Edesis Sözleşmeler
           </button>
           {ENABLE_KASA_BANKA && (
-            <button 
-              className="btn secondary" 
+            <button
+              className="btn secondary"
               onClick={() => window.print()}
               style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
             >
@@ -1286,7 +1086,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("gelirler")}
           style={{ fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <FileText size={16} /> 📑 Gelir Yönetimi (Gelir Listesi) ({AccountingService.getIncomes()?.length || 71})
+          <FileText size={16} /> 📑 Gelir Yönetimi (Gelir Listesi) ({AccountingService.getIncomes()?.length || 0})
         </button>
         <button
           className={`btn ${activeTab === "gecikenler" ? "" : "secondary"}`}
@@ -1300,7 +1100,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("vade_takvimi")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <Calendar size={16} /> 📅 Vade Takvimi ({AccountingService.getInstallments()?.length || 603})
+          <Calendar size={16} /> 📅 Vade Takvimi ({AccountingService.getInstallments()?.length || 0})
         </button>
         {ENABLE_KASA_BANKA && (
           <button
@@ -1316,7 +1116,7 @@ export function MuhasebeV2Dashboard({
           onClick={() => setActiveTab("tahsilatlar")}
           style={{ fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
-          <Receipt size={16} /> 🧾 Tahsilat Listesi ({AccountingService.getCollections(payments)?.length || 159})
+          <Receipt size={16} /> 🧾 Tahsilat Listesi ({AccountingService.getCollections(payments)?.length || 0})
         </button>
         <button
           className={`btn ${activeTab === "giderler" ? "" : "secondary"}`}
@@ -1342,6 +1142,7 @@ export function MuhasebeV2Dashboard({
       </div>
 
       {/* 4. SEKME İÇERİKLERİ */}
+      <p style={{color:"var(--muted)",fontSize:12}}>Ciro ve kasa özeti tüm dönemleri kapsar. Dönem filtresi öğrenci ve vade listelerine uygulanır.</p>
       {/* SEKME 1: EDESİS KONTROL PANELİ & DASHBOARD */}
       {activeTab === "dashboard" && (
         <OverviewTab
@@ -1356,7 +1157,8 @@ export function MuhasebeV2Dashboard({
           agingSummary={agingSummary}
           incomeCategoryData={incomeCategoryData}
           paymentMethodData={paymentMethodData}
-          totalCollected={totalCollected}
+          totalExpenses={totalExpenses} payments={payments} expenses={expenses} netLiquidBalance={netLiquidBalance} installmentPlans={Object.values(studentPlansMap).flat()}
+        totalCollected={totalCollected}
           totalContractRevenue={totalContractRevenue}
           totalRemaining={totalRemaining}
           collectionRate={collectionRate}
@@ -1491,7 +1293,7 @@ export function MuhasebeV2Dashboard({
             ? rawParent
             : "";
         return (
-          <ReceiptModal 
+          <ReceiptModal
             payment={{
               ...receiptPayment,
               payment_date: receiptPayment.payment_date || receiptPayment.date || new Date().toISOString().slice(0, 10)
@@ -1509,7 +1311,7 @@ export function MuhasebeV2Dashboard({
 
       {/* MODAL 2: RESMİ MATBU SENET (BONO) */}
       {promissoryStudent && (
-        <PromissoryNoteModal 
+        <PromissoryNoteModal
           student={promissoryStudent}
           onClose={() => setPromissoryStudent(null)}
         />

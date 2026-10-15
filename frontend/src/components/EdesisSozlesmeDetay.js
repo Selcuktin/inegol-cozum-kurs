@@ -77,11 +77,15 @@ export default function EdesisSozlesmeDetay({
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  const handleSignContract = () => {
-    AccountingService.signContract(contract.id || contract.sozlesmeNo, "kurum", signedByName);
+  const handleSignContract = async () => {
+try {
+
+    await AccountingService.signContract(contract.id || contract.sozlesmeNo, "kurum", signedByName);
     setIsSignedState(true);
     showToast("✅ Sözleşme Kurum Yetkilisi tarafından imzalandı / onaylandı.");
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   // Find corresponding student in data
   const baseStudent = useMemo(() => {
@@ -270,12 +274,14 @@ export default function EdesisSozlesmeDetay({
     return () => window.removeEventListener("cozum_scroll_to_tahsilat", handleScroll);
   }, []);
 
-  const handleConfirmCollect = () => {
+  const handleConfirmCollect = async () => {
+try {
+
     if (!collectModal || !collectModal.taksit) return;
     const { taksit, amount } = collectModal;
     const paidAmount = Number(amount) || taksit.taksitTutari;
 
-    AccountingService.recordCollection({
+    await AccountingService.recordCollection({
       studentId: contract.studentId || contract.student_id || contract.ogrenciId || student?.id,
       studentName: contract.ogrenciAdi || contract.musteriUnvan || student?.student_name,
       contractId: contract.id,
@@ -290,38 +296,24 @@ export default function EdesisSozlesmeDetay({
       gelirKodu: taksit.gelirKodu || contract.gelirKodu
     });
 
-    const updated = localInstallments.map((t) =>
-      t.taksitNo === taksit.taksitNo
-        ? {
-            ...t,
-            tahsilEdilen: paidAmount,
-            paid_amount: paidAmount,
-            kalanTutar: Math.max(0, t.taksitTutari - paidAmount),
-            durum: 1,
-            durumText: "Tahsil Edildi",
-            status: "Odendi",
-            odemeYontemi: collectModal.method,
-            tahsilatTarihi: collectModal.date,
-            payment_date: collectModal.date
-          }
-        : t
-    );
-    setLocalInstallments(updated);
-    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
+    setLocalInstallments(await AccountingService.fetchInstallments(contract.id));
     showToast(`✅ ${taksit.taksitNo}. Taksit (${fmtTRY(paidAmount)}) tahsil edildi ve kaydedildi.`);
     setCollectModal(null);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   const handleOpenCancel = (taksit) => {
     setCancelModal({ taksit });
   };
 
-  const handleConfirmCancel = () => {
+  const handleConfirmCancel = async () => {
+    try {
     if (!cancelModal || !cancelModal.taksit) return;
     const { taksit } = cancelModal;
     const cancelAmt = Number(taksit.tahsilEdilen || taksit.paid_amount || taksit.taksitTutari || 0);
 
-    AccountingService.cancelCollection({
+    await AccountingService.cancelCollection({
       studentId: contract?.studentId || contract?.student_id || contract?.ogrenciId || student?.id,
       contractId: contract?.id,
       sozlesmeNo: contract?.sozlesmeNo || taksit.sozlesmeNo,
@@ -330,62 +322,35 @@ export default function EdesisSozlesmeDetay({
       amount: cancelAmt
     });
 
-    const updated = localInstallments.map((t) =>
-      t.taksitNo === taksit.taksitNo
-        ? {
-            ...t,
-            tahsilEdilen: 0,
-            paid_amount: 0,
-            kalanTutar: t.taksitTutari,
-            durum: 0,
-            durumText: "Vadesi Gelmedi",
-            status: "Bekliyor",
-            odemeYontemi: null,
-            tahsilatTarihi: null,
-            payment_date: null
-          }
-        : t
-    );
-    setLocalInstallments(updated);
-    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
-
-    // Sync income overrides and collections
-    try {
-      const paidSum = updated.reduce((sum, it) => sum + (Number(it.tahsilEdilen) || 0), 0);
-      const gross = Number(contract?.brutTutar) || 0;
-      const targetGlr = taksit.gelirKodu || contract?.gelirKodu || contract?.sozlesmeNo;
-      if (targetGlr && typeof localStorage !== "undefined") {
-        const raw = localStorage.getItem("cozum_income_overrides_v1");
-        const incomeOverrides = raw ? JSON.parse(raw) : {};
-        incomeOverrides[targetGlr] = {
-          toplamTahsilat: paidSum,
-          kalanAlacak: Math.max(0, gross - paidSum)
-        };
-        localStorage.setItem("cozum_income_overrides_v1", JSON.stringify(incomeOverrides));
-      }
-    } catch (syncErr) {
-      console.warn("Income sync error on cancel:", syncErr);
-    }
-
+    setLocalInstallments(await AccountingService.fetchInstallments(contract.id));
     showToast(`↩️ ${taksit.taksitNo}. Taksit tahsilatı iptal edildi ve geri alındı.`);
     setCancelModal(null);
+    } catch(error) { window.alert(error.message || "İptal edilemedi"); }
   };
 
-  const handleConfirmDateChange = () => {
+  const handleConfirmDateChange = async () => {
+try {
+
     if (!editDateModal || !editDateModal.taksit) return;
     const { taksit, newDate } = editDateModal;
     const updated = localInstallments.map((t) => (t.taksitNo === taksit.taksitNo ? { ...t, vadeTarihi: newDate } : t));
+    await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
     setLocalInstallments(updated);
-    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
     showToast(`📅 ${taksit.taksitNo}. Taksit vadesi ${newDate} olarak güncellendi ve kaydedildi.`);
     setEditDateModal(null);
-  };
 
-  const handleSaveAmounts = () => {
-    const res = AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, localInstallments);
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
+
+  const handleSaveAmounts = async () => {
+try {
+
+    const res = await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, localInstallments);
     showToast(`✅ Sözleşme tutarı ve taksitler kaydedildi: ${fmtTRY(res?.newBrut || brutTutar)} (${localInstallments.length} Taksit)`);
     setEditAmountsModal(false);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   const handleAddInstallment = () => {
     const nextNo = (localInstallments.length > 0 ? Math.max(...localInstallments.map((t) => t.taksitNo)) : 0) + 1;
@@ -452,7 +417,9 @@ export default function EdesisSozlesmeDetay({
     showToast(`⚖️ Kalan ${fmtTRY(rem)} tutar ${unpaid.length} taksite eşit dağıtıldı.`);
   };
 
-  const handleConfirmSingleInstallment = () => {
+  const handleConfirmSingleInstallment = async () => {
+try {
+
     if (!quickEditInst || !quickEditInst.taksit) return;
     const { taksit, amount, date } = quickEditInst;
     const newAmt = Number(amount) || 0;
@@ -469,11 +436,13 @@ export default function EdesisSozlesmeDetay({
       }
       return t;
     });
+    const res = await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
     setLocalInstallments(updated);
-    const res = AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
     showToast(`✅ ${taksit.taksitNo}. Taksit güncellendi: ${fmtTRY(newAmt)} (Yeni Toplam: ${fmtTRY(res?.newBrut)})`);
     setQuickEditInst(null);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   return (
     <>

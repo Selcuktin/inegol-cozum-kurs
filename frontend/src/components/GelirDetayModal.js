@@ -129,7 +129,7 @@ export function GelirDetayModal({
     // Taksitleri çek
     let taksitler = [];
     if (targetGelir) {
-      taksitler = allTaksitler.filter(t => 
+      taksitler = allTaksitler.filter(t =>
         (targetGelir.id && t.muH_GelirV2Id === targetGelir.id) ||
         (targetGelir.gelirKodu && t.gelirKodu === targetGelir.gelirKodu) ||
         (targetGelir.sozlesmeNo && t.sozlesmeNo === targetGelir.sozlesmeNo)
@@ -172,10 +172,10 @@ export function GelirDetayModal({
     const gCode = targetGelir?.gelirKodu || (student ? `GLR-STU-${student.id}` : "");
     const szNo = targetSozlesme?.sozlesmeNo || targetGelir?.sozlesmeNo || "";
     const stName = targetGelir?.ogrenciAdiSoyadi || targetGelir?.musteriUnvan || student?.student_name || "Öğrenci";
-    const stPhone = taksitler[0]?.musteriTelefon || student?.student_phone || student?.parent_phone || "05458018543";
-    const stEmail = taksitler[0]?.musteriEmail || student?.parent_email || "aselsare@edesis.com";
+    const stPhone = taksitler[0]?.musteriTelefon || student?.student_phone || student?.parent_phone || "";
+    const stEmail = taksitler[0]?.musteriEmail || student?.parent_email || "";
     const stClass = targetGelir?.sinifAdi || targetSozlesme?.sinifAdi || student?.student_class || student?.program || "4-A";
-    const stTc = student?.student_tc || taksitler[0]?.musteriId || "336045162072";
+    const stTc = student?.student_tc || taksitler[0]?.musteriId || "";
 
     const brut = Number(targetGelir?.brutTutar || student?.total_fee || 55000);
     const net = Number(targetGelir?.netTutar || (brut / 1.1) || 50000);
@@ -185,7 +185,7 @@ export function GelirDetayModal({
     const progressPct = brut > 0 ? Math.min(100, Math.round((collected / brut) * 100)) : 0;
 
     // Tahsilat Geçmişini Çek
-    const relatedTahsilatlar = allTahsilatlar.filter(th => 
+    const relatedTahsilatlar = allTahsilatlar.filter(th =>
       (targetGelir?.id && th.muH_GelirV2Id === targetGelir.id) ||
       (gCode && th.gelirKodu === gCode) ||
       (szNo && (th.gelirAciklama?.includes(szNo) || th.aciklama?.includes(szNo))) ||
@@ -318,8 +318,8 @@ export function GelirDetayModal({
 
   // Hızlı Tahsilat Ekle Modalını Aç (Kısmi veya Tam Ödeme)
   const handleOpenAddPayment = (prefillTaksit = null) => {
-    const defaultAmt = prefillTaksit 
-      ? (prefillTaksit.kalanTutar || prefillTaksit.taksitTutari) 
+    const defaultAmt = prefillTaksit
+      ? (prefillTaksit.kalanTutar || prefillTaksit.taksitTutari)
       : (displayNextPending ? (displayNextPending.kalanTutar || displayNextPending.taksitTutari) : effectiveRemaining);
     setPayAmount(defaultAmt ? String(defaultAmt) : "5000");
     setPayDate(new Date().toISOString().slice(0, 10));
@@ -331,7 +331,9 @@ export function GelirDetayModal({
   };
 
   // Tahsilatı Kaydet ve İsteğe Göre Makbuzu Aç
-  const handleSaveAddPayment = (andPrintReceipt = false) => {
+  const handleSaveAddPayment = async (andPrintReceipt = false) => {
+try {
+
     const numAmt = Number(payAmount);
     if (!numAmt || numAmt <= 0) {
       alert("Lütfen geçerli bir tahsilat tutarı giriniz.");
@@ -359,10 +361,13 @@ export function GelirDetayModal({
       created_at: new Date().toISOString()
     };
 
-    setCustomPayments(prev => [newPay, ...prev]);
-    if (onRecordPayment) onRecordPayment(newPay);
-
-    AccountingService.recordCollection({
+    const savedPay = await AccountingService.recordCollection({
+      id: newPay.id,
+      studentId: student?.id || targetSozlesme?.ogrenciId,
+      contractId: targetSozlesme?.id,
+      installment_id: displayNextPending?.id,
+      installment_no: displayNextPending?.taksitNo,
+      date: payDate,
       gelirKodu: gCode,
       sozlesmeNo: szNo,
       amount: numAmt,
@@ -372,12 +377,16 @@ export function GelirDetayModal({
       studentName: stName
     });
 
+    setCustomPayments(prev => [savedPay, ...prev]);
+    if (onRecordPayment) onRecordPayment(savedPay);
     setShowAddPaymentModal(false);
 
     if (andPrintReceipt) {
-      setReceiptPayment(newPay);
+      setReceiptPayment({...newPay,...savedPay});
     }
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   // Makbuz Modalını Aç (İlgili taksit veya geçmiş tahsilat satırı için)
   const handleOpenReceipt = (item) => {
@@ -410,7 +419,7 @@ export function GelirDetayModal({
 
   return (
     <>
-      <div 
+      <div
         className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
         role="dialog"
         aria-modal="true"
@@ -418,14 +427,14 @@ export function GelirDetayModal({
         onClick={(e) => { e.stopPropagation(); onClose(); }}
         style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100100, backgroundColor: "rgba(15, 23, 42, 0.75)" }}
       >
-        <div 
+        <div
           onClick={(e) => e.stopPropagation()}
           className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[92vh] flex flex-col overflow-hidden text-slate-800"
-          style={{ 
-            backgroundColor: "#ffffff", 
-            borderRadius: "14px", 
-            width: "96%", 
-            maxWidth: "1380px", 
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "14px",
+            width: "96%",
+            maxWidth: "1380px",
             maxHeight: "92vh",
             display: "flex",
             flexDirection: "column",
@@ -433,7 +442,7 @@ export function GelirDetayModal({
           }}
         >
           {/* TOP BAR / BREADCRUMB & ACTIONS */}
-          <div 
+          <div
             className="px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4 bg-slate-50/80"
             style={{ borderBottom: "1px solid #e2e8f0", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
           >
@@ -503,15 +512,15 @@ export function GelirDetayModal({
           </div>
 
           {/* MAIN MODAL BODY: 2-COLUMN EDESIS LAYOUT */}
-          <div 
+          <div
             className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50/40"
             style={{ flex: 1, overflowY: "auto", padding: "24px", display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "24px", background: "#f8fafc" }}
           >
             {/* LEFT COLUMN: GELİR BİLGİLERİ, SÖZLEŞME, KALEMLER, TAKSİT PLANI (8 Cols) */}
             <div className="lg:col-span-8 flex flex-col gap-6" style={{ gridColumn: "span 8 / span 8", display: "flex", flexDirection: "column", gap: "20px" }}>
-              
+
               {/* 1. GELİR BİLGİLERİ CARD */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -579,7 +588,7 @@ export function GelirDetayModal({
               </div>
 
               {/* 2. SÖZLEŞME BİLGİLERİ CARD */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -630,7 +639,7 @@ export function GelirDetayModal({
               </div>
 
               {/* 3. ÜRÜN / HİZMET KALEMLERİ */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -674,7 +683,7 @@ export function GelirDetayModal({
               </div>
 
               {/* 4. TAKSİT PLANI TABLOSU */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -728,8 +737,8 @@ export function GelirDetayModal({
                         const isOverdue = !isPaid && (new Date(t.vadeTarihi) < new Date());
 
                         return (
-                          <tr 
-                            key={t.id || idx} 
+                          <tr
+                            key={t.id || idx}
                             className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors"
                             style={{ borderBottom: "1px solid #f1f5f9" }}
                           >
@@ -822,9 +831,9 @@ export function GelirDetayModal({
 
             {/* RIGHT COLUMN: MÜŞTERİ/ALICI, FİNANSAL İLERLEME, HIZLI İŞLEMLER, ÖDEME EKRANI, NOTLAR (4 Cols) */}
             <div className="lg:col-span-4 flex flex-col gap-6" style={{ gridColumn: "span 4 / span 4", display: "flex", flexDirection: "column", gap: "20px" }}>
-              
+
               {/* 1. MÜŞTERİ / ALICI KARTI */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -880,7 +889,7 @@ export function GelirDetayModal({
               </div>
 
               {/* 2. FİNANSAL İLERLEME / PROGRESS CARD */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -895,7 +904,7 @@ export function GelirDetayModal({
 
                 {/* Progress Bar */}
                 <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden my-3 relative" style={{ width: "100%", height: "10px", background: "#f1f5f9", borderRadius: "9999px", margin: "10px 0" }}>
-                  <div 
+                  <div
                     className="bg-amber-400 h-full rounded-full transition-all duration-500"
                     style={{ width: `${effectiveProgressPct}%`, background: "#f59e0b", height: "100%", borderRadius: "9999px" }}
                   />
@@ -915,7 +924,7 @@ export function GelirDetayModal({
               </div>
 
               {/* 3. HIZLI İŞLEMLER */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -943,9 +952,9 @@ export function GelirDetayModal({
                     <History size={14} className="text-indigo-600" /> Tahsilat Geçmişi ({allHistory.length})
                   </button>
 
-                  <div 
+                  <div
                     onClick={(e) => e.stopPropagation()}
-                    className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-100 text-xs" 
+                    className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-100 text-xs"
                     style={{ background: "#fffbeb", border: "1px solid #fef3c7", padding: "10px", borderRadius: "8px" }}
                   >
                     <div className="flex items-center gap-1.5 font-semibold text-amber-900 mb-0.5" style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, color: "#78350f" }}>
@@ -968,7 +977,7 @@ export function GelirDetayModal({
               </div>
 
               {/* 4. ÖDEME EKRANI (ÖDEME LİNKİ OLUŞTURUCU) */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -1034,7 +1043,7 @@ export function GelirDetayModal({
               </div>
 
               {/* 5. GELİR NOTLARI & AKTİVİTE GEÇMİŞİ */}
-              <div 
+              <div
                 className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
                 style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px" }}
               >
@@ -1452,7 +1461,7 @@ export function GelirDetayModal({
                     }}
                   />
                 </div>
-                
+
                 {/* Hızlı Tutar Seçim Hapları (Kısmi Ödeme Seçenekleri) */}
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
                   {displayNextPending && (

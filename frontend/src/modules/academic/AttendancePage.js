@@ -21,7 +21,7 @@ export function AttendancePage({ me, API, classes }) {
   const loadAttendance = useCallback(async () => {
     setLoading(true);
     try {
-      let url = `${API}/attendance?date=${selectedDate}`;
+      let url = `${API}/attendance?date=${selectedDate}&lesson_slot=${encodeURIComponent(selectedSlot)}`;
       if (selectedClass) url += `&class_id=${encodeURIComponent(selectedClass)}`;
       const res = await axios.get(url);
       setRecords(res.data || []);
@@ -30,7 +30,7 @@ export function AttendancePage({ me, API, classes }) {
     } finally {
       setLoading(false);
     }
-  }, [API, selectedDate, selectedClass]);
+  }, [API, selectedDate, selectedClass, selectedSlot]);
 
   useEffect(() => {
     loadAttendance();
@@ -129,8 +129,8 @@ export function AttendancePage({ me, API, classes }) {
           <h1>Sınıf Yoklama Sistemi</h1>
         </div>
         <div className="head-actions">
-          <button 
-            className="btn secondary" 
+          <button
+            className="btn secondary"
             onClick={handleBulkNotifyAbsent}
             style={{ display: "flex", gap: "6px", alignItems: "center", borderColor: "#16a34a", color: "#16a34a" }}
             title="Devamsız tüm öğrencilerin velilerine sırayla WhatsApp mesajı hazırlar"
@@ -324,9 +324,9 @@ export function AttendancePage({ me, API, classes }) {
       </div>
 
       {selectedStudentForLetter && (
-        <AbsenceLetterModal 
-          student={selectedStudentForLetter} 
-          onClose={() => setSelectedStudentForLetter(null)} 
+        <AbsenceLetterModal
+          student={selectedStudentForLetter}
+          onClose={() => setSelectedStudentForLetter(null)}
         />
       )}
     </div>

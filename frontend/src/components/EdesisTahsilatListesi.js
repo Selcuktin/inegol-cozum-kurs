@@ -1186,7 +1186,9 @@ export default function EdesisTahsilatListesi({
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
+try {
+
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
                 const stName = fd.get("studentName");
@@ -1196,7 +1198,7 @@ export default function EdesisTahsilatListesi({
                   alert("Lütfen geçerli bir tahsilat tutarı giriniz.");
                   return;
                 }
-                const newColl = AccountingService.recordCollection({
+                const newColl = await AccountingService.recordCollection({
                   gelirKodu: stObj?.gelir_kodu,
                   sozlesmeNo: stObj?.sozlesme_no,
                   amount: amt,
@@ -1210,7 +1212,9 @@ export default function EdesisTahsilatListesi({
                 setTahsilatList(AccountingService.getCollections(payments));
                 setShowNewPaymentModal(false);
                 showToast(`💰 ${newColl?.odemeKodu || ""} nolu ${fmtCurrency(amt)} tutarında tahsilat başarıyla kaydedildi.`);
-              }}
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+}}
               style={{ padding: "20px" }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>

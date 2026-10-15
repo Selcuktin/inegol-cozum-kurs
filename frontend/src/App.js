@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import "./App.css";
 import axios from "axios";
 import {
@@ -140,6 +140,9 @@ function App() {
       onLogout={async () => {
         try { await axios.post(`${API}/auth/logout`); } catch {}
         localStorage.removeItem("session_token");
+        await purgeClientStorage(false);
+        AccountingService.resetCustomData();
+        StudentService.resetClientData();
         delete axios.defaults.headers.common["Authorization"];
         setMe(null);
         setAuthState("guest");
@@ -151,6 +154,8 @@ function App() {
 const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
 
 export function MainApp({ me, onLogout }) {
+  const mounted = useRef(true);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   const [data, setData] = useState(() => {
     try {
       if (typeof window !== "undefined") {
@@ -357,6 +362,7 @@ export function MainApp({ me, onLogout }) {
   const load = async () => {
     try {
       const r = await axios.get(`${API}/dashboard`);
+      if(!mounted.current) return;
       const rawStudents = r.data?.students || [];
       const cleanStudents = StudentService.filterActiveStudents(rawStudents);
       const nextData = { ...r.data, students: cleanStudents };
@@ -602,9 +608,9 @@ export function MainApp({ me, onLogout }) {
               )}
             </div>
           </div>
-          <div 
-            className="top-search" 
-            onClick={() => setShowOmniSearch(true)} 
+          <div
+            className="top-search"
+            onClick={() => setShowOmniSearch(true)}
             style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
             title="Genel Akıllı Arama (Kısayol: Ctrl + K)"
           >
@@ -782,7 +788,7 @@ export function MainApp({ me, onLogout }) {
       {showGlobalHataKarnesi && <HataKarnesiModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", student_class: "TYT-AYT" }} onClose={() => setShowGlobalHataKarnesi(false)} />}
       {showGlobalPromissory && <PromissoryNoteModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", total_fee: 55000, installment_count: 10 }} onClose={() => setShowGlobalPromissory(false)} />}
       {showGlobalAbsenceLetter && <AbsenceLetterModal student={data.students?.[0] || { student_name: "Örnek Öğrenci" }} daysAbsent={10} onClose={() => setShowGlobalAbsenceLetter(false)} />}
-      
+
       <OmniSearchModal
         isOpen={showOmniSearch}
         onClose={() => setShowOmniSearch(false)}
@@ -794,25 +800,6 @@ export function MainApp({ me, onLogout }) {
   );
 }
 
-export const CANCELLED_STUDENT_NAMES = ["SERHAT SERBEST", "EMİR PARILDAR", "EMRİYE AYTAN", "NEVRA KILINÇ"];
-
-export const ACTIVE_2026_CONTRACT_STUDENT_NAMES = [
-  "SEBİLE AKDEMİR", "ELİFSU ÇAĞLAYAN", "YAVUZ EMİR BALCI",
-  "MUSTAFA SİNİR", "ZEYNEP MASAL ÇELİK", "EBUBEKİR ASAF VERGİLİ"
-];
-
-export function getStudentCategory(s) {
-  if (s?.is_kesin_kayit) return "kesin";
-  const name = (s?.student_name || "").toUpperCase();
-  let prog = s?.program || "";
-  const fee = Number(s?.total_fee) || 0;
-
-  if (ACTIVE_2026_CONTRACT_STUDENT_NAMES.some((k) => name.includes(k))) prog = "2026-2027";
-  if (CANCELLED_STUDENT_NAMES.some((c) => name.includes(c)) || s?.status === "İptal / Ayrılan" || s?.enrollment_status === "İptal / Ayrılan") return "iptal";
-  if (prog === "2026-2027-YAZ" || s?.status === "Yaz Kursu" || s?.enrollment_status === "Yaz Kursu") return "yaz";
-  if (prog === "2025-2026" || s?.status === "Mezun / Geçmiş" || s?.enrollment_status === "Mezun / Geçmiş") return "mezun";
-  if (fee < 10) return "deneme";
-  return "kesin";
-}
+export { getStudentCategory } from "./components/tabs/muhasebeHelpers";
 
 export default App;

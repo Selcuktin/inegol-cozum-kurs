@@ -13,7 +13,7 @@ jobs:
       - name: Trigger Daily 20:00 Snapshot
         run: |
           echo "Triggering 20:00 TRT database backup snapshot..."
-          curl -s -f -X POST "https://inegol-cozum-kurs.pages.dev/api/backup" \
+          curl --silent --show-error --fail-with-body --connect-timeout 15 --max-time 90 -X POST "https://inegol-cozum-kurs.pages.dev/api/backup" \
             -H "Authorization: Bearer ${{ secrets.BACKUP_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"notes": "GitHub Actions 20:00 TRT Günlük Otomatik Snapshot"}'

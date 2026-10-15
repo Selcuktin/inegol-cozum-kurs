@@ -89,7 +89,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
         const res = await axios.post(`${apiBase}/students`, payload);
         const saved = res.data || {};
         try {
-          const cRes = AccountingService.addNewIncome({
+          const cRes = await AccountingService.addNewIncome({
             id: saved.contract_id || `cnt_${saved.id}`,
             studentId: saved.id,
             student_no: saved.student_no || payload.student_no,
@@ -110,7 +110,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
             sozlesme_no: saved.sozlesme_no || cRes?.contract?.sozlesmeNo || ""
           };
           AccountingService.unTombstone(finalSt.student_name, finalSt.sozlesme_no, finalSt.id);
-          StudentService.saveStudent(finalSt, apiBase, { skipRemoteSync: true });
+          await StudentService.saveStudent(finalSt, apiBase, { skipRemoteSync: true });
         } catch (accErr) {}
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("cozum_accounting_updated"));
@@ -118,9 +118,9 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
         }
       }
       if (type === "payment") {
-        await axios.post(`${apiBase}/payments`, { ...form, student_id: form.student_id, amount: Number(form.amount) });
         const st = (data.students || []).find((s) => s.id === form.student_id);
-        AccountingService.recordCollection({
+        await axios.post(`${apiBase}/payments`, { ...form, student_id: form.student_id, sozlesme_no: st?.sozlesme_no, amount: Number(form.amount) });
+        await AccountingService.recordCollection({
           studentId: form.student_id,
           studentName: st?.student_name || "Öğrenci",
           amount: Number(form.amount),

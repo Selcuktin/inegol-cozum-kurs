@@ -18,7 +18,7 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
     await cleanup();
   });
 
-  test("renders GelirDetayModal for GLR202600150 (ASELSARE BİLGİN) with 100% parity", async () => {
+  test("renders GelirDetayModal for GLR202600150 (ÖRNEK ÖĞRENCİ) with 100% parity", async () => {
     let closed = false;
     const handleClose = () => { closed = true; };
 
@@ -32,7 +32,7 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
 
     // 1. Başlık ve Kod
     expect(getByText("GLR202600150")).toBeTruthy();
-    expect(container.textContent).toContain("ASELSARE BİLGİN");
+    expect(container.textContent).toContain("ÖRNEK ÖĞRENCİ");
     expect(container.textContent).toContain("SZL202600146");
 
     // 2. Finansal Tutarlar
@@ -47,8 +47,8 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
     expect(container.textContent).toContain("29 gün erken");
 
     // 4. Müşteri & İletişim Bilgileri
-    expect(getByText("05458018543")).toBeTruthy();
-    expect(getByText("aselsare@edesis.com")).toBeTruthy();
+    expect(getByText("05550000000")).toBeTruthy();
+    expect(getByText("veli@example.invalid")).toBeTruthy();
     expect(container.textContent).toContain("4-A");
 
     // 5. İlerleme Çubuğu ve Sonraki Taksit
@@ -87,11 +87,11 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
   });
 
   test("verifies total accounting summary in edesisAccountingData bundle", () => {
-    expect(edesisData.gelirler.length).toBe(129);
-    expect(edesisData.sozlesmeler.length).toBe(121);
-    expect(edesisData.taksitler.length).toBe(682);
-    expect(edesisData.tahsilatlar.length).toBe(164);
-    expect(edesisData.summary.totalRevenue).toBeCloseTo(5386913.09, 2);
-    expect(edesisData.summary.totalCollected).toBeCloseTo(989538.43, 2);
+    expect(edesisData.gelirler).toHaveLength(1);
+    expect(edesisData.sozlesmeler).toHaveLength(1);
+    expect(edesisData.taksitler).toHaveLength(10);
+    expect(edesisData.gelirler[0].brutTutar).toBe(edesisData.taksitler.reduce((s,i)=>s+i.taksitTutari,0));
+    expect(edesisData.gelirler[0].toplamTahsilat).toBe(edesisData.tahsilatlar.reduce((s,p)=>s+p.tahsilatTutari,0));
+
   });
 });

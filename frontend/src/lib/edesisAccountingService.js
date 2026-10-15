@@ -2,8 +2,8 @@
 // Single Source of Truth (SSOT) connected directly to Cloudflare D1 via /api/*
 // NO static JSON imports, NO localStorage tombstones, NO protectedKeys hack lists.
 
-import { roundKurus } from "./installmentService.js";
-import { isAllowedBackendUrl } from "./utils.js";
+import { roundKurus, normalizeDate } from "./installmentService.js";
+import { apiFetch, isAllowedBackendUrl } from "./utils.js";
 
 export const ENABLE_KASA_BANKA = false;
 
@@ -49,6 +49,7 @@ function writeCache(key, value) {
   }
 }
 
+let cacheEpoch = 0;
 // In-memory cache for ultra-fast render lookups
 const _memory = {
   contracts: readCache("cozum_ssot_contracts_v2", []),
@@ -75,15 +76,15 @@ export function formatContractRecord(r) {
   const date = r.sozlesme_tarihi || r.sozlesmeTarihi || "";
   const st = r.durum != null ? r.durum : 1;
 
-  const paid = r.toplamTahsilat !== undefined 
-    ? Number(r.toplamTahsilat) 
-    : (r.toplam_tahsilat !== undefined 
-      ? Number(r.toplam_tahsilat) 
+  const paid = r.toplamTahsilat !== undefined
+    ? Number(r.toplamTahsilat)
+    : (r.toplam_tahsilat !== undefined
+      ? Number(r.toplam_tahsilat)
       : (r.calculated_paid !== undefined ? Number(r.calculated_paid) : 0));
-  const remaining = r.kalanAlacak !== undefined 
-    ? Number(r.kalanAlacak) 
-    : (r.kalan_alacak !== undefined 
-      ? Number(r.kalan_alacak) 
+  const remaining = r.kalanAlacak !== undefined
+    ? Number(r.kalanAlacak)
+    : (r.kalan_alacak !== undefined
+      ? Number(r.kalan_alacak)
       : Math.max(0, gross - paid));
 
   return {
@@ -151,7 +152,7 @@ export function formatCollectionRecord(p) {
   const pName = p.parent_name || p.veliAdiSoyadi || "";
   const sId = p.student_id || p.ogrenciId || "";
   const sozNo = p.sozlesme_no || p.sozlesmeNo || "";
-  const incCode = p.gelirKodu || (sozNo ? `GLR${sozNo.replace(/\D/g, "")}` : (numId ? `GLR${numId.slice(-6)}` : "GLR"));
+  const incCode = p.gelir_kodu || p.gelirKodu || "";
   const date = p.payment_date || p.tahsilatTarihi || p.created_at || new Date().toISOString().slice(0, 10);
   const bank = p.bank || p.kasaBankaAdi || p.method || "Nakit Ana Kasa";
   const note = p.note || p.gelirAciklama || (sozNo ? `Sözleşme: ${sozNo}` : "Tahsilat");
@@ -222,12 +223,14 @@ export const AccountingService = {
 
   // 1. Fetch & Get Contracts (SSOT from /api/contracts)
   async fetchContracts() {
+    const epoch=cacheEpoch;
     if (typeof fetch === "undefined") return _memory.contracts;
     try {
       const apiUrl = getApiUrl();
-      const res = await fetch(`${apiUrl}/api/contracts`);
+      const res = await apiFetch(`${apiUrl}/api/contracts`);
       if (!res || !res.ok) return _memory.contracts;
       const rows = await res.json();
+      if (epoch!==cacheEpoch) return [];
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
       const formatted = list.map(formatContractRecord);
@@ -266,18 +269,20 @@ export const AccountingService = {
 
   // 2. Fetch & Get Installments (SSOT from /api/installments with Peşinat taksitNo: 0 support)
   async fetchInstallments(contractId = null) {
+    const epoch=cacheEpoch;
     if (typeof fetch === "undefined") return _memory.installments;
     try {
       const apiUrl = getApiUrl();
       const q = contractId ? `?contract_id=${encodeURIComponent(contractId)}` : "";
-      const res = await fetch(`${apiUrl}/api/installments${q}`);
+      const res = await apiFetch(`${apiUrl}/api/installments${q}`);
       if (!res || !res.ok) return _memory.installments;
       const rows = await res.json();
+      if (epoch!==cacheEpoch) return [];
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
       const formatted = list.map((r) => {
-        const no = (r.taksitNo !== undefined && r.taksitNo !== null) 
-          ? Number(r.taksitNo) 
+        const no = (r.taksitNo !== undefined && r.taksitNo !== null)
+          ? Number(r.taksitNo)
           : ((r.installment_no !== undefined && r.installment_no !== null) ? Number(r.installment_no) : 1);
         const amt = Number(r.taksitTutari || r.amount || 0);
         const paid = Number(r.tahsilEdilen || r.paid_amount || 0);
@@ -302,7 +307,7 @@ export const AccountingService = {
           tahsilEdilen: paid,
           paid_amount: paid,
           kalanTutar: rem,
-          vadeTarihi: r.due_date || r.vadeTarihi,
+          vadeTarihi: normalizeDate(r.due_date || r.vadeTarihi),
           due_date: r.due_date || r.vadeTarihi,
           durumText: r.status || (paid >= amt && amt > 0 ? "Tam Ödendi" : paid > 0 ? "Kısmi Ödendi" : no === 0 ? "Peşinat" : "Bekliyor"),
           receiptNo: r.receipt_no,
@@ -350,6 +355,7 @@ export const AccountingService = {
           const isLast = (i === count);
           const amt = isLast ? roundKurus(baseAmt + remainder) : baseAmt;
           const d = new Date(baseDate);
+          d.setDate(1);
           d.setMonth(d.getMonth() + i - 1);
           d.setDate(15);
           const dueStr = d.toISOString().split("T")[0];
@@ -380,12 +386,14 @@ export const AccountingService = {
 
   // 3. Fetch & Get Incomes (SSOT from /api/student-incomes)
   async fetchIncomes() {
+    const epoch=cacheEpoch;
     if (typeof fetch === "undefined") return _memory.incomes;
     try {
       const apiUrl = getApiUrl();
-      const res = await fetch(`${apiUrl}/api/student-incomes`);
+      const res = await apiFetch(`${apiUrl}/api/student-incomes`);
       if (!res || !res.ok) return _memory.incomes;
       const rows = await res.json();
+      if (epoch!==cacheEpoch) return [];
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
       _memory.incomes = list;
@@ -402,28 +410,6 @@ export const AccountingService = {
       this.getContracts(remoteStudents);
     }
     let list = (_memory.incomes || []).filter((i) => !i.is_deleted);
-
-    // Sync income collections from contracts if contract has authoritative data
-    if (list.length > 0 && _memory.contracts.length > 0) {
-      const contractMap = {};
-      _memory.contracts.forEach((c) => {
-        if (c.sozlesmeNo) contractMap[c.sozlesmeNo] = c;
-      });
-      list = list.map((inc) => {
-        const matchingContract = inc.sozlesmeNo ? contractMap[inc.sozlesmeNo] : null;
-        if (matchingContract && matchingContract.toplamTahsilat !== undefined) {
-          const authPaid = Number(matchingContract.toplamTahsilat) || 0;
-          const gross = Number(inc.brutTutar) || Number(matchingContract.brutTutar) || 0;
-          return {
-            ...inc,
-            toplamTahsilat: authPaid,
-            kalanAlacak: Math.max(0, gross - authPaid),
-            tamTahsilEdildiMi: gross > 0 && authPaid >= gross
-          };
-        }
-        return inc;
-      });
-    }
 
     if (list.length === 0 && typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
       this.fetchIncomes().then((incs) => {
@@ -462,12 +448,14 @@ export const AccountingService = {
 
   // 4. Collections (Payments - SSOT from /api/payments)
   async fetchCollections() {
+    const epoch=cacheEpoch;
     if (typeof fetch === "undefined") return _memory.collections;
     try {
       const apiUrl = getApiUrl();
-      const res = await fetch(`${apiUrl}/api/payments`);
+      const res = await apiFetch(`${apiUrl}/api/payments`);
       if (!res || !res.ok) return _memory.collections;
       const rows = await res.json();
+      if (epoch!==cacheEpoch) return [];
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
       const formatted = list.map(formatCollectionRecord);
       _memory.collections = formatted;
@@ -480,7 +468,7 @@ export const AccountingService = {
   },
 
   getCollections(propPayments = null) {
-    if (Array.isArray(propPayments) && propPayments.length > 0) {
+    if (Array.isArray(propPayments)) {
       const formatted = propPayments.map(formatCollectionRecord);
       _memory.collections = formatted;
       writeCache("cozum_ssot_collections_v2", formatted);
@@ -500,12 +488,14 @@ export const AccountingService = {
 
   // 5. Dynamic Summary (SSOT from /api/accounting/summary)
   async fetchSummary() {
+    const epoch=cacheEpoch;
     if (typeof fetch === "undefined") return _memory.summary;
     try {
       const apiUrl = getApiUrl();
-      const res = await fetch(`${apiUrl}/api/accounting/summary`);
+      const res = await apiFetch(`${apiUrl}/api/accounting/summary`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const summary = await res.json();
+      if (epoch!==cacheEpoch) return null;
       _memory.summary = summary;
       writeCache("cozum_ssot_summary_v2", summary);
       return summary;
@@ -537,6 +527,10 @@ export const AccountingService = {
 
   // 6. Action Handlers (Mutations sync directly to Cloudflare Pages API)
   addNewIncome(incomeData) {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test" && !incomeData.skipRemoteSync && !incomeData.contract_id && !incomeData.sozlesmeNo) return apiFetch(`${getApiUrl()}/api/contracts`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({student_id:incomeData.studentId || incomeData.student_id,student_name:incomeData.ogrenciAdi || incomeData.ogrenciAdiSoyadi,parent_name:incomeData.veliAdi,student_class:incomeData.sinifAdi,total_amount:incomeData.brutTutar,installment_count:incomeData.taksitSayisi,due_date:incomeData.vadeTarihi})}).then(async res => {
+      const saved=await res.json();await this.fetchContracts();await this.fetchIncomes();await this.fetchInstallments();return {contract:formatContractRecord(saved)};
+    });
+
     const gross = Number(incomeData.brutTutar || 60000);
     const count = parseInt(incomeData.taksitSayisi) || 6;
     const net = roundKurus(gross / 1.1);
@@ -551,7 +545,7 @@ export const AccountingService = {
     if (typeof fetch === "function" && process.env.NODE_ENV !== "test" && !incomeData.skipRemoteSync && !incomeData.contract_id && !incomeData.sozlesmeNo) {
       const apiUrl = getApiUrl();
       try {
-        const p = fetch(`${apiUrl}/api/contracts`, {
+        const p = apiFetch(`${apiUrl}/api/contracts`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -629,9 +623,9 @@ export const AccountingService = {
     }
 
     const nameNorm = trNorm(studentName);
-    _memory.contracts = [newContract, ..._memory.contracts.filter((c) => trNorm(c.ogrenciAdi) !== nameNorm)];
-    _memory.incomes = [newIncome, ..._memory.incomes.filter((i) => trNorm(i.ogrenciAdiSoyadi) !== nameNorm)];
-    _memory.installments = [...newInstallments, ..._memory.installments.filter((t) => trNorm(t.ogrenciAdi) !== nameNorm)];
+    _memory.contracts = [newContract, ..._memory.contracts.filter((c) => c.id !== id)];
+    _memory.incomes = [newIncome, ..._memory.incomes.filter((i) => i.id !== newIncome.id)];
+    _memory.installments = [...newInstallments, ..._memory.installments.filter((t) => t.contractId !== id)];
 
     writeCache("cozum_ssot_contracts_v2", _memory.contracts);
     writeCache("cozum_ssot_incomes_v2", _memory.incomes);
@@ -649,6 +643,12 @@ export const AccountingService = {
   },
 
   deleteContract(contractOrNo) {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") return apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(typeof contractOrNo === "object" ? contractOrNo.id || contractOrNo.sozlesmeNo : contractOrNo)}`, {method:"DELETE",headers:{"Content-Type":"application/json"},body:undefined}).then(async res => {
+      const saved=await res.json(); await this.fetchCollections(); await this.fetchInstallments(); await this.fetchContracts(); await this.fetchIncomes();
+      if(typeof window!=="undefined"){window.dispatchEvent(new Event("cozum_accounting_updated"));window.dispatchEvent(new Event("cozum_students_updated"));}
+      return saved;
+    });
+
     if (!contractOrNo) return false;
     const targetKey = typeof contractOrNo === "object" ? (contractOrNo.id || contractOrNo.sozlesmeNo || contractOrNo.ogrenciAdi || contractOrNo.student_name) : contractOrNo;
     const studentName = typeof contractOrNo === "object" ? (contractOrNo.ogrenciAdi || contractOrNo.ogrenciAdiSoyadi || contractOrNo.student_name) : null;
@@ -663,7 +663,7 @@ export const AccountingService = {
     _memory.contracts = _memory.contracts.map((c) => {
       const matchId = (c.id && trNorm(c.id) === normTarget) || (c.sozlesmeNo && trNorm(c.sozlesmeNo) === normTarget);
       const matchStudent = (normStudentId && c.studentId && (trNorm(c.studentId) === normStudentId || trNorm(String(c.studentId).replace(/^stu-/, "")) === normStudentId.replace(/^stu-/, "")))
-        || (normName && c.ogrenciAdi && trNorm(c.ogrenciAdi) === normName);
+        ;
 
       if (matchId || matchStudent) {
         return { ...c, durum: 3, durumText: "İptal Edildi", is_deleted: true };
@@ -674,7 +674,7 @@ export const AccountingService = {
     _memory.incomes = _memory.incomes.map((i) => {
       const matchId = (i.id && trNorm(i.id) === normTarget) || (i.sozlesmeNo && trNorm(i.sozlesmeNo) === normTarget) || (i.gelirKodu && trNorm(i.gelirKodu) === normTarget);
       const matchStudent = (normStudentId && i.studentId && (trNorm(i.studentId) === normStudentId || trNorm(String(i.studentId).replace(/^stu-/, "")) === normStudentId.replace(/^stu-/, "")))
-        || (normName && i.ogrenciAdiSoyadi && trNorm(i.ogrenciAdiSoyadi) === normName);
+        ;
 
       if (matchId || matchStudent) {
         return { ...i, durum: 3, is_deleted: true };
@@ -684,18 +684,18 @@ export const AccountingService = {
 
     _memory.installments = _memory.installments.filter((t) => {
       const matchId = (t.contractId && trNorm(t.contractId) === normTarget) || (t.sozlesmeNo && trNorm(t.sozlesmeNo) === normTarget);
-      const matchStudent = (normName && t.ogrenciAdi && trNorm(t.ogrenciAdi) === normName);
+      const matchStudent = normStudentId && trNorm(t.studentId || t.student_id) === normStudentId;
       return !matchId && !matchStudent;
     });
 
     _memory.collections = _memory.collections.filter((col) => {
-      const matchContract = (col.contractId && trNorm(col.contractId) === normTarget) 
+      const matchContract = (col.contractId && trNorm(col.contractId) === normTarget)
         || (col.sozlesmeNo && trNorm(col.sozlesmeNo) === normTarget);
       const colStudentId = col.studentId || col.student_id;
       const normColStudentId = colStudentId ? trNorm(colStudentId) : null;
       const matchStudent = (normStudentId && normColStudentId && (normColStudentId === normStudentId || normColStudentId.replace(/^stu-/, "") === normStudentId.replace(/^stu-/, "")))
-        || (normName && col.studentName && trNorm(col.studentName) === normName)
-        || (normName && col.ogrenciAdi && trNorm(col.ogrenciAdi) === normName);
+
+        ;
       return !matchContract && !matchStudent;
     });
 
@@ -712,7 +712,7 @@ export const AccountingService = {
       const rawBase = getApiUrl() || "";
       const base = rawBase.replace(/\/api\/?$/, "").replace(/\/+$/, "");
       try {
-        const p = fetch(`${base}/api/contracts/${encodeURIComponent(targetKey)}`, {
+        const p = apiFetch(`${base}/api/contracts/${encodeURIComponent(targetKey)}`, {
           method: "DELETE"
         });
         if (p && typeof p.catch === "function") p.catch((err) => console.warn("[AccountingService] Remote contract DELETE error:", err));
@@ -731,13 +731,13 @@ export const AccountingService = {
   async signContract(targetKey, signerType = "kurum", signerName = "Kurum Yetkilisi") {
     try {
       const apiUrl = getApiUrl();
-      await fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/sign`, {
+      await apiFetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signer_type: signerType, signer_name: signerName })
       });
     } catch (err) {
-      console.warn("[AccountingService] Remote contract SIGN error:", err);
+      throw err;
     }
 
     const norm = trNorm(targetKey);
@@ -747,8 +747,9 @@ export const AccountingService = {
           ...c,
           isSigned: true,
           is_signed: true,
-          kurumImzaAlindi: true,
-          kurumImzalayan: signerName,
+          kurumImzaAlindi: signerType === "kurum" ? true : c.kurumImzaAlindi,
+          veliImzaAlindi: signerType === "veli" ? true : c.veliImzaAlindi,
+          kurumImzalayan: signerType === "kurum" ? signerName : c.kurumImzalayan,
           signedAt: new Date().toISOString()
         };
       }
@@ -763,6 +764,12 @@ export const AccountingService = {
   },
 
   updateContract(idOrSzl, patch = {}) {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") return apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(idOrSzl)}`, {method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(patch)}).then(async res => {
+      const saved=await res.json(); await this.fetchCollections(); await this.fetchInstallments(); await this.fetchContracts(); await this.fetchIncomes();
+      if(typeof window!=="undefined"){window.dispatchEvent(new Event("cozum_accounting_updated"));window.dispatchEvent(new Event("cozum_students_updated"));}
+      return saved;
+    });
+
     const norm = trNorm(idOrSzl);
     _memory.contracts = _memory.contracts.map((c) => {
       if (trNorm(c.id) === norm || trNorm(c.sozlesmeNo) === norm) {
@@ -779,7 +786,7 @@ export const AccountingService = {
     if (typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       const apiUrl = getApiUrl();
       try {
-        const p = fetch(`${apiUrl}/api/contracts/${encodeURIComponent(idOrSzl)}`, {
+        const p = apiFetch(`${apiUrl}/api/contracts/${encodeURIComponent(idOrSzl)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patch)
@@ -795,6 +802,12 @@ export const AccountingService = {
 
   // 7. Installment Management with Peşinat (taksitNo: 0) Support
   saveInstallments(contractIdOrNo, installments = []) {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") return apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(typeof contractIdOrNo === "object" ? contractIdOrNo.id || contractIdOrNo.sozlesmeNo : contractIdOrNo)}/installments`, {method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({installments})}).then(async res => {
+      const saved=await res.json(); await this.fetchCollections(); await this.fetchInstallments(); await this.fetchContracts(); await this.fetchIncomes();
+      if(typeof window!=="undefined"){window.dispatchEvent(new Event("cozum_accounting_updated"));window.dispatchEvent(new Event("cozum_students_updated"));}
+      return saved;
+    });
+
     const targetKey = typeof contractIdOrNo === "object" ? (contractIdOrNo.id || contractIdOrNo.sozlesmeNo) : contractIdOrNo;
     const norm = trNorm(targetKey);
     const newBrut = installments.reduce((s, t) => s + Number(t.taksitTutari != null ? t.taksitTutari : (t.amount || 0)), 0);
@@ -813,8 +826,8 @@ export const AccountingService = {
       ...installments.map((t) => {
         const amt = Number(t.taksitTutari != null ? t.taksitTutari : (t.amount || 0));
         const paid = Number(t.tahsilEdilen != null ? t.tahsilEdilen : (t.paid_amount || 0));
-        const no = (t.taksitNo !== undefined && t.taksitNo !== null) 
-          ? Number(t.taksitNo) 
+        const no = (t.taksitNo !== undefined && t.taksitNo !== null)
+          ? Number(t.taksitNo)
           : ((t.installment_no !== undefined && t.installment_no !== null) ? Number(t.installment_no) : 1);
         return {
           ...t,
@@ -841,7 +854,7 @@ export const AccountingService = {
     if (typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       const apiUrl = getApiUrl();
       try {
-        const p = fetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/installments`, {
+        const p = apiFetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/installments`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ installments })
@@ -936,6 +949,21 @@ export const AccountingService = {
   },
 
   recordCollection(paymentData = {}) {
+    if (!paymentData.alreadyPersisted && typeof fetch === "function" && process.env.NODE_ENV !== "test") {
+      const id = paymentData.id || "pay_" + crypto.randomUUID();
+      return apiFetch(`${getApiUrl()}/api/payments`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        id,student_id:paymentData.studentId || paymentData.student_id,contract_id:paymentData.contractId || paymentData.contract_id,sozlesme_no:paymentData.sozlesmeNo || paymentData.sozlesme_no,
+        installment_id:paymentData.installment_id || paymentData.taksitId,installment_no:paymentData.installment_no ?? paymentData.taksitNo,amount:paymentData.amount || paymentData.tahsilatTutari,
+        method:paymentData.method,bank:paymentData.bank || paymentData.kasaBankaAdi,payment_date:paymentData.payment_date || paymentData.date || paymentData.tahsilatTarihi,note:paymentData.note
+      })}).then(async res => {
+        const saved=await res.json();
+        const result=this.recordCollection({...paymentData,...saved,studentId:saved.student_id,contractId:saved.contract_id,installment_id:saved.installment_id,alreadyPersisted:true});
+        await this.fetchInstallments(); await this.fetchContracts(); await this.fetchIncomes();
+        if (typeof window!=="undefined") window.dispatchEvent(new Event("cozum_accounting_updated"));
+        return result;
+      });
+    }
+
     const amount = Number(paymentData.amount || paymentData.tahsilatTutari || 0);
     const incomeCode = paymentData.gelirKodu;
     const sId = paymentData.studentId || paymentData.student_id || "";
@@ -971,7 +999,7 @@ export const AccountingService = {
       gelirAciklama: payNote
     };
 
-    _memory.collections = [newColl, ..._memory.collections];
+    _memory.collections = [newColl, ..._memory.collections.filter(p=>p.id!==newColl.id)];
 
     // Amortize against installments
     if (incomeCode || szlNo || cntId || targetInstNo !== undefined || targetInstId) {
@@ -1046,39 +1074,6 @@ export const AccountingService = {
     writeCache("cozum_ssot_installments_v2", _memory.installments);
     writeCache("cozum_ssot_incomes_v2", _memory.incomes);
 
-    // Sync to remote API if not already persisted
-    if (!paymentData.alreadyPersisted && typeof fetch === "function" && process.env.NODE_ENV !== "test") {
-      const apiUrl = getApiUrl();
-      try {
-        const p = fetch(`${apiUrl}/api/payments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            student_id: sId,
-            student_name: sName,
-            sozlesme_no: szlNo,
-            contract_id: cntId,
-            installment_no: targetInstNo,
-            installment_id: targetInstId,
-            amount,
-            method: payMethod,
-            bank: payBank,
-            payment_date: payDate,
-            note: payNote
-          })
-        });
-        if (p && typeof p.then === "function") {
-          p.then(() => {
-            if (typeof window !== "undefined") {
-              window.dispatchEvent(new Event("cozum_students_updated"));
-            }
-          }).catch((err) => console.warn("[AccountingService] Remote payment POST error:", err));
-        }
-      } catch (err) {
-        console.warn("[AccountingService] Remote payment POST error:", err);
-      }
-    }
-
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_accounting_updated"));
     }
@@ -1086,6 +1081,12 @@ export const AccountingService = {
   },
 
   cancelCollection(cancelData = {}) {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") return apiFetch(`${getApiUrl()}/api/payments/cancel`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({payment_id:cancelData.payment_id || cancelData.id,student_id:cancelData.studentId || cancelData.student_id,contract_id:cancelData.contractId || cancelData.contract_id,sozlesme_no:cancelData.sozlesmeNo,installment_id:cancelData.installment_id || cancelData.taksitId,installment_no:cancelData.installment_no ?? cancelData.taksitNo})}).then(async res => {
+      const saved=await res.json(); await this.fetchCollections(); await this.fetchInstallments(); await this.fetchContracts(); await this.fetchIncomes();
+      if(typeof window!=="undefined"){window.dispatchEvent(new Event("cozum_accounting_updated"));window.dispatchEvent(new Event("cozum_students_updated"));}
+      return saved;
+    });
+
     const sId = cancelData.studentId || cancelData.student_id;
     const szlNo = cancelData.sozlesmeNo || cancelData.sozlesme_no;
     const cntId = cancelData.contractId || cancelData.contract_id;
@@ -1172,7 +1173,7 @@ export const AccountingService = {
     if (typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       const apiUrl = getApiUrl();
       try {
-        const p = fetch(`${apiUrl}/api/payments/cancel`, {
+        const p = apiFetch(`${apiUrl}/api/payments/cancel`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1204,10 +1205,10 @@ export const AccountingService = {
 
 
   setInitialData({ contracts = [], incomes = [], installments = [], collections = [], summary = null } = {}) {
-    if (contracts && contracts.length) _memory.contracts = [...contracts];
-    if (incomes && incomes.length) _memory.incomes = [...incomes];
-    if (installments && installments.length) _memory.installments = [...installments];
-    if (collections && collections.length) {
+    if (Array.isArray(contracts)) _memory.contracts = [...contracts];
+    if (Array.isArray(incomes)) _memory.incomes = [...incomes];
+    if (Array.isArray(installments)) _memory.installments = [...installments];
+    if (Array.isArray(collections)) {
       const formatted = collections.map(formatCollectionRecord);
       _memory.collections = formatted;
       writeCache("cozum_ssot_collections_v2", formatted);
@@ -1216,6 +1217,7 @@ export const AccountingService = {
   },
 
   resetCustomData() {
+    cacheEpoch++;
     _memory.contracts = [];
     _memory.incomes = [];
     _memory.installments = [];
@@ -1228,13 +1230,7 @@ export const AccountingService = {
       localStorage.removeItem("cozum_ssot_collections_v2");
       localStorage.removeItem("cozum_ssot_summary_v2");
     }
-    if (typeof window !== "undefined" && typeof fetch === "function") {
-      this.fetchContracts().catch((err) => console.warn("[AccountingService] Background fetchContracts notice:", err?.message || err));
-      this.fetchInstallments().catch((err) => console.warn("[AccountingService] Background fetchInstallments notice:", err?.message || err));
-      this.fetchCollections().catch((err) => console.warn("[AccountingService] Background fetchCollections notice:", err?.message || err));
-      this.fetchSummary().catch((err) => console.warn("[AccountingService] Background fetchSummary notice:", err?.message || err));
-      window.dispatchEvent(new Event("cozum_accounting_updated"));
-    }
+
   }
 };
 

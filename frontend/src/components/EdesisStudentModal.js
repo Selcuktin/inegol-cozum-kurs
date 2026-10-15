@@ -251,19 +251,12 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
 
     setLoading(true);
     try {
-      const extraSum =
-        Number(formData.extra_kaynak || 0) +
-        Number(formData.extra_dijital || 0) +
-        Number(formData.extra_dnm || 0) +
-        Number(formData.extra_kutuphane || 0);
-      const grossFee = Math.max(0, Number(formData.total_fee || 0) + extraSum - Number(formData.discount_amount || 0));
-
       const payload = {
         ...formData,
         student_name: formData.student_name.trim(),
         parent_name: resolvedParent,
         parent_phone: resolvedParentPhone,
-        total_fee: grossFee || Number(formData.total_fee || 0),
+        total_fee: Number(formData.total_fee || 0),
         installment_count: Number(formData.installment_count || 1),
         discount_amount: Number(formData.discount_amount || 0),
         has_contract: true,
@@ -291,29 +284,9 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         has_contract: true,
         sozlesme_no: saved?.sozlesme_no || saved?.sozlesmeNo || payload.sozlesme_no || ""
       };
-      if (grossFee > 0) {
-        try {
-          AccountingService.addNewIncome({
-            id: saved?.contract_id || `cnt_${saved?.id}`,
-            studentId: saved?.id,
-            student_no: saved?.student_no || formData.student_no,
-            sozlesmeNo: finalStudent.sozlesme_no,
-            contract_id: saved?.contract_id,
-            ogrenciAdi: formData.student_name.trim(),
-            veliAdi: resolvedParent,
-            sinifAdi: formData.student_class || "Genel",
-            brutTutar: grossFee,
-            taksitSayisi: Number(formData.installment_count) || 1,
-            vadeTarihi: formData.due_date || new Date().toISOString().slice(0, 10),
-            aciklama: `Kayıt Sözleşmesi`,
-            skipRemoteSync: true
-          });
-        } catch (accErr) {
-          console.warn("Accounting contract re-sync warning:", accErr);
-        }
-      }
+      await Promise.all([AccountingService.fetchContracts(),AccountingService.fetchIncomes(),AccountingService.fetchInstallments()]);
       AccountingService.unTombstone(finalStudent.student_name, finalStudent.sozlesme_no, finalStudent.id);
-      StudentService.saveStudent(finalStudent, API, { skipRemoteSync: true });
+      await StudentService.saveStudent(finalStudent, API, { skipRemoteSync: true });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("cozum_accounting_updated"));
         window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: finalStudent } }));

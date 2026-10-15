@@ -1,4 +1,36 @@
-import { json, errorResponse, logAction, getNextSequence } from "../utils.js";
+import { json, errorResponse, logAction, getNextSequence, normalizeDate } from "../utils.js";
+import { generateContractInstallments } from "../../../src/lib/installmentService.js";
+
+// Shared bulk write avoids D1's query/parameter ceilings for long plans.
+export function installmentWrite(db, plan, contractId, incomeId, studentId, count) {
+  return db.prepare(`INSERT INTO installments(id,contract_id,income_id,student_id,installment_no,total_installments,due_date,amount,paid_amount,status,created_at)
+    SELECT json_extract(value,'$.id'),?,?,?,json_extract(value,'$.installment_no'),?,json_extract(value,'$.due_date'),json_extract(value,'$.amount'),0,'Bekliyor',datetime('now') FROM json_each(?) WHERE 1
+    ON CONFLICT(contract_id,installment_no) DO UPDATE SET amount=excluded.amount,due_date=excluded.due_date,total_installments=excluded.total_installments,status=CASE WHEN installments.paid_amount>=excluded.amount THEN 'Odendi' WHEN installments.paid_amount>0 THEN 'KismenOdendi' ELSE 'Bekliyor' END`).bind(contractId,incomeId,studentId,count,JSON.stringify(plan));
+}
+
+// Both student editing and contract editing must update the same financial records.
+export async function getContractUpdateStatements(db, row, patch, syncStudent = true) {
+  const gross = Number(patch.brutTutar ?? row.brut_tutar);
+  const count = Number(patch.taksitSayisi ?? row.taksit_sayisi);
+  if (!Number.isFinite(gross) || gross < 0 || !Number.isInteger(count) || count < 1 || count > 120 || (patch.due_date && !normalizeDate(patch.due_date))) return { error: errorResponse("Geçersiz tutar, taksit sayısı veya tarih", 422, "VALIDATION_ERROR") };
+  const old = (await db.prepare("SELECT * FROM installments WHERE contract_id = ? ORDER BY installment_no").bind(row.id).all()).results || [];
+  const changed = gross !== Number(row.brut_tutar) || count !== Number(row.taksit_sayisi) || !!patch.due_date;
+  const taxFactor = Number(row.net_tutar)>0 && Number(row.brut_tutar)>0 ? Number(row.brut_tutar)/Number(row.net_tutar) : 1.1;
+  const net = Math.round(gross / taxFactor * 100) / 100;
+  const vat = Math.round((gross - net) * 100) / 100;
+  const statements = [db.prepare("UPDATE contracts SET brut_tutar=?, net_tutar=?, kdv_tutari=?, taksit_sayisi=?, odeme_turu=?, odeme_turu_text=?, sozlesme_tarihi=? WHERE id=?").bind(gross, net, vat, count, count > 1 ? 1 : 2, count > 1 ? `Taksitli (${count} Taksit)` : "Peşin", patch.sozlesmeTarihi || row.sozlesme_tarihi, row.id)];
+  if (changed) {
+    const income = await db.prepare("SELECT id FROM student_incomes WHERE contract_id=? AND is_deleted=0 LIMIT 1").bind(row.id).first();
+    const firstDue = normalizeDate(patch.due_date || old[0]?.due_date || row.sozlesme_tarihi);
+    const plan = generateContractInstallments({ ...row, brut_tutar: gross, taksit_sayisi: count }, { startDate: firstDue || new Date().toISOString(), dueDay: firstDue ? Number(firstDue.slice(8, 10)) : 15 });
+    if (old.some(i => Number(i.paid_amount) > (plan.find(p => p.installment_no === i.installment_no)?.amount ?? 0))) return { error: errorResponse("Yeni plan tahsil edilmiş taksitleri azaltamaz veya kaldıramaz", 409, "PAID_INSTALLMENT") };
+    statements.push(db.prepare("DELETE FROM installments WHERE contract_id=? AND installment_no>? AND paid_amount=0").bind(row.id, count));
+    statements.push(installmentWrite(db,plan,row.id,income?.id || "",row.student_id,count));
+  }
+  statements.push(db.prepare("UPDATE student_incomes SET brut_tutar=?,net_tutar=?,kdv_tutari=?,taksit_sayisi=?,kalan_alacak=MAX(0,?-toplam_tahsilat),tam_tahsil_edildi_mi=CASE WHEN toplam_tahsilat>=? THEN 1 ELSE 0 END WHERE contract_id=? OR sozlesme_no=?").bind(gross,net,vat,count,gross,gross,row.id,row.sozlesme_no));
+  if (syncStudent) statements.push(db.prepare(`UPDATE students SET total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),installment_count=? WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=?)`).bind(gross,count,row.student_id,row.sozlesme_no));
+  return { statements };
+}
 
 export async function handleContractsRoutes({ request, db, url, path, user, waitUntil }) {
   // 1. GET /contracts
@@ -18,7 +50,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         s.student_tc,
         s.parent_tc,
         s.id as student_full_id,
-        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE (p.contract_id = c.id OR (p.student_id = c.student_id AND c.student_id IS NOT NULL AND c.student_id != '')) AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
+        COALESCE((SELECT MAX(i.toplam_tahsilat) FROM student_incomes i WHERE (i.contract_id=c.id OR i.sozlesme_no=c.sozlesme_no) AND COALESCE(i.is_deleted,0)=0),(SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.contract_id = c.id AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) ) as calculated_paid
       FROM contracts c
       LEFT JOIN students s ON (
         c.student_id = s.id
@@ -110,8 +142,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       });
       return json(rows);
     } catch (err) {
-      console.error("GET /contracts error:", err);
-      return json([]);
+      throw err;
     }
   }
 
@@ -122,27 +153,30 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     if (!studentName) return errorResponse("Öğrenci adı zorunludur", 422, "VALIDATION_ERROR");
 
     const brutTutar = (body.total_amount !== undefined && body.total_amount !== null && body.total_amount !== "")
-      ? Math.max(0, Number(body.total_amount))
+      ? Number(body.total_amount)
       : (body.brutTutar !== undefined && body.brutTutar !== null && body.brutTutar !== "")
-        ? Math.max(0, Number(body.brutTutar))
+        ? Number(body.brutTutar)
         : 75000;
-    const taksitSayisi = parseInt(body.installment_count || body.taksitSayisi) || 10;
+    const taksitSayisi = Number(body.installment_count ?? body.taksitSayisi ?? 10);
     const netTutar = Math.round((brutTutar / 1.1) * 100) / 100;
     const kdvTutari = Math.round((brutTutar - netTutar) * 100) / 100;
 
+    if (!Number.isFinite(brutTutar) || !Number.isInteger(taksitSayisi) || taksitSayisi < 1 || taksitSayisi > 120 || (body.due_date && !normalizeDate(body.due_date))) return errorResponse("Geçersiz tutar, taksit veya vade", 422, "VALIDATION_ERROR");
     const studentId = body.student_id ? String(body.student_id) : "student-" + crypto.randomUUID().slice(0, 8);
-
-    // Clean prior tombstones strictly by student_id or contract id
-    await db.prepare("DELETE FROM contracts WHERE (student_id = ? OR id = ? OR sozlesme_no = ?) AND (is_deleted = 1 OR id LIKE 'del-%' OR sozlesme_no LIKE 'del-%')").bind(studentId, body.id || "", body.sozlesme_no || "").run().catch(() => {});
-    await db.prepare("DELETE FROM student_incomes WHERE (student_id = ? OR contract_id = ? OR sozlesme_no = ?) AND is_deleted = 1").bind(studentId, body.id || "", body.sozlesme_no || "").run().catch(() => {});
+    const student = await db.prepare("SELECT * FROM students WHERE id=?").bind(studentId).first();
+    if (body.student_id && !student) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
+    const statements = [];
+    if (!student) statements.push(db.prepare("INSERT INTO students(id,student_name,parent_name,total_fee,installment_count,program) VALUES(?,?,?,?,?,'2026-2027')").bind(studentId,studentName,body.parent_name || "",brutTutar,taksitSayisi));
 
     // Reuse existing active contract strictly by student_id or sozlesme_no
     const existingContract = await db.prepare(`
-      SELECT * FROM contracts 
+      SELECT * FROM contracts
       WHERE ((student_id = ? AND student_id != '') OR (sozlesme_no = ? AND sozlesme_no != ''))
         AND (is_deleted = 0 OR is_deleted IS NULL)
       LIMIT 1
-    `).bind(studentId, body.sozlesme_no || "").first().catch(() => null);
+    `).bind(studentId, body.sozlesme_no || "").first();
+
+    if (existingContract) return json({ ...existingContract, sozlesmeNo: existingContract.sozlesme_no, brutTutar: existingContract.brut_tutar, taksitSayisi: existingContract.taksit_sayisi }, 201);
 
     let sozlesmeNo = existingContract?.sozlesme_no || body.sozlesme_no || body.sozlesmeNo;
     let id = existingContract?.id || "cnt_" + crypto.randomUUID().slice(0, 10);
@@ -157,8 +191,8 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const parentPhone = body.parent_phone || body.parentPhone || "";
     const studentClass = body.student_class || body.sinifAdi || "8-A";
 
-    await db.prepare(`
-      INSERT OR REPLACE INTO contracts (
+    statements.push(db.prepare(`
+      INSERT INTO contracts (
         id, sozlesme_no, student_id, student_name, student_no, student_class,
         parent_name, parent_phone, period_id, period_name, net_tutar, kdv_tutari, brut_tutar,
         odeme_turu, odeme_turu_text, taksit_sayisi, durum, is_signed, veli_imza_alindi,
@@ -173,18 +207,13 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       id, sozlesmeNo, studentId, studentName, body.student_no || "", studentClass,
       parentName, parentPhone, periodId, periodName, netTutar, kdvTutari, brutTutar,
       `Taksitli (${taksitSayisi} Taksit)`, taksitSayisi, date, user?.name || "Yönetici"
-    ).run();
-
-    // Inactivate any duplicate contract rows strictly by student_id
-    await db.prepare(
-      "UPDATE contracts SET is_deleted = 1 WHERE student_id = ? AND student_id != '' AND id != ? AND (is_deleted = 0 OR is_deleted IS NULL)"
-    ).bind(studentId, id).run().catch(() => {});
+    ));
 
     // Atomic income code
     const gelirKodu = await getNextSequence(db, "GLR_2026", "GLR2026", 5, 158);
     const glrId = "glr_" + crypto.randomUUID().slice(0, 10);
-    await db.prepare(`
-      INSERT OR REPLACE INTO student_incomes (
+    statements.push(db.prepare(`
+      INSERT INTO student_incomes (
         id, gelir_kodu, contract_id, sozlesme_no, student_id, student_name, student_no, student_class,
         musteri_unvan, title, period_id, period_name, net_tutar, kdv_tutari, brut_tutar,
         toplam_tahsilat, kalan_alacak, tam_tahsil_edildi_mi, gelir_tarihi, vade_tarihi,
@@ -199,49 +228,14 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       glrId, gelirKodu, id, sozlesmeNo, studentId, studentName, body.student_no || "", studentClass,
       studentName, `Sözleşme: ${sozlesmeNo}`, periodId, periodName, netTutar, kdvTutari, brutTutar,
       brutTutar, date, body.due_date || date, taksitSayisi, taksitSayisi
-    ).run().catch((e) => console.error("Auto student_income error:", e));
+    ));
 
     // Atomically insert installments with strict UNIQUE(contract_id, installment_no)
-    const baseAmt = Math.floor((brutTutar / taksitSayisi) * 100) / 100;
-    const remainder = Math.round((brutTutar - (baseAmt * taksitSayisi)) * 100) / 100;
-    let baseYear = new Date().getFullYear();
-    let baseMonth = new Date().getMonth();
-    if (date && date.length >= 7) {
-      const parts = date.slice(0, 10).split("-");
-      if (parts.length >= 2 && !isNaN(parseInt(parts[0])) && !isNaN(parseInt(parts[1]))) {
-        baseYear = parseInt(parts[0]);
-        baseMonth = parseInt(parts[1]) - 1;
-      }
-    }
-    const contractInstStmts = [];
-
-    for (let i = 1; i <= taksitSayisi; i++) {
-      const isLast = (i === taksitSayisi);
-      const amt = isLast ? Math.round((baseAmt + remainder) * 100) / 100 : baseAmt;
-      const targetMonthIndex = baseMonth + i - 1;
-      const targetYear = baseYear + Math.floor(targetMonthIndex / 12);
-      const targetMonth = (targetMonthIndex % 12) + 1;
-      const dueDate = `${targetYear}-${String(targetMonth).padStart(2, "0")}-15`;
-      const instId = `inst_${id}_${i}`;
-
-      contractInstStmts.push(
-        db.prepare(`
-          INSERT OR REPLACE INTO installments (
-            id, contract_id, income_id, student_id, installment_no, total_installments,
-            due_date, amount, paid_amount, status, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'Bekliyor', datetime('now'))
-        `).bind(instId, id, glrId, studentId, i, taksitSayisi, dueDate, amt)
-      );
-    }
-    if (contractInstStmts.length > 0) {
-      if (typeof db.batch === "function") {
-        await db.batch(contractInstStmts).catch((e) => console.error("Installment batch error:", e));
-      } else {
-        for (const stmt of contractInstStmts) {
-          await stmt.run().catch(() => {});
-        }
-      }
-    }
+    const firstDue = normalizeDate(body.due_date || date);
+    const plan = generateContractInstallments({id,student_id:studentId,brut_tutar:brutTutar,taksit_sayisi:taksitSayisi},{startDate:firstDue,dueDay:Number(firstDue.slice(8,10))});
+    statements.push(installmentWrite(db,plan,id,glrId,studentId,taksitSayisi));
+    statements.push(db.prepare("UPDATE students SET sozlesme_no=? WHERE id=?").bind(sozlesmeNo,studentId));
+    await db.batch(statements);
 
     await logAction(db, user, "contract.create", "contract", id, `${studentName} · ${sozlesmeNo} · ${brutTutar} ₺`, waitUntil);
 
@@ -267,8 +261,8 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     try {
       const rows = await db.prepare("SELECT id, sozlesme_no, student_id, student_name FROM contracts WHERE is_deleted = 1").all();
       return json((rows.results || []).map(r => r.sozlesme_no || r.id));
-    } catch {
-      return json([]);
+    } catch (err) {
+      throw err;
     }
   }
 
@@ -285,7 +279,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
 
     if (signerType === "kurum") {
       await db.prepare(`
-        UPDATE contracts SET 
+        UPDATE contracts SET
           kurum_imza_alindi = 1,
           kurum_imzalayan = ?,
           kurum_imzalayan_unvan = 'Kurum Müdürü / Yetkilisi',
@@ -295,7 +289,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       `).bind(signerName, targetId, targetId).run();
     } else {
       await db.prepare(`
-        UPDATE contracts SET 
+        UPDATE contracts SET
           veli_imza_alindi = 1,
           signed_at = datetime('now'),
           is_signed = 1
@@ -314,11 +308,11 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const contractId = contractInstMatch[1];
     try {
       const res = await db.prepare(`
-        SELECT i.*, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no 
-        FROM installments i 
-        LEFT JOIN contracts c ON (i.contract_id = c.id OR i.contract_id = c.sozlesme_no) 
-        WHERE (i.contract_id = ? OR c.id = ? OR c.sozlesme_no = ?) 
-          AND (c.is_deleted = 0 OR c.is_deleted IS NULL) 
+        SELECT i.*, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no
+        FROM installments i
+        LEFT JOIN contracts c ON (i.contract_id = c.id OR i.contract_id = c.sozlesme_no)
+        WHERE (i.contract_id = ? OR c.id = ? OR c.sozlesme_no = ?)
+          AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
         ORDER BY i.installment_no ASC
       `).bind(contractId, contractId, contractId).all();
       const rows = (res.results || []).map(r => ({
@@ -328,14 +322,14 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         ogrenciAdi: r.student_name,
         taksitNo: r.installment_no,
         taksitTutari: r.amount,
-        vadeTarihi: r.due_date,
+        vadeTarihi: normalizeDate(r.due_date),
         tahsilEdilen: r.paid_amount,
         kalanTutar: Math.max(0, r.amount - (r.paid_amount || 0)),
         durumText: r.status,
       }));
       return json(rows);
     } catch (err) {
-      return json([]);
+      throw err;
     }
   }
 
@@ -347,7 +341,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     if (request.method === "DELETE") {
       const decodedKey = decodeURIComponent(contractId);
       const row = await db.prepare(`
-        SELECT * FROM contracts 
+        SELECT * FROM contracts
         WHERE (id = ? OR sozlesme_no = ? OR student_id = ? OR student_id = ('stu-' || ?) OR ('stu-' || student_id) = ?)
           AND (is_deleted = 0 OR is_deleted IS NULL)
         LIMIT 1
@@ -358,18 +352,12 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         return json({ success: true, ok: true, already_deleted: true });
       }
 
-      // Full Cascade Purge: Permanently delete payments, installments, incomes, and contract
-      const deleteStmts = [
-        db.prepare("DELETE FROM payments WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?) OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.student_id),
-        db.prepare("DELETE FROM installments WHERE contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?) OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.student_id),
-        db.prepare("DELETE FROM student_incomes WHERE contract_id = ? OR sozlesme_no = ? OR id = ? OR (student_id = ? AND student_id IS NOT NULL AND student_id != '')").bind(row.id, row.sozlesme_no, row.id, row.student_id),
-        db.prepare("DELETE FROM contracts WHERE id = ? OR sozlesme_no = ?").bind(row.id, row.sozlesme_no)
-      ];
-      if (typeof db.batch === "function") {
-        await db.batch(deleteStmts);
-      } else {
-        for (const s of deleteStmts) await s.run().catch(() => {});
-      }
+      const paid = await db.prepare("SELECT COUNT(*) AS n FROM payments WHERE contract_id=? AND COALESCE(is_cancelled,0)=0").bind(row.id).first();
+      if (paid?.n) return errorResponse("Tahsilatı olan sözleşme silinemez; önce ilgili tahsilatı iptal edin", 409, "PAYMENT_EXISTS");
+      await db.batch([
+        db.prepare("UPDATE contracts SET is_deleted=1,durum=3 WHERE id=?").bind(row.id),
+        db.prepare("UPDATE student_incomes SET is_deleted=1 WHERE contract_id=? OR sozlesme_no=?").bind(row.id,row.sozlesme_no)
+      ]);
 
       await logAction(db, user, "contract.delete", "contract", row.id, `${row.sozlesme_no} sözleşmesi ve ilişkili tüm kayıtlar silindi`, waitUntil);
       return json({ success: true, ok: true, deleted_id: row.id, deleted_sozlesme: row.sozlesme_no });
@@ -380,39 +368,10 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       if (!row) return errorResponse("Sözleşme bulunamadı", 404, "NOT_FOUND");
 
       const patch = await request.json().catch(() => ({}));
-      const brut = patch.brutTutar != null ? Number(patch.brutTutar) : row.brut_tutar;
-      const net = patch.netTutar != null ? Number(patch.netTutar) : Math.round((brut / 1.1) * 100) / 100;
-      const kdv = patch.kdvTutari != null ? Number(patch.kdvTutari) : Math.round((brut - net) * 100) / 100;
-      const inst = patch.taksitSayisi != null ? Number(patch.taksitSayisi) : row.taksit_sayisi;
-      const odemeTuru = patch.odemeTuru != null ? Number(patch.odemeTuru) : (inst > 1 ? 1 : 2);
-      const odemeTuruText = patch.odemeTuruText || (inst > 1 ? `Taksitli (${inst} Taksit)` : "Peşin / Tek Çekim");
-      const dateStr = patch.sozlesmeTarihi || patch.tarih || row.sozlesme_tarihi;
-
-      await db.prepare(`
-        UPDATE contracts SET
-          brut_tutar = ?, net_tutar = ?, kdv_tutari = ?,
-          taksit_sayisi = ?, odeme_turu = ?, odeme_turu_text = ?,
-          sozlesme_tarihi = ?
-        WHERE id = ?
-      `).bind(brut, net, kdv, inst, odemeTuru, odemeTuruText, dateStr, row.id).run();
-
-      // Sync student total_fee and installment_count strictly by student_id
-      if (row.student_id) {
-        await db.prepare(`
-          UPDATE students SET total_fee = ?, installment_count = ?
-          WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?
-        `).bind(brut, inst, row.student_id, row.student_id, row.student_id).run().catch(() => {});
-      }
-
-      // Sync student_incomes strictly by contract_id or sozlesme_no
-      await db.prepare(`
-        UPDATE student_incomes SET
-          brut_tutar = ?, net_tutar = ?, kdv_tutari = ?,
-          taksit_sayisi = ?, kalan_alacak = MAX(0, ? - toplam_tahsilat)
-        WHERE contract_id = ? OR sozlesme_no = ?
-      `).bind(brut, net, kdv, inst, brut, row.id, row.sozlesme_no).run().catch(() => {});
-
-      await logAction(db, user, "contract.update", "contract", row.id, `${row.sozlesme_no} güncellendi: ${brut} TL`, waitUntil);
+      const financial = await getContractUpdateStatements(db, row, patch);
+      if (financial.error) return financial.error;
+      await db.batch(financial.statements);
+      await logAction(db, user, "contract.update", "contract", row.id, `${row.sozlesme_no} güncellendi`, waitUntil);
 
       const updatedRow = await db.prepare("SELECT * FROM contracts WHERE id = ?").bind(row.id).first();
       return json({
@@ -429,13 +388,13 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       const row = await db.prepare("SELECT * FROM contracts WHERE (id = ? OR sozlesme_no = ?) AND (is_deleted = 0 OR is_deleted IS NULL)").bind(contractId, contractId).first();
       if (!row) return errorResponse("Sözleşme bulunamadı", 404, "NOT_FOUND");
       const instRes = await db.prepare(`
-        SELECT i.*, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no 
-        FROM installments i 
-        LEFT JOIN contracts c ON (i.contract_id = c.id OR i.contract_id = c.sozlesme_no) 
-        WHERE (i.contract_id = ? OR c.id = ? OR c.sozlesme_no = ?) 
-          AND (c.is_deleted = 0 OR c.is_deleted IS NULL) 
+        SELECT i.*, COALESCE(c.student_name, '') as student_name, COALESCE(c.sozlesme_no, '') as sozlesme_no
+        FROM installments i
+        LEFT JOIN contracts c ON (i.contract_id = c.id OR i.contract_id = c.sozlesme_no)
+        WHERE (i.contract_id = ? OR c.id = ? OR c.sozlesme_no = ?)
+          AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
         ORDER BY i.installment_no ASC
-      `).bind(contractId, contractId, contractId).all().catch(() => ({ results: [] }));
+      `).bind(contractId, contractId, contractId).all();
       const installments = (instRes.results || []).map(r => ({
         ...r,
         id: r.id,
@@ -443,7 +402,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         ogrenciAdi: row.student_name,
         taksitNo: r.installment_no,
         taksitTutari: r.amount,
-        vadeTarihi: r.due_date,
+        vadeTarihi: normalizeDate(r.due_date),
         tahsilEdilen: r.paid_amount,
         kalanTutar: Math.max(0, r.amount - (r.paid_amount || 0)),
         durumText: r.status,
@@ -497,7 +456,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         ogrenciId: r.student_id,
         taksitNo: r.installment_no,
         taksitTutari: r.amount,
-        vadeTarihi: r.due_date,
+        vadeTarihi: normalizeDate(r.due_date),
         tahsilEdilen: r.paid_amount,
         kalanTutar: Math.max(0, r.amount - (r.paid_amount || 0)),
         durumText: r.status,
@@ -505,8 +464,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       }));
       return json(rows);
     } catch (err) {
-      console.error("GET /installments error:", err);
-      return json([]);
+      throw err;
     }
   }
 
@@ -551,7 +509,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         kalanAlacak: r.kalan_alacak,
         tamTahsilEdildiMi: !!r.tam_tahsil_edildi_mi,
         gelirTarihi: r.gelir_tarihi,
-        vadeTarihi: r.vade_tarihi,
+        vadeTarihi: normalizeDate(r.vade_tarihi),
         taksitSayisi: r.taksit_sayisi,
         kalanTaksitSayisi: r.kalan_taksit_sayisi,
         aciklama: r.title,
@@ -560,7 +518,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       }));
       return json(rows);
     } catch (err) {
-      return json([]);
+      throw err;
     }
   }
 
@@ -572,48 +530,42 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const installments = Array.isArray(body) ? body : (body.installments || []);
 
     const contract = await db.prepare(`
-      SELECT * FROM contracts 
-      WHERE id = ? OR sozlesme_no = ? 
+      SELECT * FROM contracts
+      WHERE id = ? OR sozlesme_no = ?
       LIMIT 1
-    `).bind(rawId, rawId).first().catch(() => null);
+    `).bind(rawId, rawId).first();
 
-    if (contract && installments.length > 0) {
-      for (const inst of installments) {
-        const no = Number(inst.taksitNo !== undefined ? inst.taksitNo : (inst.installment_no || 1));
-        const amt = Number(inst.taksitTutari !== undefined ? inst.taksitTutari : (inst.amount || 0));
-        const paid = Number(inst.tahsilEdilen !== undefined ? inst.tahsilEdilen : (inst.paid_amount || 0));
-        const status = inst.durumText || inst.status || (paid >= amt && amt > 0 ? "Odendi" : (paid > 0 ? "KismenOdendi" : "Bekliyor"));
-        const dueDate = inst.due_date || inst.vadeTarihi || "";
-        const payDate = inst.payment_date || inst.tahsilatTarihi || (paid > 0 ? new Date().toISOString().slice(0, 10) : "");
-        const instId = inst.id || `inst_${contract.id}_${no}`;
-
-        const existing = await db.prepare("SELECT id FROM installments WHERE id = ? OR (contract_id = ? AND installment_no = ?) LIMIT 1")
-          .bind(instId, contract.id, no).first().catch(() => null);
-
-        if (existing) {
-          await db.prepare(`
-            UPDATE installments 
-            SET amount = ?, paid_amount = ?, status = ?, due_date = ?, payment_date = ?
-            WHERE id = ?
-          `).bind(amt, paid, status, dueDate, payDate, existing.id).run().catch(() => {});
-        } else {
-          await db.prepare(`
-            INSERT INTO installments (id, contract_id, student_id, installment_no, total_installments, due_date, amount, paid_amount, status, payment_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(instId, contract.id, contract.student_id, no, installments.length, dueDate, amt, paid, status, payDate).run().catch(() => {});
-        }
-      }
-
-      // Update student's total paid_amount
-      const totalPaid = installments.reduce((acc, it) => acc + Number(it.tahsilEdilen !== undefined ? it.tahsilEdilen : (it.paid_amount || 0)), 0);
-      if (contract.student_id) {
-        await db.prepare("UPDATE students SET paid_amount = ? WHERE id = ? OR ('stu-' || id) = ?").bind(totalPaid, contract.student_id, contract.student_id).run().catch(() => {});
-      }
+    if (!contract) return errorResponse("Sözleşme bulunamadı", 404, "NOT_FOUND");
+    if (!Array.isArray(installments) || installments.length === 0 || installments.length > 120) return errorResponse("Geçersiz taksit planı", 422, "VALIDATION_ERROR");
+    const previous = (await db.prepare("SELECT * FROM installments WHERE contract_id=?").bind(contract.id).all()).results || [];
+    const seen = new Set();
+    const plan = [];
+    for (const inst of installments) {
+      const no = Number(inst.taksitNo ?? inst.installment_no);
+      const amt = Number(inst.taksitTutari ?? inst.amount);
+      const due = normalizeDate(inst.vadeTarihi || inst.due_date);
+      const existing = previous.find(i=>i.installment_no===no);
+      if (!Number.isInteger(no) || no<0 || no>120 || seen.has(no) || !Number.isFinite(amt) || amt<0 || Math.round(amt*100)/100!==amt || !due || (inst.id && existing && inst.id!==existing.id)) return errorResponse("Geçersiz veya başka sözleşmeye ait taksit",422,"VALIDATION_ERROR");
+      seen.add(no);
+      const paid = Number(existing?.paid_amount || 0);
+      if (Number(inst.tahsilEdilen ?? inst.paid_amount ?? paid)!==paid || amt<paid) return errorResponse("Tahsil edilen tutar plan düzenlemesiyle değiştirilemez",422,"PAYMENT_REQUIRED");
+      plan.push({id:existing?.id || `inst_${contract.id}_${no}`,installment_no:no,due_date:due,amount:amt});
     }
+    if (previous.some(i=>!seen.has(i.installment_no) && Number(i.paid_amount)>0)) return errorResponse("Tahsil edilmiş taksit kaldırılamaz",409,"PAID_INSTALLMENT");
+    const income = await db.prepare("SELECT id FROM student_incomes WHERE contract_id=? AND is_deleted=0 LIMIT 1").bind(contract.id).first();
+    const updates = [
+      db.prepare("DELETE FROM installments WHERE contract_id=? AND paid_amount=0 AND installment_no NOT IN (SELECT value FROM json_each(?))").bind(contract.id,JSON.stringify([...seen])),
+      installmentWrite(db,plan,contract.id,income?.id || "",contract.student_id,installments.length),
+      db.prepare("UPDATE contracts SET taksit_sayisi=? WHERE id=?").bind(installments.length,contract.id),
+      db.prepare("UPDATE student_incomes SET taksit_sayisi=? WHERE contract_id=?").bind(installments.length,contract.id)
+    ];
+    const total = installments.reduce((sum,i)=>sum+Number(i.taksitTutari ?? i.amount),0);
+    if (Math.abs(total-Number(contract.brut_tutar)) > 0.01) return errorResponse("Taksit toplamı sözleşme tutarına eşit olmalıdır", 422, "PLAN_TOTAL_MISMATCH");
+    await db.batch(updates);
+    await logAction(db,user,"installments.update","contract",contract.id,"Taksit planı güncellendi",waitUntil);
 
     return json({ ok: true, count: installments.length });
   }
 
   return null;
 }
-
