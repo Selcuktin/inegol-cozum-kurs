@@ -141,10 +141,10 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       `).bind(term, term, term).all().catch(() => ({ results: [] })),
 
       db.prepare(`
-        SELECT p.id, p.student_id, p.amount, p.payment_date, p.method, p.note, p.receipt_no, s.student_name
+        SELECT p.id, p.student_id, p.amount, p.payment_date, p.method, p.note, p.id AS receipt_no, s.student_name
         FROM payments p
         LEFT JOIN students s ON p.student_id = s.id
-        WHERE (p.is_cancelled = 0 OR p.is_cancelled IS NULL) AND (p.receipt_no LIKE ? OR p.note LIKE ? OR s.student_name LIKE ?)
+        WHERE (p.is_cancelled = 0 OR p.is_cancelled IS NULL) AND (p.id LIKE ? OR p.note LIKE ? OR s.student_name LIKE ?)
         ORDER BY p.payment_date DESC
         LIMIT 6
       `).bind(term, term, term).all().catch(() => ({ results: [] }))

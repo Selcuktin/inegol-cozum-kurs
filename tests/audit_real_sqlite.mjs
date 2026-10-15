@@ -582,6 +582,11 @@ await check('historical payment, cancellation and contract edit leave current st
   equal(old.net_tutar,1100);equal(old.kdv_tutari,0);
   equal((await request(db,'/payments','POST',{student_id:current.student_id,sozlesme_no:current.sozlesme_no,amount:100})).status,201);
 });
+await check('global search finds real payments without a nonexistent receipt column',async db=>{
+  const c=await student(db);const payment=await pay(db,c,100);
+  const result=await request(db,'/search/omni?q=Audit');equal(result.status,200);
+  equal(result.data.payments.length,1);equal(result.data.payments[0].id,payment.id);
+});
 
 Object.assign(console, originalConsole);
 const summary = { tested_at: new Date().toISOString(), runtime: process.version, database: 'isolated in-memory SQLite; actual production router and SQL', passed: results.filter(r => r.passed).length, failed: results.filter(r => !r.passed).length, results };
