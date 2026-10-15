@@ -9,6 +9,40 @@ describe('Contract and Installment Dynamic Edits', () => {
   });
   afterEach(cleanup);
 
+  test('missing contact data and installment history stay empty instead of showing sample records',async()=>{
+    const contract={id:'no-history',sozlesmeNo:'SZL-DEMO-EMPTY',student_id:'missing-student',ogrenciAdi:'Örnek boş kayıt',brutTutar:1000,toplamTahsilat:200,kalanAlacak:800,taksitSayisi:9,durum:1};
+    AccountingService.setInitialData({contracts:[contract],incomes:[],installments:[],collections:[]});
+    expect(AccountingService.getInstallments()).toEqual([]);
+    const {container}=await render(<EdesisSozlesmeDetay contract={contract}/>);
+    for(const label of ['TC KİMLİK','TELEFON']){
+      const el=[...container.querySelectorAll('span')].find(e=>e.textContent===label);
+      expect(el.parentElement.lastElementChild.textContent).toBe('—');
+    }
+    expect(container.querySelector('[aria-label="Sözleşme taksitleri tablosu"] tbody').children.length).toBe(0);
+    expect(container.textContent).toContain('200,00');
+  });
+
+  test('contract student ID wins over a same-name student earlier in the list',async()=>{
+    AccountingService.setInitialData({contracts:[],incomes:[],installments:[],collections:[]});
+    const students=[{id:'wrong',student_name:'Örnek aynı ad',student_tc:'yanlış-kimlik'},{id:'correct',student_name:'Örnek aynı ad',student_tc:'doğru-kimlik'}];
+    const contract={id:'identity-check',student_id:'correct',sozlesmeNo:'SZL-IDENTITY',ogrenciAdi:'Örnek aynı ad',brutTutar:100,durum:1};
+    const {container}=await render(<EdesisSozlesmeDetay contract={contract} students={students}/>);
+    expect(container.textContent).toContain('doğru-kimlik');expect(container.textContent).not.toContain('yanlış-kimlik');
+  });
+
+  test('detail preserves down payment zero and the recorded zero VAT rate',async()=>{
+    const contract={id:'down-payment',sozlesmeNo:'SZL-DOWN-PAYMENT',ogrenciAdi:'Örnek peşinat',brutTutar:1000,netTutar:1000,kdvTutari:0,durum:1};
+    AccountingService.setInitialData({contracts:[contract],incomes:[],collections:[],installments:[
+      {id:'down-zero',contractId:contract.id,sozlesmeNo:contract.sozlesmeNo,taksitNo:0,taksitTutari:200,tahsilEdilen:200,kalanTutar:0},
+      {id:'down-one',contractId:contract.id,sozlesmeNo:contract.sozlesmeNo,taksitNo:1,taksitTutari:800,tahsilEdilen:0,kalanTutar:800}
+    ]});
+    const {container}=await render(<EdesisSozlesmeDetay contract={contract}/>);
+    const rows=container.querySelectorAll('[aria-label="Sözleşme taksitleri tablosu"] tbody tr');
+    expect(rows.length).toBe(2);expect(rows[0].cells[0].textContent).toBe('0');expect(rows[1].cells[0].textContent).toBe('1');
+    const cells=container.querySelector('[aria-label="Sözleşme kalemleri tablosu"] tbody tr').cells;
+    expect(cells[4].textContent).toContain('1.000,00');expect(cells[5].textContent).toContain('0,00');
+  });
+
   test('cancelled detail shows actual status and preserved payment without inventing installments',async()=>{
     AccountingService.setInitialData({contracts:[],incomes:[],installments:[],collections:[]});
     const contract={id:'cancelled-demo',sozlesmeNo:'SZL-DEMO-CANCEL',ogrenciAdi:'Örnek Öğrenci',brutTutar:1000,netTutar:1000,kdvTutari:0,toplamTahsilat:100,kalanAlacak:0,taksitSayisi:9,durum:3,iptal_nedeni:'Hatalı sözleşme',iptal_tarihi:'2026-08-18',sozlesmeTarihi:'2026-07-16',donemAdi:'Örnek dönem'};

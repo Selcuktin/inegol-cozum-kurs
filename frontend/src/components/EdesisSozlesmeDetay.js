@@ -54,9 +54,11 @@ export default function EdesisSozlesmeDetay({
   const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [receiptModalPayment, setReceiptModalPayment] = useState(null);
   const [isSignedState, setIsSignedState] = useState(() => !!(contract?.isSigned || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));
-  const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || "Osman Seymen (Yönetici)");
+  const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || contract?.kurum_imzalayan || '');
+  React.useEffect(()=>{setIsSignedState(!!(contract?.isSigned || contract?.is_signed || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));setSignedByName(contract?.kurumImzalayan || contract?.kurum_imzalayan || '');},[contract?.id,contract?.isSigned,contract?.is_signed,contract?.kurumImzaAlindi,contract?.veliImzaAlindi,contract?.kurumImzalayan,contract?.kurum_imzalayan]);
   const [accountingTick, setAccountingTick] = useState(0);
   const isCancelled = Number(contract?.durum) === 3;
+  React.useEffect(()=>{document.getElementById('main-content')?.scrollIntoView?.({block:'start'});},[contract?.id,contract?.sozlesmeNo]);
 
   React.useEffect(() => {
     const handleUpdate = () => setAccountingTick((t) => t + 1);
@@ -82,8 +84,9 @@ export default function EdesisSozlesmeDetay({
   const handleSignContract = async () => {
 try {
 
-    await AccountingService.signContract(contract.id || contract.sozlesmeNo, "kurum", signedByName);
-    setIsSignedState(true);
+    const saved=await AccountingService.signContract(contract.id || contract.sozlesmeNo, "kurum");
+    setIsSignedState(!!saved?.is_signed);
+    setSignedByName(saved?.kurum_imzalayan || '');
     showToast("✅ Sözleşme Kurum Yetkilisi tarafından imzalandı / onaylandı.");
 
 } catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
@@ -98,13 +101,14 @@ try {
     const szlNo = contract.sozlesmeNo || contract.sozlesme_no || "";
     const ogrNo = String(contract.ogrenciNo || contract.student_no || "");
     const allStudents = [...(Array.isArray(students) ? students : []), ...StudentService.getAllStudents()];
+    const nameIsUnique = new Set(allStudents.filter(s=>s && trNorm(s.student_name)===name).map(s=>s.id)).size===1;
     void accountingTick;
     return allStudents.find((s) => {
       if (!s) return false;
-      if (szlNo && s.sozlesme_no === szlNo) return true;
-      if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
-      if (ogrNo && String(s.student_no) === ogrNo) return true;
-      return trNorm(s.student_name) === name;
+      if (cleanId) return String(s.id).replace(/^stu-/, "") === cleanId;
+      if (szlNo) return s.sozlesme_no === szlNo;
+      if (ogrNo) return String(s.student_no) === ogrNo;
+      return name && nameIsUnique && trNorm(s.student_name) === name;
     }) || {
       id: contract.studentId || contract.student_id || contract.ogrenciId,
       student_name: contract.ogrenciAdi || contract.musteriUnvan || "Öğrenci",
@@ -143,7 +147,7 @@ try {
       // Deduplicate by taksitNo to prevent cloned rows (1, 1, 2, 2, ...)
       const uniqueMap = new Map();
       matched.forEach((t) => {
-        const no = Number(t.taksitNo) || 1;
+        const no = Number(t.taksitNo ?? 1);
         if (!uniqueMap.has(no)) {
           uniqueMap.set(no, t);
         }
@@ -153,7 +157,7 @@ try {
       return uniqueList.sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0)).map((t, idx) => {
         const amt = Number(t.taksitTutari) || 0;
         const paid = Number(t.tahsilEdilen) || 0;
-        const rem = Number(t.kalanTutar) !== undefined ? Number(t.kalanTutar) : Math.max(0, amt - paid);
+        const rem = t.kalanTutar != null ? Number(t.kalanTutar) : Math.max(0, amt - paid);
         let dueStr = t.vadeTarihi ? String(t.vadeTarihi).slice(0, 10) : "";
         if (dueStr.includes("-")) {
           const parts = dueStr.split("-");
@@ -161,7 +165,7 @@ try {
         }
         return {
           id: t.id,
-          taksitNo: Number(t.taksitNo) || (idx + 1),
+          taksitNo: Number(t.taksitNo ?? (idx + 1)),
           vadeTarihi: dueStr,
           odemeTarihi: t.odemeTarihi,
           tahsilatTarihi: t.tahsilatTarihi,
@@ -176,28 +180,7 @@ try {
       });
     }
 
-    // Fallback: Generate realistic 10 installments matching contract total
-    const total = contract.brutTutar || 81000.04;
-    const count = contract.taksitSayisi || 10;
-    const regular = Math.floor((total / count) * 100) / 100;
-    const last = Number((total - regular * (count - 1)).toFixed(2));
-
-    const dates = [
-      "31.10.2026", "30.11.2026", "31.12.2026", "30.01.2027",
-      "28.02.2027", "28.03.2027", "28.04.2027", "28.05.2027",
-      "28.06.2027", "28.07.2027"
-    ];
-
-    void accountingTick;
-    return Array.from({ length: count }, (_, i) => ({
-      taksitNo: i + 1,
-      vadeTarihi: dates[i] || `28.${String(i + 1).padStart(2, "0")}.2027`,
-      taksitTutari: i === count - 1 ? last : regular,
-      tahsilEdilen: 0,
-      kalanTutar: i === count - 1 ? last : regular,
-      durum: 0, // 0: Vadesi Gelmedi
-      durumText: "Vadesi Gelmedi"
-    }));
+    return [];
   }, [contract, students, accountingTick, isCancelled]);
 
   const [localInstallments, setLocalInstallments] = useState(installments);
@@ -211,9 +194,11 @@ try {
     ? localInstallments.reduce((acc, it) => acc + (Number(it.taksitTutari) || 0), 0)
     : Number(contract?.brutTutar ?? contract?.brut_tutar ?? 0);
   const brutTutar = Math.round(installmentsSum * 100) / 100;
-  const netTutar = isCancelled ? Number(contract?.netTutar ?? contract?.net_tutar ?? 0) : Math.round((brutTutar / 1.1) * 100) / 100;
+  const storedNet=Number(contract?.netTutar ?? contract?.net_tutar ?? 0);
+  const taxFactor=storedNet>0 ? Number(contract?.brutTutar ?? contract?.brut_tutar ?? brutTutar)/storedNet : 1.1;
+  const netTutar = isCancelled ? storedNet : Math.round((brutTutar / taxFactor) * 100) / 100;
   const kdvTutari = isCancelled ? Number(contract?.kdvTutari ?? contract?.kdv_tutari ?? 0) : Math.round((brutTutar - netTutar) * 100) / 100;
-  const totalPaid = isCancelled ? Number(contract?.toplamTahsilat ?? contract?.toplam_tahsilat ?? 0) : (localInstallments || []).reduce((acc, it) => acc + (Number(it.tahsilEdilen) || 0), 0);
+  const totalPaid = isCancelled || !localInstallments.length ? Number(contract?.toplamTahsilat ?? contract?.toplam_tahsilat ?? 0) : localInstallments.reduce((acc, it) => acc + (Number(it.tahsilEdilen) || 0), 0);
   const totalRemaining = isCancelled ? 0 : Math.max(0, brutTutar - totalPaid);
 
   const fmtTRY = (num) => {
@@ -444,7 +429,7 @@ try {
   return (
     <>
       <div
-        className={showPromissoryModal || receiptModalPayment ? "no-print" : ""}
+        className={`contract-detail ${showPromissoryModal || receiptModalPayment ? "no-print" : ""}`}
         style={{
           backgroundColor: "#f5f8fa",
           minHeight: "100vh",
@@ -478,7 +463,7 @@ try {
         <div style={{ marginBottom: "14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div className="contract-detail-title" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <button
                   type="button"
                   className="no-print"
@@ -516,7 +501,7 @@ try {
             </div>
 
             {/* Action buttons */}
-            <div className="no-print" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div className="no-print contract-detail-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button
                 type="button"
                 data-testid="print-promissory-notes-btn"
@@ -593,7 +578,7 @@ try {
       </div>
 
       {/* 2-COLUMN MAIN CONTENT (Matches media_1791229281373.png 100%) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px" }}>
+      <div className="contract-detail-layout" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px" }}>
         {/* LEFT COLUMN: Main Info, Items, Installments */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* CARD 1: SÖZLEŞME BİLGİLERİ */}
@@ -610,7 +595,7 @@ try {
               <Info size={16} /> Sözleşme Bilgileri
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginBottom: "16px" }}>
+            <div className="contract-detail-fields" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginBottom: "16px" }}>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>SÖZLEŞME NO</div>
                 <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", marginTop: "3px" }}>{contract?.sozlesmeNo}</div>
@@ -636,7 +621,7 @@ try {
             </div>
 
             {isCancelled && <div role="status" style={{color:'#b91c1c',marginBottom:'16px'}}>İptal: {contract?.iptal_tarihi || '—'} · {contract?.iptal_nedeni || '—'}</div>}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px" }}>
+            <div className="contract-detail-fields" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px" }}>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>ÖDEME TÜRÜ</div>
                 <span style={{ display: "inline-block", background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, marginTop: "3px" }}>
@@ -645,11 +630,11 @@ try {
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>BAŞLAMA</div>
-                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>01.10.2026</div>
+                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>{contract?.baslama_tarihi?.slice(0,10) || '—'}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>BİTİŞ</div>
-                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>30.06.2027</div>
+                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>{contract?.bitis_tarihi?.slice(0,10) || '—'}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>AÇIKLAMA</div>
@@ -657,7 +642,7 @@ try {
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>OLUŞTURULMA</div>
-                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px" }}>03.10.2026 13:05 (inegolcozumkurs)</div>
+                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px" }}>{contract?.created_at || '—'}{contract?.created_by ? ` (${contract.created_by})` : ''}</div>
               </div>
             </div>
           </div>
@@ -676,6 +661,7 @@ try {
               <ShoppingCart size={16} /> Sözleşme Kalemleri
             </div>
 
+            <div className="table-responsive" role="region" aria-label="Sözleşme kalemleri tablosu" tabIndex={0}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", color: "#64748b", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
@@ -707,6 +693,7 @@ try {
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* CARD 3: ÖDEME TAKVİMİ */}
@@ -748,7 +735,7 @@ try {
             </div>
 
             {/* 4 Mini Stat Boxes */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
+            <div className="contract-detail-fields" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
               <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "6px", border: "1px solid #f1f5f9" }}>
                 <div style={{ fontSize: "11px", color: "#64748b" }}>Toplam Tutar</div>
                 <div style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>{fmtTRY(brutTutar)}</div>
@@ -779,6 +766,7 @@ try {
             </div>
 
             {/* Table of Installments */}
+            <div className="table-responsive" role="region" aria-label="Sözleşme taksitleri tablosu" tabIndex={0}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", color: "#64748b", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
@@ -971,6 +959,7 @@ try {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
@@ -1095,11 +1084,11 @@ try {
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
               <div>
                 <span style={{ color: "#94a3b8", textTransform: "uppercase", fontSize: "10px", fontWeight: 700, display: "block" }}>TC KİMLİK</span>
-                <span style={{ color: "#334155", fontWeight: 600 }}>{student?.student_tc || "18481666516"}</span>
+                <span style={{ color: "#334155", fontWeight: 600 }}>{student?.student_tc || "—"}</span>
               </div>
               <div>
                 <span style={{ color: "#94a3b8", textTransform: "uppercase", fontSize: "10px", fontWeight: 700, display: "block" }}>TELEFON</span>
-                <span style={{ color: "#334155", fontWeight: 600 }}>{student?.student_phone || "5343321781"}</span>
+                <span style={{ color: "#334155", fontWeight: 600 }}>{student?.student_phone || "—"}</span>
               </div>
             </div>
           </div>
@@ -1120,7 +1109,7 @@ try {
 
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
               <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>
-                {student?.parent_name || "SEYHAN KUŞTUL"}
+                {student?.parent_name || "—"}
               </span>
               <span
                 style={{
@@ -1166,14 +1155,14 @@ try {
               {contract?.ogrenciAdi || contract?.musteriUnvan || student?.student_name || "—"}
             </div>
             <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
-              Müşteri Kodu: {contract?.muH_MusteriKodu || `CRI2026${String(contract?.sozlesmeNo || "100").slice(-4)}`}
+              Müşteri Kodu: {contract?.muH_MusteriKodu || '—'}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", color: "#475569" }}>
               <div>TC KİMLİK NO: {student?.student_tc || "—"}</div>
               <div>TELEFON: {student?.student_phone || "—"}</div>
               <div>E-POSTA: {student?.student_email || "—"}</div>
-              <div>ADRES: {student?.address || student?.student_address || "İnegöl / BURSA"}</div>
+              <div>ADRES: {student?.address || student?.student_address || "—"}</div>
             </div>
           </div>
 
@@ -1304,6 +1293,7 @@ try {
       {/* 1. TAHSİLAT ONAY POPUP MODAL */}
       {collectModal && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1432,6 +1422,7 @@ try {
       {/* 2. TAHSİLATI GERİ AL / İPTAL ET POPUP MODAL */}
       {cancelModal && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1499,6 +1490,7 @@ try {
       {/* 3. VADE DEĞİŞTİRME POPUP MODAL */}
       {editDateModal && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1561,6 +1553,7 @@ try {
       {/* 4. TUTARLARI DÜZENLE MODAL */}
       {editAmountsModal && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1684,7 +1677,7 @@ try {
             </div>
 
             {/* Table Header */}
-            <div style={{ display: "grid", gridTemplateColumns: "35px 140px 1fr 90px", gap: "8px", padding: "0 10px 6px 10px", fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
+            <div className="installment-editor-row" style={{ display: "grid", gridTemplateColumns: "35px 140px 1fr 90px", gap: "8px", padding: "0 10px 6px 10px", fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
               <span>NO</span>
               <span>VADE TARİHİ</span>
               <span style={{ textAlign: "right" }}>TUTAR (₺)</span>
@@ -1697,6 +1690,7 @@ try {
                 return (
                   <div
                     key={t.taksitNo}
+                    className="installment-editor-row"
                     style={{
                       display: "grid",
                       gridTemplateColumns: "35px 140px 1fr 90px",
@@ -1785,6 +1779,7 @@ try {
       {/* 4.1 TEK TAKSİT PRATİK DÜZENLEME MODAL */}
       {quickEditInst && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,

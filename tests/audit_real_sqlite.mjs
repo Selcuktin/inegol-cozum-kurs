@@ -697,6 +697,17 @@ await check('student fee edits select its current contract even when older contr
   equal(row(db,'SELECT brut_tutar FROM contracts WHERE id=?',old.id).brut_tutar,1000);
 });
 
+await check('signature UI uses the saved server signer instead of a sample person',async()=>{
+  const contract={id:'sign-server',sozlesme_no:'SIGN-SERVER',kurum_imzalayan:'Örnek yetkili',is_signed:1};let posted;
+  AccountingService.setInitialData({contracts:[{id:contract.id,sozlesmeNo:contract.sozlesme_no}],installments:[],incomes:[],collections:[]});
+  globalThis.fetch=async(url,options={})=>{
+    if(options.method==='POST'){posted=JSON.parse(options.body);return new Response(JSON.stringify({contract}),{status:200});}
+    return new Response(JSON.stringify([contract]),{status:200});
+  };
+  try{const saved=await AccountingService.signContract(contract.id);equal(posted.signer_name,'');equal(saved.kurum_imzalayan,'Örnek yetkili');equal(AccountingService.getContracts()[0].kurumImzalayan,'Örnek yetkili');}
+  finally{globalThis.fetch=nativeFetch;}
+});
+
 Object.assign(console, originalConsole);
 const summary = { tested_at: new Date().toISOString(), runtime: process.version, database: 'isolated in-memory SQLite; actual production router and SQL', passed: results.filter(r => r.passed).length, failed: results.filter(r => !r.passed).length, results };
 mkdirSync(root + 'test_reports', { recursive: true });

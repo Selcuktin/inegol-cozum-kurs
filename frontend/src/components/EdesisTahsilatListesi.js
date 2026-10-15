@@ -299,6 +299,7 @@ export default function EdesisTahsilatListesi({
 
   return (
     <div
+      className="erp-ledger-page"
       style={{
         padding: isFullScreen ? "20px" : "0",
         background: isFullScreen ? "#f8fafc" : "transparent",
@@ -343,6 +344,7 @@ export default function EdesisTahsilatListesi({
 
       {/* ÜST BAŞLIK VE HIZLI EYLEMLER BAR */}
       <div
+        className="erp-page-header"
         style={{
           background: "#fff",
           borderRadius: "8px",
@@ -449,6 +451,7 @@ export default function EdesisTahsilatListesi({
 
       {/* 4 ÖZET SAYAÇ KARTI */}
       <div
+        className="erp-summary-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -636,6 +639,7 @@ export default function EdesisTahsilatListesi({
 
       {/* FİLTRE VE ARAMA KONTROL PANELİ */}
       <div
+        className="erp-filter-panel"
         style={{
           background: "#fff",
           borderRadius: "8px",

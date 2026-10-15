@@ -663,6 +663,7 @@ try {
 
       {/* TOP HEADER & ACTION BUTTONS */}
       <div
+        className="erp-page-header"
         style={{
           display: "flex",
           justifyContent: "space-between",

@@ -843,6 +843,7 @@ export function ContractSummaryModal({ contract, onClose, onOpenMebPrint, onOpen
   if (!contract) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -1119,6 +1120,7 @@ export function CancelContractModal({ contract, cancelReason, setCancelReason, o
   if (!contract) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -1217,6 +1219,7 @@ export function ContractTemplateModal({ open, onClose }) {
   if (!open) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -1372,6 +1375,7 @@ export function NewContractWizardModal({
   if (!open) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,

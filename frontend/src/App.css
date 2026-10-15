@@ -5693,3 +5693,94 @@ td[colspan] {
   }
 }
 
+/* Keep responsive overrides on screen; printed contracts retain their paper layout. */
+@media screen {
+  .contract-detail-layout { grid-template-columns: minmax(0, 1fr) 340px !important; }
+  .contract-detail-layout > div { min-width: 0; }
+}
+
+@media screen and (max-width: 1100px) {
+  .contract-detail-layout { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+@media screen and (max-width: 900px) {
+  .sidebar { height: 100dvh; padding-bottom: max(20px, env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+  .sidebar-backdrop { height: 100dvh !important; }
+  .mobile-menu, .sidebar-close-btn { min-width: 44px; min-height: 44px; }
+}
+
+@media screen and (max-width: 768px) {
+  .main { overflow-x: clip; }
+  .content, .content.content-fullwidth { min-width: 0; padding: 16px 12px calc(84px + env(safe-area-inset-bottom)) !important; }
+  .topbar { position: sticky; top: 0; z-index: 950; gap: 8px !important; padding: 0 12px !important; }
+  .content { scroll-margin-top: 70px; }
+  .topbar .mobile-menu { margin: 0; flex-shrink: 0; }
+  .topbar .top-actions { gap: 8px; flex-shrink: 0; }
+  .topbar .top-search { min-width: 0 !important; max-width: none !important; margin: 0; }
+  .topbar .top-search input { min-width: 0; font-size: 16px; }
+  .topbar .top-search > span { display: none; }
+  .topbar .icon-btn, .edesis-quick-actions-btn { min-width: 44px; min-height: 44px; }
+  .topbar .user-mini { gap: 8px; }
+  .mobile-bottom-nav { height: calc(62px + env(safe-area-inset-bottom)) !important; padding-bottom: env(safe-area-inset-bottom) !important; }
+  .mobile-bottom-nav .nav-btn { min-width: 0; padding: 4px 2px; }
+  .mobile-bottom-nav .nav-btn span { white-space: normal; line-height: 1.2; }
+  body:has(.responsive-modal-backdrop, .modal-backdrop, [role="dialog"]) { overflow: hidden; }
+  body:has(.responsive-modal-backdrop, .modal-backdrop, [role="dialog"]) .mobile-bottom-nav { visibility: hidden; }
+  .erp-page-header { align-items: stretch !important; flex-direction: column; gap: 12px; }
+  .erp-page-header > div { min-width: 0; flex-wrap: wrap; }
+  .erp-page-header > div:last-child { width: 100%; display: flex; flex-wrap: wrap; }
+  .erp-page-header button { flex: 1 1 calc(50% - 8px); min-width: 0; min-height: 44px; justify-content: center; white-space: normal; }
+  .erp-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+  .erp-summary-grid > div { min-width: 0; padding: 14px 12px !important; }
+  .erp-summary-grid > div > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .erp-summary-grid > div > div:last-child:not(:first-child) { display: none !important; }
+  .erp-summary-grid > div > div:first-child > div:nth-child(2) { font-size: 20px !important; }
+  .erp-ledger-page input, .erp-ledger-page select, .edesis-contracts-view input, .edesis-contracts-view select { max-width: 100%; min-height: 44px; font-size: 16px !important; }
+  .erp-filter-panel > div { min-width: 0; }
+  .erp-filter-panel > div > div { min-width: 0 !important; max-width: 100%; flex-wrap: wrap; }
+  .erp-filter-panel > div > div > div > select { min-width: 0; flex: 1; width: 0; }
+  .erp-filter-panel input { min-width: 0; max-width: 100%; }
+  .contract-detail { padding: 12px 0 !important; min-width: 0; }
+  .contract-detail-title { align-items: flex-start !important; }
+  .contract-detail-title h1 { min-width: 0; flex: 1; font-size: 20px !important; line-height: 1.35; overflow-wrap: anywhere; }
+  .contract-detail-actions { width: 100%; flex-wrap: wrap; }
+  .contract-detail-actions button { flex: 1 1 160px; min-height: 44px; justify-content: center; }
+  .contract-detail-layout { grid-template-columns: minmax(0, 1fr) !important; gap: 14px !important; }
+  .contract-detail-layout > div, .contract-detail-layout > div > div { min-width: 0; }
+  .contract-detail-layout > div > div { padding: 14px !important; }
+  .contract-detail-fields { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 14px 10px !important; }
+  .contract-detail-fields > div { min-width: 0; overflow-wrap: anywhere; }
+  .contract-detail button, .contract-detail input, .contract-detail select { min-height: 44px; }
+  .contract-detail input, .contract-detail select, .contract-detail textarea { font-size: 16px !important; }
+  .table-responsive { max-width: 100%; overscroll-behavior-x: contain; }
+  .table-responsive:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .responsive-modal-backdrop { padding: 12px !important; align-items: flex-start !important; overflow-y: auto; overscroll-behavior: contain; }
+  .responsive-modal-backdrop > div { min-width: 0; max-width: 100% !important; max-height: calc(100dvh - 24px) !important; margin: auto; padding: 16px !important; overflow: auto; }
+  .responsive-modal-backdrop [style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .responsive-modal-backdrop .installment-editor-row { grid-template-columns: 28px 120px minmax(90px, 1fr) 44px !important; gap: 6px !important; min-width: 300px; }
+  .responsive-modal-backdrop input, .responsive-modal-backdrop select, .responsive-modal-backdrop textarea { min-width: 0; max-width: 100%; font-size: 16px !important; }
+  .responsive-modal-backdrop button { min-height: 44px; }
+  .modal input, .modal select, .modal textarea { font-size: 16px !important; min-width: 0; }
+  .modal-head { position: relative; padding-right: 60px !important; }
+  .modal-head > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .modal-head > .icon-btn { position: absolute; right: 14px; top: 14px; min-width: 44px; min-height: 44px; }
+  .modal-foot { flex-wrap: wrap; }
+  .modal-foot > button { min-width: 0 !important; min-height: 44px; white-space: normal; flex: 1 1 85px !important; justify-content: center; }
+}
+
+@media screen and (max-width: 420px) {
+  .topbar .avatar { display: none; }
+  .erp-summary-grid > div > div:first-child > div:nth-child(2) { font-size: 18px !important; }
+}
+
+@media screen and (max-width: 640px) {
+  .erp-filter-panel > div > div { flex: 1 1 100%; width: 100%; }
+  .erp-filter-panel > div > div > div { min-width: 0; max-width: 100%; }
+  .erp-filter-panel > div > div:first-child > div:first-child { display: flex; flex: 1 1 100%; width: 100%; }
+  .erp-filter-panel > div > div:last-child > button { flex: 1 1 100%; justify-content: center; min-height: 44px; }
+}
+
+@media screen and (max-width: 360px) {
+  .erp-summary-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+

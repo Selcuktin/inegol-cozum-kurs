@@ -286,9 +286,9 @@ export function PwaBanner() {
   );
 }
 
-export function MobileBottomNav({ page, setPage }) {
+export function MobileBottomNav({ page, setPage, menuOpen=false }) {
   return (
-    <nav className="mobile-bottom-nav">
+    <nav className="mobile-bottom-nav" aria-label="Mobil gezinme" inert={menuOpen || undefined}>
       <button className={`nav-btn ${page === "dashboard" ? "active" : ""}`} onClick={() => setPage("dashboard")}>
         <LayoutDashboard size={20} />
         <span>Genel Bakış</span>

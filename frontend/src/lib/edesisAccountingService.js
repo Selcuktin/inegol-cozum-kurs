@@ -342,46 +342,6 @@ export const AccountingService = {
       });
     }
 
-    // Synthesize installments from active contracts if installments not yet cached
-    if (list.length === 0 && _memory.contracts.length > 0) {
-      _memory.contracts.forEach((cnt) => {
-        if(cnt.is_deleted || Number(cnt.durum)===3)return;
-        const count = Math.max(1, cnt.taksitSayisi || 8);
-        const total = Number(cnt.brutTutar) || 75000;
-        const baseAmt = Math.floor((total / count) * 100) / 100;
-        const remainder = roundKurus(total - (baseAmt * count));
-        const baseDate = new Date(cnt.sozlesmeTarihi || new Date());
-
-        for (let i = 1; i <= count; i++) {
-          const isLast = (i === count);
-          const amt = isLast ? roundKurus(baseAmt + remainder) : baseAmt;
-          const d = new Date(baseDate);
-          d.setDate(1);
-          d.setMonth(d.getMonth() + i - 1);
-          d.setDate(15);
-          const dueStr = d.toISOString().split("T")[0];
-
-          list.push({
-            id: `inst_${cnt.id}_${i}`,
-            contractId: cnt.id,
-            sozlesmeNo: cnt.sozlesmeNo,
-            ogrenciAdi: cnt.ogrenciAdi,
-            ogrenciAdiSoyadi: cnt.ogrenciAdi,
-            taksitNo: i,
-            installment_no: i,
-            taksitTutari: amt,
-            amount: amt,
-            toplamTutar: amt,
-            tahsilEdilen: 0,
-            kalanTutar: amt,
-            vadeTarihi: dueStr,
-            due_date: dueStr,
-            durumText: "Bekliyor"
-          });
-        }
-      });
-    }
-
     return list;
   },
 
@@ -739,39 +699,14 @@ export const AccountingService = {
     return this.deleteContract(incomeOrCode);
   },
 
-  async signContract(targetKey, signerType = "kurum", signerName = "Kurum Yetkilisi") {
-    try {
-      const apiUrl = getApiUrl();
-      await apiFetch(`${apiUrl}/api/contracts/${encodeURIComponent(targetKey)}/sign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signer_type: signerType, signer_name: signerName })
-      });
-    } catch (err) {
-      throw err;
-    }
-
-    const norm = trNorm(targetKey);
-    _memory.contracts = _memory.contracts.map((c) => {
-      if (trNorm(c.id) === norm || trNorm(c.sozlesmeNo) === norm) {
-        return {
-          ...c,
-          isSigned: true,
-          is_signed: true,
-          kurumImzaAlindi: signerType === "kurum" ? true : c.kurumImzaAlindi,
-          veliImzaAlindi: signerType === "veli" ? true : c.veliImzaAlindi,
-          kurumImzalayan: signerType === "kurum" ? signerName : c.kurumImzalayan,
-          signedAt: new Date().toISOString()
-        };
-      }
-      return c;
-    });
-
-    writeCache("cozum_ssot_contracts_v2", _memory.contracts);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("cozum_accounting_updated"));
-    }
-    return true;
+  async signContract(targetKey, signerType = "kurum", signerName = "") {
+    const epoch=cacheEpoch;
+    const res=await apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(targetKey)}/sign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({signer_type:signerType,signer_name:signerName})});
+    const saved=await res.json();
+    if(epoch!==cacheEpoch)return saved.contract;
+    await this.fetchContracts();
+    if(typeof window!=="undefined")window.dispatchEvent(new Event("cozum_accounting_updated"));
+    return saved.contract;
   },
 
   async addNote(type,id,text) {

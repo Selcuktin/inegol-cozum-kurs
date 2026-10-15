@@ -12,6 +12,7 @@ import {
 export function ContractSummaryCards({ stats, fmtCurrency }) {
   return (
     <div
+      className="erp-summary-grid"
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -193,6 +194,7 @@ export function ContractFiltersBar({
 }) {
   return (
     <div
+      className="erp-filter-panel"
       style={{
         background: "#fff",
         borderRadius: "8px",

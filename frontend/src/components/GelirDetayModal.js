@@ -425,7 +425,7 @@ try {
   return (
     <>
       <div
-        className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
+        className="responsive-modal-backdrop fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="gelir-detay-title"

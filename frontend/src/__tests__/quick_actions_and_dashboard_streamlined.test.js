@@ -1,4 +1,4 @@
-import React from "react";
+import React,{act} from "react";
 import { render, cleanup, fireEvent } from "./test_helpers";
 import { DashboardPage } from "../pages/DashboardPage";
 import { MainApp } from "../App";
@@ -7,6 +7,35 @@ afterEach(cleanup);
 
 describe("Sadeleştirilmiş Hızlı İşlemler & Genel Bakış Test Paketi", () => {
   const adminUser = { id: 1, username: "admin", role: "admin", name: "Yönetici" };
+
+  test('mobile drawer locks the background, supports Escape and closes after selecting a module',async()=>{
+    const previousMatch=window.matchMedia;
+    window.matchMedia=jest.fn(query=>({matches:query.includes('max-width'),addEventListener:jest.fn(),removeEventListener:jest.fn()}));
+    const originalOverflow=document.body.style.overflow;
+    try{
+      const {container}=await render(<MainApp me={adminUser} onLogout={jest.fn()}/>);
+      const menu=container.querySelector('[data-testid="mobile-menu"]');
+      await fireEvent.click(menu);
+      expect(menu.getAttribute('aria-expanded')).toBe('true');
+      expect(document.body.style.overflow).toBe('hidden');
+      expect(container.querySelector('.main').hasAttribute('inert')).toBe(true);
+      expect(container.querySelector('.mobile-bottom-nav').hasAttribute('inert')).toBe(true);
+      await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
+      expect(menu.getAttribute('aria-expanded')).toBe('false');
+      expect(document.body.style.overflow).toBe(originalOverflow);
+      expect(document.activeElement).toBe(menu);
+      await fireEvent.click(menu);
+      const parent=container.querySelector('[data-testid="nav-tree-payments"]');
+      await fireEvent.click(parent);
+      expect(menu.getAttribute('aria-expanded')).toBe('true');
+      await fireEvent.click(parent);
+      const contract=[...container.querySelectorAll('.nav-nested-item')].find(b=>b.textContent==='Sözleşmeler');
+      await fireEvent.click(contract);
+      expect(menu.getAttribute('aria-expanded')).toBe('false');
+      expect(container.querySelector('.main').hasAttribute('inert')).toBe(false);
+      expect(document.body.style.overflow).toBe(originalOverflow);
+    }finally{await cleanup();window.matchMedia=previousMatch;}
+  });
 
   test("DashboardPage sade ve öz metrikleri, yaklaşan tahsilatları ve sınıf kontenjanlarını render eder", async () => {
     const mockData = {

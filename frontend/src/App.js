@@ -203,6 +203,7 @@ export function MainApp({ me, onLogout }) {
   };
   const [page, setPageState] = useState(getInitialPage);
   const setPage = (p) => {
+    setMobileOpen(false);
     setPageState(p);
     if (typeof window !== "undefined") {
       const currentFullHash = window.location.hash.replace(/^#/, "");
@@ -267,6 +268,20 @@ export function MainApp({ me, onLogout }) {
   const [selected, setSelected] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButtonRef=useRef(null);
+  useEffect(()=>{
+    if(!mobileOpen)return;
+    const previousOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    document.querySelector('.sidebar-close-btn')?.focus();
+    const closeOnEscape=e=>{if(e.key==='Escape')setMobileOpen(false);};
+    const desktop=window.matchMedia('(min-width: 901px)');
+    const closeOnDesktop=()=>{if(desktop.matches)setMobileOpen(false);};
+    document.addEventListener('keydown',closeOnEscape);
+    desktop.addEventListener('change',closeOnDesktop);
+    return()=>{document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',closeOnEscape);desktop.removeEventListener('change',closeOnDesktop);menuButtonRef.current?.focus({preventScroll:true});};
+  },[mobileOpen]);
+  useEffect(()=>{setMobileOpen(false);document.getElementById('main-content')?.scrollIntoView?.({block:'start'});},[page]);
 
   const [kayitTab, setKayitTabState] = useState(() => {
     if (typeof window !== "undefined") {
@@ -420,7 +435,7 @@ export function MainApp({ me, onLogout }) {
           tabIndex="0"
         />
       )}
-      <aside className={mobileOpen ? "sidebar mobile-open" : "sidebar"} aria-label="Ana Menü Gezintisi">
+      <aside id="main-navigation" className={mobileOpen ? "sidebar mobile-open" : "sidebar"} aria-label="Ana Menü Gezintisi">
         <div className="sidebar-brand-row">
           <Brand />
           <button type="button" className="sidebar-close-btn" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat">
@@ -446,8 +461,10 @@ export function MainApp({ me, onLogout }) {
                           type="button"
                           data-testid={`nav-tree-${item.id}`}
                           className={`nav-tree-parent ${isParentActive ? "active-parent" : ""}`}
+                          aria-expanded={isTreeOpen}
                           onClick={() => {
                             toggleTree(item.treeKey);
+                            if(window.matchMedia('(max-width: 900px)').matches)return;
                             if (item.id === "kayit") { setPage("kayit"); setKayitTab("kokpit"); }
                             else if (item.id === "payments") { setPage("payments"); setAccountingTab("dashboard"); }
                             else if (item.id === "exams") setPage("exams");
@@ -564,10 +581,10 @@ export function MainApp({ me, onLogout }) {
           </div>
         </div>
       </aside>
-      <div className="main">
+      <div className="main" inert={mobileOpen || undefined}>
         <PwaBanner />
         <header className="topbar" role="banner">
-          <button className="mobile-menu" data-testid="mobile-menu" aria-label="Menüyü aç" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} aria-hidden="true" /></button>
+          <button ref={menuButtonRef} className="mobile-menu" data-testid="mobile-menu" aria-label="Menüyü aç" aria-expanded={mobileOpen} aria-controls="main-navigation" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} aria-hidden="true" /></button>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div className="edesis-quick-actions-wrapper" style={{ position: "relative" }}>
               <button
@@ -732,7 +749,7 @@ export function MainApp({ me, onLogout }) {
           {page === "audit" && <AuditPage />}
         </main>
       </div>
-      <MobileBottomNav page={page} setPage={setPage} setModal={setModal} canPayment={can(me, "payment_create")} />
+      <MobileBottomNav page={page} setPage={setPage} menuOpen={mobileOpen} setModal={setModal} canPayment={can(me, "payment_create")} />
       <EdesisStudentModal
         isOpen={modal === "student" || editingStudent !== null}
         onClose={() => { setModal(null); setEditingStudent(null); }}

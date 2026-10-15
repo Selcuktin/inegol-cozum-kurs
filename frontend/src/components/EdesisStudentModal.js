@@ -52,7 +52,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
     gender: "Erkek",
     birth_date: "",
     student_phone: "",
-    school: "İnegöl Anadolu Lisesi",
+    school: "",
     student_class: classes[0]?.name || "11-A Sayısal",
     department: "Sayısal",
     status: "Kayitli",
