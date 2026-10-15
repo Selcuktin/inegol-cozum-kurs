@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS student_incomes (
   kalan_taksit_sayisi INTEGER DEFAULT 10,
   durum INTEGER DEFAULT 1,
   durum_text TEXT DEFAULT 'Enum_GelirDurumu_1',
+  notes TEXT DEFAULT '',
   created_at TEXT DEFAULT '',
   created_by TEXT DEFAULT '',
   is_deleted INTEGER DEFAULT 0

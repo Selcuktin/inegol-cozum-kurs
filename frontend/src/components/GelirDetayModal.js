@@ -66,7 +66,8 @@ export function GelirDetayModal({
 }) {
   const [activeTabNotes, setActiveTabNotes] = useState("notes"); // 'notes' | 'activity'
   const [newNote, setNewNote] = useState("");
-  const [notesList, setNotesList] = useState([]);
+  const [notesList, setNotesList] = useState('');
+  const [savingNote,setSavingNote]=useState(false);
   const [deliveryChannel, setDeliveryChannel] = useState("email"); // 'email' | 'sms' | 'whatsapp'
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -236,6 +237,8 @@ export function GelirDetayModal({
     };
   }, [isOpen, gelirKodu, sozlesmeNo, student]);
 
+  React.useEffect(()=>{setNotesList(accountingInfo?.targetGelir?.notes || '');setNewNote('');},[isOpen,accountingInfo?.targetGelir?.id,accountingInfo?.targetGelir?.notes]);
+
   if (!isOpen || !accountingInfo) return null;
 
   const {
@@ -297,14 +300,15 @@ export function GelirDetayModal({
     window.print();
   };
 
-  const handleAddNote = (e) => {
+  const handleAddNote = async (e) => {
     e.preventDefault();
-    if (!newNote.trim()) return;
-    setNotesList(prev => [
-      { id: Date.now(), text: newNote.trim(), date: new Date().toLocaleString("tr-TR"), author: "Yönetici" },
-      ...prev
-    ]);
-    setNewNote("");
+    if (!newNote.trim() || savingNote) return;
+    setSavingNote(true);
+    try {
+      setNotesList(await AccountingService.addNote('student-incomes',accountingInfo.targetGelir?.id || gCode,newNote));
+      setNewNote('');
+    } catch(error){window.alert(error.message || 'Not kaydedilemedi');}
+    finally{setSavingNote(false);}
   };
 
   const handleCopyLink = () => {
@@ -549,7 +553,7 @@ try {
 
                   <div>
                     <span className="text-slate-400 block mb-0.5" style={{ color: "#94a3b8", display: "block", fontSize: "11px" }}>Açıklama:</span>
-                    <span className="text-slate-700" style={{ color: "#334155" }}>Sözleşme: {szNo}</span>
+                    <span className="text-slate-700" style={{ color: "#334155" }}>{accountingInfo.targetGelir?.aciklama || `Sözleşme: ${szNo}`}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block mb-0.5" style={{ color: "#94a3b8", display: "block", fontSize: "11px" }}>Kategori:</span>
@@ -1073,12 +1077,14 @@ try {
                         type="text"
                         placeholder="Not ekleyin..."
                         value={newNote}
+                        maxLength={2000}
                         onChange={(e) => setNewNote(e.target.value)}
                         className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-800"
                         style={{ flex: 1, padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
                       />
                       <button
                         type="submit"
+                        disabled={savingNote || !newNote.trim()}
                         className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                         style={{ border: "none", background: "#2563eb", color: "#fff", borderRadius: "8px", padding: "6px 10px", cursor: "pointer" }}
                       >
@@ -1086,19 +1092,12 @@ try {
                       </button>
                     </form>
 
-                    {notesList.length === 0 ? (
+                    {!notesList ? (
                       <p className="text-xs text-slate-400 italic text-center py-2" style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic", textAlign: "center" }}>
                         Henüz not eklenmemiş
                       </p>
                     ) : (
-                      <div className="space-y-2 max-h-36 overflow-y-auto" style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "150px", overflowY: "auto" }}>
-                        {notesList.map((n) => (
-                          <div key={n.id} className="p-2 rounded bg-slate-50 border border-slate-100 text-xs" style={{ background: "#f8fafc", border: "1px solid #f1f5f9", padding: "8px", borderRadius: "6px" }}>
-                            <p className="text-slate-800 mb-1" style={{ color: "#1e293b", margin: "0 0 4px 0" }}>{n.text}</p>
-                            <span className="text-[10px] text-slate-400">{n.date} - {n.author}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <div style={{whiteSpace:'pre-wrap',background:'#f8fafc',padding:8,borderRadius:6,fontSize:12,maxHeight:150,overflowY:'auto'}}>{notesList}</div>
                     )}
                   </div>
                 ) : (

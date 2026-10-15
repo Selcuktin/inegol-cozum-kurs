@@ -588,6 +588,32 @@ await check('global search finds real payments without a nonexistent receipt col
   equal(result.data.payments.length,1);equal(result.data.payments[0].id,payment.id);
 });
 
+await check('notes persist across reads, append concurrently and never change financial fields',async db=>{
+  const c=await student(db);const income=row(db,'SELECT * FROM student_incomes WHERE contract_id=?',c.id);
+  const before=Object.fromEntries(['students','contracts','student_incomes','installments','payments'].map(t=>[t,rows(db,`SELECT * FROM ${t} ORDER BY id`)]));
+  const results=await Promise.all(['First note','Second note'].map(text=>request(db,'/student-incomes/'+income.id+'/notes','POST',{text})));
+  results.forEach(r=>equal(r.status,201));
+  equal((await request(db,'/contracts/'+c.id+'/notes','POST',{text:'Contract note'})).status,201);
+  const saved=(await request(db,'/student-incomes')).data.find(i=>i.id===income.id);
+  assert.ok(saved.notes.includes('First note')&&saved.notes.includes('Second note'));
+  equal((await request(db,'/contracts')).data.find(x=>x.id===c.id).notes,'Contract note');
+  for(const[table,old]of Object.entries(before)){
+    const after=rows(db,`SELECT * FROM ${table} ORDER BY id`);equal(after.length,old.length);
+    for(let i=0;i<old.length;i++)for(const key of Object.keys(old[i]))if(key!=='notes')equal(after[i][key],old[i][key]);
+  }
+});
+await check('notes reject invalid input, oversized storage and unauthorized writes',async db=>{
+  const c=await student(db);const url='/contracts/'+c.id+'/notes';
+  for(const text of ['',42,'x'.repeat(2001)])equal((await request(db,url,'POST',{text})).status,422);
+  equal((await request(db,url,'POST',null)).status,422);
+  equal((await request(db,'/contracts/missing/notes','POST',{text:'Note'})).status,404);
+  db.sql.prepare('UPDATE contracts SET notes=? WHERE id=?').run('x'.repeat(20000),c.id);
+  equal((await request(db,url,'POST',{text:'More'})).status,409);
+  equal(row(db,'SELECT length(notes) AS n FROM contracts WHERE id=?',c.id).n,20000);
+  db.sql.exec("INSERT INTO user_sessions(session_token,user_id,expires_at) VALUES('notes-teacher','user_teacher','2099-01-01')");
+  equal((await request(db,url,'POST',{text:'No access'},{headers:{Authorization:'Bearer notes-teacher'}})).status,403);
+});
+
 Object.assign(console, originalConsole);
 const summary = { tested_at: new Date().toISOString(), runtime: process.version, database: 'isolated in-memory SQLite; actual production router and SQL', passed: results.filter(r => r.passed).length, failed: results.filter(r => !r.passed).length, results };
 mkdirSync(root + 'test_reports', { recursive: true });

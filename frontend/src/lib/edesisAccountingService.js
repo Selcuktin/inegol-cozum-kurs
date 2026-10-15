@@ -763,6 +763,16 @@ export const AccountingService = {
     return true;
   },
 
+  async addNote(type,id,text) {
+    if(!['contracts','student-incomes'].includes(type)||!id) throw new Error('Not kaydı bulunamadı');
+    const res=await apiFetch(`${getApiUrl()}/api/${type}/${encodeURIComponent(id)}/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    const saved=await res.json();
+    if(!res.ok) throw new Error(saved.detail || 'Not kaydedilemedi');
+    if(type==='contracts') await this.fetchContracts(); else await this.fetchIncomes();
+    if(typeof window!=='undefined') window.dispatchEvent(new Event('cozum_accounting_updated'));
+    return saved.notes;
+  },
+
   updateContract(idOrSzl, patch = {}) {
     if (typeof fetch === "function" && process.env.NODE_ENV !== "test") return apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(idOrSzl)}`, {method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(patch)}).then(async res => {
       const saved=await res.json(); await this.fetchCollections(); await this.fetchInstallments(); await this.fetchContracts(); await this.fetchIncomes();

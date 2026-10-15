@@ -16,6 +16,17 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
 
   afterEach(async () => {
     await cleanup();
+    jest.restoreAllMocks();
+  });
+
+  test('shows persisted income notes after reopening',async()=>{
+    AccountingService.setInitialData({incomes:edesisData.gelirler.map(g=>({...g,notes:'Kalıcı gelir notu'})),contracts:edesisData.sozlesmeler,installments:edesisData.taksitler,collections:edesisData.tahsilatlar});
+    const props={isOpen:true,onClose:()=>{},gelirKodu:'GLR202600150'};
+    const first=await render(<GelirDetayModal {...props}/>);
+    expect(first.container.textContent).toContain('Kalıcı gelir notu');
+    await cleanup();
+    const second=await render(<GelirDetayModal {...props}/>);
+    expect(second.container.textContent).toContain('Kalıcı gelir notu');
   });
 
   test("renders GelirDetayModal for GLR202600150 (ÖRNEK ÖĞRENCİ) with 100% parity", async () => {

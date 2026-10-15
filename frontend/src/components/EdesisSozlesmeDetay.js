@@ -40,9 +40,9 @@ export default function EdesisSozlesmeDetay({
   onOpenPaymentPlan,
   onEditStudent
 }) {
-  const [notes, setNotes] = useState([
-    // Empty initially as in screenshot ("Henüz not eklenmemiş")
-  ]);
+  const [notes, setNotes] = useState(contract?.notes || '');
+  const [savingNote,setSavingNote]=useState(false);
+  React.useEffect(()=>{setNotes(contract?.notes || '');setNewNoteText('');},[contract?.id,contract?.sozlesmeNo,contract?.notes]);
   const [newNoteText, setNewNoteText] = useState("");
   const [toastMsg, setToastMsg] = useState(null);
   const [collectModal, setCollectModal] = useState(null);
@@ -218,20 +218,15 @@ try {
     return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(num || 0);
   };
 
-  const handleAddNote = (e) => {
+  const handleAddNote = async (e) => {
     e.preventDefault();
-    if (!newNoteText.trim()) return;
-    setNotes((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        text: newNoteText.trim(),
-        date: new Date().toLocaleDateString("tr-TR") + " " + new Date().toLocaleTimeString("tr-TR").slice(0, 5),
-        author: "Yönetici"
-      }
-    ]);
-    setNewNoteText("");
-    showToast("✅ Not eklendi.");
+    if (!newNoteText.trim() || savingNote) return;
+    setSavingNote(true);
+    try {
+      setNotes(await AccountingService.addNote('contracts',contract.id || contract.sozlesmeNo,newNoteText));
+      setNewNoteText('');showToast('✅ Not kaydedildi.');
+    } catch(error){window.alert(error.message || 'Not kaydedilemedi');}
+    finally{setSavingNote(false);}
   };
 
   const handleOpenCollect = (taksit) => {
@@ -996,12 +991,14 @@ try {
                 placeholder="Not ekleyin..."
                 rows={2}
                 value={newNoteText}
+                maxLength={2000}
                 onChange={(e) => setNewNoteText(e.target.value)}
                 style={{ width: "100%", padding: "8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", outline: "none", resize: "none" }}
               />
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
                 <button
                   type="submit"
+                  disabled={savingNote || !newNoteText.trim()}
                   style={{ padding: "4px 10px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
                 >
                   Ekle
@@ -1009,19 +1006,12 @@ try {
               </div>
             </form>
 
-            {notes.length === 0 ? (
+            {!notes ? (
               <div style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>
                 Henüz not eklenmemiş
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {notes.map((n) => (
-                  <div key={n.id} style={{ background: "#f8fafc", padding: "8px", borderRadius: "4px", fontSize: "11px" }}>
-                    <div>{n.text}</div>
-                    <div style={{ color: "#94a3b8", fontSize: "10px", marginTop: "4px" }}>{n.date} · {n.author}</div>
-                  </div>
-                ))}
-              </div>
+              <div style={{whiteSpace:'pre-wrap',background:'#f8fafc',padding:8,borderRadius:4,fontSize:11}}>{notes}</div>
             )}
           </div>
 

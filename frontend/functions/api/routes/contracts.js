@@ -33,6 +33,21 @@ export async function getContractUpdateStatements(db, row, patch, syncStudent = 
 }
 
 export async function handleContractsRoutes({ request, db, url, path, user, waitUntil }) {
+  const noteMatch=path.match(/^\/(contracts|student-incomes)\/([^/]+)\/notes$/);
+  if(noteMatch && request.method==='POST'){
+    const table=noteMatch[1]==='contracts'?'contracts':'student_incomes';
+    const code=table==='contracts'?'sozlesme_no':'gelir_kodu';
+    const body=await request.json().catch(()=>({}));
+    if(typeof body?.text!=='string' || !body.text.trim() || body.text.length>2000) return errorResponse('Not 1–2000 karakter olmalıdır',422,'VALIDATION_ERROR');
+    const key=decodeURIComponent(noteMatch[2]);
+    const row=await db.prepare(`SELECT id FROM ${table} WHERE (id=? OR ${code}=?) AND COALESCE(is_deleted,0)=0`).bind(key,key).first();
+    if(!row) return errorResponse('Kayıt bulunamadı',404,'NOT_FOUND');
+    const text=body.text.trim();
+    const saved=await db.prepare(`UPDATE ${table} SET notes=CASE WHEN COALESCE(notes,'')='' THEN ? ELSE notes||char(10)||? END WHERE id=? AND length(COALESCE(notes,''))+length(?)+1<=20000 RETURNING notes`).bind(text,text,row.id,text).first();
+    if(!saved) return errorResponse('Not alanı dolu; kayıt değiştirilmedi',409,'NOTES_LIMIT');
+    await logAction(db,user,'note.create',table,row.id,'Not eklendi',waitUntil);
+    return json({id:row.id,notes:saved.notes},201);
+  }
   // 1. GET /contracts
   if (path === "/contracts" && request.method === "GET") {
     const period = url.searchParams.get("period_id") || url.searchParams.get("period");
