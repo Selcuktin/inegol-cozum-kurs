@@ -42,7 +42,8 @@ export default function EdesisSozlesmeDetay({
 }) {
   const [notes, setNotes] = useState(contract?.notes || '');
   const [savingNote,setSavingNote]=useState(false);
-  React.useEffect(()=>{setNotes(contract?.notes || '');setNewNoteText('');},[contract?.id,contract?.sozlesmeNo,contract?.notes]);
+  React.useEffect(()=>setNotes(contract?.notes || ''),[contract?.id,contract?.sozlesmeNo,contract?.notes]);
+  React.useEffect(()=>setNewNoteText(''),[contract?.id,contract?.sozlesmeNo]);
   const [newNoteText, setNewNoteText] = useState("");
   const [toastMsg, setToastMsg] = useState(null);
   const [collectModal, setCollectModal] = useState(null);
@@ -992,6 +993,7 @@ try {
                 rows={2}
                 value={newNoteText}
                 maxLength={2000}
+                disabled={savingNote}
                 onChange={(e) => setNewNoteText(e.target.value)}
                 style={{ width: "100%", padding: "8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", outline: "none", resize: "none" }}
               />

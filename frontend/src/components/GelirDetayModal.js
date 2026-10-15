@@ -237,7 +237,8 @@ export function GelirDetayModal({
     };
   }, [isOpen, gelirKodu, sozlesmeNo, student]);
 
-  React.useEffect(()=>{setNotesList(accountingInfo?.targetGelir?.notes || '');setNewNote('');},[isOpen,accountingInfo?.targetGelir?.id,accountingInfo?.targetGelir?.notes]);
+  React.useEffect(()=>setNotesList(accountingInfo?.targetGelir?.notes || ''),[isOpen,accountingInfo?.targetGelir?.id,accountingInfo?.targetGelir?.notes]);
+  React.useEffect(()=>setNewNote(''),[isOpen,accountingInfo?.targetGelir?.id]);
 
   if (!isOpen || !accountingInfo) return null;
 
@@ -1078,13 +1079,14 @@ try {
                         placeholder="Not ekleyin..."
                         value={newNote}
                         maxLength={2000}
+                        disabled={savingNote || !accountingInfo.targetGelir?.id}
                         onChange={(e) => setNewNote(e.target.value)}
                         className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-800"
                         style={{ flex: 1, padding: "6px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
                       />
                       <button
                         type="submit"
-                        disabled={savingNote || !newNote.trim()}
+                        disabled={savingNote || !newNote.trim() || !accountingInfo.targetGelir?.id}
                         className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                         style={{ border: "none", background: "#2563eb", color: "#fff", borderRadius: "8px", padding: "6px 10px", cursor: "pointer" }}
                       >
