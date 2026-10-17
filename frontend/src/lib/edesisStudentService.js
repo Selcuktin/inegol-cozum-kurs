@@ -3,6 +3,7 @@
 // NO static JSON imports, NO localStorage tombstones, NO protectedKeys hack lists.
 
 import AccountingService, { trNorm } from "./edesisAccountingService.js";
+import {dataScope} from "./dataSync.js";
 import { apiFetch, isAllowedBackendUrl } from "./utils.js";
 
 function getApiUrl() {
@@ -15,38 +16,21 @@ function getApiUrl() {
   return "";
 }
 
-function readCache(key, fallback = []) {
-  if (typeof localStorage === "undefined") return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeCache(key, value) {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (err) {
-    console.warn(`[StudentService] Storage write error for ${key}:`, err);
-  }
-}
-
 let cacheEpoch = 0;
 let readVersion=0;
 const _memory = {
-  students: readCache("cozum_ssot_students_v2", []),
+  students: [],
+  loaded:false,
   isFetching: false,
 };
 
+let cacheScope=dataScope();
+function ensureScope(){if(cacheScope!==dataScope()){cacheScope=dataScope();StudentService.resetClientData();}}
+
 export const StudentService = {
-  resetClientData() { cacheEpoch++; _memory.students=[]; if(typeof localStorage!=="undefined") localStorage.removeItem("cozum_ssot_students_v2"); },
+  resetClientData() { cacheEpoch++; _memory.students=[];_memory.loaded=false; if(typeof localStorage!=="undefined") localStorage.removeItem("cozum_ssot_students_v2"); },
   // Backward compatibility stubs
-  getBaseStudents() { return _memory.students; },
+  getBaseStudents() { return this.getAllStudents(); },
   getCustomStudents() { return []; },
   getDeletedStudentKeys() { return []; },
 
@@ -65,6 +49,7 @@ export const StudentService = {
 
   // 1. Fetch & Get Students (SSOT from /api/students)
   async fetchStudents() {
+    ensureScope();
     const epoch=cacheEpoch;
     const version=++readVersion;
     if (typeof fetch === "undefined") return _memory.students;
@@ -77,29 +62,18 @@ export const StudentService = {
       if(version!==readVersion)return _memory.students;
       const list = Array.isArray(rows) ? rows : (rows?.items || rows?.data || []);
 
-      _memory.students = list;
-      writeCache("cozum_ssot_students_v2", list);
+      _memory.students = list;_memory.loaded=true;
       return list;
     } catch (err) {
       console.warn("[StudentService] fetchStudents error:", err);
-      return _memory.students;
+      throw err;
     }
   },
 
+  acceptSnapshot(students){ensureScope();readVersion++;_memory.students=students.map(s=>({...s}));_memory.loaded=true;},
   getAllStudents(propStudents = null) {
-    let list = Array.isArray(propStudents) ? propStudents : _memory.students;
-
-    if (Array.isArray(propStudents)) {
-      _memory.students = propStudents;
-      writeCache("cozum_ssot_students_v2", propStudents);
-    } else if (_memory.students.length === 0 && !_memory.isFetching && typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
-      _memory.isFetching = true;
-      this.fetchStudents().finally(() => {
-        _memory.isFetching = false;
-        window.dispatchEvent(new Event("cozum_students_updated"));
-      });
-    }
-
+    ensureScope();
+    const list=_memory.loaded ? _memory.students : (propStudents || _memory.students);
     return list.map((s) => {
       const hasFee = Number(s.total_fee || 0) > 0 || !!s.sozlesme_no;
       return {
@@ -117,6 +91,7 @@ export const StudentService = {
 
   // 2. Action Handlers (Mutations sync directly to Cloudflare Pages API)
   async saveStudent(student, apiBaseUrl = "", options = {}) {
+    ensureScope();
     const epoch=cacheEpoch;
     if (!student) return null;
     const id = student.id || `student-${crypto.randomUUID().slice(0, 8)}`;
@@ -126,7 +101,7 @@ export const StudentService = {
       try {
         const rawBase = apiBaseUrl || getApiUrl() || "";
         const base = rawBase.replace(/\/api\/?$/, "").replace(/\/+$/, "");
-        const isExisting = _memory.students.some((s) => s.id === id);
+        const isExisting = !!student.id && !options.create;
         const url = isExisting ? `${base}/api/students/${encodeURIComponent(id)}` : `${base}/api/students`;
         const method = isExisting ? "PATCH" : "POST";
 
@@ -144,6 +119,7 @@ export const StudentService = {
 
     if(epoch!==cacheEpoch)return studentWithId;
     readVersion++;
+    _memory.loaded=true;
     const idx = _memory.students.findIndex((s) => s.id === id);
     if (idx >= 0) {
       _memory.students[idx] = studentWithId;
@@ -151,7 +127,6 @@ export const StudentService = {
       _memory.students = [studentWithId, ..._memory.students];
     }
 
-    writeCache("cozum_ssot_students_v2", _memory.students);
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_students_updated"));
@@ -160,6 +135,7 @@ export const StudentService = {
   },
 
   async deleteStudent(studentOrId, apiBaseUrl = "") {
+    ensureScope();const epoch=cacheEpoch;
     const id = typeof studentOrId === "object" ? studentOrId.id : studentOrId;
     const studentName = typeof studentOrId === "object" ? studentOrId.student_name : null;
     if (!id && !studentName) return false;
@@ -179,6 +155,8 @@ export const StudentService = {
       throw err;
     }
 
+    if(epoch!==cacheEpoch)return true;
+    readVersion++;
     const normId = trNorm(id || "");
     const normName = trNorm(studentName || "");
     _memory.students = _memory.students.filter((s) => {
@@ -189,32 +167,8 @@ export const StudentService = {
       if (!normId && normName && sName === normName) return false;
       return true;
     });
-    writeCache("cozum_ssot_students_v2", _memory.students);
 
-    await AccountingService.fetchContracts();
-    await AccountingService.fetchIncomes();
-    await AccountingService.fetchInstallments();
-
-    // Also update cached dashboard data if present so App.js load() doesn't restore old student
-    if (typeof localStorage !== "undefined") {
-      try {
-        const cachedDash = localStorage.getItem("cozum_dashboard_data_v1");
-        if (cachedDash) {
-          const parsed = JSON.parse(cachedDash);
-          if (parsed && Array.isArray(parsed.students)) {
-            parsed.students = parsed.students.filter((s) => {
-              if (!s) return false;
-              const sId = trNorm(s.id || "");
-              const sName = trNorm(s.student_name || "");
-              if (normId && (sId === normId || sId === `stu-${normId}` || `stu-${sId}` === normId)) return false;
-              if (!normId && normName && sName === normName) return false;
-              return true;
-            });
-            localStorage.setItem("cozum_dashboard_data_v1", JSON.stringify(parsed));
-          }
-        }
-      } catch (e) {}
-    }
+    await AccountingService.refreshAfterWrite();
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("cozum_students_updated"));

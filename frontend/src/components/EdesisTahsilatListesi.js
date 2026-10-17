@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Wallet,
   Search,
@@ -56,6 +56,8 @@ export default function EdesisTahsilatListesi({
 }) {
   const [tahsilatList, setTahsilatList] = useState(() => AccountingService.getCollections(payments));
   const [showNewPaymentModal, setShowNewPaymentModal] = useState(false);
+  const paymentId=useRef();
+  useEffect(()=>{if(showNewPaymentModal)paymentId.current="pay_"+crypto.randomUUID();},[showNewPaymentModal]);
 
   const handleOpenUnifiedContract = (t) => {
     const targetNo = t?.sozlesmeNo || t?.gelirAciklama?.replace("Sözleşme: ", "") || t?.gelirKodu || t?.musteriUnvan;
@@ -88,8 +90,9 @@ export default function EdesisTahsilatListesi({
     const handleUpdate = () => {
       setTahsilatList(AccountingService.getCollections(payments));
     };
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
-    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
+    return () => {window.removeEventListener("cozum_accounting_updated", handleUpdate);window.removeEventListener("cozum_snapshot_updated",handleUpdate);};
   }, [payments]);
   const [bankFilter, setBankFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1196,13 +1199,16 @@ try {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
                 const stName = fd.get("studentName");
-                const stObj = (students || []).find((s) => s.student_name === stName || s.id === fd.get("studentId"));
+                const matches=(students||[]).filter(s=>fd.get('studentId')?s.id===fd.get('studentId'):s.student_name===stName);
+                if(matches.length!==1){alert('Öğrenci kesin olarak eşleşmedi. Öğrenci profilinden tahsilat ekleyin.');return;}
+                const stObj=matches[0];
                 const amt = Number(fd.get("amount")) || 0;
                 if (amt <= 0) {
                   alert("Lütfen geçerli bir tahsilat tutarı giriniz.");
                   return;
                 }
                 const newColl = await AccountingService.recordCollection({
+                  id:paymentId.current,
                   gelirKodu: stObj?.gelir_kodu,
                   sozlesmeNo: stObj?.sozlesme_no,
                   amount: amt,

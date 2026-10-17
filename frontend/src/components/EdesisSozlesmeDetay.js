@@ -65,19 +65,15 @@ export default function EdesisSozlesmeDetay({
 
   React.useEffect(() => {
     const handleUpdate = () => setAccountingTick((t) => t + 1);
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => {
+      window.removeEventListener("cozum_snapshot_updated", handleUpdate);
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };
   }, []);
-
-  React.useEffect(() => {
-    if ((contract?.id || contract?.sozlesmeNo) && process.env.NODE_ENV !== "test") {
-      AccountingService.fetchInstallments(contract.id || contract.sozlesmeNo).then(()=>setAccountingTick(t=>t+1));
-    }
-  }, [contract?.id, contract?.sozlesmeNo]);
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -222,6 +218,7 @@ try {
 
   const handleOpenCollect = (taksit) => {
     setCollectModal({
+      id:"pay_"+crypto.randomUUID(),
       taksit,
       amount: taksit.kalanTutar > 0 ? taksit.kalanTutar : taksit.taksitTutari,
       method: "Kredi Kartı",
@@ -268,6 +265,7 @@ try {
     const paidAmount = Number(amount) || taksit.taksitTutari;
 
     await AccountingService.recordCollection({
+      id:collectModal.id,
       studentId: contract.studentId || contract.student_id || contract.ogrenciId || student?.id,
       studentName: contract.ogrenciAdi || contract.musteriUnvan || student?.student_name,
       contractId: contract.id,

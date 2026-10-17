@@ -135,7 +135,7 @@ export function TeachersPage({ me, API, teachers = [], onReload, onNavigate, onO
     setErrorMsg("");
     try {
       if (editingTeacher) {
-        await axios.put(`${API}/teachers/${editingTeacher.id}`, formData);
+        await axios.put(`${API}/teachers/${editingTeacher.id}`, {...formData,_expected:Object.fromEntries(Object.keys(formData).map(k=>[k,editingTeacher[k]??null]))});
       } else {
         await axios.post(`${API}/teachers`, formData);
       }

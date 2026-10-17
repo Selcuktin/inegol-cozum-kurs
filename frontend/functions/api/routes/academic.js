@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions - Academic Router (Classes, Teachers, Attendance, Schedules, Homework, Mentorship)
-import { json, cachedJson, errorResponse, successResponse, getCurrentUser, logAction, normalizeDate } from "../utils.js";
+import { json, cachedJson, errorResponse, successResponse, getCurrentUser, logAction, normalizeDate, recordWriteGuard } from "../utils.js";
 
 export async function getTeachersList(db) {
   if (!db) return [];
@@ -43,7 +43,11 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
   if(appointmentMatch && ["PATCH","DELETE"].includes(request.method)) {
     const body=request.method==="PATCH" ? await request.json() : {status:"iptal"};
     if(!["bekliyor","onaylandi","tamamlandi","iptal"].includes(body.status)) return errorResponse("Geçersiz durum",422);
-    await db.prepare("UPDATE appointments SET status=? WHERE id=?").bind(body.status,appointmentMatch[1]).run();
+    const previous=await db.prepare('SELECT * FROM appointments WHERE id=?').bind(appointmentMatch[1]).first();
+    if(!previous)return errorResponse('Randevu bulunamadı',404);
+    const guard=recordWriteGuard(db,'appointments',previous,body._expected,['status']);
+    if(guard.error)return guard.error;
+    await db.batch([guard.statement,db.prepare("UPDATE appointments SET status=? WHERE id=?").bind(body.status,appointmentMatch[1])]);
     await logAction(db,currentUser,"appointment.update","appointment",appointmentMatch[1],body.status);
     return json({ok:true});
   }
@@ -85,19 +89,23 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     if (request.method === "PUT" || request.method === "PATCH") {
       const user = await getCurrentUser(request, db);
       const c = await request.json();
-      await db
+      const previous=await db.prepare('SELECT * FROM classes WHERE id=?').bind(classId).first();
+      if(!previous)return errorResponse('Kayıt bulunamadı',404);
+      const guard=recordWriteGuard(db,'classes',previous,c._expected,['name', 'level', 'room', 'capacity', 'teacher']);
+      if(guard.error)return guard.error;
+      await db.batch([guard.statement,db
         .prepare(
           "UPDATE classes SET name = ?, level = ?, room = ?, capacity = ?, teacher = ? WHERE id = ?"
         )
         .bind(
-          c.name || "",
-          c.level || "",
-          c.room || "",
-          parseInt(c.capacity) || 20,
-          c.teacher || "",
+          c.name ?? previous.name,
+          c.level ?? previous.level,
+          c.room ?? previous.room,
+          c.capacity===undefined?previous.capacity:Number(c.capacity),
+          c.teacher ?? previous.teacher,
           classId
         )
-        .run();
+        ]);
       await logAction(db, user, "class.update", "class", classId, `${c.name} sınıfı güncellendi`);
       const updated = await db.prepare("SELECT * FROM classes WHERE id = ?").bind(classId).first();
       return json(updated);
@@ -153,8 +161,12 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     if (request.method === "PUT" || request.method === "PATCH") {
       const user = await getCurrentUser(request, db);
       const t = await request.json();
+      const previous=await db.prepare('SELECT * FROM teachers WHERE id=?').bind(teacherId).first();
+      if(!previous)return errorResponse('Kayıt bulunamadı',404);
+      const guard=recordWriteGuard(db,'teachers',previous,t._expected,['name', 'branch', 'title', 'phone', 'email', 'classes', 'weekly_hours', 'status', 'notes']);
+      if(guard.error)return guard.error;
       await getTeachersList(db);
-      await db
+      await db.batch([guard.statement,db
         .prepare(`
           UPDATE teachers SET
             name = COALESCE(?, name),
@@ -169,18 +181,18 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
           WHERE id = ?
         `)
         .bind(
-          t.name || null,
-          t.branch || null,
-          t.title || null,
-          t.phone || null,
-          t.email || null,
-          t.classes || null,
+          t.name ?? null,
+          t.branch ?? null,
+          t.title ?? null,
+          t.phone ?? null,
+          t.email ?? null,
+          t.classes ?? null,
           t.weekly_hours !== undefined ? parseInt(t.weekly_hours) : null,
-          t.status || null,
-          t.notes || null,
+          t.status ?? null,
+          t.notes ?? null,
           teacherId
         )
-        .run();
+        ]);
       await logAction(db, user, "teacher.update", "teacher", teacherId, `${t.name || teacherId} eğitmeni güncellendi`);
       const updated = await db.prepare("SELECT * FROM teachers WHERE id = ?").bind(teacherId).first();
       return json(updated || { id: teacherId, ...t });
@@ -237,11 +249,16 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     const records = body.records || [];
     if (!date || !Array.isArray(records) || !records.length || records.length>120) return errorResponse("Geçersiz yoklama",422);
 
-    const statements = [];
+    const statements = [];const seen=new Set();
     for (const rec of records) {
-      if (!rec.student_id || !["geldi","gelmedi","gec","izinli","raporlu"].includes(rec.status || "geldi") || !await db.prepare("SELECT id FROM students WHERE id=?").bind(rec.student_id).first()) return errorResponse("Geçersiz öğrenci veya yoklama durumu",422);
-      const aid = rec.attendance_id || "att-" + crypto.randomUUID().slice(0, 8);
+      if (!rec?.student_id || seen.has(rec.student_id) || !["geldi","gelmedi","gec","izinli","raporlu"].includes(rec.status || "geldi") || !await db.prepare("SELECT id FROM students WHERE id=?").bind(rec.student_id).first()) return errorResponse("Geçersiz öğrenci veya yoklama durumu",422);
+      seen.add(rec.student_id);
       const slot = rec.lesson_slot || body.lesson_slot || "Tüm Gün";
+      const previous=await db.prepare('SELECT * FROM attendance WHERE student_id=? AND date=? AND lesson_slot=?').bind(rec.student_id,date,slot).first();
+      const guard=recordWriteGuard(db,'attendance',previous,rec._expected,['status','note','notified_parent'],previous||{status:'geldi',note:'',notified_parent:0},{student_id:rec.student_id,date,lesson_slot:slot});
+      if(guard.error)return guard.error;
+      statements.push(guard.statement);
+      const aid = previous?.id || "att-" + crypto.randomUUID();
       statements.push(db.prepare("DELETE FROM attendance WHERE student_id = ? AND date = ? AND lesson_slot = ?").bind(rec.student_id,date,slot));
       statements.push(db.prepare(`
         INSERT INTO attendance (id, date, class_id, student_id, lesson_slot, status, note, notified_parent, created_by, created_by_name, created_at)
@@ -322,9 +339,11 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     const body = await request.json();
     const previous = await db.prepare("SELECT * FROM schedules WHERE id=?").bind(id).first();
     if (!previous) return errorResponse("Ders bulunamadı",404);
+    const guard=recordWriteGuard(db,'schedules',previous,body._expected,['class_id','day_of_week','time_slot','subject','teacher_name','room']);
+    if(guard.error)return guard.error;
     const invalid = await validateSchedule(db,{...previous,...body},id);
     if (invalid) return invalid;
-    await db.prepare(`
+    await db.batch([guard.statement,db.prepare(`
       UPDATE schedules SET
         class_id = COALESCE(?, class_id),
         day_of_week = COALESCE(?, day_of_week),
@@ -341,7 +360,7 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
       body.teacher_name !== undefined ? body.teacher_name : null,
       body.room !== undefined ? body.room : null,
       id
-    ).run();
+    )]);
     await logAction(db, user, "schedule.update", "schedule", id, `${body.subject || "Ders"} güncellendi`);
     return json({ ok: true });
   }
@@ -404,8 +423,7 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
   if (homeworkIdMatch && request.method === "DELETE") {
     const user = await getCurrentUser(request, db);
     const id = homeworkIdMatch[1];
-    await db.prepare("DELETE FROM homework_submissions WHERE homework_id = ?").bind(id).run();
-    await db.prepare("DELETE FROM homework WHERE id = ?").bind(id).run();
+    await db.batch([db.prepare("DELETE FROM homework_submissions WHERE homework_id = ?").bind(id),db.prepare("DELETE FROM homework WHERE id = ?").bind(id)]);
     await logAction(db, user, "homework.delete", "homework", id, "Ödev silindi");
     return json({ ok: true });
   }
@@ -438,17 +456,23 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     const user = await getCurrentUser(request, db);
     const hwId = hwSubMatch[1];
     const body = await request.json();
-    const records = Array.isArray(body) ? body : [body];
-
-    for (const r of records) {
-      if (!r.student_id) continue;
-      const subId = r.submission_id || "sub-" + crypto.randomUUID().slice(0, 8);
-      await db.prepare("DELETE FROM homework_submissions WHERE homework_id = ? AND student_id = ?").bind(hwId, r.student_id).run();
-      await db.prepare(`
-        INSERT INTO homework_submissions (id, homework_id, student_id, status, note, updated_at)
-        VALUES (?, ?, ?, ?, ?, datetime('now'))
-      `).bind(subId, hwId, r.student_id, r.status || "yapildi", r.note || "").run();
+    const records = Array.isArray(body) ? body : body?.submissions;
+    const hw=await db.prepare('SELECT * FROM homework WHERE id=?').bind(hwId).first();
+    if(!hw)return errorResponse('Ödev bulunamadı',404);
+    if(!Array.isArray(records)||!records.length||records.length>120)return errorResponse('Geçersiz teslim listesi',422);
+    const seen=new Set();const statements=[];
+    for(const r of records){
+      if(!r?.student_id||seen.has(r.student_id)||!['yapildi','yapilmadi','eksik','gec'].includes(r.status)||!await db.prepare('SELECT id FROM students WHERE id=?').bind(r.student_id).first())return errorResponse('Geçersiz öğrenci veya teslim durumu',422);
+      seen.add(r.student_id);
+      const previous=await db.prepare('SELECT * FROM homework_submissions WHERE homework_id=? AND student_id=?').bind(hwId,r.student_id).first();
+      const guard=recordWriteGuard(db,'homework_submissions',previous,r._expected,['status','note'],previous||{status:'yapilmadi',note:''},{homework_id:hwId,student_id:r.student_id});
+      if(guard.error)return guard.error;
+      statements.push(guard.statement);
+      const subId=previous?.id||'sub-'+crypto.randomUUID();
+      statements.push(db.prepare('DELETE FROM homework_submissions WHERE homework_id=? AND student_id=?').bind(hwId,r.student_id));
+      statements.push(db.prepare("INSERT INTO homework_submissions(id,homework_id,student_id,status,note,updated_at) VALUES(?,?,?,?,?,datetime('now'))").bind(subId,hwId,r.student_id,r.status,r.note||''));
     }
+    await db.batch(statements);
 
     await logAction(db, user, "homework.submit_update", "homework", hwId, `${records.length} ödev teslim durumu güncellendi`);
     return json({ ok: true });

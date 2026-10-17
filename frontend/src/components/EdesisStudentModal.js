@@ -270,6 +270,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
       let saved = null;
       if (initialData?.id) {
         const patch=Object.fromEntries(Object.entries(payload).filter(([key])=>changedFields.current.has(key) || (key==='extra_fees' && [...changedFields.current].some(k=>k.startsWith('extra_')))));
+        patch._expected=Object.fromEntries(Object.keys(patch).map(k=>[k,initialData[k]??null]));
         const res = await axios.patch(`${API}/students/${initialData.id}`, patch);
         saved = res.data;
       } else {

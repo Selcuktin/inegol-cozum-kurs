@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {useDataRefresh} from "../../hooks/useDataRefresh";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import {
   Award,
@@ -90,7 +91,7 @@ export function ExamsPage({ me, API, students, classes }) {
     return () => window.removeEventListener("click", handleOutsideClick);
   }, []);
 
-  const loadExams = useCallback(async () => {
+  const loadExams = useCallback(async (current=()=>true) => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/exams`);
@@ -108,6 +109,7 @@ export function ExamsPage({ me, API, students, classes }) {
         })
       );
 
+      if(!current())return;
       setExams(fullList);
 
       // Otomatik seçim: Önceden seçili sınav varsa onu güncelle, yoksa katılımcısı olan ilk sınavı seç
@@ -119,23 +121,23 @@ export function ExamsPage({ me, API, students, classes }) {
       });
     } catch (err) {
       console.error("Exams load error:", err);
-      setExams([]);
-      setSelectedExam(null);
+      throw err;
     } finally {
-      setLoading(false);
+      if(current())setLoading(false);
     }
   }, [API]);
 
-  useEffect(() => {
-    loadExams();
-  }, [loadExams]);
+  const loadExamsError=useDataRefresh(loadExams,[loadExams]);
 
+  const examRequest=useRef(0);
   const openExamDetail = async (exam) => {
+    const version=++examRequest.current;
     try {
       const res = await axios.get(`${API}/exams/${exam.id}`);
+      if(version!==examRequest.current)return;
       setSelectedExam(res.data || exam);
-    } catch {
-      setSelectedExam(exam);
+    } catch(error) {
+      if(version===examRequest.current)alert("Sınavın güncel detayı yüklenemedi: "+error.message);return;
     }
     setTimeout(() => {
       document.getElementById("exam-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -157,7 +159,7 @@ export function ExamsPage({ me, API, students, classes }) {
       setShowAddModal(false);
       setNewTitle("");
       setNewDesc("");
-      loadExams();
+      await loadExams();
     } catch (err) {
       alert("Sınav eklenemedi: " + (err.response?.data?.detail || err.message));
     }
@@ -168,7 +170,7 @@ export function ExamsPage({ me, API, students, classes }) {
     try {
       await axios.delete(`${API}/exams/${id}`);
       if (selectedExam?.id === id) setSelectedExam(null);
-      loadExams();
+      await loadExams();
     } catch (err) {
       alert("Silinemedi: " + err.message);
     }
@@ -232,8 +234,8 @@ export function ExamsPage({ me, API, students, classes }) {
       setResSocC("");
       setResSocI("");
       setResWeakTopics("");
-      openExamDetail(selectedExam);
-      loadExams();
+      await openExamDetail(selectedExam);
+      await loadExams();
     } catch (err) {
       alert("Sonuç kaydedilemedi: " + (err.response?.data?.detail || err.message));
     }
@@ -312,6 +314,7 @@ export function ExamsPage({ me, API, students, classes }) {
 
   return (
     <div className="educational-module edesis-exam-layout">
+      {loadExamsError&&<div role="alert">Güncel kayıtlar yüklenemedi: {loadExamsError.message}</div>}
       {/* ÜST SUB-NAVBAR: Edesis Modül Sekmeleri */}
       <div className="edesis-subnav-bar">
         <button

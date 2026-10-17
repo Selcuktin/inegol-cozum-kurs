@@ -44,6 +44,8 @@ import {
   Brand, AuthCallback, Login, PwaBanner, MobileBottomNav,
   getBackendBaseUrl, API, LOGO, ROLE_LABEL
 } from "./components/layout/AuthAndNav";
+import {useAppData} from "./hooks/useAppData";
+import {installAxiosSynchronization} from "./lib/dataSync";
 import { buildNavCategories } from "./components/layout/navConfig";
 import { UsersPage, Reminders, Reports, AuditPage, downloadBlob } from "./pages/SystemPages";
 import { StudentProfileModal, StudentDetailDrawer } from "./components/StudentProfileModal";
@@ -84,6 +86,7 @@ if (typeof window !== "undefined") {
   window.__API_BASE__ = API;
 }
 
+installAxiosSynchronization(axios);
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common["Bypass-Tunnel-Reminder"] = "true";
 
@@ -154,21 +157,7 @@ function App() {
 const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
 
 export function MainApp({ me, onLogout }) {
-  const mounted = useRef(true);
-  const dashboardRequest=useRef(0);
-  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
-  const [data, setData] = useState(() => {
-    try {
-      if (typeof window !== "undefined") {
-        const cached = localStorage.getItem("cozum_dashboard_data_v1");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && Array.isArray(parsed.students) && parsed.students.length > 0) return parsed;
-        }
-      }
-    } catch (e) {}
-    return { summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] };
-  });
+  const {data,reload:load,error:dataError,loading:dataLoading,totalCollected,totalExpected,totalExpenses}=useAppData();
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const fullHash = window.location.hash.replace(/^#/, "");
@@ -376,36 +365,8 @@ export function MainApp({ me, onLogout }) {
   });
   const toggleTree = (key) => setExpandedTree((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const load = async () => {
-    const version=++dashboardRequest.current;
-    try {
-      const r = await axios.get(`${API}/dashboard`);
-      if(!mounted.current || version!==dashboardRequest.current) return;
-      const rawStudents = r.data?.students || [];
-      const cleanStudents = StudentService.filterActiveStudents(rawStudents);
-      const nextData = { ...r.data, students: cleanStudents };
-      setData(nextData);
-      try {
-        if (typeof window !== "undefined") localStorage.setItem("cozum_dashboard_data_v1", JSON.stringify(nextData));
-      } catch (e) {}
-    } catch (e) {
-      console.warn("[App] load error:", e);
-    }
-  };
-  useEffect(() => {
-    load();
-    const handleUpdate = () => load();
-    window.addEventListener("cozum_students_updated", handleUpdate);
-    window.addEventListener("cozum_accounting_updated", handleUpdate);
-    return () => {
-      window.removeEventListener("cozum_students_updated", handleUpdate);
-      window.removeEventListener("cozum_accounting_updated", handleUpdate);
-    };
-  }, []);
   const filtered = useMemo(() => (data.students || []).filter((s) => trIncludes(`${s.student_name} ${s.parent_name} ${s.student_phone}`, search)), [data.students, search]);
-  const totalCollected = data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
-  const totalExpected = (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
-  const totalExpenses = data.summary?.expenses || (data.expenses || []).reduce((a, e) => a + (e.amount || 0), 0);
+
 
   const [quickOpen, setQuickOpen] = useState(false);
   useEffect(() => {
@@ -676,6 +637,8 @@ export function MainApp({ me, onLogout }) {
           </div>
         </header>
         <main id="main-content" role="main" tabIndex="-1" className={`content ${page === "students" || page === "documents" ? "content-fullwidth" : ""}`}>
+          {dataError&&<div role="alert" style={{padding:12,background:'#fef2f2',color:'#991b1b'}}>Güncel veriler yüklenemedi. <button onClick={load}>Tekrar dene</button></div>}
+          {dataLoading&&<div role="status" className="sr-only">Güncel veriler yükleniyor</div>}
           {page === "dashboard" && (
             <DashboardPage me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} onNavigate={setPage} onSelect={setSelected} />
           )}

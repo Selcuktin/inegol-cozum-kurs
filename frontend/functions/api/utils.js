@@ -73,6 +73,20 @@ export function errorResponse(error, status = 400, code = "BAD_REQUEST", details
   );
 }
 
+// Forms carry the fields they originally displayed. Compare those, then guard the write atomically.
+export function recordWriteGuard(db,table,row,expected,fields,visible=row,key={id:row?.id}){
+  if(expected!==undefined && (!expected||typeof expected!=='object'||Array.isArray(expected)||Object.keys(expected).some(k=>!fields.includes(k))))return {error:errorResponse('Geçersiz kayıt sürümü',422,'VALIDATION_ERROR')};
+  const canonical=value=>{
+    if(typeof value==='string'&&/^[{[]/.test(value)){try{return canonical(JSON.parse(value));}catch{}}
+    if(value&&typeof value==='object')return JSON.stringify(Object.fromEntries(Object.keys(value).sort().map(k=>[k,value[k]])));
+    return value==null?'':String(value);
+  };
+  const keys=expected?Object.keys(expected):fields.filter(k=>k in (row||{}));
+  if(expected&&keys.some(k=>canonical(expected[k])!==canonical(visible[k])))return {error:errorResponse('Bu kayıt başka bir işlemde değişti. Yeniden açıp güncel kayıt üzerinden düzenleyin.',409,'RECORD_CHANGED')};
+  const where=Object.keys(key).map(k=>`"${k}" IS ?`).join(' AND ');
+  return {statement:db.prepare(`SELECT CASE WHEN ${row?'':'NOT '}EXISTS(SELECT 1 FROM ${table} WHERE ${where} ${row?keys.map(k=>`AND "${k}" IS ?`).join(' '):''}) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END`).bind(...Object.values(key),...(row?keys.map(k=>row[k]??null):[]))};
+}
+
 export function successResponse(data, status = 200, extra = {}) {
   return json(
     {

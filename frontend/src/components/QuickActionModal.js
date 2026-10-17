@@ -65,6 +65,9 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
   const [photo, setPhoto] = useState("");
   const [error, setError] = useState("");
   const videoRef = useRef();
+  const mutationId=useRef();
+  const [saving,setSaving]=useState(false);
+  useEffect(()=>{mutationId.current="pay_"+crypto.randomUUID();},[type]);
   if (!type) return null;
 
   const change = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -73,7 +76,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
 
   const submit = async (e) => {
     e.preventDefault();
-    setError("");
+    if(saving)return;setSaving(true);setError("");
     try {
       if (type === "student") {
         const payload = {
@@ -88,38 +91,16 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
         EXTRA_KEYS.forEach((x) => delete payload[`extra_${x.k}`]);
         const res = await axios.post(`${apiBase}/students`, payload);
         const saved = res.data || {};
-        try {
-          const cRes = await AccountingService.addNewIncome({
-            id: saved.contract_id || `cnt_${saved.id}`,
-            studentId: saved.id,
-            student_no: saved.student_no || payload.student_no,
-            ogrenciAdi: payload.student_name,
-            veliAdi: payload.parent_name,
-            sinifAdi: payload.student_class || "Genel",
-            brutTutar: effective || payload.total_fee || 75000,
-            taksitSayisi: payload.installment_count || 1,
-            vadeTarihi: payload.due_date || new Date().toISOString().slice(0, 10),
-            aciklama: "Kayıt Sözleşmesi",
-            sozlesmeNo: saved.sozlesme_no || saved.sozlesmeNo,
-            skipRemoteSync: true
-          });
-          const finalSt = {
-            ...saved,
-            ...payload,
-            has_contract: true,
-            sozlesme_no: saved.sozlesme_no || cRes?.contract?.sozlesmeNo || ""
-          };
-          AccountingService.unTombstone(finalSt.student_name, finalSt.sozlesme_no, finalSt.id);
-          await StudentService.saveStudent(finalSt, apiBase, { skipRemoteSync: true });
-        } catch (accErr) {}
+        await AccountingService.refreshAfterWrite();
+        StudentService.acceptSnapshot((await StudentService.fetchStudents()));
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("cozum_accounting_updated"));
-          window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: { ...saved, ...payload } } }));
+          window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: { ...payload, ...saved } } }));
         }
       }
       if (type === "payment") {
         const st = (data.students || []).find((s) => s.id === form.student_id);
-        await axios.post(`${apiBase}/payments`, { ...form, student_id: form.student_id, sozlesme_no: st?.sozlesme_no, amount: Number(form.amount) });
+        await axios.post(`${apiBase}/payments`, { ...form,id:mutationId.current, student_id: form.student_id, sozlesme_no: st?.sozlesme_no, amount: Number(form.amount) });
         await AccountingService.recordCollection({
           studentId: form.student_id,
           studentName: st?.student_name || "Öğrenci",
@@ -147,8 +128,8 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
       if (reload) await reload();
       if (close) close();
     } catch (err) {
-      setError(err.response?.data?.detail || "Kayıt sırasında bir sorun oluştu.");
-    }
+      setError(err.response?.data?.detail || err.message || "Kayıt sırasında bir sorun oluştu.");
+    }finally{setSaving(false);}
   };
 
   const title = {
@@ -497,7 +478,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
             <Button testid="modal-cancel" secondary onClick={close} type="button">
               Vazgeç
             </Button>
-            <Button testid="modal-submit" type="submit">
+            <Button testid="modal-submit" type="submit" disabled={saving}>
               Kaydet
             </Button>
           </div>

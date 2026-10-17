@@ -1452,15 +1452,14 @@ try {
               allRegisteredStudents.find((st) => (st.student_name || "").trim().toUpperCase() === normName);
 
             if (targetStudent) {
-              await StudentService.saveStudent({
-                ...targetStudent,
-                has_contract: true,
-                sozlesme_no: res.contract?.sozlesmeNo || targetStudent.sozlesme_no,
-                parent_name: finalParent,
-                parent_phone: contractParentPhone.trim() || targetStudent.parent_phone,
-                parent_relation: contractParentRelation || targetStudent.parent_relation || "Veli",
-                total_fee: Number(contractAmount) || targetStudent.total_fee
-              });
+              const patch={};
+              if(finalParent!==targetStudent.parent_name)patch.parent_name=finalParent;
+              if(contractParentPhone.trim()&&contractParentPhone.trim()!==targetStudent.parent_phone)patch.parent_phone=contractParentPhone.trim();
+              if(contractParentRelation&&contractParentRelation!==targetStudent.parent_relation)patch.parent_relation=contractParentRelation;
+              if(Object.keys(patch).length){
+                patch._expected=Object.fromEntries(Object.keys(patch).map(k=>[k,targetStudent[k]??null]));
+                await StudentService.saveStudent({id:targetStudent.id,...patch});
+              }
             }
 
             setContractsList(AccountingService.getContracts(students));

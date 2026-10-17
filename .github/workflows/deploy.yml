@@ -16,10 +16,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'yarn'
           cache-dependency-path: frontend/yarn.lock
 
@@ -31,11 +31,16 @@ jobs:
         working-directory: frontend
         run: yarn test --watchAll=false
 
+      - name: Test real API transactions and data integrity on SQLite
+        run: |
+          node tests/audit_real_sqlite.mjs
+          node tests/system_integrity.mjs
+
       - name: Build production bundle
         working-directory: frontend
         run: yarn build
         env:
-          CI: false
+          CI: true
 
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

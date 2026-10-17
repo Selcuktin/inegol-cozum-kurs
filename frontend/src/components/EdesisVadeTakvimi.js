@@ -51,12 +51,16 @@ export function fmtDate(isoStr) {
   }
 }
 
+const EMPTY_STUDENTS=[];
+
 export default function EdesisVadeTakvimi({
-  students = [],
+  students = EMPTY_STUDENTS,
   onSelectStudent,
   onOpenGelir,
   onNavigate
 }) {
+  const [progressMonth,setProgressMonth]=useState(()=>new Date().toISOString().slice(0,7));
+  const changeProgressMonth=delta=>{const date=new Date(progressMonth+'-01T12:00:00Z');date.setUTCMonth(date.getUTCMonth()+delta);setProgressMonth(date.toISOString().slice(0,7));};
   const [allTaksitler, setAllTaksitler] = useState(() => AccountingService.getInstallments(students));
 
   useEffect(() => {
@@ -67,9 +71,11 @@ export default function EdesisVadeTakvimi({
     const handleUpdate = () => {
       setAllTaksitler(AccountingService.getInstallments(students));
     };
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => {
+      window.removeEventListener("cozum_snapshot_updated", handleUpdate);
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };
@@ -143,9 +149,9 @@ export default function EdesisVadeTakvimi({
       const isPaid = (Number(t.kalanTutar) <= 0) || (t.durumText === "Tam Ödendi");
       const isOverdue = t.vadesiGectiMi || (Number(t.kalanTutar) > 0 && t.gecikmeGunSayisi > 0);
 
+      tahsilTutar += Number(t.tahsilEdilen) || 0;
+      if(Number(t.tahsilEdilen)>0)tahsilCount++;
       if (isPaid) {
-        tahsilTutar += Number(t.tahsilEdilen || t.taksitTutari) || 0;
-        tahsilCount++;
       } else if (isOverdue) {
         gecikmisTutar += Number(t.kalanTutar) || 0;
         gecikmisCount++;
@@ -169,10 +175,16 @@ export default function EdesisVadeTakvimi({
       gecikmisOrtGun: ortGun,
       tahsilTutar,
       tahsilAdet: tahsilCount,
-      performansOran: perf,
-      haftalikDegisim: "%84 azaldı"
+      performansOran: perf
     };
-  }, [baseTaksitler, period]);
+  }, [baseTaksitler]);
+
+  const monthlyProgress=useMemo(()=>{
+    const rows=baseTaksitler.filter(t=>String(t.vadeTarihi||t.due_date||'').startsWith(progressMonth));
+    const total=rows.reduce((n,t)=>n+Number(t.taksitTutari||0),0);
+    const paid=rows.reduce((n,t)=>n+Number(t.tahsilEdilen||0),0);
+    return {total,paid,rate:total>0?Math.round(paid/total*100):0};
+  },[baseTaksitler,progressMonth]);
 
   // 3. TABLO FİLTRELEME (Ödenmemişler filtresi aktifse 479 kayıt)
   const filteredTaksitler = useMemo(() => {
@@ -526,14 +538,14 @@ export default function EdesisVadeTakvimi({
         <div style={{ display: "inline-flex", alignItems: "center", gap: "12px", borderBottom: "2px solid #ef4444", paddingBottom: "6px" }}>
           <span style={{ fontSize: "12px", fontWeight: "700", color: "#dc2626" }}>Tahsilat İlerlemesi</span>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: "700", color: "#0f172a" }}>
-            <ChevronLeft size={14} style={{ cursor: "pointer" }} />
-            <span>Ekim 2026</span>
-            <ChevronRight size={14} style={{ cursor: "pointer" }} />
+            <button className="icon-btn" aria-label="Önceki ay" onClick={()=>changeProgressMonth(-1)}><ChevronLeft size={14}/></button>
+            <span>{new Date(progressMonth+'-01T12:00:00Z').toLocaleDateString('tr-TR',{month:'long',year:'numeric'})}</span>
+            <button className="icon-btn" aria-label="Sonraki ay" onClick={()=>changeProgressMonth(1)}><ChevronRight size={14}/></button>
           </div>
         </div>
 
         <div style={{ fontSize: "12px", fontWeight: "800", color: "#334155" }}>
-          <span>₺132.370,01 / ₺484.780,02</span> <span style={{ color: "#64748b", fontWeight: "600" }}>(%27)</span>
+          <span>{fmtCurrency(monthlyProgress.paid)} / {fmtCurrency(monthlyProgress.total)}</span> <span style={{ color: "#64748b", fontWeight: "600" }}>(%{monthlyProgress.rate})</span>
         </div>
       </div>
 

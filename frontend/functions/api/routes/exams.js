@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions - Exams & Reports Router (Exams, Results, OMR Templates, Printer Profiles, Reminders, Monthly PDF)
-import { json, cachedJson, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, getEffectiveTotalFee, computeInstallmentPlan, generateMonthlyPdf } from "../utils.js";
+import { recordWriteGuard, json, cachedJson, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, getEffectiveTotalFee, computeInstallmentPlan, generateMonthlyPdf } from "../utils.js";
 
 export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) {
   const isObj = typeof ctxOrPath === "object" && ctxOrPath !== null && ctxOrPath.request;
@@ -137,7 +137,9 @@ export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) 
     const keys = body.answer_keys;
     const subjects = ["turkish","math","science","social","history","religion","english","literature","geography","physics","chemistry","biology"];
     if (!keys || typeof keys !== "object" || Array.isArray(keys) || !Object.keys(keys).length || Object.entries(keys).some(([book,lessons]) => !/^[A-D]$/.test(book) || !lessons || Array.isArray(lessons) || typeof lessons !== "object" || !Object.keys(lessons).length || Object.entries(lessons).some(([subject,key]) => !subjects.includes(subject) || typeof key !== "string" || !/^[A-E]{1,160}$/.test(key) || (exam.exam_type === "LGS" && key.includes("E"))))) return errorResponse("Geçersiz cevap anahtarı",422);
-    await db.prepare("UPDATE exams SET answer_keys=? WHERE id=?").bind(JSON.stringify(keys),id).run();
+    const guard=recordWriteGuard(db,'exams',exam,body._expected,['answer_keys']);
+    if(guard.error)return guard.error;
+    await db.batch([guard.statement,db.prepare("UPDATE exams SET answer_keys=? WHERE id=?").bind(JSON.stringify(keys),id)]);
     await logAction(db,currentUser,"exam.keys_saved","exam",id,"Cevap anahtarı kaydedildi");
     return json({ok:true,answer_keys:keys});
   }

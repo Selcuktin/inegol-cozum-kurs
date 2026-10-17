@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import {useDataRefresh} from '../hooks/useDataRefresh';
+import { useState, useMemo, useCallback } from "react";
 import axios from "axios";
 import {
   ShieldCheck,
@@ -38,18 +39,16 @@ export async function downloadBlob(url, filename) {
 export function UsersPage({ me }) {
   const [users, setUsers] = useState([]);
   const [msg, setMsg] = useState("");
-  const load = async () => {
+  const load = useCallback(async (current=()=>true) => {
     try {
       const r = await axios.get(`${API}/users`);
       const list = Array.isArray(r.data) ? r.data : (r.data?.data || r.data?.items || r.data?.users || []);
-      setUsers(list);
+      if(current())setUsers(list);
     } catch (e) {
-      setMsg(e.response?.data?.detail || "Yüklenemedi");
+      if(current())setMsg(e.response?.data?.detail || "Yüklenemedi");
     }
-  };
-  useEffect(() => {
-    load();
-  }, []);
+  },[]);
+  useDataRefresh(load,[load]);
 
   const change = async (user_id, role) => {
     try {
@@ -181,16 +180,14 @@ export function Reminders() {
   const [filterStatus, setFilterStatus] = useState("all"); // "all" | "overdue" | "upcoming"
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    (async () => {
+  useDataRefresh(async current => {
       try {
         const r = await axios.get(`${API}/reminders?days=${days}`);
         const list = Array.isArray(r.data) ? r.data : (r.data?.data || r.data?.items || r.data?.reminders || []);
-        setItems(list);
+        if(current())setItems(list);
       } catch (e) {
-        setMsg(e.response?.data?.detail || "Yüklenemedi");
+        if(current())setMsg(e.response?.data?.detail || "Yüklenemedi");
       }
-    })();
   }, [days]);
 
   const overdue = useMemo(() => items.filter((i) => i.status === "overdue"), [items]);
@@ -559,16 +556,14 @@ export function Reports({ me, data = {} }) {
 export function AuditPage() {
   const [logs, setLogs] = useState([]);
   const [msg, setMsg] = useState("");
-  useEffect(() => {
-    (async () => {
+  useDataRefresh(async current => {
       try {
         const r = await axios.get(`${API}/audit-logs`);
         const list = Array.isArray(r.data) ? r.data : (r.data?.data || r.data?.items || r.data?.logs || []);
-        setLogs(list);
+        if(current())setLogs(list);
       } catch (e) {
-        setMsg(e.response?.data?.detail || "Yüklenemedi");
+        if(current())setMsg(e.response?.data?.detail || "Yüklenemedi");
       }
-    })();
   }, []);
 
   const labelFor = (a) =>

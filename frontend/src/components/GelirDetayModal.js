@@ -79,7 +79,13 @@ export function GelirDetayModal({
   // Hızlı Tahsilat Ekle (Kısmi Ödeme) ve Tahsilat Geçmişi State'leri
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [customPayments, setCustomPayments] = useState([]);
+  const [accountingVersion,setAccountingVersion]=useState(0);
+  React.useEffect(()=>{
+    const refresh=()=>setAccountingVersion(v=>v+1);
+    window.addEventListener('cozum_snapshot_updated',refresh);window.addEventListener('cozum_accounting_updated',refresh);
+    return()=>{window.removeEventListener('cozum_snapshot_updated',refresh);window.removeEventListener('cozum_accounting_updated',refresh);};
+  },[]);
+  const paymentId=React.useRef();
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("Banka Transferi");
   const [payBank, setPayBank] = useState("T.C. VAKIFLAR BANKASI İNEGÖL ŞB.");
@@ -95,116 +101,33 @@ export function GelirDetayModal({
     const allTaksitler = AccountingService.getInstallments() || [];
     const allTahsilatlar = AccountingService.getCollections() || [];
 
-    let targetGelir = null;
-    let targetSozlesme = null;
-
-    // Arama önceliği: gelirKodu -> sozlesmeNo -> student.student_name
-    if (gelirKodu) {
-      targetGelir = allGelirler.find(g => g.gelirKodu === gelirKodu);
-    }
-    if (!targetGelir && sozlesmeNo) {
-      targetGelir = allGelirler.find(g => g.sozlesmeNo === sozlesmeNo || (g.aciklama && g.aciklama.includes(sozlesmeNo)));
-      targetSozlesme = allSozlesmeler.find(s => s.sozlesmeNo === sozlesmeNo);
-    }
-    if (!targetGelir && student) {
-      const sName = (student.student_name || "").trim().toUpperCase();
-      targetGelir = allGelirler.find(g => {
-        const gName = (g.ogrenciAdiSoyadi || g.musteriUnvan || "").trim().toUpperCase();
-        return gName === sName || (sName && gName.includes(sName));
-      });
-      targetSozlesme = allSozlesmeler.find(s => {
-        const szName = (s.ogrenciAdi || s.musteriUnvan || "").trim().toUpperCase();
-        return szName === sName || (sName && szName.includes(sName));
-      });
-    }
-
-    // Varsayılan / Fallback
-    if (!targetGelir && !student) {
-      targetGelir = allGelirler[0] || null;
-    }
-
-    if (targetGelir && !targetSozlesme) {
-      targetSozlesme = allSozlesmeler.find(s => s.sozlesmeNo === targetGelir.sozlesmeNo);
-    }
-
-    // Taksitleri çek
-    let taksitler = [];
-    if (targetGelir) {
-      taksitler = allTaksitler.filter(t =>
-        (targetGelir.id && t.muH_GelirV2Id === targetGelir.id) ||
-        (targetGelir.gelirKodu && t.gelirKodu === targetGelir.gelirKodu) ||
-        (targetGelir.sozlesmeNo && t.sozlesmeNo === targetGelir.sozlesmeNo)
-      );
-    }
-
-    // Taksitleri taksitNo'ya göre sırala
-    taksitler.sort((a, b) => (a.taksitNo || 0) - (b.taksitNo || 0));
-
-    // Eğer taksitler boşsa ve student veya targetGelir varsa dinamik taksit planı oluştur
-    if (taksitler.length === 0) {
-      const brut = targetGelir ? Number(targetGelir.brutTutar) : (Number(student?.total_fee) || 55000);
-      const paid = targetGelir ? Number(targetGelir.toplamTahsilat) : (Number(student?.paid_amount) || 0);
-      const count = targetGelir?.taksitSayisi || student?.installment_count || 10;
-      const per = Math.round((brut / count) * 100) / 100;
-      let remPaid = paid;
-
-      for (let i = 1; i <= count; i++) {
-        const curPaid = Math.min(per, remPaid);
-        remPaid = Math.max(0, remPaid - per);
-        const curRem = Math.max(0, per - curPaid);
-        const m = (9 + i) % 12 || 12;
-        const y = 2026 + Math.floor((9 + i - 1) / 12);
-        const dueStr = `${y}-${String(m).padStart(2, "0")}-30T00:00:00`;
-
-        taksitler.push({
-          taksitNo: i,
-          vadeTarihi: dueStr,
-          taksitTutari: per,
-          tahsilEdilen: curPaid,
-          kalanTutar: curRem,
-          durumText: curRem === 0 ? "Tam Ödendi" : (new Date(dueStr) < new Date() ? "Gecikti" : "Vadesi Gelmedi"),
-          sonTahsilatTarihi: curPaid > 0 ? "2026-10-01T17:51:42" : null,
-          notlar: `${i}. Taksit`
-        });
-      }
-    }
+    void accountingVersion;
+    let targetGelir;
+    if(gelirKodu)targetGelir=allGelirler.find(g=>g.gelirKodu===gelirKodu);
+    else if(sozlesmeNo||student?.sozlesme_no)targetGelir=allGelirler.find(g=>g.sozlesmeNo===(sozlesmeNo||student.sozlesme_no));
+    else if(student?.id){const matches=allGelirler.filter(g=>g.student_id===student.id||g.ogrenciId===student.id);if(matches.length===1)targetGelir=matches[0];}
+    if(!targetGelir)return null;
+    const targetSozlesme=allSozlesmeler.find(s=>s.id===targetGelir.contract_id||s.sozlesmeNo===targetGelir.sozlesmeNo);
+    const taksitler=allTaksitler.filter(t=>t.income_id===targetGelir.id||(targetSozlesme?.id&&t.contractId===targetSozlesme.id)||(targetGelir.sozlesmeNo&&t.sozlesmeNo===targetGelir.sozlesmeNo)).sort((a,b)=>a.taksitNo-b.taksitNo);
 
     // Temel alanları toparla
-    const gCode = targetGelir?.gelirKodu || (student ? `GLR-STU-${student.id}` : "");
+    const gCode = targetGelir.gelirKodu || "";
     const szNo = targetSozlesme?.sozlesmeNo || targetGelir?.sozlesmeNo || "";
     const stName = targetGelir?.ogrenciAdiSoyadi || targetGelir?.musteriUnvan || student?.student_name || "Öğrenci";
     const stPhone = taksitler[0]?.musteriTelefon || student?.student_phone || student?.parent_phone || "";
     const stEmail = taksitler[0]?.musteriEmail || student?.parent_email || "";
-    const stClass = targetGelir?.sinifAdi || targetSozlesme?.sinifAdi || student?.student_class || student?.program || "4-A";
+    const stClass = targetGelir?.sinifAdi || targetSozlesme?.sinifAdi || student?.student_class || student?.program || "";
     const stTc = student?.student_tc || taksitler[0]?.musteriId || "";
 
-    const brut = Number(targetGelir?.brutTutar || student?.total_fee || 55000);
-    const net = Number(targetGelir?.netTutar || (brut / 1.1) || 50000);
-    const kdv = Number(targetGelir?.kdvTutari || (brut - net) || 5000);
-    const collected = Number(targetGelir?.toplamTahsilat || student?.paid_amount || (taksitler[0]?.tahsilEdilen || 0));
-    const remaining = Math.max(0, brut - collected);
+    const brut = Number(targetGelir.brutTutar ?? 0);
+    const net = Number(targetGelir.netTutar ?? 0);
+    const kdv = Number(targetGelir.kdvTutari ?? 0);
+    const collected = Number(targetGelir.toplamTahsilat ?? 0);
+    const remaining = Number(targetGelir.kalanAlacak ?? Math.max(0,brut-collected));
     const progressPct = brut > 0 ? Math.min(100, Math.round((collected / brut) * 100)) : 0;
 
     // Tahsilat Geçmişini Çek
-    const relatedTahsilatlar = allTahsilatlar.filter(th =>
-      (targetGelir?.id && th.muH_GelirV2Id === targetGelir.id) ||
-      (gCode && th.gelirKodu === gCode) ||
-      (szNo && (th.gelirAciklama?.includes(szNo) || th.aciklama?.includes(szNo))) ||
-      (stName && th.musteriUnvan && th.musteriUnvan.toUpperCase().includes(stName.toUpperCase()))
-    );
-
-    if (relatedTahsilatlar.length === 0 && collected > 0) {
-      relatedTahsilatlar.push({
-        id: `THS-${gCode}-01`,
-        odemeKodu: `ODM-${szNo}-01`,
-        tahsilatTutari: collected,
-        tahsilatTarihi: targetGelir?.gelirTarihi || "2026-10-01T10:00:00",
-        kasaBankaAdi: "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
-        aciklama: `1. taksit tahsilatı - ${stName}`,
-        taksitNo: 1,
-        durumText: "Aktif"
-      });
-    }
+    const relatedTahsilatlar=allTahsilatlar.filter(p=>(targetSozlesme?.id&&p.contract_id===targetSozlesme.id)||(szNo&&p.sozlesmeNo===szNo)||(gCode&&p.gelirKodu===gCode));
 
     // Sonraki vadesi gelen taksit
     const nextPending = taksitler.find(t => (t.kalanTutar || t.taksitTutari - (t.tahsilEdilen || 0)) > 0);
@@ -230,17 +153,18 @@ export function GelirDetayModal({
       nextPending,
       donem: targetGelir?.donemAdi || "2026-2027",
       kategori: targetGelir?.gelirKategoriAdi || "Öğrenci Sözleşmesi",
-      tarih: fmtDate(targetGelir?.gelirTarihi || "2026-09-26"),
-      vadeTarihi: fmtDate(targetGelir?.vadeTarihi || "2026-11-30"),
-      sozlesmeTarihi: fmtDate(targetSozlesme?.sozlesmeTarihi || "2026-09-26"),
+      tarih: fmtDate(targetGelir?.gelirTarihi),
+      vadeTarihi: fmtDate(targetGelir?.vadeTarihi),
+      sozlesmeTarihi: fmtDate(targetSozlesme?.sozlesmeTarihi),
       taksitSayisi: taksitler.length
     };
-  }, [isOpen, gelirKodu, sozlesmeNo, student]);
+  }, [isOpen, gelirKodu, sozlesmeNo, student,accountingVersion]);
 
   React.useEffect(()=>setNotesList(accountingInfo?.targetGelir?.notes || ''),[isOpen,accountingInfo?.targetGelir?.id,accountingInfo?.targetGelir?.notes]);
   React.useEffect(()=>setNewNote(''),[isOpen,accountingInfo?.targetGelir?.id]);
 
-  if (!isOpen || !accountingInfo) return null;
+  if(!isOpen)return null;
+  if(!accountingInfo)return <div className="modal-backdrop"><div className="modal" role="alert">Gelir kaydı bulunamadı. Güncel listeden sözleşmeyi yeniden açın.<button onClick={onClose}>Kapat</button></div></div>;
 
   const {
     gCode,
@@ -267,35 +191,12 @@ export function GelirDetayModal({
     targetSozlesme
   } = accountingInfo;
 
-  // Dinamik / Anlık Tahsilat ve Kalan Hesaplamaları
-  const extraCollected = customPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
-  const effectiveCollected = collected + extraCollected;
-  const effectiveRemaining = Math.max(0, brut - effectiveCollected);
-  const effectiveProgressPct = brut > 0 ? Math.min(100, Math.round((effectiveCollected / brut) * 100)) : 0;
-
-  // Yeni tahsilatları taksitlere yansıt
-  let pool = extraCollected;
-  const displayTaksitler = (taksitler || []).map(t => {
-    const origRem = t.kalanTutar !== undefined ? t.kalanTutar : Math.max(0, t.taksitTutari - (t.tahsilEdilen || 0));
-    if (origRem <= 0 || pool <= 0) return t;
-    const apply = Math.min(origRem, pool);
-    pool -= apply;
-    const newPaid = (t.tahsilEdilen || 0) + apply;
-    const newRem = origRem - apply;
-    return {
-      ...t,
-      tahsilEdilen: newPaid,
-      kalanTutar: newRem,
-      durum: newRem === 0 ? 1 : 0,
-      durumText: newRem === 0 ? "Tam Ödendi" : (apply > 0 ? "Kısmi Ödendi" : t.durumText),
-      sonTahsilatTarihi: new Date().toISOString()
-    };
-  });
-
-  const displayNextPending = displayTaksitler.find(t => (t.kalanTutar || t.taksitTutari - (t.tahsilEdilen || 0)) > 0);
-
-  // Tüm Tahsilat Geçmişi (Edesis + Yeni Eklenenler)
-  const allHistory = [...customPayments, ...(accountingInfo.relatedTahsilatlar || [])];
+  const effectiveCollected=collected;
+  const effectiveRemaining=remaining;
+  const effectiveProgressPct=progressPct;
+  const displayTaksitler=taksitler;
+  const displayNextPending=nextPending;
+  const allHistory=accountingInfo.relatedTahsilatlar;
 
   const handlePrint = () => {
     window.print();
@@ -323,10 +224,11 @@ export function GelirDetayModal({
 
   // Hızlı Tahsilat Ekle Modalını Aç (Kısmi veya Tam Ödeme)
   const handleOpenAddPayment = (prefillTaksit = null) => {
+    paymentId.current="pay_"+crypto.randomUUID();
     const defaultAmt = prefillTaksit
       ? (prefillTaksit.kalanTutar || prefillTaksit.taksitTutari)
       : (displayNextPending ? (displayNextPending.kalanTutar || displayNextPending.taksitTutari) : effectiveRemaining);
-    setPayAmount(defaultAmt ? String(defaultAmt) : "5000");
+    setPayAmount(defaultAmt ? String(defaultAmt) : "");
     setPayDate(new Date().toISOString().slice(0, 10));
     setPayMethod("Banka Transferi");
     setPayBank("T.C. VAKIFLAR BANKASI İNEGÖL ŞB.");
@@ -345,7 +247,7 @@ try {
       return;
     }
     const newPay = {
-      id: `THS-${Date.now().toString().slice(-6)}`,
+      id: paymentId.current,
       odemeKodu: `ODM2026${Date.now().toString().slice(-7)}`,
       student_id: student?.id || `stu-${gCode}`,
       student_name: stName,
@@ -382,7 +284,6 @@ try {
       studentName: stName
     });
 
-    setCustomPayments(prev => [savedPay, ...prev]);
     if (onRecordPayment) onRecordPayment(savedPay);
     setShowAddPaymentModal(false);
 
@@ -395,7 +296,7 @@ try {
 
   // Makbuz Modalını Aç (İlgili taksit veya geçmiş tahsilat satırı için)
   const handleOpenReceipt = (item) => {
-    const amt = item.tahsilatTutari || item.tahsilEdilen || item.amount || item.taksitTutari || 5000;
+    const amt = item.tahsilatTutari || item.tahsilEdilen || item.amount || item.taksitTutari || 0;
     const pDate = item.tahsilatTarihi ? item.tahsilatTarihi.slice(0, 10) : (item.payment_date || new Date().toISOString().slice(0, 10));
     setReceiptPayment({
       id: item.odemeKodu || item.id || `rcp-${gCode}-${item.taksitNo || 1}`,
@@ -701,11 +602,11 @@ try {
                   <div className="flex items-center gap-3 text-xs" style={{ display: "flex", gap: "12px", fontSize: "12px" }}>
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setShowPaymentPlanModal(true); }}
+                      onClick={(e) => {e.stopPropagation();window.location.hash=`documents?id=${encodeURIComponent(szNo)}`;onClose();}}
                       className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
                       style={{ color: "#2563eb", background: "none", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
                     >
-                      <Settings size={13} /> Tutarları Düzenle
+                      <Settings size={13} /> Sözleşmede Düzenle
                     </button>
                     <button
                       type="button"
@@ -766,7 +667,6 @@ try {
                               {t.sonTahsilatTarihi ? (
                                 <div>
                                   <span>{fmtDate(t.sonTahsilatTarihi)}</span>
-                                  {idx === 0 && <span className="ml-1 text-[10px] text-emerald-600 font-medium block">29 gün erken</span>}
                                 </div>
                               ) : "-"}
                             </td>
@@ -1705,7 +1605,7 @@ try {
                   </thead>
                   <tbody>
                     {allHistory.map((item, idx) => {
-                      const tDate = item.tahsilatTarihi ? item.tahsilatTarihi.slice(0, 10) : (item.payment_date || "2026-10-01");
+                      const tDate = item.tahsilatTarihi ? item.tahsilatTarihi.slice(0, 10) : (item.payment_date || "");
                       const tAmt = Number(item.tahsilatTutari || item.amount || 0);
                       const tCode = item.odemeKodu || item.id || `THS-${idx + 1}`;
                       const tAccount = item.kasaBankaAdi || item.bank || item.method || "VakıfBank";

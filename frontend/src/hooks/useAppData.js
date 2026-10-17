@@ -1,7 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import StudentService from "../lib/edesisStudentService";
-import { getBackendBaseUrl } from "../App";
+import { getBackendBaseUrl } from "../components/layout/AuthAndNav";
+import AccountingService from "../lib/edesisAccountingService";
+import {dataScope} from '../lib/dataSync';
+
+const emptyData=()=>({summary:{},students:[],classes:[],payments:[],expenses:[],exams:[],attendanceToday:[],topRankings:[],todaySchedules:[],contracts:[]});
 
 export const computeEffective = (s) => {
   const total = Number(s?.total_fee || 0);
@@ -17,34 +21,13 @@ export const computeEffective = (s) => {
 export function useAppData(initialData = null) {
   const [data, setData] = useState(() => {
     if (initialData) return initialData;
-    try {
-      if (typeof window !== "undefined") {
-        const cached = localStorage.getItem("cozum_dashboard_data_v1");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && Array.isArray(parsed.students) && parsed.students.length > 0) {
-            return parsed;
-          }
-        }
-      }
-    } catch (e) {}
-    return {
-      summary: {},
-      students: [],
-      classes: [],
-      payments: [],
-      expenses: [],
-      exams: [],
-      attendanceToday: [],
-      topRankings: [],
-      todaySchedules: [],
-      contracts: []
-    };
+    return emptyData();
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const requestVersion=useRef(0);
+  const accountScope=useRef(dataScope());
 
   const reload = useCallback(async () => {
     const version=++requestVersion.current;
@@ -52,7 +35,7 @@ export function useAppData(initialData = null) {
     try {
       const baseUrl = typeof getBackendBaseUrl === "function" ? getBackendBaseUrl() : "";
       const apiUrl = `${baseUrl}/api`;
-      const r = await axios.get(`${apiUrl}/dashboard`);
+      const r=await axios.get(`${apiUrl}/dashboard`);
       if(version!==requestVersion.current)return;
       const rawStudents = r.data?.students || [];
       const cleanStudents = StudentService.filterActiveStudents(rawStudents);
@@ -60,13 +43,11 @@ export function useAppData(initialData = null) {
         ...r.data,
         students: cleanStudents
       };
+      StudentService.acceptSnapshot(cleanStudents);
+      AccountingService.acceptDashboard(nextData);
       setData(nextData);
+      window.dispatchEvent(new Event("cozum_snapshot_updated"));
       setError(null);
-      try {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("cozum_dashboard_data_v1", JSON.stringify(nextData));
-        }
-      } catch (e) {}
     } catch (err) {
       if(version!==requestVersion.current)return;
       console.warn("[useAppData] reload error:", err);
@@ -78,12 +59,19 @@ export function useAppData(initialData = null) {
 
   useEffect(() => {
     reload();
-    const handleUpdate = () => { reload(); };
+    let timer;
+    const invalidate=()=>{requestVersion.current++;};
+    const handleUpdate = () => {
+      if(accountScope.current!==dataScope()){accountScope.current=dataScope();setData(emptyData());}
+      invalidate();clearTimeout(timer);timer=setTimeout(reload,50);
+    };
     if (typeof window !== "undefined") {
+      window.addEventListener("cozum_data_invalidated", handleUpdate);
       window.addEventListener("cozum_students_updated", handleUpdate);
       window.addEventListener("cozum_accounting_updated", handleUpdate);
       return () => {
-        requestVersion.current++;
+        invalidate();clearTimeout(timer);
+        window.removeEventListener("cozum_data_invalidated", handleUpdate);
         window.removeEventListener("cozum_students_updated", handleUpdate);
         window.removeEventListener("cozum_accounting_updated", handleUpdate);
       };
@@ -91,15 +79,15 @@ export function useAppData(initialData = null) {
   }, [reload]);
 
   const totalCollected = useMemo(() => {
-    return data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
+    return data.summary?.collected ?? (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
   }, [data.summary?.collected, data.students]);
 
   const totalExpected = useMemo(() => {
-    return (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
-  }, [data.students]);
+    return data.accounting?.totalRevenue ?? data.summary?.totalRevenue ?? (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
+  }, [data.students,data.accounting?.totalRevenue,data.summary?.totalRevenue]);
 
   const totalExpenses = useMemo(() => {
-    return data.summary?.expenses || (data.expenses || []).reduce((a, e) => a + (e.amount || 0), 0);
+    return data.summary?.expenses ?? (data.expenses || []).reduce((a, e) => a + (e.amount || 0), 0);
   }, [data.summary?.expenses, data.expenses]);
 
   return {

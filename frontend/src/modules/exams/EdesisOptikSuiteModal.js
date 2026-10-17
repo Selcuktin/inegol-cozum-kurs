@@ -28,6 +28,7 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
 
   const [answerKeys, setAnswerKeys] = useState(() => { try { return typeof exam?.answer_keys === "string" ? JSON.parse(exam.answer_keys) : (exam?.answer_keys || {}); } catch { return {}; } });
+  const keyBaseline=React.useRef(exam?.answer_keys??null);
   const [keyDraft, setKeyDraft] = useState(answerKeys);
   const [keyBooklet, setKeyBooklet] = useState("A");
   const subjectNames = {turkish:"Türkçe",history:"İnkılap Tarihi",religion:"Din Kültürü",english:"İngilizce",math:"Matematik",science:"Fen",social:"Sosyal",literature:"Edebiyat",geography:"Coğrafya",physics:"Fizik",chemistry:"Kimya",biology:"Biyoloji"};
@@ -36,8 +37,8 @@ export function EdesisOptikSuiteModal({ exam, onClose, API, students = [], class
   const saveAnswerKeys = async () => {
     try {
       const keys = Object.fromEntries(Object.entries(keyDraft).map(([book,subjects])=>[book,Object.fromEntries((Object.keys(answerKeys[book] || {}).length ? Object.keys(answerKeys[book]) : defaultSubjects).filter(subject=>subjects[subject]).map(subject=>[subject,subjects[subject]]))]).filter(([,subjects])=>Object.keys(subjects).length));
-      await axios.patch(`${API}/exams/${exam.id}`,{answer_keys:keys});
-      setAnswerKeys(keys); setParsedRows([]); setUploadMsg("Cevap anahtarı kaydedildi. TXT dosyasını tekrar yükleyiniz.");
+      await axios.patch(`${API}/exams/${exam.id}`,{answer_keys:keys,_expected:{answer_keys:keyBaseline.current}});
+      keyBaseline.current=keys;setAnswerKeys(keys); setParsedRows([]); setUploadMsg("Cevap anahtarı kaydedildi. TXT dosyasını tekrar yükleyiniz.");
       onResultsUpdated?.();
     } catch(error) { setUploadMsg(error.response?.data?.detail || error.message); }
   };

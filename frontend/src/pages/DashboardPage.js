@@ -90,8 +90,8 @@ export function DashboardPage({
   onNavigate,
   onSelect
 }) {
-  const outstanding = Math.max(0, totalExpected - totalCollected);
-  const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+  const outstanding = data.accounting?.totalRemaining ?? data.summary?.totalRemaining ?? Math.max(0, totalExpected - totalCollected);
+  const collectionRate = totalExpected > 0 ? Math.round(((totalExpected-outstanding) / totalExpected) * 100) : 0;
   const todayLabel = new Intl.DateTimeFormat("tr-TR", {
     weekday: "long",
     day: "numeric",
@@ -121,8 +121,7 @@ export function DashboardPage({
       pending.sort((a, b) => new Date(a.vadeTarihi || a.due_date || "2099-12-31") - new Date(b.vadeTarihi || b.due_date || "2099-12-31"));
       return pending.map((inst) => {
         const s = studentsList.find((st) =>
-          (st.id && String(st.id) === String(inst.studentId || inst.student_id)) ||
-          (st.student_name && trNorm(st.student_name) === trNorm(inst.ogrenciAdi || inst.ogrenciAdiSoyadi || ""))
+          (st.id && String(st.id) === String(inst.studentId || inst.student_id))
         );
         const parentName = s?.parent_name && s.parent_name !== s.student_name ? s.parent_name : (s?.parent_name || "Veli");
         const parentPhone = s?.parent_phone || s?.student_phone || "";

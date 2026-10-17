@@ -22,7 +22,7 @@ test('student edit submits only touched fields and preserves the stored custom p
   await fireEvent.click(view.getByRole('button',{name:'Kayıt & Taksit Planı'}));
   expect(view.container.textContent).toContain('300');expect(view.container.textContent).toContain('700');
   await fireEvent.submit(view.container.querySelector('form'));
-  expect(patch).toHaveBeenCalledWith('/api/students/edit',{school:'Yeni okul'});
+  expect(patch).toHaveBeenCalledWith('/api/students/edit',{school:'Yeni okul',_expected:{school:'Eski okul'}});
   expect(StudentService.getAllStudents()[0].paid_amount).toBe(200);
 });
 
@@ -62,5 +62,5 @@ test('a slow old dashboard response cannot roll back a newer refresh',async()=>{
   let refresh;await act(async()=>{refresh=app.reload();});
   await act(async()=>{pending[1]({data:{students:[{id:'new',student_name:'Yeni'}]}});await refresh;});
   await act(async()=>{pending[0]({data:{students:[{id:'old',student_name:'Eski'}]}});});
-  expect(view.container.textContent).toBe('Yeni');expect(JSON.parse(localStorage.getItem('cozum_dashboard_data_v1')).students[0].id).toBe('new');
+  expect(view.container.textContent).toBe('Yeni');expect(localStorage.getItem('cozum_dashboard_data_v1')).toBeNull();
 });

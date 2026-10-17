@@ -1,4 +1,4 @@
-import { json, errorResponse, logAction, getNextSequence, normalizeDate } from "../utils.js";
+import { json, errorResponse, logAction, getNextSequence, normalizeDate, recordWriteGuard } from "../utils.js";
 import { generateContractInstallments } from "../../../src/lib/installmentService.js";
 
 const planSnapshot=rows=>JSON.stringify(rows.map(i=>[Number(i.installment_no??i.taksitNo),Number(i.taksitTutari??i.amount),Number(i.tahsilEdilen??i.paid_amount??0),normalizeDate(i.vadeTarihi||i.due_date)]).sort((a,b)=>a[0]-b[0]));
@@ -190,21 +190,23 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const netTutar = Math.round((brutTutar / 1.1) * 100) / 100;
     const kdvTutari = Math.round((brutTutar - netTutar) * 100) / 100;
 
-    if (!Number.isFinite(brutTutar) || !Number.isInteger(taksitSayisi) || taksitSayisi < 1 || taksitSayisi > 120 || (body.due_date && !normalizeDate(body.due_date))) return errorResponse("Geçersiz tutar, taksit veya vade", 422, "VALIDATION_ERROR");
+    if (!Number.isFinite(brutTutar) || brutTutar<0 || !Number.isInteger(taksitSayisi) || taksitSayisi < 1 || taksitSayisi > 120 || (body.due_date && !normalizeDate(body.due_date))) return errorResponse("Geçersiz tutar, taksit veya vade", 422, "VALIDATION_ERROR");
     const studentId = body.student_id ? String(body.student_id) : "student-" + crypto.randomUUID().slice(0, 8);
     const student = await db.prepare("SELECT * FROM students WHERE id=?").bind(studentId).first();
     if (body.student_id && !student) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
     const statements = [];
+    const periodId=body.period_id||113;
     if (!student) statements.push(db.prepare("INSERT INTO students(id,student_name,parent_name,total_fee,installment_count,program) VALUES(?,?,?,?,?,'2026-2027')").bind(studentId,studentName,body.parent_name || "",brutTutar,taksitSayisi));
 
     // Reuse existing active contract strictly by student_id or sozlesme_no
     const existingContract = await db.prepare(`
       SELECT * FROM contracts
       WHERE ((student_id = ? AND student_id != '') OR (sozlesme_no = ? AND sozlesme_no != ''))
-        AND (is_deleted = 0 OR is_deleted IS NULL)
+        AND (is_deleted = 0 OR is_deleted IS NULL) AND durum<>3 AND period_id=?
       LIMIT 1
-    `).bind(studentId, body.sozlesme_no || "").first();
+    `).bind(studentId, body.sozlesme_no || "",periodId).first();
 
+    if(existingContract&&(Number(existingContract.brut_tutar)!==brutTutar||Number(existingContract.taksit_sayisi)!==taksitSayisi))return errorResponse('Bu dönem için aktif sözleşme zaten var. Tutarı mevcut sözleşmenin düzenleme ekranından değiştirin.',409,'ACTIVE_CONTRACT_EXISTS');
     if (existingContract) return json({ ...existingContract, sozlesmeNo: existingContract.sozlesme_no, brutTutar: existingContract.brut_tutar, taksitSayisi: existingContract.taksit_sayisi }, 201);
 
     let sozlesmeNo = existingContract?.sozlesme_no || body.sozlesme_no || body.sozlesmeNo;
@@ -214,7 +216,6 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       sozlesmeNo = await getNextSequence(db, "SZL_2026", "SZL2026", 5, 153);
     }
     const date = body.sozlesme_tarihi || body.contract_date || new Date().toISOString();
-    const periodId = body.period_id || 113;
     const periodName = body.period_name || "2026-2027";
     const parentName = body.parent_name || body.parentName || "";
     const parentPhone = body.parent_phone || body.parentPhone || "";
@@ -237,6 +238,9 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       parentName, parentPhone, periodId, periodName, netTutar, kdvTutari, brutTutar,
       `Taksitli (${taksitSayisi} Taksit)`, taksitSayisi, date, user?.name || "Yönetici"
     ));
+
+    statements.unshift(db.prepare("SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM contracts WHERE student_id=? AND period_id=? AND durum<>3 AND COALESCE(is_deleted,0)=0) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END").bind(studentId,periodId));
+    if(student){const guard=recordWriteGuard(db,'students',student,undefined,['sozlesme_no','total_fee','extra_fees','discount_amount','installment_count','paid_amount']);statements.unshift(guard.statement);}
 
     // Atomic income code
     const gelirKodu = await getNextSequence(db, "GLR_2026", "GLR2026", 5, 158);
@@ -263,7 +267,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const firstDue = normalizeDate(body.due_date || date);
     const plan = generateContractInstallments({id,student_id:studentId,brut_tutar:brutTutar,taksit_sayisi:taksitSayisi},{startDate:firstDue,dueDay:Number(firstDue.slice(8,10))});
     statements.push(installmentWrite(db,plan,id,glrId,studentId,taksitSayisi));
-    statements.push(db.prepare("UPDATE students SET sozlesme_no=? WHERE id=?").bind(sozlesmeNo,studentId));
+    statements.push(db.prepare("UPDATE students SET sozlesme_no=?,total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),paid_amount=0,installment_count=?,due_date=? WHERE id=?").bind(sozlesmeNo,brutTutar,taksitSayisi,firstDue,studentId));
     await db.batch(statements);
 
     await logAction(db, user, "contract.create", "contract", id, `${studentName} · ${sozlesmeNo} · ${brutTutar} ₺`, waitUntil);
@@ -470,7 +474,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const status = url.searchParams.get("status");
     const period = url.searchParams.get("period_id");
 
-    let query = "SELECT i.*, c.durum AS contract_status, c.student_name, c.sozlesme_no, c.period_id FROM installments i JOIN contracts c ON i.contract_id = c.id WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)";
+    let query = "SELECT i.*, c.durum AS contract_status, c.student_name, c.sozlesme_no, c.period_id,c.period_name FROM installments i JOIN contracts c ON i.contract_id = c.id WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)";
     const params = [];
 
     if (contractId) {

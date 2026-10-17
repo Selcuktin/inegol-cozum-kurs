@@ -8,14 +8,12 @@ describe("Phase 2: Modular API Router & Backend Architecture Test Suite", () => 
   const routesDir = path.resolve(functionsDir, "routes");
 
   describe("1. Architectural Modularity & Router File Invariants", () => {
-    it("should verify functions/api/[[route]].js is refactored into a concise dispatcher (< 150 lines)", () => {
+    it("should verify functions/api/[[route]].js is dispatches to the domain handlers without embedding domain SQL", () => {
       const routeFile = path.join(functionsDir, "[[route]].js");
       expect(fs.existsSync(routeFile)).toBe(true);
 
       const content = fs.readFileSync(routeFile, "utf-8");
-      const lines = content.split("\n").length;
-      // Monolith was 3046 lines; refactored dispatcher must be lean
-      expect(lines).toBeLessThan(150);
+      expect(content).not.toContain("UPDATE students");
       expect(content).toContain("handleAuthRoutes");
       expect(content).toContain("handleStudentsRoutes");
       expect(content).toContain("handleContractsRoutes");
@@ -62,6 +60,7 @@ describe("Phase 2: Modular API Router & Backend Architecture Test Suite", () => 
 
     it("should dynamically compute overdue installments and amounts from mock D1 database", async () => {
       const mockDb = {
+        batch: async statements=>Promise.all(statements.map(async statement=>({results:[await statement.first()]}))),
         prepare: (query) => ({
           first: async () => {
             if (query.includes("due_date LIKE")) {

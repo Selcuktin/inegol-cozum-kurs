@@ -53,9 +53,11 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     const handleUpdate = () => {
       setContractsList(AccountingService.getContracts(students));
     };
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => {
+      window.removeEventListener("cozum_snapshot_updated", handleUpdate);
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };

@@ -8,6 +8,7 @@ import {
   enrichStudent,
   CORS_HEADERS,
   normalizeDate,
+  recordWriteGuard,
 } from "../utils.js";
 import { getContractUpdateStatements, installmentWrite } from "./contracts.js";
 
@@ -470,6 +471,8 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
       }
 
       if (sets.length > 0) {
+        const guard=recordWriteGuard(db,'students',existing,patch._expected,allowed,enrichStudent(existing));
+        if(guard.error)return guard.error;
         values.push(targetId);
         let financialContract=null;
         const updates = [db.prepare(`UPDATE students SET ${sets.join(", ")} WHERE id = ?`).bind(...values)];
@@ -483,7 +486,7 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
             updates.push(...financial.statements);
           }
         }
-        await db.batch(updates);
+        await db.batch([guard.statement,...updates]);
         if(financialContract && (await db.prepare('SELECT durum FROM contracts WHERE id=?').bind(financialContract.id).first())?.durum===3)return errorResponse('Sözleşme iptal edildi; değişiklik kaydedilmedi',409,'CANCELLED_CONTRACT');
       }
 

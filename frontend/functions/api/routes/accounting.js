@@ -22,23 +22,23 @@ export async function getDynamicAccountingSummary(db, students = [], preloadedSu
 
   if (!preloadedSummary && db) {
     {
-      const [cRowRes, iRowRes, pRowRes, instRowRes, overdueRowRes] = await Promise.all([
-        db.prepare(contractTotalsSql).first(),
-        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0").first(),
-        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)").first(),
-        db.prepare("SELECT COUNT(*) as cnt FROM installments").first(),
+      const [cRowRes, iRowRes, pRowRes, instRowRes, overdueRowRes] = await db.batch([
+        db.prepare(contractTotalsSql),
+        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0"),
+        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)"),
+        db.prepare("SELECT COUNT(*) as cnt FROM installments"),
         db.prepare(`
           SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt
           FROM installments
           WHERE (date(CASE WHEN due_date LIKE '__.__.____' THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2) ELSE due_date END) < date('now','+3 hours') AND COALESCE(paid_amount,0) < amount)
             AND EXISTS(SELECT 1 FROM contracts c WHERE c.id=installments.contract_id AND COALESCE(c.is_deleted,0)=0 AND c.durum<>3)
-        `).first()
+        `)
       ]);
-      cRow = cRowRes;
-      iRow = iRowRes;
-      pRow = pRowRes;
-      instRow = instRowRes;
-      overdueRow = overdueRowRes;
+      cRow = cRowRes.results[0];
+      iRow = iRowRes.results[0];
+      pRow = pRowRes.results[0];
+      instRow = instRowRes.results[0];
+      overdueRow = overdueRowRes.results[0];
     }
   }
 
@@ -70,7 +70,7 @@ export async function getDynamicAccountingSummary(db, students = [], preloadedSu
 }
 
 export async function handleAccountingRoutes({ request, db, env, path, user, waitUntil }) {
-  // 1. GET /dashboard - All 11 D1 queries fired in a single concurrent Promise.all
+  // One D1 transaction supplies the complete financial snapshot and its totals.
   if (path === "/dashboard" && request.method === "GET") {
     const [
       studentsRes,
@@ -83,13 +83,15 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
       iRowRes,
       pRowRes,
       instRowRes,
-      overdueRowRes
-    ] = await Promise.all([
-      db.prepare("SELECT *, CASE WHEN signed_contract_path != '' AND signed_contract_path IS NOT NULL THEN 'stored' ELSE '' END as signed_contract_path FROM students ORDER BY created_at DESC, id DESC").all(),
-      db.prepare("SELECT * FROM classes").all(),
-      db.prepare(paymentsSql).all(),
-      db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all(),
-      db.prepare("SELECT * FROM teachers ORDER BY name ASC").all(),
+      overdueRowRes,
+      incomesRes,
+      installmentsRes
+    ] = await db.batch([
+      db.prepare("SELECT *, CASE WHEN signed_contract_path != '' AND signed_contract_path IS NOT NULL THEN 'stored' ELSE '' END as signed_contract_path FROM students ORDER BY created_at DESC, id DESC"),
+      db.prepare("SELECT * FROM classes"),
+      db.prepare(paymentsSql),
+      db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC"),
+      db.prepare("SELECT * FROM teachers ORDER BY name ASC"),
       db.prepare(`
         SELECT c.*,
           COALESCE((SELECT MAX(i.toplam_tahsilat) FROM student_incomes i WHERE (i.contract_id=c.id OR i.sozlesme_no=c.sozlesme_no) AND COALESCE(i.is_deleted,0)=0),(SELECT COALESCE(SUM(p.amount), 0) FROM payments p
@@ -98,21 +100,23 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
         FROM contracts c
         WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)
         ORDER BY c.sozlesme_tarihi DESC
-      `).all(),
-      db.prepare(contractTotalsSql).first(),
-      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0").first(),
-      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)").first(),
-      db.prepare("SELECT COUNT(*) as cnt FROM installments").first(),
+      `),
+      db.prepare(contractTotalsSql),
+      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0"),
+      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)"),
+      db.prepare("SELECT COUNT(*) as cnt FROM installments"),
       db.prepare(`
         SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt
         FROM installments
         WHERE (date(CASE WHEN due_date LIKE '__.__.____' THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2) ELSE due_date END) < date('now','+3 hours') AND COALESCE(paid_amount,0) < amount)
           AND EXISTS(SELECT 1 FROM contracts c WHERE c.id=installments.contract_id AND COALESCE(c.is_deleted,0)=0 AND c.durum<>3)
-      `).first()
+      `),
+      db.prepare("SELECT * FROM student_incomes WHERE COALESCE(is_deleted,0)=0"),
+      db.prepare("SELECT i.*,c.sozlesme_no,c.student_name,c.durum AS contract_status,c.period_id,c.period_name FROM installments i JOIN contracts c ON c.id=i.contract_id WHERE COALESCE(c.is_deleted,0)=0 ORDER BY i.due_date,i.installment_no")
     ]);
 
     const students = (studentsRes.results || []).map(enrichStudent);
-    const accountingSummary = await getDynamicAccountingSummary(db, students, [cRowRes, iRowRes, pRowRes, instRowRes, overdueRowRes]);
+    const accountingSummary = await getDynamicAccountingSummary(db, students, [cRowRes.results[0], iRowRes.results[0], pRowRes.results[0], instRowRes.results[0], overdueRowRes.results[0]]);
     const contracts = (contractsRes.results || []).map((r) => {
       const gross = Number(r.brut_tutar) || 0;
       const paid = Number(r.calculated_paid) || 0;
@@ -149,6 +153,8 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     return json({
       students,
       contracts,
+      incomes:incomesRes.results||[],
+      installments:installmentsRes.results||[],
       classes: classesRes.results || [],
       payments: paymentsRes.results || [],
       expenses: expensesRes.results || [],

@@ -141,6 +141,8 @@ export function MuhasebeV2Dashboard({
   const [promissoryStudent, setPromissoryStudent] = useState(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
+  const paymentId=React.useRef();
+  useEffect(()=>{if(showQuickPaymentModal)paymentId.current="pay_"+crypto.randomUUID();},[showQuickPaymentModal]);
 
   const handleOpenUnifiedContract = (target) => {
     const targetNo = typeof target === "string"
@@ -307,8 +309,9 @@ export function MuhasebeV2Dashboard({
 
   useEffect(() => {
     const handleUpdate = () => setAccountingVersion((v) => v + 1);
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
-    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
+    return () => {window.removeEventListener("cozum_snapshot_updated",handleUpdate);window.removeEventListener("cozum_accounting_updated",handleUpdate);};
   }, []);
 
   const allStudents = useMemo(() => data.students || [], [data.students]);
@@ -372,7 +375,7 @@ export function MuhasebeV2Dashboard({
           };
         });
       } else {
-        map[s.id] = computeStudentPlan(s);
+        map[s.id] = [];
       }
     });
     return map;
@@ -388,7 +391,7 @@ export function MuhasebeV2Dashboard({
   const totalCollected = useMemo(() => {
 
     return payments.filter(p => !p.is_cancelled && p.status !== "İptal Edildi").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  }, [payments, periodFilter]);
+  }, [payments]);
 
   const totalExpenses = useMemo(() => {
 
@@ -413,7 +416,7 @@ export function MuhasebeV2Dashboard({
     if (totalContractRevenue <= 0) return "0";
     const net = totalCollected - totalExpenses;
     return String(Math.round((net / totalContractRevenue) * 100));
-  }, [periodFilter, totalContractRevenue, totalCollected, totalExpenses]);
+  }, [totalContractRevenue, totalCollected, totalExpenses]);
 
   // GAP-1: Bu Ay Vadesi Gelenler (Cari Ay Taksit Tahakkuku)
   const dueThisMonthData = useMemo(() => {
@@ -487,7 +490,7 @@ export function MuhasebeV2Dashboard({
   const totalOverdueDebt = useMemo(() => {
 
     return overdueStudents.reduce((sum, s) => sum + s.remaining, 0);
-  }, [overdueStudents, periodFilter]);
+  }, [overdueStudents]);
 
   const agingSummary = useMemo(() => {
 
@@ -509,7 +512,7 @@ export function MuhasebeV2Dashboard({
       c31_60: { count: c31_60.length, sum: sum31_60, pct: pct31_60 },
       c60plus: { count: c60plus.length, sum: sum60plus, pct: pct60plus }
     };
-  }, [overdueStudents, totalOverdueDebt, periodFilter]);
+  }, [overdueStudents, totalOverdueDebt]);
 
   // 3. KASA & BANKA HESAP BAKİYELERİ (Edesis Canlı 975.438 ₺ Tam Parite)
   const registers = useMemo(() => {
@@ -862,6 +865,7 @@ export function MuhasebeV2Dashboard({
       const amt = parseFloat(payAmount);
       const studentObj = students.find(s => s.id === payStudentId);
       const res = await axios.post(`${API}/payments`, {
+        id:paymentId.current,
         student_id: payStudentId,
         sozlesme_no: studentObj?.sozlesme_no,
         amount: amt,

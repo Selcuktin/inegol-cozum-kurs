@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import {useDataRefresh} from '../hooks/useDataRefresh';
+import React, { useState, useCallback } from "react";
 import { Plus, X, Calendar, Clock, User, BookOpen, CheckCircle, Trash2, MessageCircle, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { openWhatsApp } from "../EdesisModules";
@@ -7,10 +8,11 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState("");
   const [teachersList,setTeachersList] = useState([]);
-  const loadAppointments = async () => setAppointments((await axios.get(`${API}/appointments`)).data);
-  useEffect(()=>{
-    Promise.all([axios.get(`${API}/appointments`),axios.get(`${API}/teachers`)]).then(([a,t])=>{setAppointments(a.data);setTeachersList(t.data.map(x=>x.name));}).catch(e=>setError(e.response?.data?.detail || e.message));
+  const loadAppointments=useCallback(async(current=()=>true)=>{
+    const [a,t]=await Promise.all([axios.get(`${API}/appointments`),axios.get(`${API}/teachers`)]);
+    if(current()){setAppointments(a.data);setTeachersList(t.data.map(x=>x.name));}
   },[API]);
+  const loadError=useDataRefresh(loadAppointments,[loadAppointments]);
 
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -60,7 +62,7 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
   };
 
   const handleStatusChange = async (id,status) => {
-    try { await axios.patch(`${API}/appointments/${id}`,{status}); await loadAppointments(); }
+    try { await axios.patch(`${API}/appointments/${id}`,{status,_expected:{status:appointments.find(a=>a.id===id)?.status}}); await loadAppointments(); }
     catch(e) { setError(e.response?.data?.detail || e.message); }
   };
   const handleDelete = async id => {
@@ -97,6 +99,7 @@ export function EtutAppointmentModal({ API, students = [], classes = [], onClose
           </div>
         </div>
 
+        {loadError&&<div role="alert">Güncel randevular yüklenemedi: {loadError.message}</div>}
         <div className="modal-body" style={{ overflowY: "auto", padding: "20px" }}>
           {/* Randevu Ekleme Formu */}
           {showAddForm && (

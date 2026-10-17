@@ -1,6 +1,7 @@
 // Run: node tests/audit_real_sqlite.mjs (Node 22.13+). Uses isolated memory DBs only.
 // D1-compatible query adapter executes the real route SQL; it does not model edge limits.
 import assert from 'node:assert/strict';
+import {database,row,rows,equal,request,student,pay} from './support/realRouter.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -15,57 +16,6 @@ const originalConsole = { log: console.log, error: console.error, warn: console.
 let logs = [];
 console.log = console.error = console.warn = (...args) => logs.push(args.map(String).join(' '));
 
-function database() {
-  const sql = new DatabaseSync(':memory:');
-  sql.exec(readFileSync(root + 'frontend/schema.sql', 'utf8'));
-  sql.exec('DELETE FROM students; DELETE FROM contracts; DELETE FROM student_incomes; DELETE FROM classes;');
-  const db = {
-    sql,
-    prepare(query) {
-      let params = [];
-      const statement = {
-        bind(...values) { assert.ok(values.length<=100,"D1 accepts at most 100 bind parameters"); params = values; return statement; },
-        async first() { return sql.prepare(query).get(...params) || null; },
-        async all() { return { results: sql.prepare(query).all(...params) }; },
-        async run() { sql.prepare(query).run(...params); return { success: true }; },
-        execute() { const stmt=sql.prepare(query); if(stmt.columns().length) return {success:true,results:stmt.all(...params)}; stmt.run(...params); return { success: true }; },
-      };
-      return statement;
-    },
-    async batch(statements) {
-      sql.exec('BEGIN');
-      try { const rows = statements.map(s => s.execute()); sql.exec('COMMIT'); return rows; }
-      catch (e) { sql.exec('ROLLBACK'); throw e; }
-    },
-  };
-  return db;
-}
-
-function row(db, query, ...params) { return db.sql.prepare(query).get(...params); }
-function rows(db, query, ...params) { return db.sql.prepare(query).all(...params); }
-function equal(actual, expected) { assert.equal(actual, expected, JSON.stringify({ actual, expected })); }
-async function request(db, path, method = 'GET', body, options = {}) {
-  db.sql.exec("INSERT OR IGNORE INTO user_sessions (session_token,user_id,expires_at) VALUES ('audit-admin','user_admin','2099-01-01');");
-  const headers = { Authorization: 'Bearer audit-admin', ...options.headers };
-  if (body !== undefined) headers['Content-Type'] ||= 'application/json';
-  const req = new Request('https://inegol-cozum-kurs.pages.dev/api' + path, {
-    method, headers, ...(body !== undefined ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {}),
-  });
-  const response = await onRequest({ request: req, env: { DB: db, ...options.env }, waitUntil() {} });
-  const text = await response.text();
-  let data; try { data = JSON.parse(text); } catch { data = text; }
-  return { status: response.status, data, headers: response.headers };
-}
-async function student(db, id = 'audit-s1', patch = {}) {
-  const res = await request(db, '/students', 'POST', { id, student_name: 'Audit Student', parent_name: 'Audit Parent', total_fee: 1000, installment_count: 2, ...patch });
-  assert.ok([200,201].includes(res.status), JSON.stringify(res));
-  return row(db, 'SELECT * FROM contracts WHERE student_id=?', id);
-}
-async function pay(db, contract, amount, no = 1) {
-  const res = await request(db, '/payments', 'POST', { student_id: contract.student_id, contract_id: contract.id, installment_no: no, amount });
-  equal(res.status, 201);
-  return res.data;
-}
 async function check(name, test) {
   const db = database(); logs = [];
   try { const evidence = await test(db); results.push({ name, passed: true, evidence }); }
@@ -427,13 +377,13 @@ await check('failed remote save is reported rather than a locally successful stu
 });
 await check('deleting one student preserves another student with the same name in cache', async () => {
   globalThis.fetch = async () => new Response('{}', { status: 200 });
-  StudentService.getAllStudents([{ id: 'same-1', student_name: 'Audit Same Name' }, { id: 'same-2', student_name: 'Audit Same Name' }]);
+  StudentService.acceptSnapshot([{ id: 'same-1', student_name: 'Audit Same Name' }, { id: 'same-2', student_name: 'Audit Same Name' }]);
   await StudentService.deleteStudent({ id: 'same-1', student_name: 'Audit Same Name' });
   equal(StudentService.getBaseStudents().length, 1);
 });
 await check('authoritative empty students response clears existing cache', async () => {
-  StudentService.getAllStudents([{ id: 'cached', student_name: 'Audit' }]);
-  equal(StudentService.getAllStudents([]).length, 0);
+  StudentService.acceptSnapshot([{ id: 'cached', student_name: 'Audit' }]);
+  StudentService.acceptSnapshot([]);equal(StudentService.getAllStudents().length, 0);
 });
 await check('native fetch sends bearer token for a separate API origin', async () => {
   serviceStorage.set('custom_api_url', 'https://inegol-cozum-kurs.pages.dev');
@@ -484,7 +434,7 @@ findParser(ast);
 await check('answer-key save retains displayed subject order regardless of typing order',async()=>{
   let saved;
   const defaultSubjects=runInNewContext(defaultSubjectsCode,{exam:{exam_type:'LGS'}});
-  const save=runInNewContext('('+keySaveFunction+')',{defaultSubjects,answerKeys:{},keyDraft:{A:{science:'AB',math:'BC',english:'CD',religion:'DA',history:'AB',turkish:'BC'}},API:'/api',exam:{id:'ex'},axios:{async patch(url,body){saved=body.answer_keys;}},setAnswerKeys(){},setParsedRows(){},setUploadMsg(){},onResultsUpdated(){}});
+  const save=runInNewContext('('+keySaveFunction+')',{defaultSubjects,keyBaseline:{current:null},answerKeys:{},keyDraft:{A:{science:'AB',math:'BC',english:'CD',religion:'DA',history:'AB',turkish:'BC'}},API:'/api',exam:{id:'ex'},axios:{async patch(url,body){saved=body.answer_keys;}},setAnswerKeys(){},setParsedRows(){},setUploadMsg(){},onResultsUpdated(){}});
   await save();equal(Object.keys(saved.A).join(','),'turkish,history,religion,english,math,science');
 });
 await check('unmatched optical row is not assigned to unrelated registered student', async () => {
@@ -702,7 +652,7 @@ await check('signature UI uses the saved server signer instead of a sample perso
   AccountingService.setInitialData({contracts:[{id:contract.id,sozlesmeNo:contract.sozlesme_no}],installments:[],incomes:[],collections:[]});
   globalThis.fetch=async(url,options={})=>{
     if(options.method==='POST'){posted=JSON.parse(options.body);return new Response(JSON.stringify({contract}),{status:200});}
-    return new Response(JSON.stringify([contract]),{status:200});
+    return new Response(JSON.stringify({contracts:[contract],payments:[]}),{status:200});
   };
   try{const saved=await AccountingService.signContract(contract.id);equal(posted.signer_name,'');equal(saved.kurum_imzalayan,'Örnek yetkili');equal(AccountingService.getContracts()[0].kurumImzalayan,'Örnek yetkili');}
   finally{globalThis.fetch=nativeFetch;}
@@ -758,7 +708,7 @@ await check('concurrent collection makes stale plan writes roll back through eve
     const before=rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id);
     const batch=db.batch.bind(db);db.batch=async statements=>{db.batch=batch;await pay(db,c,400);return batch(statements);};
     const result=target==='installments'?await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:before.map(i=>({...i,amount:300}))}):target==='student'?await request(db,'/students/'+c.student_id,'PATCH',{total_fee:600}):await request(db,'/contracts/'+c.id,'PATCH',{brutTutar:600});
-    equal(result.status,409);equal(result.data.code,'PAYMENT_PLAN_CHANGED');
+    equal(result.status,409);assert(['PAYMENT_PLAN_CHANGED','RECORD_CHANGED'].includes(result.data.code));
     equal(row(db,'SELECT brut_tutar FROM contracts WHERE id=?',c.id).brut_tutar,1000);
     equal(row(db,'SELECT total_fee FROM students WHERE id=?',c.student_id).total_fee,1000);
     equal(row(db,'SELECT paid_amount FROM installments WHERE contract_id=? AND installment_no=1',c.id).paid_amount,400);
@@ -800,6 +750,25 @@ await check('malformed payment-plan rows are rejected without changing financial
   const c=await student(db,'invalid-plan');const before=rows(db,'SELECT * FROM installments');
   for(const body of [null,{installments:[null]},{installments:[false]}])equal((await request(db,'/contracts/'+c.id+'/installments','PUT',body)).status,422);
   assert.deepEqual(rows(db,'SELECT * FROM installments'),before);
+});
+
+await check('accounting creation, normalized incomes, payment and delete use the real router end to end',async db=>{
+  AccountingService.resetCustomData();
+  globalThis.fetch=async(url,options={})=>{
+    const path=new URL(url,'https://local.invalid').pathname.replace(/^\/api/,'');
+    const response=await request(db,path,options.method||'GET',options.body?JSON.parse(options.body):undefined,{headers:{...options.headers,Authorization:"Bearer audit-admin"}});
+    return new Response(JSON.stringify(response.data),{status:response.status});
+  };
+  try{
+    const result=await AccountingService.addNewIncome({ogrenciAdi:'Anonymous service',brutTutar:1000,taksitSayisi:2,vadeTarihi:'2026-10-31'});
+    assert(result.contract.id);assert(result.income.gelirKodu);equal(result.income.brutTutar,1000);equal(result.installments.length,2);
+    const receipt=await AccountingService.recordCollection({student_id:result.contract.student_id,contract_id:result.contract.id,amount:100,installment_no:1});
+    equal(receipt.amount,100);assert(receipt.odemeKodu);equal(AccountingService.getIncomes()[0].toplamTahsilat,100);
+    await assert.rejects(AccountingService.deleteIncome(result.income),/Tahsilatı olan/);equal(row(db,'SELECT is_deleted FROM contracts').is_deleted,0);
+    await AccountingService.cancelCollection({id:receipt.id});await AccountingService.deleteIncome(result.income);
+    equal(AccountingService.getContracts().length,0);equal(AccountingService.getIncomes().length,0);
+    equal(row(db,'SELECT COUNT(*) n FROM payments').n,1);equal(row(db,'SELECT is_cancelled FROM payments').is_cancelled,1);
+  }finally{globalThis.fetch=nativeFetch;}
 });
 
 Object.assign(console, originalConsole);

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {useDataRefresh} from "../../hooks/useDataRefresh";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import {
   AlertTriangle,
@@ -30,6 +31,7 @@ export function HomeworkPage({ me, API, classes, students }) {
   const [showEtutModal, setShowEtutModal] = useState(false);
   const [selectedHw, setSelectedHw] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const submissionsRequest=useRef(0);
   const [savingSubs, setSavingSubs] = useState(false);
 
   // New Homework Form
@@ -40,29 +42,28 @@ export function HomeworkPage({ me, API, classes, students }) {
   const [newDueDate, setNewDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [newDesc, setNewDesc] = useState("");
 
-  const loadHomework = useCallback(async () => {
+  const loadHomework = useCallback(async (current=()=>true) => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/homework`);
-      setHomeworkList(res.data || []);
+      if(current())setHomeworkList(res.data || []);
     } catch (err) {
-      console.error("Homework load error:", err);
+      throw err;
     } finally {
-      setLoading(false);
+      if(current())setLoading(false);
     }
   }, [API]);
 
-  useEffect(() => {
-    loadHomework();
-  }, [loadHomework]);
+  const loadHomeworkError=useDataRefresh(loadHomework,[loadHomework]);
 
   const openSubmissions = async (hw) => {
-    setSelectedHw(hw);
+    const version=++submissionsRequest.current;
+    setSelectedHw(hw);setSubmissions([]);
     try {
       const res = await axios.get(`${API}/homework/${hw.id}/submissions`);
-      setSubmissions(res.data?.students || []);
+      if(version===submissionsRequest.current)setSubmissions((res.data?.students || []).map(r=>({...r,_expected:{status:r.status,note:r.note}})));
     } catch (err) {
-      console.error(err);
+      if(version===submissionsRequest.current)alert("Teslim listesi yüklenemedi: "+err.message);
     }
   };
 
@@ -82,7 +83,7 @@ export function HomeworkPage({ me, API, classes, students }) {
       setNewTitle("");
       setNewSource("");
       setNewDesc("");
-      loadHomework();
+      await loadHomework();
     } catch (err) {
       alert("Ödev eklenemedi: " + err.message);
     }
@@ -93,7 +94,7 @@ export function HomeworkPage({ me, API, classes, students }) {
     try {
       await axios.delete(`${API}/homework/${id}`);
       if (selectedHw?.id === id) setSelectedHw(null);
-      loadHomework();
+      await loadHomework();
     } catch (err) {
       alert("Silinemedi: " + err.message);
     }
@@ -110,8 +111,9 @@ export function HomeworkPage({ me, API, classes, students }) {
     setSavingSubs(true);
     try {
       await axios.post(`${API}/homework/${selectedHw.id}/submissions`, submissions);
+      await openSubmissions(selectedHw);
       alert("Teslim durumu güncellendi.");
-      loadHomework();
+      await loadHomework();
     } catch (err) {
       alert("Kaydedilemedi: " + err.message);
     } finally {
@@ -132,6 +134,7 @@ export function HomeworkPage({ me, API, classes, students }) {
 
   return (
     <div className="educational-module">
+      {loadHomeworkError&&<div role="alert">Güncel kayıtlar yüklenemedi: {loadHomeworkError.message}</div>}
       <div className="page-head">
         <div>
           <div className="eyebrow">ÖDEV YÖNETİMİ · EDESİS TAKİP SİSTEMİ</div>
@@ -211,7 +214,7 @@ export function HomeworkPage({ me, API, classes, students }) {
                   <p>{selectedHw.source_book} · {selectedHw.description || "Açıklama belirtilmemiş."}</p>
                 </div>
                 <div style={{ display: "flex", gap: "6px" }}>
-                  <button className="btn" disabled={savingSubs} onClick={handleSaveSubmissions}>
+                  <button className="btn" disabled={savingSubs||!submissions.length} onClick={handleSaveSubmissions}>
                     {savingSubs ? "Kaydediliyor..." : "Teslimleri Kaydet"}
                   </button>
                   <button className="icon-btn" onClick={() => handleDeleteHomework(selectedHw.id)}>
@@ -422,21 +425,19 @@ export function MentorshipPage({ me, API, students }) {
   const [nextDate, setNextDate] = useState("");
   const [notes, setNotes] = useState("");
 
-  const loadSessions = useCallback(async () => {
+  const loadSessions = useCallback(async (current=()=>true) => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/mentorship`);
-      setSessions(res.data || []);
+      if(current())setSessions(res.data || []);
     } catch (err) {
-      console.error(err);
+      throw err;
     } finally {
-      setLoading(false);
+      if(current())setLoading(false);
     }
   }, [API]);
 
-  useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+  const loadSessionsError=useDataRefresh(loadSessions,[loadSessions]);
 
   const handleCreateSession = async (e) => {
     e.preventDefault();
@@ -457,7 +458,7 @@ export function MentorshipPage({ me, API, students }) {
       setShowAddModal(false);
       setTopicsCovered("");
       setNotes("");
-      loadSessions();
+      await loadSessions();
     } catch (err) {
       alert("Koçluk kaydı eklenemedi: " + err.message);
     }
@@ -467,7 +468,7 @@ export function MentorshipPage({ me, API, students }) {
     if (!window.confirm("Bu koçluk kaydını silmek istediğinize emin misiniz?")) return;
     try {
       await axios.delete(`${API}/mentorship/${id}`);
-      loadSessions();
+      await loadSessions();
     } catch (err) {
       alert("Silinemedi: " + err.message);
     }
@@ -475,6 +476,7 @@ export function MentorshipPage({ me, API, students }) {
 
   return (
     <div className="educational-module">
+      {loadSessionsError&&<div role="alert">Güncel kayıtlar yüklenemedi: {loadSessionsError.message}</div>}
       <div className="page-head">
         <div>
           <div className="eyebrow">ÖĞRENCİ KOÇLUĞU · EDESİS REHBERLİK</div>

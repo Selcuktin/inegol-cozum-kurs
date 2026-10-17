@@ -1,3 +1,4 @@
+import {useDataRefresh} from "../hooks/useDataRefresh";
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import {
@@ -50,34 +51,34 @@ export function StudentProfileModal({
   const [showGelirModal, setShowGelirModal] = useState(false);
   const fileRef = useRef();
 
-  const refresh = () => {
+  const refresh = (current=()=>true) => {
     if (!student) return;
     setLoading(true);
     setDetail(null);
-    axios
+    return axios
       .get(`${API}/students/${student.id}/detail`)
-      .then((r) => setDetail(r.data))
+      .then((r) => {if(current())setDetail(r.data);})
       .catch((err) => {
-        console.warn("[StudentProfile] Failed to fetch student detail:", err);
+        throw err;
       })
-      .finally(() => setLoading(false));
+      .finally(() => {if(current())setLoading(false);});
   };
 
   useEffect(() => {
-    refresh();
     setUploadMsg("");
     /* eslint-disable-next-line */
   }, [student?.id]);
 
+  const detailError=useDataRefresh(refresh,[student?.id,API]);
   if (!student) return null;
 
   const s = detail?.student || student;
   const localCollections = AccountingService?.getCollections ? AccountingService.getCollections() : [];
   const payments =
-    detail?.payments && detail.payments.length > 0
+    Array.isArray(detail?.payments)
       ? detail.payments
       : localCollections
-          .filter((c) => c.student_id === s.id || c.musteriUnvan === s.student_name)
+          .filter((c) => c.student_id === s.id)
           .map((c) => ({
             id: c.id,
             payment_date: c.tahsilatTarihi || c.payment_date || new Date().toISOString(),
@@ -92,7 +93,7 @@ export function StudentProfileModal({
 
   // Öğrencinin katıldığı sınavlar
   const studentExams =
-    detail?.exam_results && detail.exam_results.length > 0
+    Array.isArray(detail?.exam_results)
       ? detail.exam_results
       : (data.exams || [])
           .map((exam) => {
@@ -103,7 +104,7 @@ export function StudentProfileModal({
 
   // Öğrencinin yoklama kayıtları
   const studentAttendance =
-    detail?.attendance && detail.attendance.length > 0
+    Array.isArray(detail?.attendance)
       ? detail.attendance
       : (data.attendanceToday || []).filter((a) => a.student_id === s.id);
 
@@ -124,7 +125,7 @@ export function StudentProfileModal({
         }
       });
       setUploadMsg("İmzalı sözleşme yüklendi ✓");
-      refresh();
+      await refresh();
     } catch (e) {
       setUploadMsg(e.response?.data?.detail || "Yüklenemedi");
     } finally {
@@ -144,6 +145,7 @@ export function StudentProfileModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 9999 }}>
+      {detailError&&<div role="alert">Öğrenci detayı yüklenemedi: {detailError.message}</div>}
       <div
         className="modal"
         onClick={(e) => e.stopPropagation()}

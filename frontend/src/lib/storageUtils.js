@@ -1,7 +1,7 @@
 import { isAllowedBackendUrl } from "./utils.js";
 
 // Storage cache-busting & purge utilities for web & PWA
-export const CLIENT_STORAGE_VERSION = "cozum_v10_20261012_audit_sec_cache_purge";
+export const CLIENT_STORAGE_VERSION = "cozum_v11_20261017_authoritative_server_data";
 
 export async function purgeClientStorage(preserveAuth = true) {
   if (typeof window === "undefined") return;

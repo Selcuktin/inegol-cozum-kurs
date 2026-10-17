@@ -22,7 +22,7 @@ describe("Single Contract Creation & Duplicate Prevention Guarantee", () => {
       Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
     );
 
-    AccountingService.addNewIncome({
+    await AccountingService.addNewIncome({
       ogrenciAdi: "Test Tek Sözleşme",
       veliAdi: "Test Veli",
       brutTutar: 40000,
@@ -44,7 +44,7 @@ describe("Single Contract Creation & Duplicate Prevention Guarantee", () => {
       Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
     );
 
-    AccountingService.addNewIncome({
+    await AccountingService.addNewIncome({
       ogrenciAdi: "Test Mevcut Sözleşme",
       veliAdi: "Test Veli",
       brutTutar: 50000,
@@ -90,7 +90,7 @@ describe("Single Contract Creation & Duplicate Prevention Guarantee", () => {
                 id: "cnt_existing_123",
                 sozlesme_no: "SZL202600154",
                 student_id: "student-c0815333",
-                student_name: "sdsd",
+                student_name: "sdsd",brut_tutar:43000,taksit_sayisi:6,
               };
             }
             return null;

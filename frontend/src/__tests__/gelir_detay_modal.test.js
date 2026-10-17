@@ -1,4 +1,4 @@
-import React from "react";
+import React,{act} from "react";
 import { render, cleanup, fireEvent } from "./test_helpers";
 import { GelirDetayModal } from "../components/GelirDetayModal";
 import edesisData from "../data/edesisAccountingData.json";
@@ -70,7 +70,7 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
     expect(getByText("1. Taksit")).toBeTruthy();
     expect(getByText("10. Taksit")).toBeTruthy();
     expect(container.textContent).toContain("Ödendi");
-    expect(container.textContent).toContain("29 gün erken");
+    expect(container.textContent).not.toContain("29 gün erken");
 
     // 4. Müşteri & İletişim Bilgileri
     expect(getByText("05550000000")).toBeTruthy();
@@ -87,7 +87,7 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
     expect(closed).toBe(true);
   });
 
-  test("renders GelirDetayModal dynamically for a student object with fallback calculation", async () => {
+  test("does not invent a contract or a plan from stale student properties", async () => {
     const mockStudent = {
       id: "stu-test-99",
       student_name: "YUSUF EMRE DOĞAN",
@@ -107,9 +107,25 @@ describe("GelirDetayModal - Edesis Gelir & Taksit Detay Paritesi", () => {
       />
     );
 
-    expect(container.textContent).toContain("YUSUF EMRE DOĞAN");
-    expect(container.textContent).toContain("8-A");
-    expect(container.textContent).toContain("60.000,00");
+    expect(container.textContent).toContain("Gelir kaydı bulunamadı");
+    expect(container.textContent).not.toContain("60.000,00");
+    expect(container.querySelector("table")).toBeNull();
+  });
+
+  test('raw dashboard incomes retain aliases and update detail from recorded data only',async()=>{
+    const income={id:'g',gelir_kodu:'GLR-AUDIT',contract_id:'c',sozlesme_no:'SZL-AUDIT',student_id:'s',student_name:'Anonymous',brut_tutar:1000,net_tutar:1000,kdv_tutari:0,toplam_tahsilat:200,kalan_alacak:800,period_id:113};
+    AccountingService.acceptDashboard({incomes:[income],contracts:[{id:'c',sozlesme_no:'SZL-AUDIT'}],installments:[],payments:[]});
+    const view=await render(<GelirDetayModal isOpen onClose={()=>{}} gelirKodu='GLR-AUDIT'/>);
+    expect(view.container.textContent).toContain('Anonymous');expect(view.container.textContent).toContain('800,00');
+    expect(view.container.textContent).toContain('Tahsilat Geçmişi (0)');
+    expect(view.container.textContent).not.toContain('30.11.2026');
+    await act(async()=>{AccountingService.acceptDashboard({incomes:[{...income,toplam_tahsilat:300,kalan_alacak:700}],contracts:[{id:'c',sozlesme_no:'SZL-AUDIT'}],installments:[],payments:[{id:'real',contract_id:'c',amount:300}]});window.dispatchEvent(new Event('cozum_snapshot_updated'));});
+    expect(view.container.textContent).toContain('700,00');expect(view.container.textContent).toContain('300,00');expect(view.container.textContent).toContain('Tahsilat Geçmişi (1)');
+  });
+
+  test('explicit unknown income never falls back to another same-name student or the first record',async()=>{
+    const view=await render(<GelirDetayModal isOpen onClose={()=>{}} gelirKodu='MISSING' student={{id:'other',student_name:edesisData.gelirler[0].ogrenciAdiSoyadi}}/>);
+    expect(view.container.textContent).toContain('Gelir kaydı bulunamadı');expect(view.container.querySelector('table')).toBeNull();
   });
 
   test("verifies total accounting summary in edesisAccountingData bundle", () => {

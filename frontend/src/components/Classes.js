@@ -32,7 +32,7 @@ export function EditClassModal({ cls, onClose, API, onSaved }) {
     if (!name.trim()) { setErr("Sınıf adı boş bırakılamaz"); return; }
     setSaving(true); setErr("");
     try {
-      await axios.put(`${API}/classes/${cls.id}`, { name, level, room, capacity: Number(capacity), teacher });
+      await axios.put(`${API}/classes/${cls.id}`, { name, level, room, capacity: Number(capacity), teacher,_expected:Object.fromEntries(["name","level","room","capacity","teacher"].map(k=>[k,cls[k]??null])) });
       if (onSaved) onSaved();
       onClose();
     } catch (e) {

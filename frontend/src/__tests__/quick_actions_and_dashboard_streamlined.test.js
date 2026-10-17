@@ -1,5 +1,5 @@
 import React,{act} from "react";
-import { render, cleanup, fireEvent } from "./test_helpers";
+import { render, cleanup, fireEvent, waitFor } from "./test_helpers";
 import { DashboardPage } from "../pages/DashboardPage";
 import { MainApp } from "../App";
 import AccountingService from '../lib/edesisAccountingService';
@@ -17,6 +17,7 @@ describe("Sadeleştirilmiş Hızlı İşlemler & Genel Bakış Test Paketi", () 
     try{
       const {container}=await render(<MainApp me={adminUser} onLogout={()=>{}}/>);
       await act(async()=>window.dispatchEvent(new Event('cozum_students_updated')));
+      await waitFor(()=>expect(pending.length).toBe(2));
       await act(async()=>pending[1]({data:{students:[{id:'newest',student_name:'Yeni kaydedilen',program:'2026-2027',status:'Kesin Kayıt'}],contracts:[]}}));
       await act(async()=>pending[0]({data:{students:[{id:'outdated',student_name:'Eski yanıt',program:'2026-2027',status:'Kesin Kayıt'}],contracts:[]}}));
       expect(container.textContent).toContain('Yeni kaydedilen');expect(container.textContent).not.toContain('Eski yanıt');

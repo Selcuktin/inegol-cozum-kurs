@@ -30,8 +30,10 @@ import {
 
 export { fmtCurrency, fmtDate };
 
+const EMPTY_STUDENTS=[];
+
 export default function EdesisGelirListesi({
-  students = [],
+  students = EMPTY_STUDENTS,
   onSelectStudent,
   onOpenGelir,
   onNavigate
@@ -51,9 +53,11 @@ export default function EdesisGelirListesi({
     const handleUpdate = () => {
       setIncomesList(AccountingService.getIncomes(students));
     };
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => {
+      window.removeEventListener("cozum_snapshot_updated", handleUpdate);
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };
@@ -305,11 +309,13 @@ export default function EdesisGelirListesi({
   };
 
   // PRATİK GELİR SİLME İŞLEMİ
-  const handleDeleteIncome = (gelir) => {
-    AccountingService.deleteIncome(gelir);
-    setIncomesList((prev) => prev.filter((item) => item.gelirKodu !== gelir.gelirKodu && item.id !== gelir.id));
-    setShowDeleteModal(null);
-    showToast(`🗑️ ${gelir.gelirKodu} numaralı gelir kaydı silindi.`);
+  const handleDeleteIncome = async (gelir) => {
+    try{
+      await AccountingService.deleteIncome(gelir);
+      setIncomesList(AccountingService.getIncomes());
+      setShowDeleteModal(null);
+      showToast(`🗑️ ${gelir.gelirKodu} numaralı gelir kaydı silindi.`);
+    }catch(error){window.alert(error.message||'Gelir silinemedi');}
   };
 
   // PRATİK GELİR EKLEME İŞLEMİ (Taksit bölme & sözleşme senkronizasyonu ile)
@@ -332,6 +338,7 @@ try {
     if (amt <= 0) return;
 
     await AccountingService.recordCollection({
+      id:gelir.collection_id,
       gelirKodu: gelir.gelirKodu,
       sozlesmeNo: gelir.sozlesmeNo,
       amount: amt,
@@ -1239,7 +1246,7 @@ try {
                               {!isCancelled && !isFullyPaid && (
                                 <div
                                   onClick={() => {
-                                    setShowQuickCollectModal(g);
+                                    setShowQuickCollectModal({...g,collection_id:"pay_"+crypto.randomUUID()});
                                     setOpenDropdownId(null);
                                   }}
                                   style={{
