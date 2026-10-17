@@ -1,3 +1,4 @@
+import { usePrintTarget } from "../hooks/usePrintTarget";
 import React, { useState, useMemo } from "react";
 import { 
   X, Users, UserCheck, Clock, BookOpen, Plus, Edit, Printer, 
@@ -14,6 +15,7 @@ export function ClassDetailModal({
   onNavigate, 
   onOpenNewStudent 
 }) {
+  const printRef=usePrintTarget(!!activeClass);
   const [activeTab, setActiveTab] = useState("kadro"); // 'kadro' | 'yoklama_listesi' | 'toplu_whatsapp'
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // 'all' | 'has_debt' | 'no_debt'
@@ -69,7 +71,7 @@ export function ClassDetailModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1200 }}>
+    <div ref={printRef} className="modal-backdrop" onClick={onClose} style={{ zIndex: 1200 }}>
       <div 
         className="modal" 
         onClick={e => e.stopPropagation()} 

@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import { usePrintTarget } from "../hooks/usePrintTarget";
+import React, { useState, useEffect } from "react";
 import AccountingService from "../lib/edesisAccountingService";
 import { Printer, X, FileText, CheckCircle, AlertCircle } from "lucide-react";
 
 // Türkçe Para Tutarını Yazıya Çevirme
 export function numberToTurkishWords(num) {
-  if (num === null || num === undefined || isNaN(num)) return "Sıfır Türk Lirası";
-  const lira = Math.floor(Math.abs(num));
-  const kurus = Math.round((Math.abs(num) - lira) * 100);
+  if (num === null || num === undefined || !Number.isFinite(Number(num))) return "Sıfır Türk Lirası";
+  const cents = Math.round(Math.abs(Number(num)) * 100);
+  const lira = Math.floor(cents / 100);
+  const kurus = cents % 100;
 
   const birler = ["", "Bir", "İki", "Üç", "Dört", "Beş", "Altı", "Yedi", "Sekiz", "Dokuz"];
   const onlar = ["", "On", "Yirmi", "Otuz", "Kırk", "Elli", "Altmış", "Yetmiş", "Seksen", "Doksan"];
@@ -56,7 +58,9 @@ export function numberToTurkishWords(num) {
 }
 
 export function PromissoryNoteModal({ student, installments: propInstallments, onClose }) {
+  const printRef=usePrintTarget(!!student);
   const [selectedInstIndex, setSelectedInstIndex] = useState(-1); // -1 = Tüm Senetler (Koçan)
+  useEffect(()=>setSelectedInstIndex(-1),[student?.id,student?.sozlesme_no]);
   
   if (!student) return null;
 
@@ -88,10 +92,10 @@ export function PromissoryNoteModal({ student, installments: propInstallments, o
     totalFee = installments.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
   }
 
-  const displayedNotes = selectedInstIndex === -1 ? installments : [installments[selectedInstIndex]];
+  const displayedNotes = selectedInstIndex === -1 || !installments[selectedInstIndex] ? installments : [installments[selectedInstIndex]];
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
+    <div ref={printRef} className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
       <div 
         className="modal" 
         onClick={(e) => e.stopPropagation()} 

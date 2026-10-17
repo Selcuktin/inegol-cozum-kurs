@@ -833,37 +833,7 @@ finally {setSavingPlan(false);}
                               <Check size={11} /> Ödendi
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setReceiptModalPayment({
-                                  id: `THS-${t.taksitNo}-${contract?.sozlesmeNo || Date.now()}`,
-                                  amount: Number(t.tahsilEdilen) || Number(t.taksitTutari) || 0,
-                                  payment_date: t.odemeTarihi || t.tahsilatTarihi || t.vadeTarihi || new Date().toISOString().slice(0, 10),
-                                  method: t.odemeYontemi || "Nakit",
-                                  bank: t.banka || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
-                                  note: `${contract?.sozlesmeNo || ""} ${t.taksitNo}. Taksit Tahsilat Makbuzu`
-                                });
-                              }}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                                padding: "3px 8px",
-                                background: "#f0fdf4",
-                                color: "#16a34a",
-                                border: "1px solid #bbf7d0",
-                                borderRadius: "12px",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                transition: "all 0.15s"
-                              }}
-                              title="Tahsilat Makbuzunu Görüntüle ve Yazdır"
-                            >
-                              <Printer size={12} /> Makbuz
-                            </button>
+
 
                             <button
                               type="button"
@@ -917,6 +887,14 @@ finally {setSavingPlan(false);}
                           </button>
                         )}
 
+                            {AccountingService.getCollections().filter(p=>!p.is_cancelled &&
+                              ((contract.id && p.contract_id===contract.id) || (contract.sozlesmeNo && p.sozlesmeNo===contract.sozlesmeNo)) &&
+                              ((t.id && p.installment_id===t.id) || Number(p.taksitNo ?? p.installment_no)===Number(t.taksitNo))).map(p=>(
+                              <button key={p.id} type="button" className="btn small secondary" title="Kayıtlı tahsilat makbuzu"
+                                onClick={e=>{e.stopPropagation();setReceiptModalPayment({...p,amount:p.tahsilatTutari ?? p.amount,payment_date:p.tahsilatTarihi || p.payment_date});}}>
+                                <Printer size={12}/> Makbuz · {fmtTRY(p.tahsilatTutari ?? p.amount)}
+                              </button>
+                            ))}
                         <button
                           type="button"
                           onClick={(e) => {

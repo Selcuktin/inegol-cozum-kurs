@@ -991,7 +991,10 @@ export default function EdesisTahsilatListesi({
                                 ? rawParent
                                 : "";
                             const paymentObj = {
-                              id: t.odemeKodu || `MAK-${t.id}`,
+                              id: t.id,
+                              receipt_no: t.odemeKodu,
+                              contract_id: t.contract_id,
+                              sozlesme_no: t.sozlesmeNo,
                               student_id: matchedStudent?.id || t.ogrenciId,
                               student_name: stName,
                               parent_name: safeParentName,

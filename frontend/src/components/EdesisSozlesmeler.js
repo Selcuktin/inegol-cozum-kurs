@@ -201,18 +201,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const [cancelling,setCancelling]=useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Manage print isolation classes on body
-  useEffect(() => {
-    if (showMebPrintModal) {
-      document.body.classList.add("meb-print-active");
-    } else {
-      document.body.classList.remove("meb-print-active");
-    }
-    return () => {
-      document.body.classList.remove("meb-print-active");
-    };
-  }, [showMebPrintModal]);
-
   const allRegisteredStudents = useMemo(() => {
     try {
       const list = StudentService.getAllStudents(students);
@@ -497,7 +485,6 @@ try {
 
   const printStudent = useMemo(() => {
     if (!showMebPrintModal) return null;
-    const name = trNorm(showMebPrintModal.ogrenciAdi || showMebPrintModal.student_name || showMebPrintModal.musteriUnvan || "");
     const sId = String(showMebPrintModal.ogrenciId || showMebPrintModal.studentId || showMebPrintModal.student_id || "");
     const cleanId = sId.replace(/^stu-/, "");
     const szlNo = showMebPrintModal.sozlesmeNo || showMebPrintModal.sozlesme_no || "";
@@ -506,11 +493,10 @@ try {
     const list = Array.isArray(allRegisteredStudents) && allRegisteredStudents.length > 0 ? allRegisteredStudents : (students || []);
     return list.find((s) => {
       if (!s) return false;
+      if (cleanId) return String(s.id).replace(/^stu-/, "") === cleanId;
       if (szlNo && s.sozlesme_no && String(s.sozlesme_no) === szlNo) return true;
-      if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
       if (tc && s.student_tc && String(s.student_tc).trim() === tc) return true;
       if (ogrNo && String(s.student_no) === ogrNo) return true;
-      if (name && trNorm(s.student_name) === name) return true;
       return false;
     }) || null;
   }, [showMebPrintModal, allRegisteredStudents, students]);

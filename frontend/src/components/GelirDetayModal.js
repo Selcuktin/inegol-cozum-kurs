@@ -1,3 +1,4 @@
+import {usePrintTarget} from "../hooks/usePrintTarget";
 import React, { useState, useMemo } from "react";
 import {
   X,
@@ -64,6 +65,7 @@ export function GelirDetayModal({
   onRecordPayment,
   onOpenProfile
 }) {
+  const printRef=usePrintTarget();
   const [activeTabNotes, setActiveTabNotes] = useState("notes"); // 'notes' | 'activity'
   const [newNote, setNewNote] = useState("");
   const [notesList, setNotesList] = useState('');
@@ -294,20 +296,26 @@ try {
 } catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
 };
 
-  // Makbuz Modalını Aç (İlgili taksit veya geçmiş tahsilat satırı için)
+  // Makbuz yalnızca kayıtlı tahsilattan açılır.
   const handleOpenReceipt = (item) => {
-    const amt = item.tahsilatTutari || item.tahsilEdilen || item.amount || item.taksitTutari || 0;
-    const pDate = item.tahsilatTarihi ? item.tahsilatTarihi.slice(0, 10) : (item.payment_date || new Date().toISOString().slice(0, 10));
+    if(!item.id)return;
+    const amt = item.tahsilatTutari ?? item.amount ?? 0;
+    const pDate = item.tahsilatTarihi ? item.tahsilatTarihi.slice(0, 10) : item.payment_date;
     setReceiptPayment({
-      id: item.odemeKodu || item.id || `rcp-${gCode}-${item.taksitNo || 1}`,
-      student_id: student?.id || `stu-${gCode}`,
+      id: item.id,
+      receipt_no: item.odemeKodu,
+      contract_id: item.contract_id,
+      sozlesme_no: item.sozlesmeNo,
+      is_cancelled: item.is_cancelled,
+      status: item.status,
+      student_id: item.student_id || student?.id,
       student_name: stName,
       student_class: stClass,
       parent_name: targetSozlesme?.veliAdi || student?.parent_name || stName,
       parent_phone: stPhone,
       amount: amt,
-      method: item.method || item.odemeYontemiText || "Banka Transferi",
-      bank: item.kasaBankaAdi || item.bank || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
+      method: item.method || item.odemeYontemiText || "Belirtilmedi",
+      bank: item.kasaBankaAdi || item.bank || "",
       payment_date: pDate,
       note: item.aciklama || item.note || `${szNo} nolu sözleşme ${item.taksitNo ? item.taksitNo + '. taksit ' : ''}tahsilatı`,
       created_at: new Date().toISOString()
@@ -326,7 +334,7 @@ try {
   return (
     <>
       <div
-        className="responsive-modal-backdrop fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
+        ref={printRef} className="responsive-modal-backdrop fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="gelir-detay-title"
@@ -705,15 +713,16 @@ try {
                                     <Plus size={13} />
                                   </button>
                                 )}
-                                <button
+                                {allHistory.filter(p=>!p.is_cancelled && ((t.id && p.installment_id===t.id) || Number(p.taksitNo ?? p.installment_no)===Number(t.taksitNo))).map(p=><button
+                                  key={p.id}
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); handleOpenReceipt(t); }}
-                                  title="Resmî Makbuz & Yazdır"
+                                  onClick={(e) => { e.stopPropagation(); handleOpenReceipt(p); }}
+                                  title="Kayıtlı tahsilat makbuzu"
                                   className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                                   style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: "3px" }}
                                 >
-                                  <Printer size={13} />
-                                </button>
+                                  <Printer size={13} /> {fmtTRY(p.tahsilatTutari ?? p.amount)}
+                                </button>)}
                                 <button
                                   type="button"
                                   title="Kilitli Kayıt"

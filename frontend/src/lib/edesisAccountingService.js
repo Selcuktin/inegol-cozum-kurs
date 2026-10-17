@@ -47,6 +47,7 @@ function ensureScope(){if(cacheScope!==dataScope()){cacheScope=dataScope();Accou
 export function formatContractRecord(r) {
   if (!r) return null;
   const no = r.sozlesmeNo || r.sozlesme_no || "";
+  const studentId = r.student_id || r.studentId || r.ogrenciId;
   const name = r.ogrenciAdi || r.ogrenciAdiSoyadi || r.student_name || "";
   const parent = r.parent_name || r.parentName || r.musteriUnvan || name;
   const parentPhone = r.parent_phone || r.parentPhone || "";
@@ -76,9 +77,9 @@ export function formatContractRecord(r) {
     id: r.id,
     sozlesmeNo: no,
     sozlesme_no: no,
-    studentId: r.student_id || r.studentId,
-    student_id: r.student_id || r.studentId,
-    ogrenciId: r.student_id || r.studentId,
+    studentId,
+    student_id: studentId,
+    ogrenciId: studentId,
     student_tc: r.student_tc || r.studentTc || "",
     studentTc: r.student_tc || r.studentTc || "",
     parent_tc: r.parent_tc || r.parentTc || "",

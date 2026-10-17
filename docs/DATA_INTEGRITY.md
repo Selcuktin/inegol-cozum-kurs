@@ -116,10 +116,38 @@ liste küçülünce geçerli sayfaya dönülür. Dört ana listenin baskısı fi
 tüm satırları içerir, baskı bittiğinde normal sayfalama geri gelir.
 
 PDF ilk 20 satırda kesilmez; giderleri de içerir, kuruşları korur, sayfa ve xref
-ofsetlerini hesaplar. Yerleşik Helvetica kullanılan indirilebilir PDF Türkçe
-harfleri Latin eşdeğerine çevirir; tarayıcıdan yazdırma/CSV Türkçe metni korur.
+ofsetlerini hesaplar. İndirilebilir PDF, gömülü Ubuntu yazı tipi alt kümesi ve
+ToUnicode eşlemesiyle Türkçe harfleri korur. Latin/Türkçe dışındaki yazı sistemleri
+için alt kümenin genişletilmesi gerekir. Çalışma anında yeni PDF bağımlılığı yoktur.
 Senet çıktısı kayıtlı taksitleri kullanır; boş plan için ödeme planı üretmez.
 Sözleşme bağlantısı bulunamayan kimliği, hatırlanan öğrenci adıyla eşleştirmez.
+
+`usePrintTarget`, baskı sırasında son açılan belgeyi ve onun üst eleman yolunu
+işaretler; arka plandaki ekranları gizler. İşaretler baskı sonrası ve bileşen
+kapanışında temizlenir. Sözleşme/makbuz sabit yüksekliğe kesilmez. Taksitlerden
+toplam tutarlı makbuz üretilmez; her gerçek tahsilat kendi kimlik ve tutarıyla açılır.
+Ödeme planı dökümü de senet gibi kayıtlı planı kullanır. Makbuzdaki yazdırma
+düzenlemeleri kalıcı tahsilatı değiştirmez; başka belgeye geçince sıfırlanır.
+Sözleşme öğrenci kimliği yeniden biçimlendirme sırasında kaybolmaz; kimlik,
+eski numara eşleşmesinden önce gelir. İptal sözleşmenin MEB/plan çıktısı arşiv
+olarak işaretlenir. MEB önizlemesinde eksik düzenleme tarihi/numarası/sınıf/dönem
+uydurulmaz. Gelir detayındaki taksit makbuzu da kayıtlı tahsilatı kullanır;
+makbuz e-posta isteği ortak oturumlu API istemcisinden geçer.
+
+İsteğe bağlı görsel kontrol (geliştirme araçları: WeasyPrint/Pango, pypdf, Poppler):
+
+```powershell
+cd frontend
+$env:PRINT_FIXTURES='1'; npm test -- --runInBand --runTestsByPath src/__tests__/print_integrity.test.js
+cd ..
+python tests/verify_print_layout.py
+```
+
+Bu komut anonim belge örneklerini gerçek bileşenlerden alır; sözleşme, uzun
+açıklamalı makbuz, üç senet ve 120 taksitli planı bağımsız baskı motorunda doğrular.
+Fiziksel yazıcı/Chromium çıktısının yerine geçmez. Font alt kümesi geliştirme
+zamanında `frontend/scripts/build_report_font.py` ile yeniden üretilebilir;
+gerekli font lisansı asset klasöründedir.
 
 Yoklama uygulamanın gezinmesinden ve öğrenci profilinden kaldırılmıştır;
 veritabanındaki tarihçe ve yedekleri korunur. Optik okuma, sınav/karne,

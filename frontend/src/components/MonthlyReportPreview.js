@@ -1,3 +1,4 @@
+import {usePrintTarget} from "../hooks/usePrintTarget";
 import React from "react";
 import {
   Printer,
@@ -39,6 +40,7 @@ function formatMoney(amount) {
 }
 
 export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) {
+  const printRef=usePrintTarget();
   // Parse year and month
   const [yearStr, monthStr] = month.split("-");
   const monthName = MONTH_NAMES[monthStr] || monthStr;
@@ -202,7 +204,7 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
   };
 
   return (
-    <div className="monthly-report-preview-container" style={{ marginTop: "24px" }}>
+    <div ref={printRef} className="monthly-report-preview-container" style={{ marginTop: "24px" }}>
       {/* Önizleme Kontrol Başlığı */}
       <div 
         style={{

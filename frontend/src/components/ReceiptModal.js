@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import { usePrintTarget } from "../hooks/usePrintTarget";
+import React, { useState, useEffect } from "react";
 import { Printer, X, Receipt, CheckCircle2, Edit3, Mail } from "lucide-react";
 import { numberToTurkishWords } from "./PromissoryNoteModal";
 import { StudentService } from "../lib/edesisService";
+import AccountingService from "../lib/edesisAccountingService";
+import {apiFetch} from "../lib/utils";
 
 function normTr(str) {
   return String(str || "")
@@ -13,7 +16,7 @@ function normTr(str) {
 }
 
 export function formatPaymentDate(raw) {
-  if (!raw) return new Date().toLocaleDateString("tr-TR");
+  if (!raw) return "—";
   const str = String(raw).trim();
   if (/^\d{2}\.\d{2}\.\d{4}/.test(str)) {
     return str.slice(0, 10);
@@ -31,6 +34,7 @@ export function formatPaymentDate(raw) {
 }
 
 export function ReceiptModal({ payment, student, onClose }) {
+  const printRef=usePrintTarget(!!payment);
   const sNameNorm = normTr(student?.student_name);
   const rawParentNorm = normTr(student?.parent_name);
   const isInvalidParent = (pNorm) =>
@@ -51,7 +55,7 @@ export function ReceiptModal({ payment, student, onClose }) {
       matchedStudent =
         allStudents.find((s) => {
           if (!s) return false;
-          if (cleanId && (String(s.id) === String(student?.id) || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
+          if (cleanId) return String(s.id).replace(/^stu-/, "") === cleanId;
           if (sTc && String(s.student_tc || "").trim() === sTc) return true;
           return false;
         }) || null;
@@ -91,6 +95,18 @@ export function ReceiptModal({ payment, student, onClose }) {
   const [recipientEmail, setRecipientEmail] = useState(() => {
     return student?.parent_email || student?.guardian_email || student?.father_email || student?.mother_email || "";
   });
+  useEffect(()=>{
+    setEditableAmount(Number(payment?.amount ?? payment?.tahsilatTutari ?? 0));
+    setEditableDate(formatPaymentDate(payment?.payment_date || payment?.tahsilatTarihi || payment?.date));
+    setEditableParent(resolvedParentName === '—' ? '' : resolvedParentName);
+    setEditableParentPhone(resolvedParentPhone === '—' ? '' : resolvedParentPhone);
+    setEditableStudentName(student?.student_name || payment?.student_name || '');
+    setEditableMethod(payment?.method || payment?.payment_type || 'Nakit Kasa');
+    setEditableNote(payment?.note || '');setEmailStatus(null);setShowEditDrawer(false);
+    setRecipientEmail(student?.parent_email || student?.guardian_email || student?.father_email || student?.mother_email || '');
+    // A new document resets its preview; refreshing the same document preserves manual print edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[payment?.id,student?.id]);
 
   const handleSendEmail = async () => {
     let target = recipientEmail.trim();
@@ -104,7 +120,7 @@ export function ReceiptModal({ payment, student, onClose }) {
     setEmailStatus(null);
     try {
       const payId = payment.id || "preview";
-      const res = await fetch(`/api/payments/${encodeURIComponent(payId)}/send-receipt-email`, {
+      const res = await apiFetch(`/api/payments/${encodeURIComponent(payId)}/send-receipt-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: target })
@@ -135,13 +151,14 @@ export function ReceiptModal({ payment, student, onClose }) {
     extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
   } catch {}
   const discount = Number(student?.discount_amount) || 0;
-  const totalFee = Math.max(0, (Number(student?.total_fee) || 0) + extraSum - discount);
-  const basePaid = Number(student?.paid_amount || 0);
+  const income=AccountingService.getIncomes().find(i=>payment.contract_id ? i.contract_id===payment.contract_id : payment.sozlesme_no && i.sozlesmeNo===payment.sozlesme_no);
+  const totalFee = Number(income?.brutTutar ?? Math.max(0, (Number(student?.total_fee) || 0) + extraSum - discount));
+  const basePaid = Number(income?.toplamTahsilat ?? student?.paid_amount ?? 0);
   const paidAmount = basePaid > 0 ? (basePaid - Number(payment.amount || 0) + amount) : amount;
-  const remaining = Math.max(0, totalFee - paidAmount);
+  const remaining = Number(income?.durum)===4 ? 0 : Math.max(0, totalFee - paidAmount);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 100250 }}>
+    <div ref={printRef} className="modal-backdrop" onClick={onClose} style={{ zIndex: 100250 }}>
       <div 
         className="modal" 
         onClick={(e) => e.stopPropagation()} 
@@ -151,7 +168,7 @@ export function ReceiptModal({ payment, student, onClose }) {
           <div>
             <div className="eyebrow" style={{ color: "var(--primary)", fontWeight: 600 }}>RESMİ TAHSİLAT MAKBUZU SÜİTİ</div>
             <h2 style={{ margin: 0, fontSize: "1.2rem" }}>
-              Tahsilat Makbuzu · No: {payment.id ? String(payment.id).slice(0, 8).toUpperCase() : "ÖNİZLEME"}
+              Tahsilat Makbuzu · No: {payment.receipt_no || payment.odemeKodu || payment.id || "ÖNİZLEME"}
             </h2>
           </div>
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
@@ -350,7 +367,7 @@ export function ReceiptModal({ payment, student, onClose }) {
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "15px", fontWeight: "bold", letterSpacing: "1px", color: "#1e3a8a" }}>TAHSİLAT MAKBUZU</div>
-                <div style={{ fontSize: "12px", color: "#64748b" }}>Seri: A · No: <b>#{payment.id ? String(payment.id).slice(0, 8).toUpperCase() : "2026-001"}</b></div>
+                <div style={{ fontSize: "12px", color: "#64748b" }}>Seri: A · No: <b>#{payment.receipt_no || payment.odemeKodu || payment.id || "ÖNİZLEME"}</b></div>
                 <div style={{ fontSize: "11px", color: "#475569" }}>Tarih: <b>{editableDate || paymentDate}</b></div>
               </div>
             </div>
@@ -376,17 +393,18 @@ export function ReceiptModal({ payment, student, onClose }) {
                   </tr>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                     <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Ödeme Yöntemi:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}>
+                    <td colSpan={3} style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}>
                       <span style={{ background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: "4px", fontWeight: "600", display: "inline-block" }}>
                         {editableMethod || payment.method || "Nakit Kasa"}
                       </span>
                       {payment.bank && <span style={{ marginLeft: "6px", color: "#64748b", fontSize: "11.5px" }}>({payment.bank})</span>}
                     </td>
-                    <td style={{ color: "#64748b", padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal" }}>Açıklama:</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "normal", wordBreak: "break-word" }}>{editableNote || payment.note || "Eğitim Dönemi Taksit Ödemesi"}</td>
                   </tr>
                 </tbody>
               </table>
+              <div style={{padding:"10px 6px",fontSize:"12px",lineHeight:1.5,whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>
+                <b>Açıklama: </b>{editableNote || payment.note || "Eğitim Dönemi Taksit Ödemesi"}
+              </div>
             </div>
 
             {/* Tahsilat Tutarı Gösterim Kutusu */}

@@ -1,3 +1,4 @@
+import {pdfText} from "./support/pdf.mjs";
 // Run: node tests/admin_workflows.mjs. Isolated SQLite; no production writes or external providers.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -16,7 +17,7 @@ await check('expense response lost after commit: retry, dashboard, CSV and month
   assert.equal(row(db,'SELECT COUNT(*) n FROM expenses').n,1);
   assert.equal((await request(db,'/dashboard')).data.summary.expenses,123.45);
   const exported=csv((await request(db,'/export/expenses')).data);assert.equal(exported.filter(r=>r[1]==='Test invoice').length,1);
-  const pdf=(await request(db,'/reports/monthly?month=2026-10')).data;assert(pdf.includes('Toplam Giderler: 123.45 TL'));pdfIntegrity(pdf);
+  const pdf=(await request(db,'/reports/monthly?month=2026-10')).data;assert(pdfText(pdf).includes('Toplam Giderler: 123,45 TL'));pdfIntegrity(pdf);
 });
 for(const [key,value] of Object.entries({title:'Different',amount:100,expense_date:'2026-10-18',category:'Different',account:'Different'}))await check(`expense retry rejects changed ${key} without overwriting the first record`,async db=>{
   await request(db,'/expenses','POST',expense);const before=rows(db,'SELECT * FROM expenses');
@@ -80,8 +81,8 @@ await check('multi-page PDF contains every receipt and expense, exact cents, esc
   insert.run('cancelled',c.student_id,c.id,99999,'2026-10-17','Nakit',1);insert.run('other-month',c.student_id,c.id,99999,'2026-09-17','Nakit',0);
   for(let n=0;n<70;n++)db.sql.prepare('INSERT INTO expenses(id,title,amount,expense_date) VALUES(?,?,?,?)').run('exp-'+n,'Invoice '+n,1.23,'2026-10-17');
   const result=await request(db,'/reports/monthly?month=2026-10');assert.equal(result.status,200);const pdf=result.data;
-  pdfIntegrity(pdf);assert(pdf.includes('Toplam Tahsilat: 293.75 TL'));assert(pdf.includes('Toplam Giderler: 86.10 TL'));
-  assert.equal((pdf.match(/Nakit \\\(Test\\\)/g)||[]).length,125);assert(pdf.includes('Invoice 69'));assert(Number(pdf.match(/\/Count (\d+)/)[1])>1);
+  pdfIntegrity(pdf);assert(pdfText(pdf).includes('Toplam Tahsilat: 293,75 TL'));assert(pdfText(pdf).includes('Toplam Giderler: 86,10 TL'));
+  assert.equal((pdfText(pdf).match(/Nakit \(Test\)/g)||[]).length,125);assert(pdfText(pdf).includes('Invoice 69'));assert(Number(pdf.match(/\/Count (\d+)/)[1])>1);
   assert(!pdf.includes('99,999'));return {receipts:125,expenses:70,pages:Number(pdf.match(/\/Count (\d+)/)[1])};
 });
 await check('large student lists paginate without missing or duplicate IDs and full export has no 1000-row truncation',async db=>{

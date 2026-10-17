@@ -1,3 +1,4 @@
+import reportFont from "./assets/reportFont.js";
 // Cloudflare Pages Functions - Shared Utilities, Constants & Auth Helpers
 
 export const ROLE_ADMIN = "admin";
@@ -342,29 +343,45 @@ export function computeInstallmentPlan(student, payments) {
 }
 
 export function generateMonthlyPdf({ month, collected, expenses, net, monthPayments, monthExpenses, studentsCount }) {
-  // ponytail: Helvetica has no Turkish glyphs; transliterate this compact PDF. Browser print preserves Turkish.
-  const clean = value => String(value ?? "").replace(/[İıŞşĞğÇçÖöÜü]/g, c => ({İ:'I',ı:'i',Ş:'S',ş:'s',Ğ:'G',ğ:'g',Ç:'C',ç:'c',Ö:'O',ö:'o',Ü:'U',ü:'u'}[c])).replace(/[^\x20-\x7E]/g, " ");
-  const literal = value => clean(value).replace(/[()\\]/g, "\\$&");
-  const money = value => `${Number(value || 0).toLocaleString("en-US", {minimumFractionDigits:2,maximumFractionDigits:2})} TL`;
+  // ponytail: static Latin/Turkish font subset; other scripts require expanding the subset.
+  const clean = value => String(value ?? "").normalize('NFC').replace(/[\r\n\t]+/g, " ");
+  const encoded = value => [...clean(value)].map(c=>reportFont.codes[c] || reportFont.codes['?']).join('');
+  const money = value => `${Number(value || 0).toLocaleString("tr-TR", {minimumFractionDigits:2,maximumFractionDigits:2})} TL`;
   const lines = [
-    'OZEL INEGOL COZUM KURS MERKEZI', `${month} DONEMI AYLIK MUHASEBE RAPORU`, '',
+    'ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ', `${month} DÖNEMİ AYLIK MUHASEBE RAPORU`, '',
     `Toplam Tahsilat: ${money(collected)}`, `Toplam Giderler: ${money(expenses)}`,
-    `Net Kar / Durum: ${money(net)}`, `Kayitli Ogrenci: ${studentsCount}`,
-    `Islem Sayilari: ${monthPayments.length} Tahsilat, ${monthExpenses.length} Gider`, '', 'TAHSILATLAR'
+    `Net Nakit Akışı: ${money(net)}`, `Kayıtlı Öğrenci: ${studentsCount}`,
+    `Islem Sayilari: ${monthPayments.length} Tahsilat, ${monthExpenses.length} Gider`, '', 'TAHSİLATLAR'
   ];
   for (const p of monthPayments) lines.push(`${p.payment_date} | ${p.student_name || 'Ogrenci'} | ${p.method || ''} | ${money(p.amount)}`);
-  if (!monthPayments.length) lines.push('Bu donemde tahsilat kaydi bulunmamaktadir.');
-  lines.push('', 'GIDERLER');
+  if (!monthPayments.length) lines.push('Bu dönemde tahsilat kaydı bulunmamaktadır.');
+  lines.push('', 'GİDERLER');
   for (const e of monthExpenses) lines.push(`${e.expense_date} | ${e.title || e.category || 'Gider'} | ${money(e.amount)}`);
-  if (!monthExpenses.length) lines.push('Bu donemde gider kaydi bulunmamaktadir.');
-  const wrapped = lines.flatMap(line => clean(line).match(/.{1,100}/g) || ['']);
+  if (!monthExpenses.length) lines.push('Bu dönemde gider kaydı bulunmamaktadır.');
+  const wrapped=lines.flatMap(line=>{
+    const result=[];let text='',width=0;
+    for(const c of clean(line)){
+      const code=parseInt(reportFont.codes[c] || reportFont.codes['?'],16);
+      const advance=reportFont.widths[code-reportFont.first]*9/1000;
+      if(width+advance>515&&text){result.push(text);text='';width=0;}
+      text+=c;width+=advance;
+    }
+    result.push(text);return result;
+  });
   const pages = [];
   for (let i=0;i<wrapped.length;i+=48) pages.push(wrapped.slice(i,i+48));
-  const objects = ['', '<< /Type /Catalog /Pages 2 0 R >>', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  const d=reportFont.descriptor;
+  const fontStream=reportFont.fontHex+'>';
+  const objects = ['', '<< /Type /Catalog /Pages 2 0 R >>', '',
+    `<< /Type /Font /Subtype /TrueType /BaseFont /${reportFont.name} /FirstChar ${reportFont.first} /LastChar ${reportFont.last} /Widths [${reportFont.widths.join(' ')}] /FontDescriptor 4 0 R /ToUnicode 6 0 R >>`,
+    `<< /Type /FontDescriptor /FontName /${reportFont.name} /Ascent ${d['/Ascent']} /CapHeight ${d['/CapHeight']} /Descent ${d['/Descent']} /Flags ${d['/Flags']} /FontBBox ${d['/FontBBox']} /ItalicAngle 0 /StemV ${d['/StemV']} /FontFile2 5 0 R >>`,
+    `<< /Length ${fontStream.length} /Length1 ${reportFont.length1} /Filter [/ASCIIHexDecode /FlateDecode] >>\nstream\n${fontStream}\nendstream`,
+    `<< /Length ${reportFont.cmap.length} >>\nstream\n${reportFont.cmap}\nendstream`
+  ];
   const pageIds=[];
   pages.forEach((page,index) => {
     const id=objects.length;pageIds.push(id);
-    const content=['BT','/F1 9 Tf','40 795 Td','14 TL',...page.flatMap(line=>[`(${literal(line)}) Tj`,'T*']),`(Sayfa ${index+1} / ${pages.length}) Tj`,'ET'].join('\n');
+    const content=['BT','/F1 9 Tf','40 795 Td','14 TL',...page.flatMap(line=>[`<${encoded(line)}> Tj`,'T*']),`<${encoded(`Sayfa ${index+1} / ${pages.length}`)}> Tj`,'ET'].join('\n');
     objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${id+1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
   });
   objects[2]=`<< /Type /Pages /Kids [${pageIds.map(id=>`${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;

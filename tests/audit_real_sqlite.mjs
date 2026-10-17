@@ -1,3 +1,4 @@
+import {pdfText} from "./support/pdf.mjs";
 // Run: node tests/audit_real_sqlite.mjs (Node 22.13+). Uses isolated memory DBs only.
 // D1-compatible query adapter executes the real route SQL; it does not model edge limits.
 import assert from 'node:assert/strict';
@@ -222,7 +223,7 @@ await check('monthly report excludes cancelled payments', async db => {
   await request(db, '/payments/cancel', 'POST', { payment_id: p.id });
   const month = row(db, 'SELECT payment_date FROM payments WHERE id=?', p.id).payment_date.slice(0, 7);
   const res = await request(db, '/reports/monthly?month=' + month);
-  assert.ok(res.data.includes('Toplam Tahsilat: 0.00 TL'), 'PDF includes cancelled payment as collected money');
+  assert.ok(pdfText(res.data).includes('Toplam Tahsilat: 0,00 TL'), 'PDF includes cancelled payment as collected money');
 });
 await check('exam ranking is computed from results rather than every student ranked first', async db => {
   await student(db); await student(db, 'audit-s2');
