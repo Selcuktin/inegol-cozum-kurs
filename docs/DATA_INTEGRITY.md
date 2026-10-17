@@ -10,6 +10,12 @@ yazmaz ve ağ isteği başlatmaz. Başarılı bir boş liste de geçerli sonuçt
 
 `GET /api/dashboard`, listeleri ve mali toplamları aynı D1 `batch` işlemiyle okur.
 `useAppData` ve muhasebe servisinin tam yenilemesi bu görüntüyü kullanır.
+Gelir eşleştirmesinin `contract_id` ve `sozlesme_no` alanları ayrı indeksler
+kullanır. Mevcut kurulumda `0002_add_relational_indexes.sql` içindeki bu iki
+`CREATE INDEX IF NOT EXISTS` ifadesi uygulanmalıdır; Pages kod yayını D1
+migration'larını kendiliğinden uygulamaz. Yeni kurulum için `schema.sql` de aynı
+indeksleri içerir. `node tests/income_indexes.mjs`, gerçek dashboard sonuçlarının
+değişmediğini ve iki arama dalının indeks kullandığını yerel SQLite'ta doğrular.
 Gelir ve taksit alanları servis sınırında ekranın kullandığı adlara çevrilir.
 Gelir detayı kayıt bulunamayınca başka öğrenciye, ilk gelire veya üretilmiş bir
 ödeme planına geçmez. Eşleştirme sözleşme/gelir/öğrenci kimliğiyle yapılır.

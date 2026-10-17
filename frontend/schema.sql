@@ -224,6 +224,8 @@ CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
 CREATE INDEX IF NOT EXISTS idx_payments_contract ON payments(contract_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_student ON contracts(student_id);
 CREATE INDEX IF NOT EXISTS idx_incomes_student ON student_incomes(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_incomes_contract_id ON student_incomes(contract_id);
+CREATE INDEX IF NOT EXISTS idx_student_incomes_sozlesme_no ON student_incomes(sozlesme_no);
 CREATE INDEX IF NOT EXISTS idx_students_name ON students(student_name);
 CREATE INDEX IF NOT EXISTS idx_students_tc ON students(student_tc);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(student_class);
