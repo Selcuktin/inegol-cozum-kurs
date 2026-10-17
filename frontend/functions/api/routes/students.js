@@ -37,7 +37,13 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
         OR s.id = ('stu-' || c.student_id)
         OR ('stu-' || s.id) = c.student_id
       ) AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
-        AND c.id=(SELECT current.id FROM contracts current WHERE (current.student_id=s.id OR current.student_id=REPLACE(s.id,'stu-','') OR ('stu-'||current.student_id)=s.id) AND COALESCE(current.is_deleted,0)=0 ORDER BY (current.sozlesme_no=COALESCE(s.sozlesme_no,'')) DESC,current.sozlesme_tarihi DESC,current.id DESC LIMIT 1)
+        AND c.id=(
+          SELECT current.id FROM contracts current JOIN students owner ON owner.id=s.id
+          WHERE (current.student_id=s.id OR current.student_id=REPLACE(s.id,'stu-','') OR ('stu-'||current.student_id)=s.id)
+            AND COALESCE(current.is_deleted,0)=0
+          -- ORDER BY must refer to local columns for compatibility across SQLite runtimes.
+          ORDER BY (current.sozlesme_no=COALESCE(owner.sozlesme_no,'')) DESC,current.sozlesme_tarihi DESC,current.id DESC LIMIT 1
+        )
       WHERE 1=1
     `;
     let whereClause = "";

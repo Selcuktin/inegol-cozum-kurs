@@ -685,7 +685,7 @@ await check('student list is unique across historical contracts and detail reads
   db.sql.prepare('UPDATE contracts SET student_id=?,period_id=40,period_name=? WHERE id=?').run(c.student_id,'2025-2026',old.id);
   const plan=rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id).map((i,n)=>({...i,amount:n===0?300:700,due_date:n===0?'2026-10-15':'2027-01-31'}));
   equal((await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:plan})).status,200);
-  const list=await request(db,'/students');equal(list.status,200);equal(list.data.items.filter(s=>s.id===c.student_id).length,1);
+  const list=await request(db,'/students');equal(list.status,200);equal(list.data.items.filter(s=>s.id===c.student_id).length,1);equal(list.data.items.find(s=>s.id===c.student_id).contract_id,c.id);
   const detail=await request(db,'/students/'+c.student_id+'/detail');equal(detail.status,200);
   assert.deepEqual(detail.data.installment_plan.map(i=>[i.amount,i.due_date]),plan.map(i=>[i.amount,i.due_date]));
 });
