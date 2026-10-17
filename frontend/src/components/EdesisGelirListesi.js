@@ -1,3 +1,5 @@
+import { usePrintMode } from "../hooks/usePrintMode";
+import { csvRow } from "../lib/csv";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   FileText,
@@ -78,6 +80,7 @@ export default function EdesisGelirListesi({
   const [sortOrder, setSortOrder] = useState("desc");
 
   // Sayfalama
+  const printing=usePrintMode();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -223,11 +226,13 @@ export default function EdesisGelirListesi({
 
   // Sayfalanmış Gelirler
   const paginatedIncomes = useMemo(() => {
+    if (printing) return sortedIncomes;
     const start = (currentPage - 1) * pageSize;
     return sortedIncomes.slice(start, start + pageSize);
-  }, [sortedIncomes, currentPage, pageSize]);
+  }, [sortedIncomes, currentPage, pageSize, printing]);
 
   const totalPages = Math.ceil(sortedIncomes.length / pageSize) || 1;
+  useEffect(() => { setCurrentPage(p => Math.min(p, totalPages)); }, [totalPages]);
 
   // 4 KPI Sayaç İstatistikleri (Döneme göre canlı)
   const stats = useMemo(() => {
@@ -281,22 +286,22 @@ export default function EdesisGelirListesi({
     ];
 
     const rows = sortedIncomes.map((g) => [
-      `"${g.gelirKodu || ""}"`,
-      `"${fmtDate(g.gelirTarihi)}"`,
-      `"${fmtDate(g.vadeTarihi)}"`,
-      `"${g.ogrenciAdiSoyadi || g.musteriUnvan || ""}"`,
-      `"${g.musteriUnvan || ""}"`,
-      `"${g.sinifAdi || ""}"`,
-      `"${g.sozlesmeNo || ""}"`,
-      `"${g.gelirKategoriAdi || "Öğrenci Sözleşmesi"}"`,
-      `"${(Number(g.brutTutar) || 0).toFixed(2)}"`,
-      `"${(Number(g.toplamTahsilat) || 0).toFixed(2)}"`,
-      `"${(Number(g.kalanAlacak) || 0).toFixed(2)}"`,
-      `"${g.taksitSayisi || 1}"`,
-      `"${Number(g.durum)===4 ? 'İptal Edildi' : g.tamTahsilEdildiMi || g.kalanAlacak <= 0 ? "Tam Ödendi" : (g.vadesiGectiMi ? "Vadesi Geçti" : "Açık / Taksitli")}"`
+      `${g.gelirKodu || ""}`,
+      `${fmtDate(g.gelirTarihi)}`,
+      `${fmtDate(g.vadeTarihi)}`,
+      `${g.ogrenciAdiSoyadi || g.musteriUnvan || ""}`,
+      `${g.musteriUnvan || ""}`,
+      `${g.sinifAdi || ""}`,
+      `${g.sozlesmeNo || ""}`,
+      `${g.gelirKategoriAdi || "Öğrenci Sözleşmesi"}`,
+      `${(Number(g.brutTutar) || 0).toFixed(2)}`,
+      `${(Number(g.toplamTahsilat) || 0).toFixed(2)}`,
+      `${(Number(g.kalanAlacak) || 0).toFixed(2)}`,
+      `${g.taksitSayisi || 1}`,
+      `${Number(g.durum)===4 ? 'İptal Edildi' : g.tamTahsilEdildiMi || g.kalanAlacak <= 0 ? "Tam Ödendi" : (g.vadesiGectiMi ? "Vadesi Geçti" : "Açık / Taksitli")}`
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
+    const csvContent = "\uFEFF" + [headers, ...rows].map(csvRow).join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -305,6 +310,7 @@ export default function EdesisGelirListesi({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast("📊 Gelir listesi Excel/CSV formatında indirildi.");
   };
 
@@ -357,7 +363,7 @@ try {
 
   return (
     <div
-      className="erp-ledger-page"
+      className="erp-ledger-page admin-record-list"
       style={{
         padding: isFullScreen ? "20px" : "0",
         background: isFullScreen ? "#f8fafc" : "transparent",
@@ -1539,7 +1545,7 @@ try {
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span>Toplam {sortedIncomes.length} kayıttan</span>
             <span>
-              <b>{(currentPage - 1) * pageSize + 1}</b> -{" "}
+              <b>{sortedIncomes.length ? (currentPage - 1) * pageSize + 1 : 0}</b> -{" "}
               <b>{Math.min(currentPage * pageSize, sortedIncomes.length)}</b> arası gösteriliyor
             </span>
           </div>

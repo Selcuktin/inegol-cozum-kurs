@@ -349,6 +349,7 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     // Find payment
     const pay = await db.prepare("SELECT * FROM payments WHERE id = ?").bind(payId).first();
     if (!pay) return errorResponse("Tahsilat bulunamadı", 404, "NOT_FOUND");
+    if (pay.is_cancelled || pay.status === "İptal Edildi") return errorResponse("İptal edilmiş tahsilat için geçerli makbuz gönderilemez",409,"CANCELLED_PAYMENT");
 
     // Find student
     const student = await db.prepare("SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?)").bind(pay.student_id, pay.student_id).first();
@@ -425,7 +426,7 @@ Telefon: 0224 715 00 00
       <div class="row"><span class="label">Tahsilat Tarihi:</span><span class="val">${escapeHtml(payDate)}</span></div>
       <div class="row"><span class="label">Öğrenci:</span><span class="val">${escapeHtml(studentName)}</span></div>
       <div class="row"><span class="label">Ödeme Yöntemi:</span><span class="val">${escapeHtml(payMethod)}</span></div>
-      <div class="row"><span class="label">Açıklama:</span><span class="val">${pay.note || "Eğitim Dönemi Tahsilatı"}</span></div>
+      <div class="row"><span class="label">Açıklama:</span><span class="val">${escapeHtml(pay.note || "Eğitim Dönemi Tahsilatı")}</span></div>
     </div>
     <div class="footer">
       Bu belge Özel İnegöl Çözüm Kurs Merkezi Muhasebe Otomasyonu tarafından elektronik olarak üretilmiştir.<br>
@@ -477,25 +478,33 @@ Telefon: 0224 715 00 00
     const amount = Number(e.amount) || 0;
     if (!Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) / 100 !== amount) return errorResponse("Geçersiz gider tutarı", 422, "VALIDATION_ERROR");
 
-    const id = "exp_" + crypto.randomUUID().slice(0, 10);
+    const id = e.id || "exp_" + crypto.randomUUID().slice(0, 10);
+    if (typeof id !== "string" || !id.trim() || id.length > 120) return errorResponse("Geçersiz gider kimliği",422);
+    const values={title:e.title || "Gider",amount,expense_date:e.expense_date || new Date().toISOString().slice(0,10),category:e.category || "Genel",account:e.account || "Nakit Ana Kasa"};
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(values.expense_date) || Number.isNaN(Date.parse(values.expense_date)) || new Date(values.expense_date).toISOString().slice(0,10)!==values.expense_date) return errorResponse("Geçersiz gider tarihi",422);
+    const same = saved => Object.entries(values).every(([key,value])=>saved[key]===value);
+    const previous=await db.prepare("SELECT * FROM expenses WHERE id=?").bind(id).first();
+    if(previous) return same(previous) ? json({...previous,already_recorded:true}) : errorResponse("İşlem kimliği başka giderde kullanılmış",409,"IDEMPOTENCY_CONFLICT");
     await db
       .prepare(
-        "INSERT INTO expenses (id, title, amount, expense_date, category, account, created_by, created_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+        "INSERT OR IGNORE INTO expenses (id, title, amount, expense_date, category, account, created_by, created_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
       )
       .bind(
         id,
-        e.title || "Gider",
+        values.title,
         amount,
-        e.expense_date || new Date().toISOString().slice(0, 10),
-        e.category || "Genel",
-        e.account || "Nakit Ana Kasa",
+        values.expense_date,
+        values.category,
+        values.account,
         user?.user_id || "",
         user?.name || ""
       )
       .run();
+    const saved=await db.prepare("SELECT * FROM expenses WHERE id=?").bind(id).first();
+    if(!saved || !same(saved)) return errorResponse("İşlem kimliği başka giderde kullanılmış",409,"IDEMPOTENCY_CONFLICT");
 
     await logAction(db, user, "expense.create", "expense", id, `${e.title} · ${amount} ₺ (${e.account || "Nakit Ana Kasa"})`, waitUntil);
-    return json({ id, ...e, amount }, 201);
+    return json(saved, 201);
   }
 
   // 6. DELETE /expenses/:id

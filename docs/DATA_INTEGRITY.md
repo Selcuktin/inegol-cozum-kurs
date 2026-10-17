@@ -76,6 +76,7 @@ $env:CI='true'; npm run build
 cd ..
 node tests/audit_real_sqlite.mjs
 node tests/system_integrity.mjs
+node tests/admin_workflows.mjs
 ```
 
 | Katman | Kontrol edilen davranışlar |
@@ -85,6 +86,42 @@ node tests/system_integrity.mjs
 | Uzun işlem dizileri | 40 sabit tohumla tahsilat, iptal, özel plan, öğrenci mali düzenleme ve tekrar okuma; her adımda kuruş ve kayıt ilişkileri |
 | Hata enjeksiyonu | Doğrulamadan sonra değişen kayıt, toplu işlemin ortasında veritabanı hatası, bozuk JSON, bağlantı hatası |
 
-GitHub yayın iş akışı bu iki gerçek SQLite taramasını da çalıştırır. Başarılı
+GitHub yayın iş akışı üç gerçek SQLite taramasını da çalıştırır. Başarılı
 test sayısı tüm olası davranışların kanıtı değildir. Fiziksel yazıcı, harici
 mesajlaşma sağlayıcısı ve gerçek mobil tarayıcı ayrıca doğrulanmalıdır.
+
+## Yönetim, dönem ve rapor kontrolleri
+
+`admin_workflows.mjs` ağ cevabı kaybolmuş tahsilat/giderin yeniden gönderilmesini,
+eş zamanlı gider kayıtlarını, dönem sözleşmesi oluşturmayı, iptal edilen borçla
+korunan nakit geçmişini, büyük listeleri ve PDF/CSV sonuçlarını gerçek SQLite
+üzerinde kontrol eder. Yeni sözleşmenin öğrenciye bağlanması, öğrenci dönemini de
+aynı işlemde günceller. Mevcut kayıtlara toplu dönem düzeltmesi uygulanmaz.
+
+Gider formları her açılışta bir işlem kimliği alır; tekrar denemeler bu kimliği
+korur. Sunucu aynı kimlikle farklı bir gideri kabul etmez. Ortak `Button` bileşeni
+`disabled`, `type` ve diğer yerel düğme alanlarını gerçek düğmeye aktarır.
+
+Aylık önizleme başarılı boş listeleri korur; örnek gider üretmez, iptal tahsilatı
+ve iptal sözleşmenin vadesini toplama katmaz. Nakit raporu eski dönemden gelen
+gerçek tahsilatı tarihine göre içerir; bu tutar yeni dönem borcunu düşürmez.
+İptal, otomatik iade hareketi oluşturmaz; bu denetim gerçek para iadesi akışı
+oluşturmaz. İptal makbuzu çıktısında iptal durumu görünür ve geçerli makbuz
+olarak e-posta gönderilemez.
+
+CSV alanları tarayıcı ve sunucuda aynı `csvCell` ile kaçırılır. Rapor/export
+okumaları bir D1 batch içinde alınır; muhasebe hesabının tüm kayıtlar dışa
+aktarması yönetici denetim günlüğünü içermez. Sayfa parametreleri doğrulanır;
+liste küçülünce geçerli sayfaya dönülür. Dört ana listenin baskısı filtrelenen
+tüm satırları içerir, baskı bittiğinde normal sayfalama geri gelir.
+
+PDF ilk 20 satırda kesilmez; giderleri de içerir, kuruşları korur, sayfa ve xref
+ofsetlerini hesaplar. Yerleşik Helvetica kullanılan indirilebilir PDF Türkçe
+harfleri Latin eşdeğerine çevirir; tarayıcıdan yazdırma/CSV Türkçe metni korur.
+Senet çıktısı kayıtlı taksitleri kullanır; boş plan için ödeme planı üretmez.
+Sözleşme bağlantısı bulunamayan kimliği, hatırlanan öğrenci adıyla eşleştirmez.
+
+Yoklama uygulamanın gezinmesinden ve öğrenci profilinden kaldırılmıştır;
+veritabanındaki tarihçe ve yedekleri korunur. Optik okuma, sınav/karne,
+kalibrasyon ve ders programı korunur. Bu tur yeni akademik işlev testi eklenmez;
+mevcut regresyon testleri yayın kontrolünün parçası olmaya devam eder.

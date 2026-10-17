@@ -35,6 +35,7 @@ jobs:
         run: |
           node tests/audit_real_sqlite.mjs
           node tests/system_integrity.mjs
+          node tests/admin_workflows.mjs
 
       - name: Build production bundle
         working-directory: frontend

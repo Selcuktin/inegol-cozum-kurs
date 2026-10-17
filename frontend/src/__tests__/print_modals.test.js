@@ -21,7 +21,7 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
     jest.clearAllMocks();
     originalPrint = window.print;
     window.print = jest.fn();
-    AccountingService.setInitialData({ contracts: mockContracts, installments: [], collections: mockPayments });
+    AccountingService.setInitialData({ contracts: mockContracts, installments: mockStudents.flatMap(s=>Array.from({length:s.installment_count},(_,n)=>({id:s.id+'-note-'+n,student_id:s.id,sozlesmeNo:s.sozlesme_no,installment_no:n+1,amount:s.total_fee/s.installment_count,due_date:`2026-${String(n+1).padStart(2,'0')}-15`}))), collections: mockPayments });
   });
 
   afterEach(async () => {
@@ -212,7 +212,7 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       };
 
       const { container } = await render(
-        <PromissoryNoteModal student={unevenStudent} onClose={jest.fn()} />
+        <PromissoryNoteModal student={unevenStudent} installments={[{amount:3333.33,due_date:'2026-10-31'},{amount:3333.33,due_date:'2026-11-30'},{amount:3333.34,due_date:'2026-12-31'}]} onClose={jest.fn()} />
       );
 
       const sheets = container.querySelectorAll(".promissory-note-sheet");

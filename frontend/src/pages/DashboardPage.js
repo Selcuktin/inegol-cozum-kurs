@@ -31,9 +31,9 @@ export function PageHead({ eyebrow, title, children }) {
   );
 }
 
-export function Button({ children, onClick, secondary = false, testid }) {
+export function Button({ children, onClick, secondary = false, testid, type = "button", ...props }) {
   return (
-    <button data-testid={testid} onClick={onClick} className={secondary ? "btn secondary" : "btn"}>
+    <button {...props} type={type} data-testid={testid} onClick={onClick} className={secondary ? "btn secondary" : "btn"}>
       {children}
     </button>
   );

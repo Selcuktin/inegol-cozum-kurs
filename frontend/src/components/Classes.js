@@ -389,9 +389,6 @@ export function Classes({ me, classes = [], onOpen, students = [], onSelect, onN
               <button className="btn small secondary" onClick={() => setEditingClass(activeClass)} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
                 <Edit size={14} /> Sınıfı Düzenle
               </button>
-              <button className="btn small secondary" onClick={() => onNavigate && onNavigate("attendance")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                <UserCheck size={14} /> Yoklama Al
-              </button>
               <button className="btn small secondary" onClick={() => onNavigate && onNavigate("schedules")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
                 <Clock size={14} /> Ders Programı
               </button>

@@ -267,7 +267,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const firstDue = normalizeDate(body.due_date || date);
     const plan = generateContractInstallments({id,student_id:studentId,brut_tutar:brutTutar,taksit_sayisi:taksitSayisi},{startDate:firstDue,dueDay:Number(firstDue.slice(8,10))});
     statements.push(installmentWrite(db,plan,id,glrId,studentId,taksitSayisi));
-    statements.push(db.prepare("UPDATE students SET sozlesme_no=?,total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),paid_amount=0,installment_count=?,due_date=? WHERE id=?").bind(sozlesmeNo,brutTutar,taksitSayisi,firstDue,studentId));
+    statements.push(db.prepare("UPDATE students SET sozlesme_no=?,program=?,total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),paid_amount=0,installment_count=?,due_date=? WHERE id=?").bind(sozlesmeNo,periodName,brutTutar,taksitSayisi,firstDue,studentId));
     await db.batch(statements);
 
     await logAction(db, user, "contract.create", "contract", id, `${studentName} · ${sozlesmeNo} · ${brutTutar} ₺`, waitUntil);

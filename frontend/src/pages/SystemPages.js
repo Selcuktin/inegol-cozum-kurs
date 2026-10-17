@@ -505,8 +505,7 @@ export function Reports({ me, data = {} }) {
       await downloadBlob(`${API}/reports/monthly?month=${safeMonth}`, `inegol-cozum-rapor-${safeMonth}.pdf`);
       setMsg("Rapor indirildi.");
     } catch (e) {
-      window.print();
-      setMsg("Yazdırma / PDF penceresi açıldı.");
+      setMsg("Rapor indirilemedi. Bağlantıyı kontrol edip yeniden deneyin.");
     } finally {
       setLoading(false);
     }
@@ -548,7 +547,7 @@ export function Reports({ me, data = {} }) {
       </div>
 
       {/* EKRANDA CANLI RAPOR ÖNİZLEMESİ */}
-      <MonthlyReportPreview month={safeMonth} data={safeData} onPrint={generate} />
+      <MonthlyReportPreview month={safeMonth} data={safeData} />
     </>
   );
 }

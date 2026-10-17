@@ -38,10 +38,11 @@ export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) 
   if (path === "/reports/monthly" && request.method === "GET") {
     if (!db) return errorResponse("Database connection unavailable", 500);
     const month = url.searchParams.get("month") || new Date().toISOString().slice(0, 7);
-    const [studentsRes, paymentsRes, expensesRes] = await Promise.all([
-      db.prepare("SELECT * FROM students").all(),
-      db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date ASC").all(),
-      db.prepare("SELECT * FROM expenses ORDER BY expense_date ASC").all()
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return errorResponse("Geçersiz rapor ayı", 422);
+    const [studentsRes, paymentsRes, expensesRes] = await db.batch([
+      db.prepare("SELECT * FROM students"),
+      db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date ASC"),
+      db.prepare("SELECT * FROM expenses ORDER BY expense_date ASC")
     ]);
 
     const students = studentsRes.results || [];

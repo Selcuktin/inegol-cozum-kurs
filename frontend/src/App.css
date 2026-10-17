@@ -906,6 +906,18 @@ td[colspan] {
 
 /* Print: hide UI chrome cleanly */
 @media print {
+  .admin-record-list {
+    position: static !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  .admin-record-list div { min-width: 0 !important; overflow: visible !important; }
+  .admin-record-list table { min-width: 0 !important; width: 100% !important; table-layout: fixed; }
+  .admin-record-list th, .admin-record-list td { padding: 3px !important; font-size: 7pt !important; overflow-wrap: anywhere; }
+  .admin-record-list thead { display: table-header-group; }
+  .admin-record-list tr { break-inside: avoid; }
+  .admin-record-list input, .admin-record-list select { display: none !important; }
   .mobile-bottom-nav, .pwa-banner, .sidebar, .topbar, .no-print { display: none !important; }
   .content, .main { padding: 0 !important; margin: 0 !important; }
   .printable { display: block !important; box-shadow: none !important; border: none !important; }

@@ -140,6 +140,10 @@ export function MuhasebeV2Dashboard({
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [promissoryStudent, setPromissoryStudent] = useState(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const expenseId=React.useRef();
+  const expenseSaving=React.useRef(false);
+  const [savingExpense,setSavingExpense]=useState(false);
+  useEffect(()=>{if(showExpenseModal)expenseId.current="exp_"+crypto.randomUUID();},[showExpenseModal]);
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
   const paymentId=React.useRef();
   useEffect(()=>{if(showQuickPaymentModal)paymentId.current="pay_"+crypto.randomUUID();},[showQuickPaymentModal]);
@@ -823,10 +827,12 @@ export function MuhasebeV2Dashboard({
   // GAP-3: Gider Kaydetme (Kasa/Banka Seçimi Dahil)
   const handleSaveExpense = async (e) => {
     e.preventDefault();
-    if (!expTitle || !expAmount) return;
+    if (!expTitle || !expAmount || expenseSaving.current) return;
+    expenseSaving.current=true;setSavingExpense(true);
     try {
       const amt = parseFloat(expAmount);
       const res = await axios.post(`${API}/expenses`, {
+        id: expenseId.current,
         title: expTitle,
         amount: amt,
         category: expCategory,
@@ -841,7 +847,7 @@ export function MuhasebeV2Dashboard({
         account: expAccount,
         expense_date: expDate
       };
-      setExpenses([newExp, ...expenses]);
+      setExpenses(previous => [newExp, ...previous.filter(item => item.id !== newExp.id)]);
       setShowExpenseModal(false);
       setExpTitle("");
       setExpAmount("");
@@ -850,6 +856,8 @@ export function MuhasebeV2Dashboard({
       if (reload) reload();
     } catch (err) {
       alert("Gider kaydedilemedi: " + (err.response?.data?.detail || err.message));
+    } finally {
+      expenseSaving.current=false;setSavingExpense(false);
     }
   };
 
@@ -1345,6 +1353,7 @@ export function MuhasebeV2Dashboard({
       {/* MODAL 4: GİDER EKLE (GAP-3: Hesap Seçimi ile Kasa Düşüşü) */}
       <ExpenseModal
         showExpenseModal={showExpenseModal}
+        savingExpense={savingExpense}
         setShowExpenseModal={setShowExpenseModal}
         handleSaveExpense={handleSaveExpense}
         expTitle={expTitle}

@@ -154,7 +154,7 @@ function App() {
   );
 }
 
-const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
+const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
 
 export function MainApp({ me, onLogout }) {
   const {data,reload:load,error:dataError,loading:dataLoading,totalCollected,totalExpected,totalExpenses}=useAppData();
@@ -194,6 +194,7 @@ export function MainApp({ me, onLogout }) {
   const [page, setPageState] = useState(getInitialPage);
   const setPage = (p) => {
     setMobileOpen(false);
+    if (!VALID_PAGES.includes(p)) p = "dashboard";
     setPageState(p);
     if (typeof window !== "undefined") {
       const currentFullHash = window.location.hash.replace(/^#/, "");
@@ -324,7 +325,6 @@ export function MainApp({ me, onLogout }) {
   const [showGlobalKarne, setShowGlobalKarne] = useState(null);
   const [showGlobalHataKarnesi, setShowGlobalHataKarnesi] = useState(false);
   const [showGlobalPromissory, setShowGlobalPromissory] = useState(false);
-  const [showGlobalAbsenceLetter, setShowGlobalAbsenceLetter] = useState(false);
   const [showOmniSearch, setShowOmniSearch] = useState(false);
 
   // Global Ctrl + K / Cmd + K shortcut for Omni Search
@@ -382,8 +382,7 @@ export function MainApp({ me, onLogout }) {
   const navCategories = useMemo(() => buildNavCategories({
     page, accountingTab, setPage, setAccountingTab, setMobileOpen,
     guardedOpen, setShowGlobalPromissory, kayitTab, setKayitTab,
-    showGlobalOptikModal, showGlobalHataKarnesi, setShowGlobalOptikModal,
-    setShowGlobalHataKarnesi
+    showGlobalOptikModal, showGlobalHataKarnesi, setShowGlobalOptikModal, setShowGlobalHataKarnesi
   }), [page, accountingTab, kayitTab, showGlobalOptikModal, showGlobalHataKarnesi]);
 
   return (
@@ -667,9 +666,6 @@ export function MainApp({ me, onLogout }) {
           {page === "exams" && (
             <ExamOpticalPage me={me} API={API} students={data.students || []} classes={data.classes || []} showOptikModal={showGlobalOptikModal} onCloseOptikModal={() => setShowGlobalOptikModal(false)} showKarneModal={showGlobalKarne} onCloseKarneModal={() => setShowGlobalKarne(null)} />
           )}
-          {page === "attendance" && (
-            <AcademicPage me={me} mode="attendance" classes={data.classes || []} students={data.students || []} teachers={data.teachers || []} API={API} reload={load} guardedOpen={guardedOpen} setSelected={setSelected} onNavigate={setPage} />
-          )}
           {page === "schedules" && (
             <AcademicPage me={me} mode="schedules" classes={data.classes || []} students={data.students || []} teachers={data.teachers || []} API={API} reload={load} guardedOpen={guardedOpen} setSelected={setSelected} onNavigate={setPage} />
           )}
@@ -684,7 +680,6 @@ export function MainApp({ me, onLogout }) {
               guardedOpen={guardedOpen}
               setSelected={setSelected}
               setPage={setPage}
-              setShowGlobalKarne={setShowGlobalKarne}
               onEditStudent={(st) => setEditingStudent(st)}
             />
           )}
@@ -770,7 +765,6 @@ export function MainApp({ me, onLogout }) {
       {showGlobalKarne && <OfficialEdesisKarneModal data={showGlobalKarne} onClose={() => setShowGlobalKarne(null)} />}
       {showGlobalHataKarnesi && <HataKarnesiModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", student_class: "TYT-AYT" }} onClose={() => setShowGlobalHataKarnesi(false)} />}
       {showGlobalPromissory && <PromissoryNoteModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", total_fee: 55000, installment_count: 10 }} onClose={() => setShowGlobalPromissory(false)} />}
-      {showGlobalAbsenceLetter && <AbsenceLetterModal student={data.students?.[0] || { student_name: "Örnek Öğrenci" }} daysAbsent={10} onClose={() => setShowGlobalAbsenceLetter(false)} />}
 
       <OmniSearchModal
         isOpen={showOmniSearch}

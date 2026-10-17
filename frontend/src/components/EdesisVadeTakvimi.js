@@ -1,3 +1,4 @@
+import { csvRow } from "../lib/csv";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Search,
@@ -246,6 +247,7 @@ export default function EdesisVadeTakvimi({
   // Sayfalama
   const totalItems = filteredTaksitler.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  useEffect(() => { setCurrentPage(p => Math.min(p, totalPages)); }, [totalPages]);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalItems);
   const currentRows = filteredTaksitler.slice(startIndex, endIndex);
@@ -291,14 +293,15 @@ export default function EdesisVadeTakvimi({
       t.gecikmeGunSayisi || 0,
       t.durumText
     ]);
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(";"), ...rows.map((e) => e.join(";"))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = "\uFEFF" + [headers, ...rows].map(csvRow).join("\r\n");
+    const encodedUri = URL.createObjectURL(new Blob([csvContent], {type: "text/csv;charset=utf-8;"}));
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `Edesis_Vade_Takvimi_${period}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(encodedUri), 1000);
     showToast("Vade Takvimi Excel formatında indirildi.");
   };
 

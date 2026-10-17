@@ -16,8 +16,8 @@ import {
 import { Button } from "../pages/DashboardPage";
 import { can } from "../pages/AuthGuard";
 import { openWhatsApp, OfficialEdesisKarneModal } from "../EdesisModules";
-import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { HataKarnesiModal } from "./HataKarnesiModal";
+import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import AccountingService from "../lib/edesisAccountingService";
 import { computeEffective } from "./QuickActionModal";
 import { API as defaultAPI } from "./layout/AuthAndNav";
@@ -46,8 +46,8 @@ export function StudentProfileModal({
   const [uploadMsg, setUploadMsg] = useState("");
   const [uploading, setUploading] = useState(false);
   const [selectedKarne, setSelectedKarne] = useState(null);
-  const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [showHataKarnesiModal, setShowHataKarnesiModal] = useState(false);
+  const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [showGelirModal, setShowGelirModal] = useState(false);
   const fileRef = useRef();
 
@@ -101,12 +101,6 @@ export function StudentProfileModal({
             return res ? { exam, ...res } : null;
           })
           .filter(Boolean);
-
-  // Öğrencinin yoklama kayıtları
-  const studentAttendance =
-    Array.isArray(detail?.attendance)
-      ? detail.attendance
-      : (data.attendanceToday || []).filter((a) => a.student_id === s.id);
 
   const uploadContract = async (file) => {
     if (!file) return;
@@ -274,7 +268,6 @@ export function StudentProfileModal({
           {[
             { id: "genel", label: "Genel & Kimlik", icon: Users },
             { id: "sinavlar", label: `Sınavlar & Karneler (${studentExams.length})`, icon: Award },
-            { id: "yoklama", label: "Devamsızlık & Yoklama", icon: CalendarCheck },
             { id: "muhasebe", label: "Muhasebe & Taksitler", icon: Wallet }
           ].map((t) => {
             const Icon = t.icon;
@@ -531,86 +524,7 @@ export function StudentProfileModal({
             </div>
           )}
 
-          {/* SEKME 3: DEVAMSIZLIK & YOKLAMA */}
-          {activeTab === "yoklama" && (
-            <div>
-              <div className="mini-stats" style={{ marginBottom: "16px" }}>
-                <div>
-                  <span>Toplam Kayıt</span>
-                  <b>{studentAttendance.length}</b>
-                </div>
-                <div>
-                  <span>Geldiği Gün</span>
-                  <b className="green">{studentAttendance.filter((a) => a.status === "geldi").length}</b>
-                </div>
-                <div>
-                  <span>Devamsızlık</span>
-                  <b className="red">{studentAttendance.filter((a) => a.status === "gelmedi").length}</b>
-                </div>
-                <div>
-                  <span>İzinli / Geç</span>
-                  <b style={{ color: "#b45309" }}>{studentAttendance.filter((a) => ["izinli", "gec"].includes(a.status)).length}</b>
-                </div>
-              </div>
-
-              {studentAttendance.length > 0 ? (
-                <div style={{ border: "1px solid var(--line)", borderRadius: "8px", overflow: "hidden" }}>
-                  <table className="data-table" style={{ width: "100%", fontSize: "13px", margin: 0 }}>
-                    <thead>
-                      <tr>
-                        <th>Tarih</th>
-                        <th>Ders Saati</th>
-                        <th>Durum</th>
-                        <th>Açıklama / Not</th>
-                        <th style={{ textAlign: "right" }}>İşlem</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studentAttendance.map((a, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            <b>{new Date(a.date).toLocaleDateString("tr-TR")}</b>
-                          </td>
-                          <td>{a.lesson_slot || "Tüm Gün"}</td>
-                          <td>
-                            <span className={`status-pill ${a.status === "geldi" ? "success" : a.status === "gelmedi" ? "danger" : "warning"}`}>
-                              {a.status === "geldi" ? "Geldi" : a.status === "gelmedi" ? "Gelmedi" : a.status}
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ color: "#64748b" }}>{a.note || "—"}</span>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            {s.parent_phone && a.status === "gelmedi" && (
-                              <button
-                                className="btn small secondary"
-                                onClick={() =>
-                                  openWhatsApp(
-                                    s.parent_phone,
-                                    `Sayın Velimiz, ${s.student_name} öğrencimiz ${new Date(a.date).toLocaleDateString("tr-TR")} tarihinde kurumumuza katılmamıştır.`
-                                  )
-                                }
-                                style={{ fontSize: "11px", padding: "4px 8px" }}
-                              >
-                                Devamsızlık Bildir
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ padding: "36px", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed var(--line)" }}>
-                  <CalendarCheck size={32} color="#94a3b8" style={{ margin: "0 auto 8px auto" }} />
-                  <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>Öğrenciye ait güncel devamsızlık kaydı bulunmuyor.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* SEKME 4: MUHASEBE & TAKSİTLER */}
+          {/* Muhasebe ve kayıtlı taksitler */}
           {activeTab === "muhasebe" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -698,14 +612,9 @@ export function StudentProfileModal({
         </div>
       </div>
 
-      {/* KARNE MODALI POPUP */}
       {selectedKarne && <OfficialEdesisKarneModal data={selectedKarne} onClose={() => setSelectedKarne(null)} />}
-
-      {/* MATBU SENET KOÇANI */}
-      {showPromissoryModal && <PromissoryNoteModal student={s} onClose={() => setShowPromissoryModal(false)} />}
-
-      {/* KAZANIM HATA KARNESİ */}
       {showHataKarnesiModal && <HataKarnesiModal student={s} onClose={() => setShowHataKarnesiModal(false)} />}
+      {showPromissoryModal && <PromissoryNoteModal student={s} onClose={() => setShowPromissoryModal(false)} />}
     </div>
   );
 }

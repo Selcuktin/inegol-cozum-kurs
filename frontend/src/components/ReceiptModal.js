@@ -53,7 +53,6 @@ export function ReceiptModal({ payment, student, onClose }) {
           if (!s) return false;
           if (cleanId && (String(s.id) === String(student?.id) || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
           if (sTc && String(s.student_tc || "").trim() === sTc) return true;
-          if (sNameNorm && normTr(s.student_name) === sNameNorm) return true;
           return false;
         }) || null;
     } catch {}
@@ -160,7 +159,7 @@ export function ReceiptModal({ payment, student, onClose }) {
               type="button"
               className="btn secondary"
               onClick={handleSendEmail}
-              disabled={isSendingEmail}
+              disabled={isSendingEmail || !!payment.is_cancelled || payment.status === "İptal Edildi"}
               style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "12px", padding: "7px 12px", color: "#1e40af" }}
               title="Velinin e-posta adresine resmi makbuzu ilet"
             >
@@ -219,7 +218,7 @@ export function ReceiptModal({ payment, student, onClose }) {
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <Edit3 size={15} color="#2563eb" />
                 <span style={{ fontSize: "13px", fontWeight: "700", color: "#1e3a8a" }}>
-                  Hızlı Makbuz Düzenleme & Önizleme
+                  Yazdırma önizlemesi (kayıtlı tahsilatı değiştirmez)
                 </span>
                 <span style={{ fontSize: "11px", color: "#64748b" }}>
                   (Yazdırmadan önce makbuz üzerindeki bilgileri buradan değiştirebilirsiniz)
@@ -328,6 +327,7 @@ export function ReceiptModal({ payment, student, onClose }) {
               boxSizing: "border-box"
             }}
           >
+            {(payment.is_cancelled || payment.status === "İptal Edildi") && <div role="status" style={{color:"#b91c1c",border:"2px solid #b91c1c",padding:"12px",fontWeight:800}}>İPTAL EDİLDİ — Geçerli tahsilat makbuzu değildir</div>}
             {/* Makbuz Başlığı */}
             <div
               className="receipt-header-row"

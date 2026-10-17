@@ -59,7 +59,7 @@ export function buildNavCategories({
                 { id: "k_def", label: "Kasa Defteri", activeCheck: () => page === "payments" && accountingTab === "kasalar", onClick: () => { setPage("payments"); setAccountingTab("kasalar"); setMobileOpen(false); } },
                 { id: "k_gun", label: "Kasa Raporu Yazdır", onClick: () => { window.print(); setMobileOpen(false); } },
                 { id: "k_makbuz", label: "Tahsilat Makbuzu Kes", onClick: () => { guardedOpen("payment"); setMobileOpen(false); } },
-                { id: "k_senet", label: "Matbu Senet (Bono) Yazdır", onClick: () => { setShowGlobalPromissory(true); setMobileOpen(false); } },
+                { id: "k_senet", label: "Matbu Senet (Bono) Yazdır", onClick: () => { setPage("payments"); setAccountingTab("senetler"); setMobileOpen(false); } },
                 { id: "k_bak", label: "Bakiyeler & Hesaplar", activeCheck: () => page === "payments" && accountingTab === "dashboard", onClick: () => { setPage("payments"); setAccountingTab("dashboard"); setMobileOpen(false); } },
                 { id: "k_backup", label: "💾 Otomatik Yedekleme (20:00)", activeCheck: () => page === "payments" && accountingTab === "backup", onClick: () => { setPage("payments"); setAccountingTab("backup"); setMobileOpen(false); } }
               ]
@@ -114,11 +114,8 @@ export function buildNavCategories({
       ]
     },
     {
-      title: "EĞİTİM & AKADEMİK",
-      items: [
-        { id: "schedules", label: "Ders Programı", icon: Calendar, perm: "page_schedules" },
-        { id: "attendance", label: "Günlük Yoklama", icon: CalendarCheck, perm: "page_attendance" }
-      ]
+      title: "EĞİTİM",
+      items: [{ id: "schedules", label: "Ders Programı", icon: Calendar, perm: "page_schedules" }]
     },
     {
       title: "SİSTEM & YÖNETİM",

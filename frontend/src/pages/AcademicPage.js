@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Classes } from "../components/Classes";
 import { TeachersPage } from "../components/TeachersPage";
-import { AttendancePage, SchedulesPage } from "../EdesisModules";
+import { SchedulesPage } from "../EdesisModules";
 import { AuthGuard } from "./AuthGuard";
 import { BookOpen, Users, UserCheck, Calendar } from "lucide-react";
 
@@ -50,13 +50,6 @@ export function AcademicPage({
           <Users size={15} /> Öğretmen Kadrosu
         </button>
         <button
-          className={`btn small ${activeTab === "attendance" ? "" : "secondary"}`}
-          onClick={() => { setCurrentTab("attendance"); if (onNavigate) onNavigate("attendance"); }}
-          style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
-        >
-          <UserCheck size={15} /> Günlük Yoklama
-        </button>
-        <button
           className={`btn small ${activeTab === "schedules" ? "" : "secondary"}`}
           onClick={() => { setCurrentTab("schedules"); if (onNavigate) onNavigate("schedules"); }}
           style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
@@ -88,16 +81,6 @@ export function AcademicPage({
             teachers={teachers}
             onReload={reload}
             onNavigate={onNavigate}
-          />
-        </AuthGuard>
-      )}
-
-      {activeTab === "attendance" && (
-        <AuthGuard me={me} action="page_attendance">
-          <AttendancePage
-            me={me}
-            API={API}
-            classes={classes}
           />
         </AuthGuard>
       )}

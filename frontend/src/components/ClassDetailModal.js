@@ -267,15 +267,7 @@ export function ClassDetailModal({
 
           {/* Sınıfa Özel Hızlı Kısayollar */}
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            {onNavigate && (
-              <>
-                <button 
-                  className="btn small secondary"
-                  title="Bu sınıf için yoklama al"
-                  onClick={() => { onClose(); onNavigate("attendance"); }}
-                >
-                  <UserCheck size={14} /> Yoklama Al
-                </button>
+            {onNavigate && <>
                 <button 
                   className="btn small secondary"
                   title="Bu sınıfın ders programını gör"
@@ -283,8 +275,7 @@ export function ClassDetailModal({
                 >
                   <Clock size={14} /> Ders Programı
                 </button>
-              </>
-            )}
+            </>}
             {onOpenNewStudent && (
               <button 
                 className="btn small"

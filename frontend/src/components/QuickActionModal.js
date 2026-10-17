@@ -67,7 +67,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
   const videoRef = useRef();
   const mutationId=useRef();
   const [saving,setSaving]=useState(false);
-  useEffect(()=>{mutationId.current="pay_"+crypto.randomUUID();},[type]);
+  useEffect(()=>{mutationId.current=(type === "expense" ? "exp_" : "pay_")+crypto.randomUUID();},[type]);
   if (!type) return null;
 
   const change = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -116,6 +116,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
       if (type === "expense") {
         await axios.post(`${apiBase}/expenses`, {
           ...form,
+          id: mutationId.current,
           title: form.title || form.note || "Genel Gider",
           category: form.category || "Genel",
           expense_date: form.expense_date || form.payment_date || today(),

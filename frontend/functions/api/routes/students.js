@@ -18,8 +18,9 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
     const search = url.searchParams.get("search") || "";
     const classFilter = url.searchParams.get("class") || "";
     const period = url.searchParams.get("period") || url.searchParams.get("program") || "";
-    const page = parseInt(url.searchParams.get("page") || "1", 10);
-    const limit = parseInt(url.searchParams.get("limit") || "1000", 10);
+    const page = Number(url.searchParams.get("page") || "1");
+    const limit = Number(url.searchParams.get("limit") || "1000");
+    if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 1000 || !Number.isSafeInteger((page - 1) * limit)) return errorResponse("Geçersiz sayfalama: sayfa en az 1, limit 1–1000 olmalıdır", 422);
     const offset = (page - 1) * limit;
 
     let query = `

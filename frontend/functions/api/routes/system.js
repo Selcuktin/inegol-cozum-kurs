@@ -1,5 +1,6 @@
 // Cloudflare Pages Functions - System Router (Users, Roles, Audit Logs, Export, 20:00 Daily Backup, Restore, Status)
-import { json, cachedJson, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, ROLE_ADMIN, ROLE_LABELS } from "../utils.js";
+import { json, cachedJson, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, ROLE_ADMIN, ROLE_LABELS, getEffectiveTotalFee } from "../utils.js";
+import { csvCell as escCsv } from "../../../src/lib/csv.js";
 
 const BACKUP_TABLES = [
   "users",
@@ -237,6 +238,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (!user) return errorResponse("Dışa aktarma işlemi için oturum açmanız gerekmektedir.", 401, "UNAUTHORIZED");
 
     const kind = exportMatch[1];
+    if (!["all", "payments", "expenses", "students", "audit"].includes(kind)) return errorResponse("Dışa aktarma türü bulunamadı", 404);
     if (kind === "audit" && user.role !== ROLE_ADMIN) {
       return errorResponse("Denetim kayıtlarını yalnızca yönetici dışa aktarabilir.", 403, "FORBIDDEN");
     }
@@ -244,16 +246,25 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       return errorResponse("Bu verileri dışa aktarma yetkiniz bulunmamaktadır.", 403, "FORBIDDEN");
     }
 
-    const escCsv = (v) => `"${String(v ?? "").replace(/^[=+@-]/, "'$&").replace(/"/g, '""')}"`;
+    const includeAudit = user.role === ROLE_ADMIN && (kind === "audit" || kind === "all");
+    const [studentRows, paymentRows, expenseRows, auditRows] = await db.batch([
+      db.prepare(`SELECT s.*, c.durum AS contract_status, c.brut_tutar AS contract_gross,
+        COALESCE((SELECT MAX(g.toplam_tahsilat) FROM student_incomes g WHERE g.contract_id=c.id AND COALESCE(g.is_deleted,0)=0),s.paid_amount) AS current_paid
+        FROM students s LEFT JOIN contracts c ON c.student_id=s.id AND c.sozlesme_no=s.sozlesme_no AND COALESCE(c.is_deleted,0)=0 ORDER BY s.student_name`),
+      db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id=s.id WHERE COALESCE(p.is_cancelled,0)=0 ORDER BY p.payment_date DESC"),
+      db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC"),
+      db.prepare(includeAudit ? "SELECT * FROM audit_logs ORDER BY created_at DESC" : "SELECT * FROM audit_logs WHERE 0")
+    ]);
     let csv = "\uFEFF"; // UTF-8 BOM for Excel
 
     if (kind === "students" || kind === "all") {
       csv += "ÖĞRENCİLER\n";
       csv += "Ad Soyad;Telefon;Okul;Sınıf;Veli;Veli Tel;Program;Toplam Ücret;Ödenen;Kalan;Taksit;İlk Vade\n";
-      const res = await db.prepare("SELECT * FROM students ORDER BY student_name ASC").all();
-      for (const s of res.results || []) {
-        const rem = (Number(s.total_fee) || 0) - (Number(s.paid_amount) || 0);
-        csv += `${escCsv(s.student_name)};${escCsv(s.student_phone)};${escCsv(s.school)};${escCsv(s.student_class)};${escCsv(s.parent_name)};${escCsv(s.parent_phone)};${escCsv(s.program)};${s.total_fee || 0};${s.paid_amount || 0};${rem};${s.installment_count || 1};${escCsv(s.due_date)}\n`;
+      for (const s of studentRows.results || []) {
+        const gross = Number(s.contract_gross ?? getEffectiveTotalFee(s));
+        const paid = Number(s.current_paid || 0);
+        const rem = Number(s.contract_status) === 3 ? 0 : Math.max(0, Math.round((gross - paid) * 100) / 100);
+        csv += `${escCsv(s.student_name)};${escCsv(s.student_phone)};${escCsv(s.school)};${escCsv(s.student_class)};${escCsv(s.parent_name)};${escCsv(s.parent_phone)};${escCsv(s.program)};${gross};${paid};${rem};${s.installment_count || 1};${escCsv(s.due_date)}\n`;
       }
       csv += "\n";
     }
@@ -261,8 +272,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (kind === "payments" || kind === "all") {
       csv += "TAHSİLATLAR\n";
       csv += "Tarih;Öğrenci;Tutar;Yöntem;Banka;Açıklama;Kaydeden\n";
-      const pRes = await db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id WHERE COALESCE(p.is_cancelled,0)=0 ORDER BY p.payment_date DESC").all();
-      for (const p of pRes.results || []) {
+      for (const p of paymentRows.results || []) {
         csv += `${escCsv(p.payment_date)};${escCsv(p.student_name)};${p.amount || 0};${escCsv(p.method)};${escCsv(p.bank)};${escCsv(p.note)};${escCsv(p.created_by_name)}\n`;
       }
       csv += "\n";
@@ -271,18 +281,16 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (kind === "expenses" || kind === "all") {
       csv += "GİDERLER\n";
       csv += "Tarih;Başlık;Kategori;Kasa/Hesap;Tutar;Kaydeden\n";
-      const eRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all();
-      for (const e of eRes.results || []) {
+      for (const e of expenseRows.results || []) {
         csv += `${escCsv(e.expense_date)};${escCsv(e.title)};${escCsv(e.category)};${escCsv(e.account || "Nakit Ana Kasa")};${e.amount || 0};${escCsv(e.created_by_name)}\n`;
       }
       csv += "\n";
     }
 
-    if (kind === "audit" || kind === "all") {
+    if (includeAudit) {
       csv += "DENETİM KAYITLARI\n";
       csv += "Tarih;Kullanıcı;E-posta;İşlem;Detay\n";
-      const aRes = await db.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500").all();
-      for (const a of aRes.results || []) {
+      for (const a of auditRows.results || []) {
         csv += `${escCsv(a.created_at)};${escCsv(a.user_name)};${escCsv(a.user_email)};${escCsv(a.action)};${escCsv(a.detail)}\n`;
       }
     }

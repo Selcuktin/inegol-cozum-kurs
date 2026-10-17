@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import {
-  Award,
-  CalendarCheck,
+  FileText,
+  FileDown,
   LayoutDashboard,
   ShieldCheck,
   Users,
@@ -293,13 +293,13 @@ export function MobileBottomNav({ page, setPage, menuOpen=false }) {
         <LayoutDashboard size={20} />
         <span>Genel Bakış</span>
       </button>
-      <button className={`nav-btn ${page === "exams" ? "active" : ""}`} onClick={() => setPage("exams")}>
-        <Award size={20} />
-        <span>Sınavlar</span>
+      <button className={`nav-btn ${page === "documents" ? "active" : ""}`} onClick={() => setPage("documents")}>
+        <FileText size={20} />
+        <span>Sözleşmeler</span>
       </button>
-      <button className={`nav-btn ${page === "attendance" ? "active" : ""}`} onClick={() => setPage("attendance")}>
-        <CalendarCheck size={20} />
-        <span>Yoklama</span>
+      <button className={`nav-btn ${page === "reports" ? "active" : ""}`} onClick={() => setPage("reports")}>
+        <FileDown size={20} />
+        <span>Raporlar</span>
       </button>
       <button className={`nav-btn ${page === "kayit" || page === "students" ? "active" : ""}`} onClick={() => setPage("kayit")}>
         <Users size={20} />

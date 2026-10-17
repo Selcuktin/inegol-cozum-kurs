@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { usePrintMode } from "../hooks/usePrintMode";
+import { csvRow } from "../lib/csv";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   FileText,
   Calendar,
@@ -86,6 +88,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const [sortOrder, setSortOrder] = useState("desc");
 
   // Pagination
+  const printing=usePrintMode();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -121,26 +124,16 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     return null;
   };
 
-  const findMatchingContract = (targetKey, list = []) => {
-    if (!targetKey || !Array.isArray(list) || list.length === 0) return null;
-    const cleanKey = String(targetKey).trim();
-    const cleanId = cleanKey.replace(/^stu-/, "");
-    const normKey = trNorm(cleanKey);
-    return list.find((c) => {
-      if (!c) return false;
-      if (c.sozlesmeNo && String(c.sozlesmeNo) === cleanKey) return true;
-      if (c.id != null && (String(c.id) === cleanKey || String(c.id).replace(/^stu-/, "") === cleanId)) return true;
-      if (c.studentId != null && (String(c.studentId) === cleanKey || String(c.studentId).replace(/^stu-/, "") === cleanId)) return true;
-      if (c.ogrenciId != null && (String(c.ogrenciId) === cleanKey || String(c.ogrenciId).replace(/^stu-/, "") === cleanId)) return true;
-      if (c.ogrenciNo != null && String(c.ogrenciNo) === cleanKey) return true;
-      if (trNorm(c.sozlesmeNo) === normKey) return true;
-      if (trNorm(c.id) === normKey) return true;
-      if (trNorm(c.ogrenciAdi) === normKey) return true;
-      if (trNorm(c.ogrenciAdiSoyadi) === normKey) return true;
-      if (trNorm(c.musteriUnvan) === normKey) return true;
-      return false;
-    }) || null;
-  };
+  const findMatchingContract = useCallback((targetKey, list = []) => {
+    if (!targetKey || !Array.isArray(list)) return null;
+    const key=String(targetKey).trim();
+    const exact=list.find(c=>String(c.sozlesmeNo || "")===key || String(c.id)===key);
+    if(exact)return exact;
+    const id=key.replace(/^stu-/, "");
+    const matching=list.filter(c=>String(c.studentId || c.ogrenciId || c.student_id || "").replace(/^stu-/, "")===id);
+    const currentStudent=students.find(s=>String(s.id).replace(/^stu-/, "")===id);
+    return matching.find(c=>c.sozlesmeNo===currentStudent?.sozlesme_no) || (matching.length===1 ? matching[0] : null);
+  }, [students]);
 
   const [selectedContract, setSelectedContract] = useState(() => {
     try {
@@ -148,12 +141,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
       if (targetKey) {
         const all = AccountingService.getContracts(students);
         let found = findMatchingContract(targetKey, all);
-        if (!found && typeof sessionStorage !== "undefined") {
-          const sName = sessionStorage.getItem("cozum_open_contract_student");
-          const sId = sessionStorage.getItem("cozum_open_contract_student_id");
-          if (sName) found = findMatchingContract(sName, all);
-          if (!found && sId) found = findMatchingContract(sId, all);
-        }
         if (found) {
           try {
             sessionStorage.removeItem("cozum_open_contract_no");
@@ -186,34 +173,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
         let found = findMatchingContract(targetKey, contractsList);
 
-        // If not found, check student name or student id from sessionStorage
-        if (!found && typeof sessionStorage !== "undefined") {
-          const sName = sessionStorage.getItem("cozum_open_contract_student");
-          const sId = sessionStorage.getItem("cozum_open_contract_student_id");
-          if (sName) found = findMatchingContract(sName, contractsList);
-          if (!found && sId) found = findMatchingContract(sId, contractsList);
-        }
-
-        // If still not found, check in students array and synthesize on the fly
-        if (!found && Array.isArray(students) && students.length > 0) {
-          const normKey = trNorm(targetKey);
-          const sNameKey = typeof sessionStorage !== "undefined" ? trNorm(sessionStorage.getItem("cozum_open_contract_student") || "") : "";
-          const sIdKey = typeof sessionStorage !== "undefined" ? String(sessionStorage.getItem("cozum_open_contract_student_id") || "") : "";
-
-          const st = students.find((s) =>
-            (s.id && String(s.id) === String(targetKey)) ||
-            (s.id && sIdKey && String(s.id) === sIdKey) ||
-            (s.sozlesme_no && String(s.sozlesme_no) === String(targetKey)) ||
-            (s.student_name && trNorm(s.student_name) === normKey) ||
-            (s.student_name && sNameKey && trNorm(s.student_name) === sNameKey)
-          );
-          if (st) {
-            found = findMatchingContract(st.sozlesme_no, contractsList) ||
-                    findMatchingContract(st.student_name, contractsList) ||
-                    findMatchingContract(st.id, contractsList);
-          }
-        }
-
         if (found) {
           setSelectedContract((prev) => {
             return found;
@@ -232,7 +191,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     syncTargetContract();
     window.addEventListener("hashchange", syncTargetContract);
     return () => window.removeEventListener("hashchange", syncTargetContract);
-  }, [contractsList, students]);
+  }, [contractsList, students, findMatchingContract]);
   const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(null);
   const [showMebPrintModal, setShowMebPrintModal] = useState(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -452,13 +411,15 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   // Pagination calculation
   const totalRecords = filteredContracts.length;
-  const totalPages = pageSize === "all" ? 1 : Math.ceil(totalRecords / (Number(pageSize) || 25));
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(totalRecords / (Number(pageSize) || 25)));
+  useEffect(() => { setCurrentPage(p => Math.min(p, totalPages)); }, [totalPages]);
   const paginatedContracts = useMemo(() => {
+    if (printing) return filteredContracts;
     if (pageSize === "all") return filteredContracts;
     const size = Number(pageSize) || 25;
     const start = (currentPage - 1) * size;
     return filteredContracts.slice(start, start + size);
-  }, [filteredContracts, currentPage, pageSize]);
+  }, [filteredContracts, currentPage, pageSize, printing]);
 
   // Sort toggle handler
   const handleSort = (field) => {
@@ -486,7 +447,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
       c.durum === 1 ? "Aktif" : c.durum === 3 ? "İptal" : "Taslak"
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(";"))].join("\r\n");
+    const csvContent = "\uFEFF" + [headers, ...rows].map(csvRow).join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -495,6 +456,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast("✅ Sözleşmeler Excel (CSV) formatında indirildi.");
   };
 
@@ -620,7 +582,7 @@ try {
   return (
     <>
       <div
-        className={`edesis-contracts-view ${showMebPrintModal || showPaymentPlanModal ? "no-print" : ""}`}
+        className={`admin-record-list edesis-contracts-view ${showMebPrintModal || showPaymentPlanModal ? "no-print" : ""}`}
       style={{
         backgroundColor: "#f5f8fa",
         minHeight: "100vh",

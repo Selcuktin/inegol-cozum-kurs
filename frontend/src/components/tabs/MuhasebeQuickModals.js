@@ -166,6 +166,7 @@ export function QuickPaymentModal({
 
 export function ExpenseModal({
   showExpenseModal = false,
+  savingExpense = false,
   setShowExpenseModal = () => {},
   handleSaveExpense = () => {},
   expTitle = "",
@@ -255,7 +256,7 @@ export function ExpenseModal({
 
           <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "16px" }}>
             <button type="button" className="btn secondary" onClick={() => setShowExpenseModal(false)}>İptal</button>
-            <button type="submit" className="btn" style={{ background: "#ef4444", color: "#fff" }}>Gideri Kaydet</button>
+            <button type="submit" disabled={savingExpense} className="btn" style={{ background: "#ef4444", color: "#fff" }}>{savingExpense ? "Kaydediliyor..." : "Gideri Kaydet"}</button>
           </div>
         </form>
       </div>

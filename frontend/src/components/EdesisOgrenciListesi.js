@@ -1,3 +1,5 @@
+import { usePrintMode } from "../hooks/usePrintMode";
+import { csvRow } from "../lib/csv";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Users,
@@ -186,6 +188,7 @@ export default function EdesisOgrenciListesi({
   };
 
   // Pagination
+  const printing=usePrintMode();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [toastMessage, setToastMessage] = useState(null);
@@ -276,13 +279,15 @@ export default function EdesisOgrenciListesi({
 
   // Pagination slice
   const totalCount = filteredStudents.length;
-  const totalPages = pageSize === "all" ? 1 : Math.ceil(totalCount / Number(pageSize));
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(totalCount / Number(pageSize)));
+  useEffect(() => { setCurrentPage(p => Math.min(p, totalPages)); }, [totalPages]);
   const paginatedStudents = useMemo(() => {
+    if (printing) return filteredStudents;
     if (pageSize === "all") return filteredStudents;
     const size = Number(pageSize);
     const start = (currentPage - 1) * size;
     return filteredStudents.slice(start, start + size);
-  }, [filteredStudents, currentPage, pageSize]);
+  }, [filteredStudents, currentPage, pageSize, printing]);
 
   // Checkbox handlers
   const handleToggleSelectAll = () => {
@@ -359,7 +364,7 @@ export default function EdesisOgrenciListesi({
       s.status || ""
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\r\n");
+    const csvContent = "\uFEFF" + [headers, ...rows].map(csvRow).join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -368,12 +373,13 @@ export default function EdesisOgrenciListesi({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast("✅ Öğrenci listesi CSV olarak indirildi.");
   };
 
   return (
     <div
-      className="edesis-students-view"
+      className="edesis-students-view admin-record-list"
       style={{
         backgroundColor: "#f5f8fa",
         minHeight: "100vh",

@@ -342,94 +342,35 @@ export function computeInstallmentPlan(student, payments) {
 }
 
 export function generateMonthlyPdf({ month, collected, expenses, net, monthPayments, monthExpenses, studentsCount }) {
-  const cleanStr = (s) => String(s || "").replace(/[^\x20-\x7E]/g, "?").replace(/[()\\]/g, "");
-  const formatMoney = (n) => `${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL`;
-
+  // ponytail: Helvetica has no Turkish glyphs; transliterate this compact PDF. Browser print preserves Turkish.
+  const clean = value => String(value ?? "").replace(/[İıŞşĞğÇçÖöÜü]/g, c => ({İ:'I',ı:'i',Ş:'S',ş:'s',Ğ:'G',ğ:'g',Ç:'C',ç:'c',Ö:'O',ö:'o',Ü:'U',ü:'u'}[c])).replace(/[^\x20-\x7E]/g, " ");
+  const literal = value => clean(value).replace(/[()\\]/g, "\\$&");
+  const money = value => `${Number(value || 0).toLocaleString("en-US", {minimumFractionDigits:2,maximumFractionDigits:2})} TL`;
   const lines = [
-    "BT",
-    "/F1 16 Tf",
-    "50 780 Td",
-    "(OZEL INEGOL COZUM KURS MERKEZI) Tj",
-    "/F1 11 Tf",
-    "0 -22 Td",
-    `(${cleanStr(month)} DONEMI KURUMSAL AYLIK MUHASEBE RAPORU) Tj`,
-    "/F1 8 Tf",
-    "0 -14 Td",
-    "(Kemalpasa Mah. Ilica Sk. No:31/33A Inegol / BURSA - Tel: 0224 715 00 02) Tj",
-    "0 -16 Td",
-    "(---------------------------------------------------------------------------------------------------------------) Tj",
-    "/F1 10 Tf",
-    "0 -20 Td",
-    "(FINANSAL GENEL OZET) Tj",
-    "/F1 9 Tf",
-    "0 -16 Td",
-    `(- Toplam Tahsilat: ${formatMoney(collected)}) Tj`,
-    "0 -14 Td",
-    `(- Toplam Giderler: ${formatMoney(expenses)}) Tj`,
-    "0 -14 Td",
-    `(- Net Kar / Durum: ${formatMoney(net)}) Tj`,
-    "0 -14 Td",
-    `(- Kayitli Aktif Ogrenci: ${studentsCount}) Tj`,
-    "0 -14 Td",
-    `(- Islem Sayilari: ${monthPayments.length} Tahsilat, ${monthExpenses.length} Gider) Tj`,
-    "0 -20 Td",
-    "(---------------------------------------------------------------------------------------------------------------) Tj",
-    "/F1 10 Tf",
-    "0 -18 Td",
-    "(BU AYIN TAHSILAT HAREKETLERI (ILK 20 KAYIT)) Tj",
-    "/F1 8 Tf"
+    'OZEL INEGOL COZUM KURS MERKEZI', `${month} DONEMI AYLIK MUHASEBE RAPORU`, '',
+    `Toplam Tahsilat: ${money(collected)}`, `Toplam Giderler: ${money(expenses)}`,
+    `Net Kar / Durum: ${money(net)}`, `Kayitli Ogrenci: ${studentsCount}`,
+    `Islem Sayilari: ${monthPayments.length} Tahsilat, ${monthExpenses.length} Gider`, '', 'TAHSILATLAR'
   ];
-
-  for (let i = 0; i < Math.min(20, monthPayments.length); i++) {
-    const p = monthPayments[i];
-    const sName = cleanStr(p.student_name || "Ogrenci");
-    const pText = `${p.payment_date} | ${sName.slice(0, 22)} | ${cleanStr(p.method)} | ${formatMoney(p.amount)}`;
-    lines.push("0 -13 Td");
-    lines.push(`(${pText}) Tj`);
-  }
-  if (monthPayments.length === 0) {
-    lines.push("0 -14 Td");
-    lines.push("(Bu donemde tahsilat kaydi bulunmamaktadir.) Tj");
-  }
-
-  lines.push("0 -24 Td");
-  lines.push("/F1 8 Tf");
-  lines.push("(Inegol Cozum Kurs Yonetim Sistemi - Bulut Raporudur.) Tj");
-  lines.push("ET");
-
-  const streamContent = lines.join("\n");
-  const streamLength = streamContent.length;
-
-  return `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
-endobj
-4 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-5 0 obj
-<< /Length ${streamLength} >>
-stream
-${streamContent}
-endstream
-endobj
-xref
-0 6
-0000000000 65535 f
-0000000009 00000 n
-0000000058 00000 n
-0000000115 00000 n
-0000000244 00000 n
-0000000325 00000 n
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-${420 + streamLength}
-%%EOF`;
+  for (const p of monthPayments) lines.push(`${p.payment_date} | ${p.student_name || 'Ogrenci'} | ${p.method || ''} | ${money(p.amount)}`);
+  if (!monthPayments.length) lines.push('Bu donemde tahsilat kaydi bulunmamaktadir.');
+  lines.push('', 'GIDERLER');
+  for (const e of monthExpenses) lines.push(`${e.expense_date} | ${e.title || e.category || 'Gider'} | ${money(e.amount)}`);
+  if (!monthExpenses.length) lines.push('Bu donemde gider kaydi bulunmamaktadir.');
+  const wrapped = lines.flatMap(line => clean(line).match(/.{1,100}/g) || ['']);
+  const pages = [];
+  for (let i=0;i<wrapped.length;i+=48) pages.push(wrapped.slice(i,i+48));
+  const objects = ['', '<< /Type /Catalog /Pages 2 0 R >>', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  const pageIds=[];
+  pages.forEach((page,index) => {
+    const id=objects.length;pageIds.push(id);
+    const content=['BT','/F1 9 Tf','40 795 Td','14 TL',...page.flatMap(line=>[`(${literal(line)}) Tj`,'T*']),`(Sayfa ${index+1} / ${pages.length}) Tj`,'ET'].join('\n');
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${id+1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+  objects[2]=`<< /Type /Pages /Kids [${pageIds.map(id=>`${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
+  let pdf='%PDF-1.4\n';const offsets=[0];
+  for(let id=1;id<objects.length;id++){offsets.push(pdf.length);pdf+=`${id} 0 obj\n${objects[id]}\nendobj\n`;}
+  const xref=pdf.length;
+  pdf+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>`${String(n).padStart(10,'0')} 00000 n \n`).join('');
+  return pdf+`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
 }
