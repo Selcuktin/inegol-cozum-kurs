@@ -1,9 +1,7 @@
-name: Daily Database Backup (20:00 TRT)
+name: Database Backup (Manual Only)
 
 on:
-  schedule:
-    # Runs at 17:00 UTC every day -> 20:00 (8:00 PM) Turkey Time
-    - cron: '0 17 * * *'
+  # Automatic backups paused at the owner's request; retain manual execution.
   workflow_dispatch:
 
 jobs:
