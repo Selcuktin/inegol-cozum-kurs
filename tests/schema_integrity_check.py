@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def main() -> None:
-    schema_path = Path("/app/frontend/schema.sql")
+    schema_path = Path(__file__).resolve().parents[1] / "frontend" / "schema.sql"
     sql = schema_path.read_text(encoding="utf-8")
 
     conn = sqlite3.connect(":memory:")

@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { usePrintMode } from "../hooks/usePrintMode";
+import { csvRow } from "../lib/csv";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Wallet,
   Search,
@@ -56,6 +58,8 @@ export default function EdesisTahsilatListesi({
 }) {
   const [tahsilatList, setTahsilatList] = useState(() => AccountingService.getCollections(payments));
   const [showNewPaymentModal, setShowNewPaymentModal] = useState(false);
+  const paymentId=useRef();
+  useEffect(()=>{if(showNewPaymentModal)paymentId.current="pay_"+crypto.randomUUID();},[showNewPaymentModal]);
 
   const handleOpenUnifiedContract = (t) => {
     const targetNo = t?.sozlesmeNo || t?.gelirAciklama?.replace("Sözleşme: ", "") || t?.gelirKodu || t?.musteriUnvan;
@@ -88,8 +92,9 @@ export default function EdesisTahsilatListesi({
     const handleUpdate = () => {
       setTahsilatList(AccountingService.getCollections(payments));
     };
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
-    return () => window.removeEventListener("cozum_accounting_updated", handleUpdate);
+    return () => {window.removeEventListener("cozum_accounting_updated", handleUpdate);window.removeEventListener("cozum_snapshot_updated",handleUpdate);};
   }, [payments]);
   const [bankFilter, setBankFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,6 +107,7 @@ export default function EdesisTahsilatListesi({
   const [sortOrder, setSortOrder] = useState("desc");
 
   // Sayfalama
+  const printing=usePrintMode();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -196,11 +202,13 @@ export default function EdesisTahsilatListesi({
 
   // Sayfalama
   const paginatedTahsilatlar = useMemo(() => {
+    if (printing) return sortedTahsilatlar;
     const start = (currentPage - 1) * pageSize;
     return sortedTahsilatlar.slice(start, start + pageSize);
-  }, [sortedTahsilatlar, currentPage, pageSize]);
+  }, [sortedTahsilatlar, currentPage, pageSize, printing]);
 
   const totalPages = Math.ceil(sortedTahsilatlar.length / pageSize) || 1;
+  useEffect(() => { setCurrentPage(p => Math.min(p, totalPages)); }, [totalPages]);
 
   // 4 KPI İstatistik Kartları
   const stats = useMemo(() => {
@@ -274,18 +282,18 @@ export default function EdesisTahsilatListesi({
     ];
 
     const rows = sortedTahsilatlar.map((t) => [
-      `"${t.odemeKodu || ""}"`,
-      `"${fmtDateTime(t.tahsilatTarihi)}"`,
-      `"${t.musteriUnvan || ""}"`,
-      `"${t.gelirKodu || ""}"`,
-      `"${t.gelirAciklama || t.aciklama || ""}"`,
-      `"${t.taksitNo || 1}. Taksit"`,
-      `"${t.kasaBankaAdi || "Banka Havalesi"}"`,
-      `"${(Number(t.tahsilatTutari) || 0).toFixed(2)}"`,
-      `"${t.durumText || "Aktif"}"`
+      `${t.odemeKodu || ""}`,
+      `${fmtDateTime(t.tahsilatTarihi)}`,
+      `${t.musteriUnvan || ""}`,
+      `${t.gelirKodu || ""}`,
+      `${t.gelirAciklama || t.aciklama || ""}`,
+      `${t.taksitNo || 1}. Taksit`,
+      `${t.kasaBankaAdi || "Banka Havalesi"}`,
+      `${(Number(t.tahsilatTutari) || 0).toFixed(2)}`,
+      `${t.durumText || "Aktif"}`
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
+    const csvContent = "\uFEFF" + [headers, ...rows].map(csvRow).join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -294,11 +302,13 @@ export default function EdesisTahsilatListesi({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast("📊 Tahsilat listesi Excel/CSV formatında indirildi.");
   };
 
   return (
     <div
+      className="erp-ledger-page admin-record-list"
       style={{
         padding: isFullScreen ? "20px" : "0",
         background: isFullScreen ? "#f8fafc" : "transparent",
@@ -343,6 +353,7 @@ export default function EdesisTahsilatListesi({
 
       {/* ÜST BAŞLIK VE HIZLI EYLEMLER BAR */}
       <div
+        className="erp-page-header"
         style={{
           background: "#fff",
           borderRadius: "8px",
@@ -449,6 +460,7 @@ export default function EdesisTahsilatListesi({
 
       {/* 4 ÖZET SAYAÇ KARTI */}
       <div
+        className="erp-summary-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -636,6 +648,7 @@ export default function EdesisTahsilatListesi({
 
       {/* FİLTRE VE ARAMA KONTROL PANELİ */}
       <div
+        className="erp-filter-panel"
         style={{
           background: "#fff",
           borderRadius: "8px",
@@ -969,8 +982,7 @@ export default function EdesisTahsilatListesi({
                           onClick={() => {
                             const matchedStudent = (students || []).find(
                               (s) =>
-                                (t.ogrenciId && String(s.id) === String(t.ogrenciId)) ||
-                                (t.musteriUnvan && s.student_name && trIncludes(s.student_name, t.musteriUnvan))
+                                String(s.id) === String(t.ogrenciId || t.student_id)
                             );
                             const stName = matchedStudent?.student_name || t.musteriUnvan || "";
                             const rawParent = matchedStudent?.parent_name || t.veliAdiSoyadi || "";
@@ -979,12 +991,17 @@ export default function EdesisTahsilatListesi({
                                 ? rawParent
                                 : "";
                             const paymentObj = {
-                              id: t.odemeKodu || `MAK-${t.id}`,
+                              id: t.id,
+                              receipt_no: t.odemeKodu,
+                              contract_id: t.contract_id,
+                              sozlesme_no: t.sozlesmeNo,
                               student_id: matchedStudent?.id || t.ogrenciId,
                               student_name: stName,
                               parent_name: safeParentName,
                               parent_phone: matchedStudent?.parent_phone || matchedStudent?.student_phone || t.telefon || "",
                               amount: t.tahsilatTutari,
+                              is_cancelled: t.is_cancelled,
+                              status: t.status,
                               payment_date: t.tahsilatTarihi || new Date().toISOString().slice(0, 10),
                               method: t.kasaBankaAdi || "Banka Havalesi / EFT",
                               bank: t.kasaBankaAdi || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
@@ -1034,7 +1051,7 @@ export default function EdesisTahsilatListesi({
           }}
         >
           <div>
-            Toplam {sortedTahsilatlar.length} tahsilattan <b>{(currentPage - 1) * pageSize + 1}</b> - <b>{Math.min(currentPage * pageSize, sortedTahsilatlar.length)}</b> arası gösteriliyor
+            Toplam {sortedTahsilatlar.length} tahsilattan <b>{sortedTahsilatlar.length ? (currentPage - 1) * pageSize + 1 : 0}</b> - <b>{Math.min(currentPage * pageSize, sortedTahsilatlar.length)}</b> arası gösteriliyor
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -1186,17 +1203,22 @@ export default function EdesisTahsilatListesi({
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
+try {
+
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
                 const stName = fd.get("studentName");
-                const stObj = (students || []).find((s) => s.student_name === stName || s.id === fd.get("studentId"));
+                const matches=(students||[]).filter(s=>fd.get('studentId')?s.id===fd.get('studentId'):s.student_name===stName);
+                if(matches.length!==1){alert('Öğrenci kesin olarak eşleşmedi. Öğrenci profilinden tahsilat ekleyin.');return;}
+                const stObj=matches[0];
                 const amt = Number(fd.get("amount")) || 0;
                 if (amt <= 0) {
                   alert("Lütfen geçerli bir tahsilat tutarı giriniz.");
                   return;
                 }
-                const newColl = AccountingService.recordCollection({
+                const newColl = await AccountingService.recordCollection({
+                  id:paymentId.current,
                   gelirKodu: stObj?.gelir_kodu,
                   sozlesmeNo: stObj?.sozlesme_no,
                   amount: amt,
@@ -1210,7 +1232,9 @@ export default function EdesisTahsilatListesi({
                 setTahsilatList(AccountingService.getCollections(payments));
                 setShowNewPaymentModal(false);
                 showToast(`💰 ${newColl?.odemeKodu || ""} nolu ${fmtCurrency(amt)} tutarında tahsilat başarıyla kaydedildi.`);
-              }}
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+}}
               style={{ padding: "20px" }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>

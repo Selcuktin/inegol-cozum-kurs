@@ -10,6 +10,7 @@ export function OverviewTab({
   agingSummary = {},
   incomeCategoryData = [],
   paymentMethodData = [],
+  totalExpenses = 0, payments = [], expenses = [], netLiquidBalance = 0, installmentPlans = [],
   totalCollected = 0,
   totalContractRevenue = 0,
   totalRemaining = 0,
@@ -30,6 +31,7 @@ export function OverviewTab({
         agingSummary={agingSummary}
         incomeCategoryData={incomeCategoryData}
         paymentMethodData={paymentMethodData}
+        totalExpenses={totalExpenses} payments={payments} expenses={expenses} netLiquidBalance={netLiquidBalance} installmentPlans={installmentPlans}
         totalCollected={totalCollected}
         totalContractRevenue={totalContractRevenue}
         totalRemaining={totalRemaining}

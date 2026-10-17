@@ -56,26 +56,7 @@ function fmtPercent(val) {
   }).format(num);
 }
 
-const TURKISH_NAME_FIXES = {
-  "ZEYNEP MASAL ELK": "ZEYNEP MASAL ÇELİK",
-  "BERL POLAT POSOFLU": "BERİL POLAT POSOFLU",
-  "MUSTAFA SNR": "MUSTAFA SİNİR",
-  "ELF SARE DEMR": "ELİF SARE DEMİR",
-  "YAMUR HRA ALAN": "YAĞMUR HİRA ALAN",
-  "KRA EMER": "İKRA EMER",
-  "HRA EMER": "HİRA EMER",
-  "FEYZA LGZ": "FEYZA İLGİZ",
-  "ECRN TARHAN": "ECRİN TARHAN",
-  "ELF NUR SAVA": "ELİF NUR SAVAŞ",
-  "EBUBEKR ASAF VERGL": "EBUBEKİR ASAF VERGİLİ",
-  "CANSU TRKEN": "CANSU TÜRKEN"
-};
-
-function fixTurkishName(name) {
-  if (!name) return "";
-  if (TURKISH_NAME_FIXES[name]) return TURKISH_NAME_FIXES[name];
-  return name.replace(/\ufffd/g, "");
-}
+function fixTurkishName(name) { return name || ""; }
 
 export function EdesisMuhasebeDashboard({
   onOpen,
@@ -86,6 +67,11 @@ export function EdesisMuhasebeDashboard({
   agingSummary = { c1_30: { count: 0, sum: 0, pct: 0 }, c31_60: { count: 0, sum: 0, pct: 0 }, c60plus: { count: 0, sum: 0, pct: 0 } },
   incomeCategoryData = [],
   paymentMethodData = [],
+  totalExpenses = 0,
+  payments = [],
+  installmentPlans = [],
+  expenses = [],
+  netLiquidBalance = 0,
   totalCollected = 0,
   totalContractRevenue = 0,
   totalRemaining = 0,
@@ -101,45 +87,19 @@ export function EdesisMuhasebeDashboard({
   const [showOverdueList, setShowOverdueList] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Default Fallback Summary Objects
-  const donemOzet = {
-    toplamGelir: 4190137.53,
-    toplamTahsilat: 475941.18,
-    kalanBakiye: 3714196.35,
-    toplamGider: 100401.35,
-    netKar: 4089736.18,
-    karMarji: 97.6
-  };
-
-  const effToplamGelir = totalContractRevenue > 0 ? totalContractRevenue : donemOzet.toplamGelir;
-  const effToplamTahsilat = totalCollected > 0 ? totalCollected : donemOzet.toplamTahsilat;
-  const effKalanBakiye = totalRemaining > 0 ? totalRemaining : (effToplamGelir - effToplamTahsilat > 0 ? effToplamGelir - effToplamTahsilat : donemOzet.kalanBakiye);
-  const effNetKar = effToplamGelir - (donemOzet.toplamGider || 100401.35);
-  const effKarMarji = effToplamGelir > 0 ? ((effNetKar / effToplamGelir) * 100) : donemOzet.karMarji;
-
-  const operasyonelOzet = {
-    periyotTahsilEdilen: 7500.0,
-    periyotTahsilatAdet: 1,
-    toplamLikitVarlik: 982938.27,
-    periyotOdenen: 0.0,
-    periyotOdemeAdet: 0,
-    periyotBeklenenTahsilat: 0.0,
-    periyotOdenecekGiderToplam: 0.0,
-    vadesiGecmisAlacakToplam: 216350.01,
-    vadesiGecmisGiderToplam: 0.0,
-    gerceklesenTahsilatlar: [
-      {
-        kimdenAdi: "ZEYNEP LEVENT",
-        sinifAdi: "8-8-GENEL",
-        tahsilatTarihi: "2026-10-05T19:07:43.454",
-        tutar: 7500.0,
-        odemeYontemi: 0,
-        kasaAdi: "NEVİN ÇAKMAK BİREYSEL",
-        gelirId: 82513
-      }
-    ],
-    vadesiGecmisTahsilatlar: []
-  };
+  const effToplamGelir = totalContractRevenue;
+  const effToplamTahsilat = totalCollected;
+  const effKalanBakiye = totalRemaining;
+  const effNetKar = totalCollected - totalExpenses;
+  const effKarMarji = totalCollected > 0 ? effNetKar / totalCollected * 100 : 0;
+  const donemOzet = { toplamGider: totalExpenses };
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), timeFilter === "ay" ? 1 : now.getDate() - (timeFilter === "hafta" ? 6 : 0));
+  const first = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+  const last = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const periodPayments = payments.filter(p => !p.is_cancelled && String(p.payment_date || "") >= first && String(p.payment_date || "").slice(0,10) <= last);
+  const periodExpenses = expenses.filter(e => String(e.expense_date || "") >= first && String(e.expense_date || "").slice(0,10) <= last);
+  const operasyonelOzet = { periyotTahsilEdilen: periodPayments.reduce((n,p)=>n+Number(p.amount),0),periyotTahsilatAdet:periodPayments.length,toplamLikitVarlik:netLiquidBalance,periyotOdenen:periodExpenses.reduce((n,e)=>n+Number(e.amount),0),periyotOdemeAdet:periodExpenses.length,periyotBeklenenTahsilat:installmentPlans.filter(i=>i.due_date>=first && i.due_date<=last).reduce((sum,i)=>sum+Number(i.remaining || 0),0),periyotOdenecekGiderToplam:0,vadesiGecmisAlacakToplam:totalOverdueDebt,vadesiGecmisGiderToplam:0,gerceklesenTahsilatlar:periodPayments.map(p=>({...p,kimdenAdi:p.student_name,sinifAdi:p.student_class,tahsilatTarihi:p.payment_date,tutar:p.amount,kasaAdi:p.bank || p.method})),vadesiGecmisTahsilatlar:overdueStudents };
 
   const handleManualRefresh = () => {
     setIsRefreshing(true);
@@ -181,13 +141,13 @@ export function EdesisMuhasebeDashboard({
             <BarChart data={monthlyTrends} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="ay" stroke="#64748b" fontSize={11} tickLine={false} />
-              <YAxis 
-                stroke="#64748b" 
-                fontSize={11} 
+              <YAxis
+                stroke="#64748b"
+                fontSize={11}
                 tickLine={false}
-                tickFormatter={(val) => `₺${val >= 1000 ? `${Math.round(val/1000)}k` : val}`} 
+                tickFormatter={(val) => `₺${val >= 1000 ? `${Math.round(val/1000)}k` : val}`}
               />
-              <Tooltip 
+              <Tooltip
                 formatter={(val) => [`₺${fmtMoney(val)}`, ""]}
                 contentStyle={{ borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px" }}
               />
@@ -298,7 +258,7 @@ export function EdesisMuhasebeDashboard({
 
   return (
     <div className="edesis-dashboard-container" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      
+
       {/* 1. BAŞLIK VE KONTROL PANELİ BAŞLIĞI */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
         <h1 style={{ margin: 0, fontSize: "20px", fontWeight: "700", color: "#0f172a" }}>
@@ -1415,8 +1375,8 @@ export function EdesisMuhasebeDashboard({
                 </p>
               </div>
               {handleBulkWhatsAppReminder && (
-                <button 
-                  className="btn small secondary" 
+                <button
+                  className="btn small secondary"
                   onClick={handleBulkWhatsAppReminder}
                   style={{ borderColor: "#22c55e", color: "#16a34a", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}
                 >
@@ -1427,21 +1387,21 @@ export function EdesisMuhasebeDashboard({
 
             {/* Yaşlandırma Dinamik İlerleme Çubuğu */}
             <div style={{ display: "flex", height: "14px", borderRadius: "7px", overflow: "hidden", background: "#f1f5f9", marginBottom: "12px" }}>
-              <div 
-                style={{ width: `${Math.max(5, collectionRate)}%`, background: "#22c55e" }} 
-                title={`Zamanında Ödenenler: %${collectionRate}`} 
+              <div
+                style={{ width: `${Math.max(5, collectionRate)}%`, background: "#22c55e" }}
+                title={`Zamanında Ödenenler: %${collectionRate}`}
               />
-              <div 
-                style={{ width: `${Math.max(2, agingSummary.c1_30?.pct || 0)}%`, background: "#eab308" }} 
-                title={`1-30 Gün Geciken: %${agingSummary.c1_30?.pct || 0}`} 
+              <div
+                style={{ width: `${Math.max(2, agingSummary.c1_30?.pct || 0)}%`, background: "#eab308" }}
+                title={`1-30 Gün Geciken: %${agingSummary.c1_30?.pct || 0}`}
               />
-              <div 
-                style={{ width: `${Math.max(2, agingSummary.c31_60?.pct || 0)}%`, background: "#f97316" }} 
-                title={`31-60 Gün Geciken: %${agingSummary.c31_60?.pct || 0}`} 
+              <div
+                style={{ width: `${Math.max(2, agingSummary.c31_60?.pct || 0)}%`, background: "#f97316" }}
+                title={`31-60 Gün Geciken: %${agingSummary.c31_60?.pct || 0}`}
               />
-              <div 
-                style={{ width: `${Math.max(2, agingSummary.c60plus?.pct || 0)}%`, background: "#ef4444" }} 
-                title={`60+ Gün Kritik: %${agingSummary.c60plus?.pct || 0}`} 
+              <div
+                style={{ width: `${Math.max(2, agingSummary.c60plus?.pct || 0)}%`, background: "#ef4444" }}
+                title={`60+ Gün Kritik: %${agingSummary.c60plus?.pct || 0}`}
               />
             </div>
 

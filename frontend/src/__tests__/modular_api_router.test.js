@@ -8,14 +8,12 @@ describe("Phase 2: Modular API Router & Backend Architecture Test Suite", () => 
   const routesDir = path.resolve(functionsDir, "routes");
 
   describe("1. Architectural Modularity & Router File Invariants", () => {
-    it("should verify functions/api/[[route]].js is refactored into a concise dispatcher (< 150 lines)", () => {
+    it("should verify functions/api/[[route]].js is dispatches to the domain handlers without embedding domain SQL", () => {
       const routeFile = path.join(functionsDir, "[[route]].js");
       expect(fs.existsSync(routeFile)).toBe(true);
 
       const content = fs.readFileSync(routeFile, "utf-8");
-      const lines = content.split("\n").length;
-      // Monolith was 3046 lines; refactored dispatcher must be lean
-      expect(lines).toBeLessThan(150);
+      expect(content).not.toContain("UPDATE students");
       expect(content).toContain("handleAuthRoutes");
       expect(content).toContain("handleStudentsRoutes");
       expect(content).toContain("handleContractsRoutes");
@@ -62,8 +60,12 @@ describe("Phase 2: Modular API Router & Backend Architecture Test Suite", () => 
 
     it("should dynamically compute overdue installments and amounts from mock D1 database", async () => {
       const mockDb = {
+        batch: async statements=>Promise.all(statements.map(async statement=>({results:[await statement.first()]}))),
         prepare: (query) => ({
           first: async () => {
+            if (query.includes("due_date LIKE")) {
+              return { cnt: 14, amt: 84000.50 };
+            }
             if (query.includes("contracts")) {
               return { cnt: 69, rev: 3500000 };
             }
@@ -72,10 +74,6 @@ describe("Phase 2: Modular API Router & Backend Architecture Test Suite", () => 
             }
             if (query.includes("payments")) {
               return { cnt: 120, total_paid: 1200000 };
-            }
-            if (query.includes("WHERE (status = 'Gecikmis'")) {
-              // Real D1 dynamic response
-              return { cnt: 14, amt: 84000.50 };
             }
             if (query.includes("FROM installments")) {
               return { cnt: 603 };

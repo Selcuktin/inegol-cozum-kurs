@@ -1,5 +1,6 @@
 // Cloudflare Pages Functions - System Router (Users, Roles, Audit Logs, Export, 20:00 Daily Backup, Restore, Status)
-import { json, cachedJson, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, ROLE_ADMIN, ROLE_LABELS } from "../utils.js";
+import { json, cachedJson, errorResponse, successResponse, CORS_HEADERS, getCurrentUser, logAction, ROLE_ADMIN, ROLE_LABELS, getEffectiveTotalFee } from "../utils.js";
+import { csvCell as escCsv } from "../../../src/lib/csv.js";
 
 const BACKUP_TABLES = [
   "users",
@@ -14,8 +15,13 @@ const BACKUP_TABLES = [
   "exams",
   "exam_results",
   "attendance",
+  "appointments",
   "schedules",
   "homework",
+  "homework_submissions",
+  "system_sequences",
+  "academic_periods",
+  "data_alerts",
   "mentorship",
   "optical_templates",
   "optical_printer_profiles",
@@ -34,107 +40,65 @@ async function ensureBackupTable(db) {
       created_by TEXT DEFAULT 'Sistem',
       notes TEXT DEFAULT ''
     )
-  `).run().catch(() => {});
+  `).run();
+}
+
+async function readSnapshot(db) {
+  const existing = (await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).results || [];
+  const names = existing.map(t => t.name);
+  if (names.length && ["students", "contracts", "installments", "payments"].some(t => !names.includes(t))) throw new Error("Zorunlu yedek tablosu eksik");
+  const tables = BACKUP_TABLES.filter(t => !names.length || names.includes(t));
+  const data = await db.batch(tables.map(t => db.prepare(`SELECT * FROM "${t}"`)));
+  return { version: 2, created_at: new Date().toISOString(), tables: Object.fromEntries(tables.map((t,i) => [t,data[i].results || []])) };
+}
+
+async function saveSnapshot(db, env, snapshot, id, type, author, notes) {
+  const text = JSON.stringify(snapshot);
+  const r2 = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
+  if (r2?.put) await r2.put(`${id}.json`, text);
+  const large = new TextEncoder().encode(text).length > 1500000;
+  if (large && !r2?.put) throw new Error("Büyük yedek için R2 depolama gereklidir");
+  const counts = Object.fromEntries(Object.entries(snapshot.tables).map(([t,rows]) => [t,rows.length]));
+  await db.prepare("INSERT INTO system_backups(id,created_at,backup_type,snapshot_data,table_counts,created_by,notes) VALUES(?,?,?,?,?,?,?)").bind(id,snapshot.created_at,type,large ? "{}" : text,JSON.stringify(counts),author,notes).run();
+  return { counts, r2_saved: !!r2?.put };
 }
 
 async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUntil = null, env = null) {
-  // 1. Mevcut durumu güvenlik için pre_restore olarak yedekle
-  const preSnap = { version: 1, created_at: new Date().toISOString(), tables: {} };
-  const preCounts = {};
-  for (const t of BACKUP_TABLES) {
-    try {
-      const res = await db.prepare("SELECT * FROM " + t).all();
-      preSnap.tables[t] = res.results || [];
-      preCounts[t] = (res.results || []).length;
-    } catch {
-      preSnap.tables[t] = [];
-      preCounts[t] = 0;
+  if (!snap?.tables || Array.isArray(snap.tables)) return {ok:false,error:"Geçersiz yedek"};
+  const existing = (await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).results.map(t=>t.name);
+  const statements = [];
+  const restored = {};
+  for (const [table,rows] of Object.entries(snap.tables)) {
+    if (!BACKUP_TABLES.includes(table) || !Array.isArray(rows)) return {ok:false,error:"Geçersiz yedek tablosu"};
+    if (!existing.includes(table)) {
+      if (rows.length) return {ok:false,error:`${table} tablosu için önce şema güncellenmeli`};
+      continue;
     }
-  }
-  const preId = "backup_prerestore_" + Date.now();
-  const preSnapJson = JSON.stringify(preSnap);
-  const preCountsJson = JSON.stringify(preCounts);
-  // Protect D1 SQLite row limit (~2MB): if preSnapJson > 1.5MB, write empty object to D1
-  const d1SnapData = preSnapJson.length > 1500000 ? "{}" : preSnapJson;
-  await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'pre_restore', ?, ?, 'Sistem Güvenlik', ?)")
-    .bind(preId, new Date().toISOString(), d1SnapData, preCountsJson, `Geri yükleme öncesi otomatik kurtarma noktası (${backupId})`)
-    .run().catch(() => {});
-
-  const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
-  if (r2Bucket && typeof r2Bucket.put === "function") {
-    await r2Bucket.put(`${preId}.json`, preSnapJson).catch(() => {});
-  }
-
-  // 2. Tabloları temizle ve seçili snapshot'ı atomik db.batch() ile geri yükle; hata anında preSnap'e otomatik rollback uygula
-  const restoredCounts = {};
-  const touchedTables = [];
-  try {
-    for (const t of BACKUP_TABLES) {
-      const rows = snap.tables?.[t];
-      if (Array.isArray(rows)) {
-        touchedTables.push(t);
-        const statements = [
-          db.prepare("DELETE FROM " + t)
-        ];
-        for (const row of rows) {
-          const keys = Object.keys(row);
-          if (keys.length > 0) {
-            const placeholders = keys.map(() => "?").join(", ");
-            const cols = keys.join(", ");
-            const values = keys.map(k => row[k]);
-            statements.push(db.prepare(`INSERT INTO ${t} (${cols}) VALUES (${placeholders})`).bind(...values));
-          }
-        }
-        // D1 max batch chunk limit (100)
-        const CHUNK_SIZE = 100;
-        for (let i = 0; i < statements.length; i += CHUNK_SIZE) {
-          const chunk = statements.slice(i, i + CHUNK_SIZE);
-          await db.batch(chunk);
-        }
-        restoredCounts[t] = rows.length;
-      }
+    const columns = (await db.prepare(`PRAGMA table_info("${table}")`).all()).results.map(c=>c.name);
+    const keys = rows.length ? Object.keys(rows[0]) : [];
+    if (keys.some(k => !columns.includes(k)) || rows.some(r => JSON.stringify(Object.keys(r)) !== JSON.stringify(keys))) return {ok:false,error:`${table} kolonları yedekle uyumsuz`};
+    statements.push(db.prepare(`DELETE FROM "${table}"`));
+    if (rows.length) {
+      // ponytail: one JSON parameter per table keeps restore atomic within D1 query limits; cap bind bytes before writing.
+      const data = JSON.stringify(rows);
+      if (new TextEncoder().encode(data).length > 1900000) return {ok:false,error:`${table} yedeği tek atomik geri yükleme sınırını aşıyor; kontrollü aktarım gerekir`};
+      statements.push(db.prepare(`INSERT INTO "${table}" (${keys.map(k=>`"${k}"`).join(',')}) SELECT ${keys.map(k=>`json_extract(value, '$."${k}"')`).join(',')} FROM json_each(?)`).bind(data));
     }
-  } catch (err) {
-    console.error("Geri yükleme hatası, otomatik geri alma (rollback) başlatılıyor:", err);
-    let rollbackOk = true;
-    for (const rt of touchedTables) {
-      try {
-        const preRows = preSnap.tables?.[rt] || [];
-        const rbStmts = [db.prepare("DELETE FROM " + rt)];
-        for (const pr of preRows) {
-          const keys = Object.keys(pr);
-          if (keys.length > 0) {
-            const placeholders = keys.map(() => "?").join(", ");
-            const cols = keys.join(", ");
-            const values = keys.map(k => pr[k]);
-            rbStmts.push(db.prepare(`INSERT INTO ${rt} (${cols}) VALUES (${placeholders})`).bind(...values));
-          }
-        }
-        for (let i = 0; i < rbStmts.length; i += 100) {
-          await db.batch(rbStmts.slice(i, i + 100));
-        }
-      } catch (rbErr) {
-        rollbackOk = false;
-        console.error(`Rollback hatası (${rt}):`, rbErr);
-      }
-    }
-    await logAction(db, user, "system.backup_restore_failed", "backup", backupId, `Geri yükleme başarısız oldu (${err.message}). Otomatik rollback: ${rollbackOk ? 'başarılı' : 'kısmi'}. Kurtarma noktası: ${preId}`, waitUntil);
-    return {
-      ok: false,
-      error: `Geri yükleme işlemi sırasında hata oluştu: ${err.message}. Veritabanı önceki kararlı durumuna (${preId}) geri alındı.`,
-      rolled_back: rollbackOk,
-      safety_backup_id: preId
-    };
+    restored[table] = rows.length;
   }
-
-  await logAction(db, user, "system.backup_restore", "backup", backupId, notes || `Veritabanı ${backupId} yedeğinden geri yüklendi`, waitUntil);
-  return {
-    ok: true,
-    message: "Veritabanı başarıyla geri yüklendi.",
-    backup_id: backupId,
-    safety_backup_id: preId,
-    restored_counts: restoredCounts
-  };
+  if (!statements.length) return {ok:false,error:"Yedekte geri yüklenecek tablo yok"};
+  // Legacy snapshots can contain schedule collisions. Preserve them and reinstate future-write guards in the same transaction.
+  const guards=(await db.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name IN ('guard_schedule_insert','guard_schedule_update')").all()).results || [];
+  for(const guard of guards) statements.unshift(db.prepare(`DROP TRIGGER "${guard.name}"`));
+  for(const guard of guards) statements.push(db.prepare(guard.sql));
+  const preId = "backup_prerestore_" + crypto.randomUUID();
+  const pre = await readSnapshot(db);
+  await saveSnapshot(db,env,pre,preId,"pre_restore","Sistem Güvenlik",`Geri yükleme öncesi: ${backupId}`);
+  // A single batch rolls back completely if any statement fails. Unlisted legacy tables are preserved.
+  try { await db.batch(statements); }
+  catch (err) { return {ok:false,error:"Geri yükleme başarısız; transaction geri alındı",rolled_back:true,safety_backup_id:preId}; }
+  await logAction(db,user,"system.backup_restore","backup",backupId,notes,waitUntil);
+  return {ok:true,message:"Veritabanı geri yüklendi",backup_id:backupId,safety_backup_id:preId,restored_counts:restored};
 }
 
 export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) {
@@ -162,27 +126,27 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     const term = `%${q}%`;
     const [studentsRes, contractsRes, paymentsRes] = await Promise.all([
       db.prepare(`
-        SELECT id, student_name, student_tc, student_class, student_phone, parent_name, parent_phone, sozlesme_no, total_fee, paid_amount 
-        FROM students 
+        SELECT id, student_name, student_tc, student_class, student_phone, parent_name, parent_phone, sozlesme_no, total_fee, paid_amount
+        FROM students
         WHERE student_name LIKE ? OR student_tc LIKE ? OR student_phone LIKE ? OR parent_name LIKE ? OR parent_phone LIKE ? OR student_no LIKE ? OR sozlesme_no LIKE ?
-        ORDER BY student_name ASC 
+        ORDER BY student_name ASC
         LIMIT 8
       `).bind(term, term, term, term, term, term, term).all().catch(() => ({ results: [] })),
 
       db.prepare(`
         SELECT id, sozlesme_no, student_name, parent_name, brut_tutar, sozlesme_tarihi, student_id
-        FROM contracts 
+        FROM contracts
         WHERE (is_deleted = 0 OR is_deleted IS NULL) AND (sozlesme_no LIKE ? OR student_name LIKE ? OR parent_name LIKE ?)
-        ORDER BY sozlesme_tarihi DESC 
+        ORDER BY sozlesme_tarihi DESC
         LIMIT 6
       `).bind(term, term, term).all().catch(() => ({ results: [] })),
 
       db.prepare(`
-        SELECT p.id, p.student_id, p.amount, p.payment_date, p.method, p.note, p.receipt_no, s.student_name 
+        SELECT p.id, p.student_id, p.amount, p.payment_date, p.method, p.note, p.id AS receipt_no, s.student_name
         FROM payments p
         LEFT JOIN students s ON p.student_id = s.id
-        WHERE (p.is_cancelled = 0 OR p.is_cancelled IS NULL) AND (p.receipt_no LIKE ? OR p.note LIKE ? OR s.student_name LIKE ?)
-        ORDER BY p.payment_date DESC 
+        WHERE (p.is_cancelled = 0 OR p.is_cancelled IS NULL) AND (p.id LIKE ? OR p.note LIKE ? OR s.student_name LIKE ?)
+        ORDER BY p.payment_date DESC
         LIMIT 6
       `).bind(term, term, term).all().catch(() => ({ results: [] }))
     ]);
@@ -258,7 +222,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
 
     return json({
       ok: true,
-      shield_status: "active",
+      shield_status: "unknown", // Edge firewall configuration is not available from the application DB.
       failed_logins_24h: failedRes?.cnt || 0,
       foreign_access_24h: foreignRes?.cnt || 0,
       active_sessions_count: activeSessionsRes?.cnt || 0,
@@ -274,6 +238,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (!user) return errorResponse("Dışa aktarma işlemi için oturum açmanız gerekmektedir.", 401, "UNAUTHORIZED");
 
     const kind = exportMatch[1];
+    if (!["all", "payments", "expenses", "students", "audit"].includes(kind)) return errorResponse("Dışa aktarma türü bulunamadı", 404);
     if (kind === "audit" && user.role !== ROLE_ADMIN) {
       return errorResponse("Denetim kayıtlarını yalnızca yönetici dışa aktarabilir.", 403, "FORBIDDEN");
     }
@@ -281,16 +246,25 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       return errorResponse("Bu verileri dışa aktarma yetkiniz bulunmamaktadır.", 403, "FORBIDDEN");
     }
 
-    const escCsv = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const includeAudit = user.role === ROLE_ADMIN && (kind === "audit" || kind === "all");
+    const [studentRows, paymentRows, expenseRows, auditRows] = await db.batch([
+      db.prepare(`SELECT s.*, c.durum AS contract_status, c.brut_tutar AS contract_gross,
+        COALESCE((SELECT MAX(g.toplam_tahsilat) FROM student_incomes g WHERE g.contract_id=c.id AND COALESCE(g.is_deleted,0)=0),s.paid_amount) AS current_paid
+        FROM students s LEFT JOIN contracts c ON c.student_id=s.id AND c.sozlesme_no=s.sozlesme_no AND COALESCE(c.is_deleted,0)=0 ORDER BY s.student_name`),
+      db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id=s.id WHERE COALESCE(p.is_cancelled,0)=0 ORDER BY p.payment_date DESC"),
+      db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC"),
+      db.prepare(includeAudit ? "SELECT * FROM audit_logs ORDER BY created_at DESC" : "SELECT * FROM audit_logs WHERE 0")
+    ]);
     let csv = "\uFEFF"; // UTF-8 BOM for Excel
 
     if (kind === "students" || kind === "all") {
       csv += "ÖĞRENCİLER\n";
       csv += "Ad Soyad;Telefon;Okul;Sınıf;Veli;Veli Tel;Program;Toplam Ücret;Ödenen;Kalan;Taksit;İlk Vade\n";
-      const res = await db.prepare("SELECT * FROM students ORDER BY student_name ASC").all();
-      for (const s of res.results || []) {
-        const rem = (Number(s.total_fee) || 0) - (Number(s.paid_amount) || 0);
-        csv += `${escCsv(s.student_name)};${escCsv(s.student_phone)};${escCsv(s.school)};${escCsv(s.student_class)};${escCsv(s.parent_name)};${escCsv(s.parent_phone)};${escCsv(s.program)};${s.total_fee || 0};${s.paid_amount || 0};${rem};${s.installment_count || 1};${escCsv(s.due_date)}\n`;
+      for (const s of studentRows.results || []) {
+        const gross = Number(s.contract_gross ?? getEffectiveTotalFee(s));
+        const paid = Number(s.current_paid || 0);
+        const rem = Number(s.contract_status) === 3 ? 0 : Math.max(0, Math.round((gross - paid) * 100) / 100);
+        csv += `${escCsv(s.student_name)};${escCsv(s.student_phone)};${escCsv(s.school)};${escCsv(s.student_class)};${escCsv(s.parent_name)};${escCsv(s.parent_phone)};${escCsv(s.program)};${gross};${paid};${rem};${s.installment_count || 1};${escCsv(s.due_date)}\n`;
       }
       csv += "\n";
     }
@@ -298,8 +272,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (kind === "payments" || kind === "all") {
       csv += "TAHSİLATLAR\n";
       csv += "Tarih;Öğrenci;Tutar;Yöntem;Banka;Açıklama;Kaydeden\n";
-      const pRes = await db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id = s.id ORDER BY p.payment_date DESC").all();
-      for (const p of pRes.results || []) {
+      for (const p of paymentRows.results || []) {
         csv += `${escCsv(p.payment_date)};${escCsv(p.student_name)};${p.amount || 0};${escCsv(p.method)};${escCsv(p.bank)};${escCsv(p.note)};${escCsv(p.created_by_name)}\n`;
       }
       csv += "\n";
@@ -308,18 +281,16 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (kind === "expenses" || kind === "all") {
       csv += "GİDERLER\n";
       csv += "Tarih;Başlık;Kategori;Kasa/Hesap;Tutar;Kaydeden\n";
-      const eRes = await db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC").all();
-      for (const e of eRes.results || []) {
+      for (const e of expenseRows.results || []) {
         csv += `${escCsv(e.expense_date)};${escCsv(e.title)};${escCsv(e.category)};${escCsv(e.account || "Nakit Ana Kasa")};${e.amount || 0};${escCsv(e.created_by_name)}\n`;
       }
       csv += "\n";
     }
 
-    if (kind === "audit" || kind === "all") {
+    if (includeAudit) {
       csv += "DENETİM KAYITLARI\n";
       csv += "Tarih;Kullanıcı;E-posta;İşlem;Detay\n";
-      const aRes = await db.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500").all();
-      for (const a of aRes.results || []) {
+      for (const a of auditRows.results || []) {
         csv += `${escCsv(a.created_at)};${escCsv(a.user_name)};${escCsv(a.user_email)};${escCsv(a.action)};${escCsv(a.detail)}\n`;
       }
     }
@@ -351,7 +322,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     if (dlId) {
       let bRow = await db.prepare("SELECT * FROM system_backups WHERE id = ?").bind(dlId).first().catch(() => null);
       let data = bRow?.snapshot_data;
-      if (!data && r2Bucket && typeof r2Bucket.get === "function") {
+      if ((!data || data === "{}") && r2Bucket && typeof r2Bucket.get === "function") {
         const r2Obj = await r2Bucket.get(`${dlId}.json`).catch(() => null);
         if (r2Obj) data = await r2Obj.text().catch(() => null);
       }
@@ -365,43 +336,6 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       });
     }
 
-    // 20:00 TRT (UTC+3) idempotent scheduled check
-    try {
-      const now = new Date();
-      const trtDate = new Date(now.getTime() + 3 * 3600 * 1000);
-      const trtHour = trtDate.getUTCHours();
-      const trtDateStr = trtDate.toISOString().slice(0, 10);
-      if (trtHour >= 20 || now.getUTCHours() >= 17) {
-        const existing = await db.prepare("SELECT id FROM system_backups WHERE backup_type = 'scheduled_20_00' AND created_at LIKE ?").bind(trtDateStr + "%").first().catch(() => null);
-        if (!existing) {
-          const snap = { version: 1, created_at: new Date().toISOString(), tables: {} };
-          const counts = {};
-          for (const t of BACKUP_TABLES) {
-            try {
-              const res = await db.prepare("SELECT * FROM " + t).all();
-              snap.tables[t] = res.results || [];
-              counts[t] = (res.results || []).length;
-            } catch {
-              snap.tables[t] = [];
-              counts[t] = 0;
-            }
-          }
-          const bId = "backup_20_00_" + trtDateStr.replace(/-/g, "");
-          const snapJson = JSON.stringify(snap);
-          const countsJson = JSON.stringify(counts);
-          await db.prepare("INSERT OR REPLACE INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'scheduled_20_00', ?, ?, 'Otomatik Zamanlayıcı (20:00 TRT)', ?)")
-            .bind(bId, new Date().toISOString(), snapJson, countsJson, `${trtDateStr} Saat 20:00 Günlük Otomatik Yedek`)
-            .run().catch(() => {});
-
-          if (r2Bucket && typeof r2Bucket.put === "function") {
-            await r2Bucket.put(`${bId}.json`, snapJson).catch(() => {});
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Scheduled backup check error:", err);
-    }
-
     const res = await db.prepare("SELECT id, created_at, backup_type, table_counts, created_by, notes, length(snapshot_data) as size_bytes FROM system_backups ORDER BY created_at DESC LIMIT 50").all().catch(() => ({ results: [] }));
     const now = new Date();
     const trtDate = new Date(now.getTime() + 3 * 3600 * 1000);
@@ -413,7 +347,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
         table_counts: typeof r.table_counts === "string" ? JSON.parse(r.table_counts || "{}") : (r.table_counts || {})
       })),
       schedule: "Her gün 20:00 (TRT)",
-      status: "active",
+      status: (res.results?.[0]?.created_at || "").slice(0,10) === trtDateStr ? "active" : "stale",
       current_date_trt: trtDateStr,
       r2_storage: !!r2Bucket
     });
@@ -435,39 +369,12 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     }
 
     const body = await request.json().catch(() => ({}));
-    const snap = { version: 1, created_at: new Date().toISOString(), tables: {} };
-    const counts = {};
-    for (const t of BACKUP_TABLES) {
-      try {
-        const res = await db.prepare("SELECT * FROM " + t).all();
-        snap.tables[t] = res.results || [];
-        counts[t] = (res.results || []).length;
-      } catch {
-        snap.tables[t] = [];
-        counts[t] = 0;
-      }
-    }
-    const bId = "backup_manual_" + Date.now();
-    const notes = body.notes || (isTokenAuthed ? "Zamanlanmış / API Yedeği" : "Manuel Yönetici Snapshot Yedeği");
-    const createdBy = isTokenAuthed ? "Otomatik Servis (Token)" : (user?.name || "Yönetici");
-    const snapJson = JSON.stringify(snap);
-    const countsJson = JSON.stringify(counts);
-    // Protect D1 SQLite row limit (~2MB): if snapJson > 1.5MB, write placeholder to D1 and rely on R2
-    const d1SnapData = snapJson.length > 1500000 ? "{}" : snapJson;
-    await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'manual', ?, ?, ?, ?)")
-      .bind(bId, new Date().toISOString(), d1SnapData, countsJson, createdBy, notes)
-      .run();
-
-    const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
-    let r2Saved = false;
-    if (r2Bucket && typeof r2Bucket.put === "function") {
-      try {
-        await r2Bucket.put(`${bId}.json`, snapJson);
-        r2Saved = true;
-      } catch (err) {
-        console.error("R2 backup save error:", err);
-      }
-    }
+    const snap = await readSnapshot(db);
+    const bId = "backup_" + crypto.randomUUID();
+    const notes = body.notes || "Manuel Snapshot";
+    const saved = await saveSnapshot(db,env,snap,bId,isTokenAuthed ? "scheduled_20_00" : "manual",user?.name || "Otomatik Servis",notes);
+    const counts = saved.counts;
+    const r2Saved = saved.r2_saved;
 
     await logAction(db, user, "system.backup_create", "backup", bId, notes);
     return json({ ok: true, backup_id: bId, counts, r2_saved: r2Saved });
@@ -529,19 +436,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     const backupId = "backup_imported_" + Date.now();
     const notes = body.notes || "Harici JSON dosyasından geri yükleme";
 
-    const counts = {};
-    for (const t of Object.keys(rawSnap.tables || {})) {
-      counts[t] = Array.isArray(rawSnap.tables[t]) ? rawSnap.tables[t].length : 0;
-    }
-
-    await db.prepare("INSERT INTO system_backups (id, created_at, backup_type, snapshot_data, table_counts, created_by, notes) VALUES (?, ?, 'imported', ?, ?, ?, ?)")
-      .bind(backupId, new Date().toISOString(), JSON.stringify(rawSnap), JSON.stringify(counts), user.name || "Yönetici", notes)
-      .run().catch(() => {});
-
-    const r2Bucket = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
-    if (r2Bucket && typeof r2Bucket.put === "function") {
-      await r2Bucket.put(`${backupId}.json`, JSON.stringify(rawSnap)).catch(() => {});
-    }
+    await saveSnapshot(db,env,{...rawSnap,created_at:new Date().toISOString()},backupId,"imported",user.name || "Yönetici",notes);
 
     const result = await restoreSnapshotData(db, rawSnap, user, backupId, notes, ctxOrPath?.waitUntil, env);
     if (!result.ok) return errorResponse(result.error || "Geri yükleme başarısız oldu", 500, "RESTORE_FAILED", result);

@@ -1,5 +1,23 @@
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import {synchronizedRequest} from './dataSync.js';
+
+export async function apiFetch(url, options = {}) {
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem("session_token") : null;
+  const response = await synchronizedRequest(url,options.method,async()=>{
+    const response=await globalThis.fetch(url, { credentials: "include",cache:'no-store', ...options, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
+    // Complete the body before the ordering check; mutation may arrive while JSON is downloading.
+    if(response.clone)await response.clone().arrayBuffer();
+    return response;
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const error = new Error(body.detail || body.error || `İşlem başarısız (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
+  return response;
+}
 
 export function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -82,3 +100,5 @@ export function isAllowedBackendUrl(urlStr) {
     return false;
   }
 }
+
+export function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }

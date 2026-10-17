@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {useDataRefresh} from "../../hooks/useDataRefresh";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import { Calendar, Clock, Columns, Plus, Printer, Trash2, X } from "lucide-react";
 import { trIncludes } from "../../lib/utils";
@@ -46,6 +47,7 @@ export function SchedulesPage({ me, API, classes }) {
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSlotId, setEditingSlotId] = useState(null);
+  const editingBaseline=useRef({});
 
   // Görünüm: Varsayılan olarak 7 Günlük Geniş Yatay Matris (Soldan Sağa: Pazartesi -> Pazar)
   const todayDay = new Date().getDay() === 0 ? 7 : new Date().getDay();
@@ -59,23 +61,21 @@ export function SchedulesPage({ me, API, classes }) {
   const [formTeacher, setFormTeacher] = useState("");
   const [formRoom, setFormRoom] = useState("Derslik 1");
 
-  const loadSchedules = useCallback(async () => {
+  const loadSchedules = useCallback(async (current=()=>true) => {
     setLoading(true);
     try {
       let url = `${API}/schedules`;
       if (selectedClassId) url += `?class_id=${encodeURIComponent(selectedClassId)}`;
       const res = await axios.get(url);
-      setSchedules(res.data || []);
+      if(current())setSchedules(res.data || []);
     } catch (err) {
-      console.error("Schedules load error:", err);
+      throw err;
     } finally {
-      setLoading(false);
+      if(current())setLoading(false);
     }
   }, [API, selectedClassId]);
 
-  useEffect(() => {
-    loadSchedules();
-  }, [loadSchedules]);
+  const loadSchedulesError=useDataRefresh(loadSchedules,[loadSchedules]);
 
   const teacherList = useMemo(() => {
     const set = new Set();
@@ -100,6 +100,7 @@ export function SchedulesPage({ me, API, classes }) {
   // Mevcut bir ders kartına tıklayarak doğrudan düzenleme
   const handleCardClick = (item, e) => {
     if (e) e.stopPropagation();
+    editingBaseline.current=Object.fromEntries(['day_of_week','time_slot','class_id','subject','teacher_name','room'].map(k=>[k,item[k]]));
     setEditingSlotId(item.id);
     setFormDay(item.day_of_week);
     setFormSlot(item.time_slot);
@@ -159,8 +160,8 @@ export function SchedulesPage({ me, API, classes }) {
     try {
       if (editingSlotId) {
         // Güncelleme
-        try {
           await axios.put(`${API}/schedules/${editingSlotId}`, {
+            _expected:editingBaseline.current,
             day_of_week: formDay,
             time_slot: formSlot,
             class_id: targetClassId,
@@ -168,18 +169,6 @@ export function SchedulesPage({ me, API, classes }) {
             teacher_name: formTeacher,
             room: formRoom
           });
-        } catch (putErr) {
-          // Fallback: Delete + Recreate if PUT not supported by legacy backend
-          await axios.delete(`${API}/schedules/${editingSlotId}`);
-          await axios.post(`${API}/schedules`, {
-            day_of_week: formDay,
-            time_slot: formSlot,
-            class_id: targetClassId,
-            subject: formSubject,
-            teacher_name: formTeacher,
-            room: formRoom
-          });
-        }
       } else {
         // Yeni Ekleme
         await axios.post(`${API}/schedules`, {
@@ -192,9 +181,9 @@ export function SchedulesPage({ me, API, classes }) {
         });
       }
       setShowAddModal(false);
-      loadSchedules();
+      await loadSchedules();
     } catch (err) {
-      alert("Ders saati kaydedilemedi: " + err.message);
+      alert("Ders saati kaydedilemedi: " + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -204,7 +193,7 @@ export function SchedulesPage({ me, API, classes }) {
     try {
       await axios.delete(`${API}/schedules/${id}`);
       if (editingSlotId === id) setShowAddModal(false);
-      loadSchedules();
+      await loadSchedules();
     } catch (err) {
       alert("Silinemedi: " + err.message);
     }
@@ -212,6 +201,7 @@ export function SchedulesPage({ me, API, classes }) {
 
   return (
     <div className="educational-module">
+      {loadSchedulesError&&<div role="alert">Güncel kayıtlar yüklenemedi: {loadSchedulesError.message}</div>}
       <div className="page-head">
         <div>
           <div className="eyebrow">DERS PLANLAMA · EDESİS PROGRAMI</div>

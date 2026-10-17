@@ -25,13 +25,13 @@ export function BackupRestoreTab({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
           <div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#f0fdf4", color: "#166534", padding: "4px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "700", marginBottom: "6px" }}>
-              <ShieldCheck size={14} color="#16a34a" /> 🟢 Otomatik Yedekleme: Her Akşam Saat 20:00 (TRT) Aktif
+              <ShieldCheck size={14} color="#16a34a" /> Son kayıtlı yedek: {backups[0]?.created_at ? formatTrtDateTime(backups[0].created_at) : "Yedek bulunamadı"}
             </div>
             <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
               Veritabanı Snapshot & Otomatik Kurtarma Merkezi
             </h3>
             <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#64748b", maxWidth: "700px" }}>
-              Sistemimiz her akşam saat 20:00'de tüm veritabanı tablolarının (öğrenciler, sözleşmeler, tahsilatlar, giderler, sınavlar, yoklama, ders programı) tam anlık görüntüsünü (snapshot) otomatik olarak kaydeder. İhtiyaç halinde tek tıkla herhangi bir yedeğe geri dönüş yapabilir veya yedeği bilgisayarınıza indirebilirsiniz.
+              Zamanlanmış yedekleme hedefi 20:00 TRT'dir. Son başarılı yedeği listeden kontrol ediniz. Sistem veritabanı tablolarının (öğrenciler, sözleşmeler, tahsilatlar, giderler, sınavlar, yoklama, ders programı) tam anlık görüntüsünü (snapshot) otomatik olarak kaydeder. İhtiyaç halinde tek tıkla herhangi bir yedeğe geri dönüş yapabilir veya yedeği bilgisayarınıza indirebilirsiniz.
             </p>
           </div>
 
@@ -233,7 +233,7 @@ export function RestoreConfirmModal({
           <AlertTriangle size={24} />
           <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "800" }}>Veritabanı Geri Yükleme Onayı</h3>
         </div>
-        
+
         <p style={{ fontSize: "13px", color: "#334155", lineHeight: 1.5, margin: "0 0 14px" }}>
           <b>{restoreModalBackup.id}</b> numaralı yedeğe geri dönmek üzeresiniz.
         </p>

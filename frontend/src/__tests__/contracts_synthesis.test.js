@@ -1,10 +1,46 @@
 import AccountingService from "../lib/edesisAccountingService";
 import { StudentService } from "../lib/edesisStudentService";
+import React,{act} from 'react';
+import EdesisSozlesmeler from '../components/EdesisSozlesmeler';
+import {render,cleanup,fireEvent} from './test_helpers';
 
 describe("AccountingService and StudentService SSOT Contract Management", () => {
   beforeEach(() => {
     localStorage.clear();
-    AccountingService.setInitialData({ contracts: [], incomes: [], installments: [], collections: [] });
+    AccountingService.resetCustomData();
+  });
+  afterEach(async()=>{await cleanup();jest.restoreAllMocks();});
+
+  test('contract cancellation waits for the server and displays persisted status despite stale props',async()=>{
+    const contract={id:'cancel-ui',sozlesmeNo:'SZL-CANCEL-UI',ogrenciAdi:'Örnek Öğrenci',brutTutar:1000,toplamTahsilat:100,kalanAlacak:900,durum:1};
+    AccountingService.setInitialData({contracts:[contract]});
+    const cancelled={...contract,durum:3,durumText:'İptal Edildi',kalanAlacak:0};
+    let resolvePost;let posted=false;
+    jest.spyOn(globalThis,'fetch').mockImplementation(async(url,options={})=>{
+      if(options.method==='POST'){posted=true;return new Promise(resolve=>{resolvePost=()=>resolve({ok:true,json:async()=>({ok:true,contract:cancelled})});});}
+      return {ok:true,json:async()=>String(url).endsWith('/dashboard')?{contracts:[cancelled],payments:[]}:[]};
+    });
+    const {container,getByText,getByRole}=await render(<EdesisSozlesmeler contracts={[contract]}/>);
+    await fireEvent.click(container.querySelector('[data-sozlesme-dropdown="cancel-ui"] button'));
+    await fireEvent.click([...container.querySelectorAll('div')].find(e=>e.textContent.trim()==='İptal Et'));
+    await fireEvent.change(container.querySelector('textarea'),{target:{value:'Hatalı sözleşme'}});
+    await fireEvent.click(getByRole('button',{name:'İptal Et'}));
+    expect(posted).toBe(true);
+    expect(getByRole('button',{name:'Kaydediliyor…'}).disabled).toBe(true);
+    expect(AccountingService.getContracts()[0].durum).toBe(1);
+    await act(async()=>{resolvePost();});
+    expect(container.querySelector('textarea')).toBeNull();
+    expect(AccountingService.getContracts()[0].durum).toBe(3);
+    const row=container.querySelector('[data-sozlesme-dropdown="cancel-ui"]').closest('tr');
+    expect(row.textContent).toContain('İptal');expect(row.textContent).not.toContain('Aktif');
+  });
+
+  test('failed cancellation preserves cached contracts and payment history',async()=>{
+    AccountingService.setInitialData({contracts:[{id:'cancel-fail',durum:1}],collections:[{id:'receipt-preserved',amount:100}]});
+    jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:false,status:500,json:async()=>({detail:'İptal kaydedilemedi'})});
+    await expect(AccountingService.cancelContract('cancel-fail','Hatalı sözleşme')).rejects.toThrow('İptal kaydedilemedi');
+    expect(AccountingService.getContracts()[0].durum).toBe(1);
+    expect(AccountingService.getCollections()[0].id).toBe('receipt-preserved');
   });
 
   test("loads and formats real persisted contracts without creating ghost synthetic contracts", () => {
@@ -57,7 +93,7 @@ describe("AccountingService and StudentService SSOT Contract Management", () => 
     expect(found).toBeUndefined();
   });
 
-  test("preserves deletion: deleted contract drops from active list", () => {
+  test("preserves deletion: deleted contract drops from active list", async () => {
     const mockContract = {
       id: "cnt_del_666",
       sozlesmeNo: "SZL202600066",
@@ -73,14 +109,15 @@ describe("AccountingService and StudentService SSOT Contract Management", () => 
     const foundBefore = contractsBefore.find((c) => c.ogrenciAdi === "SILINECEK OGRENCI");
     expect(foundBefore).toBeDefined();
 
-    AccountingService.deleteContract(foundBefore);
+    jest.spyOn(globalThis,"fetch").mockResolvedValue({ok:true,json:async()=>[]});
+    await AccountingService.deleteContract(foundBefore);
 
     const contractsAfter = AccountingService.getContracts();
     const foundAfter = contractsAfter.find((c) => c.ogrenciAdi === "SILINECEK OGRENCI");
     expect(foundAfter).toBeUndefined();
   });
 
-  test("stats.activeAmount decreases when a contract is deleted", () => {
+  test("stats.activeAmount decreases when a contract is deleted", async () => {
     const mockContracts = [
       { id: "cnt-1", studentId: "stu-1", sozlesmeNo: "SZL1", ogrenciAdi: "STUDENT ONE", brutTutar: 50000, donemId: 113, durum: 1 },
       { id: "cnt-2", studentId: "stu-2", sozlesmeNo: "SZL2", ogrenciAdi: "STUDENT TWO", brutTutar: 40000, donemId: 113, durum: 1 }
@@ -93,7 +130,8 @@ describe("AccountingService and StudentService SSOT Contract Management", () => 
     expect(amountBefore).toBe(90000);
 
     const toDelete = activeBefore.find(c => c.ogrenciAdi === "STUDENT ONE");
-    AccountingService.deleteContract(toDelete);
+    jest.spyOn(globalThis,"fetch").mockImplementation(async(url,options={})=>({ok:true,json:async()=>String(url).endsWith("/dashboard")?{contracts:[mockContracts[1]],payments:[]}:[]}));
+    await AccountingService.deleteContract(toDelete);
 
     const contractsAfter = AccountingService.getContracts();
     const activeAfter = contractsAfter.filter((c) => String(c.donemId) === "113" && c.durum === 1);

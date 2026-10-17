@@ -1,12 +1,12 @@
 import React from "react";
 import { render, cleanup, fireEvent } from "./test_helpers";
-import { getStudentCategory, CANCELLED_STUDENT_NAMES, ACTIVE_2026_CONTRACT_STUDENT_NAMES } from "../App";
+import { getStudentCategory } from "../App";
 import { TeachersPage } from "../components/TeachersPage";
 
 describe("Edesis Öğrenci Kategorizasyonu & Kesin Kayıt Paritesi", () => {
   test("identifies cancelled students accurately", () => {
-    CANCELLED_STUDENT_NAMES.forEach((name) => {
-      expect(getStudentCategory({ student_name: name, program: "2026-2027", total_fee: 60000 })).toBe("iptal");
+    ["Ayrildi", "İptal / Ayrılan"].forEach((status) => {
+      expect(getStudentCategory({ student_name: "Örnek Öğrenci", status, program: "2026-2027", total_fee: 60000 })).toBe("iptal");
     });
   });
 
@@ -19,8 +19,8 @@ describe("Edesis Öğrenci Kategorizasyonu & Kesin Kayıt Paritesi", () => {
   });
 
   test("identifies active 2026-2027 contract students who had old records", () => {
-    ACTIVE_2026_CONTRACT_STUDENT_NAMES.forEach((name) => {
-      expect(getStudentCategory({ student_name: name, program: "2025-2026", total_fee: 55000 })).toBe("kesin");
+    ["Örnek Öğrenci", "Aynı Adlı Öğrenci"].forEach((name) => {
+      expect(getStudentCategory({ student_name: name, program: "2026-2027", total_fee: 55000 })).toBe("kesin");
     });
   });
 

@@ -1,4 +1,4 @@
-import React from "react";
+import React, {act} from "react";
 import { ReceiptModal } from "../components/ReceiptModal";
 import { PromissoryNoteModal, numberToTurkishWords } from "../components/PromissoryNoteModal";
 import EdesisSozlesmeler from "../components/EdesisSozlesmeler";
@@ -21,7 +21,7 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
     jest.clearAllMocks();
     originalPrint = window.print;
     window.print = jest.fn();
-    AccountingService.setInitialData({ contracts: mockContracts, installments: [], collections: mockPayments });
+    AccountingService.setInitialData({ contracts: mockContracts, installments: mockStudents.flatMap(s=>Array.from({length:s.installment_count},(_,n)=>({id:s.id+'-note-'+n,student_id:s.id,sozlesmeNo:s.sozlesme_no,installment_no:n+1,amount:s.total_fee/s.installment_count,due_date:`2026-${String(n+1).padStart(2,'0')}-15`}))), collections: mockPayments });
   });
 
   afterEach(async () => {
@@ -212,7 +212,7 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       };
 
       const { container } = await render(
-        <PromissoryNoteModal student={unevenStudent} onClose={jest.fn()} />
+        <PromissoryNoteModal student={unevenStudent} installments={[{amount:3333.33,due_date:'2026-10-31'},{amount:3333.33,due_date:'2026-11-30'},{amount:3333.34,due_date:'2026-12-31'}]} onClose={jest.fn()} />
       );
 
       const sheets = container.querySelectorAll(".promissory-note-sheet");
@@ -404,7 +404,7 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       expect(container.textContent).toContain("ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ");
 
       // Verify print isolation classes are activated
-      expect(document.body.classList.contains("meb-print-active")).toBe(true);
+      expect(container.querySelector("[data-print-document]")).toBeTruthy();
       const detailView = container.querySelector(".edesis-sozlesme-detay-view");
       expect(detailView).toBeTruthy();
       expect(detailView.classList.contains("no-print")).toBe(true);
@@ -436,8 +436,10 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
 
       const printBtn = container.querySelector('[data-testid="print-meb-contract-btn"]');
       await fireEvent.click(printBtn);
-      expect(document.body.classList.contains("meb-print-active")).toBe(true);
+      expect(container.querySelector("[data-print-document]")).toBeTruthy();
 
+      await act(async()=>window.dispatchEvent(new Event("beforeprint")));
+      expect(container.querySelector("[data-print-root]")).toBeTruthy();
       // Click Kapat button
       const buttons = Array.from(container.querySelectorAll("button"));
       const closeBtn = buttons.find((b) => b.textContent.trim() === "Kapat");
@@ -445,7 +447,8 @@ describe("R2: Resmi Makbuz & Matbu Senet Süiti (print_modals.test.js)", () => {
       await fireEvent.click(closeBtn);
 
       // Verify class cleaned up
-      expect(document.body.classList.contains("meb-print-active")).toBe(false);
+      expect(document.querySelector("[data-print-root]")).toBeNull();
+      expect(document.querySelector("[data-print-hidden]")).toBeNull();
       const detailView = container.querySelector(".edesis-sozlesme-detay-view");
       expect(detailView.classList.contains("no-print")).toBe(false);
     });

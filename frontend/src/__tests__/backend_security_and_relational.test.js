@@ -1,3 +1,5 @@
+import { TextEncoder } from "util";
+global.TextEncoder = TextEncoder;
 import { onRequest } from "../../functions/api/[[route]].js";
 import { handleContractsRoutes } from "../../functions/api/routes/contracts.js";
 import { handleStudentsRoutes } from "../../functions/api/routes/students.js";
@@ -8,6 +10,7 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
     STAFF_PASSWORD: "4321",
     BACKUP_TOKEN: "secret_backup_token_2026",
     DB: {
+      batch: async stmts => Promise.all(stmts.map(s => s.all ? s.all() : s.run())),
       prepare: (query) => ({
         bind: (...params) => ({
           first: async () => null,
@@ -148,8 +151,8 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
         prepare: (query) => {
           const stmt = {
             bind: (...params) => {
-              if (query.includes("INSERT OR REPLACE INTO installments")) {
-                insertedInstallments.push(params);
+              if (query.includes("INSERT INTO installments")) {
+                insertedInstallments.push(...JSON.parse(params[4]));
               }
               return stmt;
             },
@@ -185,7 +188,7 @@ describe("Backend Security, Authorization Guards & Relational Integrity Test Sui
       expect(insertedInstallments.length).toBe(5);
       for (const inst of insertedInstallments) {
         // params: [instId, contractId, glrId, id, i, inst, dueDate, amt]
-        const dueDate = inst[6];
+        const dueDate = inst.due_date;
         expect(dueDate).toMatch(/^\d{4}-\d{2}-15$/);
       }
     });

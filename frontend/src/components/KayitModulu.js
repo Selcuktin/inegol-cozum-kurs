@@ -52,7 +52,6 @@ export function KayitModulu({
     source: "Tavsiye",
     notes: ""
   });
-  const [simulationResult, setSimulationResult] = useState(null);
 
   // Demo candidates list with realistic school inquiries
   const [candidates, setCandidates] = useState([
@@ -768,54 +767,12 @@ export function KayitModulu({
       {/* TAB 5: DÖNEM GEÇİŞİ */}
       {activeTab === "donem" && (
         <div className="donem-view" style={{ background: "#ffffff", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-          <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600", color: "#0f172a" }}>
-            Edesis Akademik Dönem Geçiş Sihirbazı
-          </h3>
-          <p style={{ margin: "0 0 20px 0", fontSize: "13px", color: "#64748b" }}>
-            2025-2026 dönemindeki öğrencileri yeni 2026-2027 dönemine bir üst sınıfa otomatik aktarma simülasyonu.
-          </p>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
-            <div style={{ padding: "16px", border: "1px solid #e2e8f0", borderRadius: "8px", background: "#f8fafc" }}>
-              <div style={{ fontSize: "12px", fontWeight: "600", color: "#64748b" }}>KAYNAK DÖNEM</div>
-              <div style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a", marginTop: "4px" }}>2025 - 2026 Dönemi</div>
-              <div style={{ fontSize: "13px", color: "#475569", marginTop: "4px" }}>Aktarılmaya hazır: {students.length} Öğrenci</div>
-            </div>
-
-            <div style={{ padding: "16px", border: "1px solid #bfdbfe", borderRadius: "8px", background: "#eff6ff" }}>
-              <div style={{ fontSize: "12px", fontWeight: "600", color: "#2563eb" }}>HEDEF DÖNEM</div>
-              <div style={{ fontSize: "18px", fontWeight: "700", color: "#1e3a8a", marginTop: "4px" }}>2026 - 2027 Dönemi (Aktif)</div>
-              <div style={{ fontSize: "13px", color: "#3b82f6", marginTop: "4px" }}>Otomatik Sınıf Atlatma Kuralı Açık</div>
-            </div>
-          </div>
-
-          <div style={{ background: "#f1f5f9", padding: "16px", borderRadius: "8px", fontSize: "13px", color: "#334155", marginBottom: "20px" }}>
-            <b>Otomatik Sınıf Atlatma Kuralları:</b>
-            <ul style={{ margin: "8px 0 0 20px", padding: 0 }}>
-              <li>8. Sınıf (LGS) öğrencileri → 9. Sınıf / Lise Hazırlık</li>
-              <li>10. Sınıf öğrencileri → 11. Sınıf TYT-AYT Sayısal / EA</li>
-              <li>11. Sınıf öğrencileri → 12. Sınıf YKS Hazırlık</li>
-              <li>12. Sınıf öğrencileri → Mezun statüsüne arşivlenir.</li>
-            </ul>
-          </div>
-
-          {simulationResult && (
-            <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "14px 16px", borderRadius: "8px", marginBottom: "16px", color: "#065f46", fontSize: "13px", display: "flex", alignItems: "center", gap: "10px" }}>
-              <CheckCircle2 size={18} color="#059669" />
-              <div>
-                <b>Dönem Geçiş Simülasyonu Doğrulandı:</b> {students.length} öğrencinin sınıf seviyeleri ve geçmiş mali kayıtları başarıyla kontrol edildi. Veri kaybı riski bulunmamaktadır.
-              </div>
-            </div>
-          )}
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setSimulationResult(true)}
-            style={{ padding: "10px 20px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "600", cursor: "pointer" }}
-          >
-            Geçiş Simülasyonunu Doğrula & Önizle
-          </button>
+          <h3>Dönem sözleşmeleri</h3>
+          <p>Yeni dönem kaydı Sözleşmeler ekranından yeni bir sözleşme oluşturularak yapılır. Önceki dönemin tahsilatları ve ödeme planı kendi sözleşmesinde saklanır.</p>
+          <table className="data-table"><thead><tr><th>Dönem</th><th>Öğrenci kaydı</th></tr></thead><tbody>
+            {Object.entries(students.reduce((counts,s)=>{const period=s.program || "Belirtilmemiş";counts[period]=(counts[period]||0)+1;return counts;},{})).map(([period,count])=><tr key={period}><td>{period}</td><td>{count}</td></tr>)}
+          </tbody></table>
+          <button type="button" className="btn" onClick={()=>onNavigate?.("documents")}>Sözleşmelere Git</button>
         </div>
       )}
 

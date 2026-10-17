@@ -1,27 +1,7 @@
 // Helper constants and functions for Muhasebe (V2) Dashboard
 
-export const CANCELLED_STUDENT_NAMES = [
-  "SERHAT SERBEST",
-  "EMİR PARILDAR",
-  "EMRİYE AYTAN",
-  "NEVRA KILINÇ"
-];
-
-export const ACTIVE_2026_CONTRACT_STUDENT_NAMES = [
-  "SEBİLE AKDEMİR",
-  "ELİFSU ÇAĞLAYAN",
-  "YAVUZ EMİR BALCI",
-  "KEREM KÖSE"
-];
-
 export function getStudentCategory(s) {
-  const normName = (s?.student_name || "").trim().toUpperCase();
-  if (CANCELLED_STUDENT_NAMES.includes(normName)) {
-    return "iptal";
-  }
-  if (ACTIVE_2026_CONTRACT_STUDENT_NAMES.includes(normName)) {
-    return "kesin";
-  }
+  if (["Ayrildi", "İptal", "İptal Edildi", "İptal / Ayrılan"].includes(s?.status) || s?.is_deleted || s?.durum === 3) return "iptal";
   const prog = (s?.program || "").trim().toUpperCase();
   const fee = Number(s?.total_fee || 0);
   if (prog === "2026-2027-YAZ" || s?.status === "Yaz Kursu" || s?.enrollment_status === "Yaz Kursu") {
@@ -82,7 +62,7 @@ export function computeStudentPlan(student) {
     let m = startMonth + i;
     let y = startYear + Math.floor((m - 1) / 12);
     m = ((m - 1) % 12) + 1;
-    const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, 28)).padStart(2, "0")}`;
+    const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, new Date(y, m, 0).getDate())).padStart(2, "0")}`;
 
     const installmentAmount = (i === n - 1) ? Math.max(0, Math.round((total - (per * (n - 1))) * 100) / 100) : per;
     const applied = Math.min(installmentAmount, paidRemaining);
@@ -246,4 +226,3 @@ export function exportAccountingDataToExcel(customData = null, fileSuffix = "Tum
     alert("Excel aktarma hatası: " + err.message);
   }
 }
-

@@ -1,8 +1,13 @@
+import reportFont from "./assets/reportFont.js";
 // Cloudflare Pages Functions - Shared Utilities, Constants & Auth Helpers
 
 export const ROLE_ADMIN = "admin";
 export const ROLE_ACCOUNTING = "muhasebe";
 export const ROLE_TEACHER = "ogretmen";
+
+import { normalizeDate } from "../../src/lib/installmentService.js";
+export { normalizeDate };
+
 export const ROLE_LABELS = {
   [ROLE_ADMIN]: "Yönetici",
   [ROLE_ACCOUNTING]: "Muhasebe",
@@ -22,7 +27,7 @@ export function getCorsHeaders(request, env = null) {
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : "https://inegol-cozum-kurs.pages.dev",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-ID, X-Requested-With",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-ID, X-Requested-With, Bypass-Tunnel-Reminder, X-Filename, X-Content-Type",
     "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -67,6 +72,33 @@ export function errorResponse(error, status = 400, code = "BAD_REQUEST", details
     },
     status
   );
+}
+
+// Forms carry the fields they originally displayed. Compare those, then guard the write atomically.
+export function expectedRecordError(expected,fields,visible){
+  if(expected!==undefined && (!expected||typeof expected!=='object'||Array.isArray(expected)||Object.keys(expected).some(k=>!fields.includes(k))))return errorResponse('Geçersiz kayıt sürümü',422,'VALIDATION_ERROR');
+  const canonical=value=>{
+    if(typeof value==='string'&&/^[{[]/.test(value)){try{return canonical(JSON.parse(value));}catch{}}
+    if(value&&typeof value==='object')return JSON.stringify(Object.fromEntries(Object.keys(value).sort().map(k=>[k,value[k]])));
+    return value==null?'':String(value);
+  };
+  if(expected&&Object.keys(expected).some(k=>canonical(expected[k])!==canonical(visible[k])))return errorResponse('Bu kayıt başka bir işlemde değişti. Yeniden açıp güncel kayıt üzerinden düzenleyin.',409,'RECORD_CHANGED');
+  return null;
+}
+
+export function recordWriteGuard(db,table,row,expected,fields,visible=row,key={id:row?.id}){
+  const error=expectedRecordError(expected,fields,visible);
+  if(error)return {error};
+  const keys=expected?Object.keys(expected):fields.filter(k=>k in (row||{}));
+  const where=Object.keys(key).map(k=>`"${k}" IS ?`).join(' AND ');
+  return {statement:db.prepare(`SELECT CASE WHEN ${row?'':'NOT '}EXISTS(SELECT 1 FROM ${table} WHERE ${where} ${row?keys.map(k=>`AND "${k}" IS ?`).join(' '):''}) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END`).bind(...Object.values(key),...(row?keys.map(k=>row[k]??null):[]))};
+}
+
+// Guard the complete previously read list in one query, including rows that did not exist.
+export function recordBatchGuard(db,table,records,keyFields,fields){
+  const join=keyFields.map(k=>`a."${k}" IS json_extract(e.value,'$.${k}')`).join(' AND ');
+  const changed=['id',...fields].map(k=>`a."${k}" IS NOT json_extract(e.value,'$._before.${k}')`).join(' OR ');
+  return db.prepare(`SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM json_each(?) e LEFT JOIN ${table} a ON ${join} WHERE ${changed}) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END`).bind(JSON.stringify(records));
 }
 
 export function successResponse(data, status = 200, extra = {}) {
@@ -259,7 +291,7 @@ export function enrichStudent(s) {
     ...s,
     parent_phone: resolvedParentPhone,
     program: prog,
-    donem_id: s.donem_id || 113,
+    donem_id: s.donem_id || ({"2026-2027":113,"2025-2026":40,"2026-2027-YAZ":142}[prog] ?? null),
     donem_adi: s.donem_adi || prog,
     status: status,
     enrollment_status: status,
@@ -290,7 +322,7 @@ export function computeInstallmentPlan(student, payments) {
     let m = startMonth + i;
     let y = startYear + Math.floor((m - 1) / 12);
     m = ((m - 1) % 12) + 1;
-    const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, 28)).padStart(2, "0")}`;
+    const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, new Date(y, m, 0).getDate())).padStart(2, "0")}`;
 
     const installmentAmount = (i === n - 1) ? Math.max(0, Math.round((total - (per * (n - 1))) * 100) / 100) : per;
     const applied = Math.min(installmentAmount, paidRemaining);
@@ -311,95 +343,51 @@ export function computeInstallmentPlan(student, payments) {
 }
 
 export function generateMonthlyPdf({ month, collected, expenses, net, monthPayments, monthExpenses, studentsCount }) {
-  const cleanStr = (s) => String(s || "").replace(/[^\x20-\x7E]/g, "?").replace(/[()\\]/g, "");
-  const formatMoney = (n) => `${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL`;
-
+  // ponytail: static Latin/Turkish font subset; other scripts require expanding the subset.
+  const clean = value => String(value ?? "").normalize('NFC').replace(/[\r\n\t]+/g, " ");
+  const encoded = value => [...clean(value)].map(c=>reportFont.codes[c] || reportFont.codes['?']).join('');
+  const money = value => `${Number(value || 0).toLocaleString("tr-TR", {minimumFractionDigits:2,maximumFractionDigits:2})} TL`;
   const lines = [
-    "BT",
-    "/F1 16 Tf",
-    "50 780 Td",
-    "(OZEL INEGOL COZUM KURS MERKEZI) Tj",
-    "/F1 11 Tf",
-    "0 -22 Td",
-    `(${cleanStr(month)} DONEMI KURUMSAL AYLIK MUHASEBE RAPORU) Tj`,
-    "/F1 8 Tf",
-    "0 -14 Td",
-    "(Kemalpasa Mah. Ilica Sk. No:31/33A Inegol / BURSA - Tel: 0224 715 00 02) Tj",
-    "0 -16 Td",
-    "(---------------------------------------------------------------------------------------------------------------) Tj",
-    "/F1 10 Tf",
-    "0 -20 Td",
-    "(FINANSAL GENEL OZET) Tj",
-    "/F1 9 Tf",
-    "0 -16 Td",
-    `(- Toplam Tahsilat: ${formatMoney(collected)}) Tj`,
-    "0 -14 Td",
-    `(- Toplam Giderler: ${formatMoney(expenses)}) Tj`,
-    "0 -14 Td",
-    `(- Net Kar / Durum: ${formatMoney(net)}) Tj`,
-    "0 -14 Td",
-    `(- Kayitli Aktif Ogrenci: ${studentsCount}) Tj`,
-    "0 -14 Td",
-    `(- Islem Sayilari: ${monthPayments.length} Tahsilat, ${monthExpenses.length} Gider) Tj`,
-    "0 -20 Td",
-    "(---------------------------------------------------------------------------------------------------------------) Tj",
-    "/F1 10 Tf",
-    "0 -18 Td",
-    "(BU AYIN TAHSILAT HAREKETLERI (ILK 20 KAYIT)) Tj",
-    "/F1 8 Tf"
+    'ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ', `${month} DÖNEMİ AYLIK MUHASEBE RAPORU`, '',
+    `Toplam Tahsilat: ${money(collected)}`, `Toplam Giderler: ${money(expenses)}`,
+    `Net Nakit Akışı: ${money(net)}`, `Kayıtlı Öğrenci: ${studentsCount}`,
+    `Islem Sayilari: ${monthPayments.length} Tahsilat, ${monthExpenses.length} Gider`, '', 'TAHSİLATLAR'
   ];
-
-  for (let i = 0; i < Math.min(20, monthPayments.length); i++) {
-    const p = monthPayments[i];
-    const sName = cleanStr(p.student_name || "Ogrenci");
-    const pText = `${p.payment_date} | ${sName.slice(0, 22)} | ${cleanStr(p.method)} | ${formatMoney(p.amount)}`;
-    lines.push("0 -13 Td");
-    lines.push(`(${pText}) Tj`);
-  }
-  if (monthPayments.length === 0) {
-    lines.push("0 -14 Td");
-    lines.push("(Bu donemde tahsilat kaydi bulunmamaktadir.) Tj");
-  }
-
-  lines.push("0 -24 Td");
-  lines.push("/F1 8 Tf");
-  lines.push("(Inegol Cozum Kurs Yonetim Sistemi - Bulut Raporudur.) Tj");
-  lines.push("ET");
-
-  const streamContent = lines.join("\n");
-  const streamLength = streamContent.length;
-
-  return `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
-endobj
-4 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-5 0 obj
-<< /Length ${streamLength} >>
-stream
-${streamContent}
-endstream
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000244 00000 n 
-0000000325 00000 n 
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-${420 + streamLength}
-%%EOF`;
+  for (const p of monthPayments) lines.push(`${p.payment_date} | ${p.student_name || 'Ogrenci'} | ${p.method || ''} | ${money(p.amount)}`);
+  if (!monthPayments.length) lines.push('Bu dönemde tahsilat kaydı bulunmamaktadır.');
+  lines.push('', 'GİDERLER');
+  for (const e of monthExpenses) lines.push(`${e.expense_date} | ${e.title || e.category || 'Gider'} | ${money(e.amount)}`);
+  if (!monthExpenses.length) lines.push('Bu dönemde gider kaydı bulunmamaktadır.');
+  const wrapped=lines.flatMap(line=>{
+    const result=[];let text='',width=0;
+    for(const c of clean(line)){
+      const code=parseInt(reportFont.codes[c] || reportFont.codes['?'],16);
+      const advance=reportFont.widths[code-reportFont.first]*9/1000;
+      if(width+advance>515&&text){result.push(text);text='';width=0;}
+      text+=c;width+=advance;
+    }
+    result.push(text);return result;
+  });
+  const pages = [];
+  for (let i=0;i<wrapped.length;i+=48) pages.push(wrapped.slice(i,i+48));
+  const d=reportFont.descriptor;
+  const fontStream=reportFont.fontHex+'>';
+  const objects = ['', '<< /Type /Catalog /Pages 2 0 R >>', '',
+    `<< /Type /Font /Subtype /TrueType /BaseFont /${reportFont.name} /FirstChar ${reportFont.first} /LastChar ${reportFont.last} /Widths [${reportFont.widths.join(' ')}] /FontDescriptor 4 0 R /ToUnicode 6 0 R >>`,
+    `<< /Type /FontDescriptor /FontName /${reportFont.name} /Ascent ${d['/Ascent']} /CapHeight ${d['/CapHeight']} /Descent ${d['/Descent']} /Flags ${d['/Flags']} /FontBBox ${d['/FontBBox']} /ItalicAngle 0 /StemV ${d['/StemV']} /FontFile2 5 0 R >>`,
+    `<< /Length ${fontStream.length} /Length1 ${reportFont.length1} /Filter [/ASCIIHexDecode /FlateDecode] >>\nstream\n${fontStream}\nendstream`,
+    `<< /Length ${reportFont.cmap.length} >>\nstream\n${reportFont.cmap}\nendstream`
+  ];
+  const pageIds=[];
+  pages.forEach((page,index) => {
+    const id=objects.length;pageIds.push(id);
+    const content=['BT','/F1 9 Tf','40 795 Td','14 TL',...page.flatMap(line=>[`<${encoded(line)}> Tj`,'T*']),`<${encoded(`Sayfa ${index+1} / ${pages.length}`)}> Tj`,'ET'].join('\n');
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${id+1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+  objects[2]=`<< /Type /Pages /Kids [${pageIds.map(id=>`${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
+  let pdf='%PDF-1.4\n';const offsets=[0];
+  for(let id=1;id<objects.length;id++){offsets.push(pdf.length);pdf+=`${id} 0 obj\n${objects[id]}\nendobj\n`;}
+  const xref=pdf.length;
+  pdf+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>`${String(n).padStart(10,'0')} 00000 n \n`).join('');
+  return pdf+`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
 }
-

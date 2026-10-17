@@ -1,14 +1,60 @@
-import React from "react";
-import { render, cleanup, fireEvent } from "./test_helpers";
+import React,{act} from "react";
+import { render, cleanup, fireEvent, waitFor } from "./test_helpers";
 import { DashboardPage } from "../pages/DashboardPage";
 import { MainApp } from "../App";
+import AccountingService from '../lib/edesisAccountingService';
+import axios from 'axios';
 
 afterEach(cleanup);
 
 describe("Sadeleştirilmiş Hızlı İşlemler & Genel Bakış Test Paketi", () => {
   const adminUser = { id: 1, username: "admin", role: "admin", name: "Yönetici" };
 
+  test('main application ignores a slow dashboard response after a newer save refresh',async()=>{
+    const previousHash=window.location.hash;window.location.hash='#students';localStorage.removeItem('cozum_dashboard_data_v1');
+    AccountingService.setInitialData({contracts:[],installments:[]});
+    const pending=[];const get=jest.spyOn(axios,'get').mockImplementation(()=>new Promise(resolve=>pending.push(resolve)));
+    try{
+      const {container}=await render(<MainApp me={adminUser} onLogout={()=>{}}/>);
+      await act(async()=>window.dispatchEvent(new Event('cozum_students_updated')));
+      await waitFor(()=>expect(pending.length).toBe(2));
+      await act(async()=>pending[1]({data:{students:[{id:'newest',student_name:'Yeni kaydedilen',program:'2026-2027',status:'Kesin Kayıt'}],contracts:[]}}));
+      await act(async()=>pending[0]({data:{students:[{id:'outdated',student_name:'Eski yanıt',program:'2026-2027',status:'Kesin Kayıt'}],contracts:[]}}));
+      expect(container.textContent).toContain('Yeni kaydedilen');expect(container.textContent).not.toContain('Eski yanıt');
+    }finally{get.mockRestore();window.location.hash=previousHash;}
+  });
+
+  test('mobile drawer locks the background, supports Escape and closes after selecting a module',async()=>{
+    const previousMatch=window.matchMedia;
+    window.matchMedia=jest.fn(query=>({matches:query.includes('max-width'),addEventListener:jest.fn(),removeEventListener:jest.fn()}));
+    const originalOverflow=document.body.style.overflow;
+    try{
+      const {container}=await render(<MainApp me={adminUser} onLogout={jest.fn()}/>);
+      const menu=container.querySelector('[data-testid="mobile-menu"]');
+      await fireEvent.click(menu);
+      expect(menu.getAttribute('aria-expanded')).toBe('true');
+      expect(document.body.style.overflow).toBe('hidden');
+      expect(container.querySelector('.main').hasAttribute('inert')).toBe(true);
+      expect(container.querySelector('.mobile-bottom-nav').hasAttribute('inert')).toBe(true);
+      await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
+      expect(menu.getAttribute('aria-expanded')).toBe('false');
+      expect(document.body.style.overflow).toBe(originalOverflow);
+      expect(document.activeElement).toBe(menu);
+      await fireEvent.click(menu);
+      const parent=container.querySelector('[data-testid="nav-tree-payments"]');
+      await fireEvent.click(parent);
+      expect(menu.getAttribute('aria-expanded')).toBe('true');
+      await fireEvent.click(parent);
+      const contract=[...container.querySelectorAll('.nav-nested-item')].find(b=>b.textContent==='Sözleşmeler');
+      await fireEvent.click(contract);
+      expect(menu.getAttribute('aria-expanded')).toBe('false');
+      expect(container.querySelector('.main').hasAttribute('inert')).toBe(false);
+      expect(document.body.style.overflow).toBe(originalOverflow);
+    }finally{await cleanup();window.matchMedia=previousMatch;}
+  });
+
   test("DashboardPage sade ve öz metrikleri, yaklaşan tahsilatları ve sınıf kontenjanlarını render eder", async () => {
+    AccountingService.setInitialData({installments:[{id:'recorded-due',studentId:101,sozlesmeNo:'SZL202600101',taksitNo:2,taksitTutari:10000,kalanTutar:10000,vadeTarihi:'2026-10-25',ogrenciAdi:'Ayşe Melek'}]});
     const mockData = {
       students: [
         {

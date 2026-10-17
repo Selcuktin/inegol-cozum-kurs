@@ -25,6 +25,7 @@ import {
   X
 } from "lucide-react";
 import AccountingService, { trNorm } from "../lib/edesisAccountingService";
+import { normalizeDate } from "../lib/installmentService";
 import { StudentService } from "../lib/edesisStudentService";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { ReceiptModal } from "./ReceiptModal";
@@ -40,9 +41,10 @@ export default function EdesisSozlesmeDetay({
   onOpenPaymentPlan,
   onEditStudent
 }) {
-  const [notes, setNotes] = useState([
-    // Empty initially as in screenshot ("Henüz not eklenmemiş")
-  ]);
+  const [notes, setNotes] = useState(contract?.notes || '');
+  const [savingNote,setSavingNote]=useState(false);
+  React.useEffect(()=>setNotes(contract?.notes || ''),[contract?.id,contract?.sozlesmeNo,contract?.notes]);
+  React.useEffect(()=>setNewNoteText(''),[contract?.id,contract?.sozlesmeNo]);
   const [newNoteText, setNewNoteText] = useState("");
   const [toastMsg, setToastMsg] = useState(null);
   const [collectModal, setCollectModal] = useState(null);
@@ -50,38 +52,44 @@ export default function EdesisSozlesmeDetay({
   const [editDateModal, setEditDateModal] = useState(null);
   const [quickEditInst, setQuickEditInst] = useState(null);
   const [editAmountsModal, setEditAmountsModal] = useState(false);
+  const [savingPlan,setSavingPlan]=useState(false);
+  const planBaseline=React.useRef(null);
   const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [receiptModalPayment, setReceiptModalPayment] = useState(null);
   const [isSignedState, setIsSignedState] = useState(() => !!(contract?.isSigned || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));
-  const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || "Osman Seymen (Yönetici)");
+  const [signedByName, setSignedByName] = useState(() => contract?.kurumImzalayan || contract?.kurum_imzalayan || '');
+  React.useEffect(()=>{setIsSignedState(!!(contract?.isSigned || contract?.is_signed || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));setSignedByName(contract?.kurumImzalayan || contract?.kurum_imzalayan || '');},[contract?.id,contract?.isSigned,contract?.is_signed,contract?.kurumImzaAlindi,contract?.veliImzaAlindi,contract?.kurumImzalayan,contract?.kurum_imzalayan]);
   const [accountingTick, setAccountingTick] = useState(0);
+  const isCancelled = Number(contract?.durum) === 3;
+  React.useEffect(()=>{document.getElementById('main-content')?.scrollIntoView?.({block:'start'});},[contract?.id,contract?.sozlesmeNo]);
 
   React.useEffect(() => {
     const handleUpdate = () => setAccountingTick((t) => t + 1);
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => {
+      window.removeEventListener("cozum_snapshot_updated", handleUpdate);
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };
   }, []);
-
-  React.useEffect(() => {
-    if ((contract?.id || contract?.sozlesmeNo) && process.env.NODE_ENV !== "test") {
-      AccountingService.fetchInstallments(contract.id || contract.sozlesmeNo);
-    }
-  }, [contract?.id, contract?.sozlesmeNo]);
 
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  const handleSignContract = () => {
-    AccountingService.signContract(contract.id || contract.sozlesmeNo, "kurum", signedByName);
-    setIsSignedState(true);
+  const handleSignContract = async () => {
+try {
+
+    const saved=await AccountingService.signContract(contract.id || contract.sozlesmeNo, "kurum");
+    setIsSignedState(!!saved?.is_signed);
+    setSignedByName(saved?.kurum_imzalayan || '');
     showToast("✅ Sözleşme Kurum Yetkilisi tarafından imzalandı / onaylandı.");
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   // Find corresponding student in data
   const baseStudent = useMemo(() => {
@@ -92,13 +100,14 @@ export default function EdesisSozlesmeDetay({
     const szlNo = contract.sozlesmeNo || contract.sozlesme_no || "";
     const ogrNo = String(contract.ogrenciNo || contract.student_no || "");
     const allStudents = [...(Array.isArray(students) ? students : []), ...StudentService.getAllStudents()];
+    const nameIsUnique = new Set(allStudents.filter(s=>s && trNorm(s.student_name)===name).map(s=>s.id)).size===1;
     void accountingTick;
     return allStudents.find((s) => {
       if (!s) return false;
-      if (szlNo && s.sozlesme_no === szlNo) return true;
-      if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
-      if (ogrNo && String(s.student_no) === ogrNo) return true;
-      return trNorm(s.student_name) === name;
+      if (cleanId) return String(s.id).replace(/^stu-/, "") === cleanId;
+      if (szlNo) return s.sozlesme_no === szlNo;
+      if (ogrNo) return String(s.student_no) === ogrNo;
+      return name && nameIsUnique && trNorm(s.student_name) === name;
     }) || {
       id: contract.studentId || contract.student_id || contract.ogrenciId,
       student_name: contract.ogrenciAdi || contract.musteriUnvan || "Öğrenci",
@@ -114,7 +123,8 @@ export default function EdesisSozlesmeDetay({
 
   // Find installments for this contract
   const installments = useMemo(() => {
-    if (!contract) return [];
+    void accountingTick; // Service cache changes are announced through this event counter.
+    if (!contract || isCancelled) return [];
     const allTaksitler = AccountingService.getInstallments(students) || [];
     const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
     const cSozlesme = (contract.sozlesmeNo || "").trim();
@@ -137,7 +147,7 @@ export default function EdesisSozlesmeDetay({
       // Deduplicate by taksitNo to prevent cloned rows (1, 1, 2, 2, ...)
       const uniqueMap = new Map();
       matched.forEach((t) => {
-        const no = Number(t.taksitNo) || 1;
+        const no = Number(t.taksitNo ?? 1);
         if (!uniqueMap.has(no)) {
           uniqueMap.set(no, t);
         }
@@ -147,7 +157,7 @@ export default function EdesisSozlesmeDetay({
       return uniqueList.sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0)).map((t, idx) => {
         const amt = Number(t.taksitTutari) || 0;
         const paid = Number(t.tahsilEdilen) || 0;
-        const rem = Number(t.kalanTutar) !== undefined ? Number(t.kalanTutar) : Math.max(0, amt - paid);
+        const rem = t.kalanTutar != null ? Number(t.kalanTutar) : Math.max(0, amt - paid);
         let dueStr = t.vadeTarihi ? String(t.vadeTarihi).slice(0, 10) : "";
         if (dueStr.includes("-")) {
           const parts = dueStr.split("-");
@@ -155,7 +165,7 @@ export default function EdesisSozlesmeDetay({
         }
         return {
           id: t.id,
-          taksitNo: Number(t.taksitNo) || (idx + 1),
+          taksitNo: Number(t.taksitNo ?? (idx + 1)),
           vadeTarihi: dueStr,
           odemeTarihi: t.odemeTarihi,
           tahsilatTarihi: t.tahsilatTarihi,
@@ -170,68 +180,45 @@ export default function EdesisSozlesmeDetay({
       });
     }
 
-    // Fallback: Generate realistic 10 installments matching contract total
-    const total = contract.brutTutar || 81000.04;
-    const count = contract.taksitSayisi || 10;
-    const regular = Math.floor((total / count) * 100) / 100;
-    const last = Number((total - regular * (count - 1)).toFixed(2));
-
-    const dates = [
-      "31.10.2026", "30.11.2026", "31.12.2026", "30.01.2027",
-      "28.02.2027", "28.03.2027", "28.04.2027", "28.05.2027",
-      "28.06.2027", "28.07.2027"
-    ];
-
-    void accountingTick;
-    return Array.from({ length: count }, (_, i) => ({
-      taksitNo: i + 1,
-      vadeTarihi: dates[i] || `28.${String(i + 1).padStart(2, "0")}.2027`,
-      taksitTutari: i === count - 1 ? last : regular,
-      tahsilEdilen: 0,
-      kalanTutar: i === count - 1 ? last : regular,
-      durum: 0, // 0: Vadesi Gelmedi
-      durumText: "Vadesi Gelmedi"
-    }));
-  }, [contract, students, accountingTick]);
+    return [];
+  }, [contract, students, accountingTick, isCancelled]);
 
   const [localInstallments, setLocalInstallments] = useState(installments);
 
   React.useEffect(() => {
-    setLocalInstallments(installments);
-  }, [installments, accountingTick, contract?.id, contract?.sozlesmeNo, contract?.brutTutar]);
+    if(!editAmountsModal)setLocalInstallments(installments);
+  }, [installments, editAmountsModal]);
 
   // Calculations: Dynamically derive from installments if present, ensuring increasing an installment immediately reflects in total!
   const installmentsSum = (localInstallments && localInstallments.length > 0)
     ? localInstallments.reduce((acc, it) => acc + (Number(it.taksitTutari) || 0), 0)
-    : (contract?.brutTutar || 81000.04);
+    : Number(contract?.brutTutar ?? contract?.brut_tutar ?? 0);
   const brutTutar = Math.round(installmentsSum * 100) / 100;
-  const netTutar = Math.round((brutTutar / 1.1) * 100) / 100;
-  const kdvTutari = Math.round((brutTutar - netTutar) * 100) / 100;
-  const totalPaid = (localInstallments || []).reduce((acc, it) => acc + (Number(it.tahsilEdilen) || 0), 0);
-  const totalRemaining = Math.max(0, brutTutar - totalPaid);
+  const storedNet=Number(contract?.netTutar ?? contract?.net_tutar ?? 0);
+  const taxFactor=storedNet>0 ? Number(contract?.brutTutar ?? contract?.brut_tutar ?? brutTutar)/storedNet : 1.1;
+  const netTutar = isCancelled ? storedNet : Math.round((brutTutar / taxFactor) * 100) / 100;
+  const kdvTutari = isCancelled ? Number(contract?.kdvTutari ?? contract?.kdv_tutari ?? 0) : Math.round((brutTutar - netTutar) * 100) / 100;
+  const totalPaid = isCancelled || !localInstallments.length ? Number(contract?.toplamTahsilat ?? contract?.toplam_tahsilat ?? 0) : localInstallments.reduce((acc, it) => acc + (Number(it.tahsilEdilen) || 0), 0);
+  const totalRemaining = isCancelled ? 0 : Math.max(0, brutTutar - totalPaid);
 
   const fmtTRY = (num) => {
     return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(num || 0);
   };
 
-  const handleAddNote = (e) => {
+  const handleAddNote = async (e) => {
     e.preventDefault();
-    if (!newNoteText.trim()) return;
-    setNotes((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        text: newNoteText.trim(),
-        date: new Date().toLocaleDateString("tr-TR") + " " + new Date().toLocaleTimeString("tr-TR").slice(0, 5),
-        author: "Yönetici"
-      }
-    ]);
-    setNewNoteText("");
-    showToast("✅ Not eklendi.");
+    if (!newNoteText.trim() || savingNote) return;
+    setSavingNote(true);
+    try {
+      setNotes(await AccountingService.addNote('contracts',contract.id || contract.sozlesmeNo,newNoteText));
+      setNewNoteText('');showToast('✅ Not kaydedildi.');
+    } catch(error){window.alert(error.message || 'Not kaydedilemedi');}
+    finally{setSavingNote(false);}
   };
 
   const handleOpenCollect = (taksit) => {
     setCollectModal({
+      id:"pay_"+crypto.randomUUID(),
       taksit,
       amount: taksit.kalanTutar > 0 ? taksit.kalanTutar : taksit.taksitTutari,
       method: "Kredi Kartı",
@@ -270,12 +257,15 @@ export default function EdesisSozlesmeDetay({
     return () => window.removeEventListener("cozum_scroll_to_tahsilat", handleScroll);
   }, []);
 
-  const handleConfirmCollect = () => {
+  const handleConfirmCollect = async () => {
+try {
+
     if (!collectModal || !collectModal.taksit) return;
     const { taksit, amount } = collectModal;
     const paidAmount = Number(amount) || taksit.taksitTutari;
 
-    AccountingService.recordCollection({
+    await AccountingService.recordCollection({
+      id:collectModal.id,
       studentId: contract.studentId || contract.student_id || contract.ogrenciId || student?.id,
       studentName: contract.ogrenciAdi || contract.musteriUnvan || student?.student_name,
       contractId: contract.id,
@@ -290,38 +280,24 @@ export default function EdesisSozlesmeDetay({
       gelirKodu: taksit.gelirKodu || contract.gelirKodu
     });
 
-    const updated = localInstallments.map((t) =>
-      t.taksitNo === taksit.taksitNo
-        ? {
-            ...t,
-            tahsilEdilen: paidAmount,
-            paid_amount: paidAmount,
-            kalanTutar: Math.max(0, t.taksitTutari - paidAmount),
-            durum: 1,
-            durumText: "Tahsil Edildi",
-            status: "Odendi",
-            odemeYontemi: collectModal.method,
-            tahsilatTarihi: collectModal.date,
-            payment_date: collectModal.date
-          }
-        : t
-    );
-    setLocalInstallments(updated);
-    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
+    setLocalInstallments(await AccountingService.fetchInstallments(contract.id));
     showToast(`✅ ${taksit.taksitNo}. Taksit (${fmtTRY(paidAmount)}) tahsil edildi ve kaydedildi.`);
     setCollectModal(null);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   const handleOpenCancel = (taksit) => {
     setCancelModal({ taksit });
   };
 
-  const handleConfirmCancel = () => {
+  const handleConfirmCancel = async () => {
+    try {
     if (!cancelModal || !cancelModal.taksit) return;
     const { taksit } = cancelModal;
     const cancelAmt = Number(taksit.tahsilEdilen || taksit.paid_amount || taksit.taksitTutari || 0);
 
-    AccountingService.cancelCollection({
+    await AccountingService.cancelCollection({
       studentId: contract?.studentId || contract?.student_id || contract?.ogrenciId || student?.id,
       contractId: contract?.id,
       sozlesmeNo: contract?.sozlesmeNo || taksit.sozlesmeNo,
@@ -330,70 +306,49 @@ export default function EdesisSozlesmeDetay({
       amount: cancelAmt
     });
 
-    const updated = localInstallments.map((t) =>
-      t.taksitNo === taksit.taksitNo
-        ? {
-            ...t,
-            tahsilEdilen: 0,
-            paid_amount: 0,
-            kalanTutar: t.taksitTutari,
-            durum: 0,
-            durumText: "Vadesi Gelmedi",
-            status: "Bekliyor",
-            odemeYontemi: null,
-            tahsilatTarihi: null,
-            payment_date: null
-          }
-        : t
-    );
-    setLocalInstallments(updated);
-    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
-
-    // Sync income overrides and collections
-    try {
-      const paidSum = updated.reduce((sum, it) => sum + (Number(it.tahsilEdilen) || 0), 0);
-      const gross = Number(contract?.brutTutar) || 0;
-      const targetGlr = taksit.gelirKodu || contract?.gelirKodu || contract?.sozlesmeNo;
-      if (targetGlr && typeof localStorage !== "undefined") {
-        const raw = localStorage.getItem("cozum_income_overrides_v1");
-        const incomeOverrides = raw ? JSON.parse(raw) : {};
-        incomeOverrides[targetGlr] = {
-          toplamTahsilat: paidSum,
-          kalanAlacak: Math.max(0, gross - paidSum)
-        };
-        localStorage.setItem("cozum_income_overrides_v1", JSON.stringify(incomeOverrides));
-      }
-    } catch (syncErr) {
-      console.warn("Income sync error on cancel:", syncErr);
-    }
-
+    setLocalInstallments(await AccountingService.fetchInstallments(contract.id));
     showToast(`↩️ ${taksit.taksitNo}. Taksit tahsilatı iptal edildi ve geri alındı.`);
     setCancelModal(null);
+    } catch(error) { window.alert(error.message || "İptal edilemedi"); }
   };
 
-  const handleConfirmDateChange = () => {
+  const handleConfirmDateChange = async () => {
+if(savingPlan)return;
+setSavingPlan(true);
+try {
+
     if (!editDateModal || !editDateModal.taksit) return;
     const { taksit, newDate } = editDateModal;
     const updated = localInstallments.map((t) => (t.taksitNo === taksit.taksitNo ? { ...t, vadeTarihi: newDate } : t));
+    await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated,{expectedInstallments:planBaseline.current});
     setLocalInstallments(updated);
-    AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
     showToast(`📅 ${taksit.taksitNo}. Taksit vadesi ${newDate} olarak güncellendi ve kaydedildi.`);
     setEditDateModal(null);
-  };
 
-  const handleSaveAmounts = () => {
-    const res = AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, localInstallments);
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+finally {setSavingPlan(false);}
+};
+
+  const handleSaveAmounts = async () => {
+if(savingPlan)return;
+setSavingPlan(true);
+try {
+
+    const res = await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, localInstallments,{expectedInstallments:planBaseline.current});
     showToast(`✅ Sözleşme tutarı ve taksitler kaydedildi: ${fmtTRY(res?.newBrut || brutTutar)} (${localInstallments.length} Taksit)`);
     setEditAmountsModal(false);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+finally {setSavingPlan(false);}
+};
 
   const handleAddInstallment = () => {
     const nextNo = (localInstallments.length > 0 ? Math.max(...localInstallments.map((t) => t.taksitNo)) : 0) + 1;
     const lastDate = localInstallments[localInstallments.length - 1]?.vadeTarihi;
     let dateStr = new Date().toISOString().slice(0, 10);
     try {
-      const d = lastDate ? new Date(lastDate) : new Date();
-      d.setMonth(d.getMonth() + 1);
+      const d = lastDate ? new Date(normalizeDate(lastDate)+"T12:00:00Z") : new Date();
+      const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+1);d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));
       dateStr = d.toISOString().slice(0, 10);
     } catch {}
     const newInst = {
@@ -418,7 +373,7 @@ export default function EdesisSozlesmeDetay({
   const handleRemoveLastInstallment = () => {
     if (localInstallments.length <= 1) return;
     const last = localInstallments[localInstallments.length - 1];
-    if (last.durum === 1) {
+    if (Number(last.tahsilEdilen)>0) {
       showToast("⚠️ Tahsil edilmiş taksit silinemez!");
       return;
     }
@@ -443,8 +398,8 @@ export default function EdesisSozlesmeDetay({
         const amt = isLast ? Math.round((perInst + diff) * 100) / 100 : perInst;
         return {
           ...t,
-          taksitTutari: amt,
-          toplamTutar: amt,
+          taksitTutari: Math.round((amt+Number(t.tahsilEdilen||0))*100)/100,
+          toplamTutar: Math.round((amt+Number(t.tahsilEdilen||0))*100)/100,
           kalanTutar: amt
         };
       })
@@ -452,7 +407,11 @@ export default function EdesisSozlesmeDetay({
     showToast(`⚖️ Kalan ${fmtTRY(rem)} tutar ${unpaid.length} taksite eşit dağıtıldı.`);
   };
 
-  const handleConfirmSingleInstallment = () => {
+  const handleConfirmSingleInstallment = async () => {
+if(savingPlan)return;
+setSavingPlan(true);
+try {
+
     if (!quickEditInst || !quickEditInst.taksit) return;
     const { taksit, amount, date } = quickEditInst;
     const newAmt = Number(amount) || 0;
@@ -469,16 +428,19 @@ export default function EdesisSozlesmeDetay({
       }
       return t;
     });
+    const res = await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated,{expectedInstallments:planBaseline.current});
     setLocalInstallments(updated);
-    const res = AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
     showToast(`✅ ${taksit.taksitNo}. Taksit güncellendi: ${fmtTRY(newAmt)} (Yeni Toplam: ${fmtTRY(res?.newBrut)})`);
     setQuickEditInst(null);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+finally {setSavingPlan(false);}
+};
 
   return (
     <>
       <div
-        className={showPromissoryModal || receiptModalPayment ? "no-print" : ""}
+        className={`contract-detail ${showPromissoryModal || receiptModalPayment ? "no-print" : ""}`}
         style={{
           backgroundColor: "#f5f8fa",
           minHeight: "100vh",
@@ -512,7 +474,7 @@ export default function EdesisSozlesmeDetay({
         <div style={{ marginBottom: "14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div className="contract-detail-title" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <button
                   type="button"
                   className="no-print"
@@ -550,7 +512,7 @@ export default function EdesisSozlesmeDetay({
             </div>
 
             {/* Action buttons */}
-            <div className="no-print" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div className="no-print contract-detail-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button
                 type="button"
                 data-testid="print-promissory-notes-btn"
@@ -627,7 +589,7 @@ export default function EdesisSozlesmeDetay({
       </div>
 
       {/* 2-COLUMN MAIN CONTENT (Matches media_1791229281373.png 100%) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px" }}>
+      <div className="contract-detail-layout" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px" }}>
         {/* LEFT COLUMN: Main Info, Items, Installments */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* CARD 1: SÖZLEŞME BİLGİLERİ */}
@@ -644,23 +606,23 @@ export default function EdesisSozlesmeDetay({
               <Info size={16} /> Sözleşme Bilgileri
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginBottom: "16px" }}>
+            <div className="contract-detail-fields" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginBottom: "16px" }}>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>SÖZLEŞME NO</div>
                 <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", marginTop: "3px" }}>{contract?.sozlesmeNo}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>TARİH</div>
-                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>03.10.2026</div>
+                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>{(contract?.sozlesmeTarihi || contract?.sozlesme_tarihi || '').slice(0,10) || '—'}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>DÖNEM</div>
-                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>2026-2027</div>
+                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>{contract?.donemAdi || contract?.period_name || '—'}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>ONAY DURUMU</div>
-                <span style={{ display: "inline-block", background: "#10b981", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, marginTop: "3px" }}>
-                  Aktif
+                <span style={{ display: "inline-block", background: isCancelled ? '#dc2626' : Number(contract?.durum) === 0 ? '#d97706' : '#10b981', color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, marginTop: "3px" }}>
+                  {isCancelled ? 'İptal Edildi' : Number(contract?.durum) === 0 ? 'Taslak' : 'Aktif'}
                 </span>
               </div>
               <div>
@@ -669,7 +631,8 @@ export default function EdesisSozlesmeDetay({
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px" }}>
+            {isCancelled && <div role="status" style={{color:'#b91c1c',marginBottom:'16px'}}>İptal: {contract?.iptal_tarihi || '—'} · {contract?.iptal_nedeni || '—'}</div>}
+            <div className="contract-detail-fields" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px" }}>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>ÖDEME TÜRÜ</div>
                 <span style={{ display: "inline-block", background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, marginTop: "3px" }}>
@@ -678,11 +641,11 @@ export default function EdesisSozlesmeDetay({
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>BAŞLAMA</div>
-                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>01.10.2026</div>
+                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>{contract?.baslama_tarihi?.slice(0,10) || '—'}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>BİTİŞ</div>
-                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>30.06.2027</div>
+                <div style={{ fontSize: "13px", color: "#334155", marginTop: "3px" }}>{contract?.bitis_tarihi?.slice(0,10) || '—'}</div>
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>AÇIKLAMA</div>
@@ -690,7 +653,7 @@ export default function EdesisSozlesmeDetay({
               </div>
               <div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>OLUŞTURULMA</div>
-                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px" }}>03.10.2026 13:05 (inegolcozumkurs)</div>
+                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px" }}>{contract?.created_at || '—'}{contract?.created_by ? ` (${contract.created_by})` : ''}</div>
               </div>
             </div>
           </div>
@@ -709,6 +672,7 @@ export default function EdesisSozlesmeDetay({
               <ShoppingCart size={16} /> Sözleşme Kalemleri
             </div>
 
+            <div className="table-responsive" role="region" aria-label="Sözleşme kalemleri tablosu" tabIndex={0}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", color: "#64748b", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
@@ -740,6 +704,7 @@ export default function EdesisSozlesmeDetay({
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* CARD 3: ÖDEME TAKVİMİ */}
@@ -760,7 +725,8 @@ export default function EdesisSozlesmeDetay({
 
               <button
                 type="button"
-                onClick={() => setEditAmountsModal(true)}
+                disabled={isCancelled}
+                onClick={() => {planBaseline.current=installments;setEditAmountsModal(true);}}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -780,7 +746,7 @@ export default function EdesisSozlesmeDetay({
             </div>
 
             {/* 4 Mini Stat Boxes */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
+            <div className="contract-detail-fields" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
               <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "6px", border: "1px solid #f1f5f9" }}>
                 <div style={{ fontSize: "11px", color: "#64748b" }}>Toplam Tutar</div>
                 <div style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>{fmtTRY(brutTutar)}</div>
@@ -811,6 +777,7 @@ export default function EdesisSozlesmeDetay({
             </div>
 
             {/* Table of Installments */}
+            <div className="table-responsive" role="region" aria-label="Sözleşme taksitleri tablosu" tabIndex={0}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", color: "#64748b", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
@@ -866,37 +833,7 @@ export default function EdesisSozlesmeDetay({
                               <Check size={11} /> Ödendi
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setReceiptModalPayment({
-                                  id: `THS-${t.taksitNo}-${contract?.sozlesmeNo || Date.now()}`,
-                                  amount: Number(t.tahsilEdilen) || Number(t.taksitTutari) || 0,
-                                  payment_date: t.odemeTarihi || t.tahsilatTarihi || t.vadeTarihi || new Date().toISOString().slice(0, 10),
-                                  method: t.odemeYontemi || "Nakit",
-                                  bank: t.banka || "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
-                                  note: `${contract?.sozlesmeNo || ""} ${t.taksitNo}. Taksit Tahsilat Makbuzu`
-                                });
-                              }}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                                padding: "3px 8px",
-                                background: "#f0fdf4",
-                                color: "#16a34a",
-                                border: "1px solid #bbf7d0",
-                                borderRadius: "12px",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                transition: "all 0.15s"
-                              }}
-                              title="Tahsilat Makbuzunu Görüntüle ve Yazdır"
-                            >
-                              <Printer size={12} /> Makbuz
-                            </button>
+
 
                             <button
                               type="button"
@@ -950,11 +887,19 @@ export default function EdesisSozlesmeDetay({
                           </button>
                         )}
 
+                            {AccountingService.getCollections().filter(p=>!p.is_cancelled &&
+                              ((contract.id && p.contract_id===contract.id) || (contract.sozlesmeNo && p.sozlesmeNo===contract.sozlesmeNo)) &&
+                              ((t.id && p.installment_id===t.id) || Number(p.taksitNo ?? p.installment_no)===Number(t.taksitNo))).map(p=>(
+                              <button key={p.id} type="button" className="btn small secondary" title="Kayıtlı tahsilat makbuzu"
+                                onClick={e=>{e.stopPropagation();setReceiptModalPayment({...p,amount:p.tahsilatTutari ?? p.amount,payment_date:p.tahsilatTarihi || p.payment_date});}}>
+                                <Printer size={12}/> Makbuz · {fmtTRY(p.tahsilatTutari ?? p.amount)}
+                              </button>
+                            ))}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setEditDateModal({ taksit: t, newDate: t.vadeTarihi });
+                            planBaseline.current=installments;setEditDateModal({ taksit: t, newDate: t.vadeTarihi });
                           }}
                           style={{
                             padding: "3px 8px",
@@ -976,7 +921,7 @@ export default function EdesisSozlesmeDetay({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setQuickEditInst({
+                              planBaseline.current=installments;setQuickEditInst({
                                 taksit: t,
                                 amount: t.taksitTutari,
                                 date: t.vadeTarihi
@@ -1003,6 +948,7 @@ export default function EdesisSozlesmeDetay({
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
@@ -1027,12 +973,15 @@ export default function EdesisSozlesmeDetay({
                 placeholder="Not ekleyin..."
                 rows={2}
                 value={newNoteText}
+                maxLength={2000}
+                disabled={savingNote}
                 onChange={(e) => setNewNoteText(e.target.value)}
                 style={{ width: "100%", padding: "8px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", outline: "none", resize: "none" }}
               />
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
                 <button
                   type="submit"
+                  disabled={savingNote || !newNoteText.trim()}
                   style={{ padding: "4px 10px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
                 >
                   Ekle
@@ -1040,19 +989,12 @@ export default function EdesisSozlesmeDetay({
               </div>
             </form>
 
-            {notes.length === 0 ? (
+            {!notes ? (
               <div style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>
                 Henüz not eklenmemiş
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {notes.map((n) => (
-                  <div key={n.id} style={{ background: "#f8fafc", padding: "8px", borderRadius: "4px", fontSize: "11px" }}>
-                    <div>{n.text}</div>
-                    <div style={{ color: "#94a3b8", fontSize: "10px", marginTop: "4px" }}>{n.date} · {n.author}</div>
-                  </div>
-                ))}
-              </div>
+              <div style={{whiteSpace:'pre-wrap',background:'#f8fafc',padding:8,borderRadius:4,fontSize:11}}>{notes}</div>
             )}
           </div>
 
@@ -1131,11 +1073,11 @@ export default function EdesisSozlesmeDetay({
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
               <div>
                 <span style={{ color: "#94a3b8", textTransform: "uppercase", fontSize: "10px", fontWeight: 700, display: "block" }}>TC KİMLİK</span>
-                <span style={{ color: "#334155", fontWeight: 600 }}>{student?.student_tc || "18481666516"}</span>
+                <span style={{ color: "#334155", fontWeight: 600 }}>{student?.student_tc || "—"}</span>
               </div>
               <div>
                 <span style={{ color: "#94a3b8", textTransform: "uppercase", fontSize: "10px", fontWeight: 700, display: "block" }}>TELEFON</span>
-                <span style={{ color: "#334155", fontWeight: 600 }}>{student?.student_phone || "5343321781"}</span>
+                <span style={{ color: "#334155", fontWeight: 600 }}>{student?.student_phone || "—"}</span>
               </div>
             </div>
           </div>
@@ -1156,7 +1098,7 @@ export default function EdesisSozlesmeDetay({
 
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
               <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>
-                {student?.parent_name || "SEYHAN KUŞTUL"}
+                {student?.parent_name || "—"}
               </span>
               <span
                 style={{
@@ -1202,14 +1144,14 @@ export default function EdesisSozlesmeDetay({
               {contract?.ogrenciAdi || contract?.musteriUnvan || student?.student_name || "—"}
             </div>
             <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
-              Müşteri Kodu: {contract?.muH_MusteriKodu || `CRI2026${String(contract?.sozlesmeNo || "100").slice(-4)}`}
+              Müşteri Kodu: {contract?.muH_MusteriKodu || '—'}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", color: "#475569" }}>
               <div>TC KİMLİK NO: {student?.student_tc || "—"}</div>
               <div>TELEFON: {student?.student_phone || "—"}</div>
               <div>E-POSTA: {student?.student_email || "—"}</div>
-              <div>ADRES: {student?.address || student?.student_address || "İnegöl / BURSA"}</div>
+              <div>ADRES: {student?.address || student?.student_address || "—"}</div>
             </div>
           </div>
 
@@ -1340,6 +1282,7 @@ export default function EdesisSozlesmeDetay({
       {/* 1. TAHSİLAT ONAY POPUP MODAL */}
       {collectModal && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1468,6 +1411,7 @@ export default function EdesisSozlesmeDetay({
       {/* 2. TAHSİLATI GERİ AL / İPTAL ET POPUP MODAL */}
       {cancelModal && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1535,6 +1479,7 @@ export default function EdesisSozlesmeDetay({
       {/* 3. VADE DEĞİŞTİRME POPUP MODAL */}
       {editDateModal && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1584,7 +1529,8 @@ export default function EdesisSozlesmeDetay({
               </button>
               <button
                 type="button"
-                onClick={handleConfirmDateChange}
+                disabled={savingPlan}
+                  onClick={handleConfirmDateChange}
                 style={{ padding: "7px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
               >
                 Kaydet
@@ -1597,6 +1543,7 @@ export default function EdesisSozlesmeDetay({
       {/* 4. TUTARLARI DÜZENLE MODAL */}
       {editAmountsModal && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1607,7 +1554,7 @@ export default function EdesisSozlesmeDetay({
             zIndex: 99999,
             padding: "20px"
           }}
-          onClick={() => setEditAmountsModal(false)}
+          onClick={() => {if(!savingPlan)setEditAmountsModal(false);}}
         >
           <div
             style={{
@@ -1632,7 +1579,7 @@ export default function EdesisSozlesmeDetay({
                   Taksit tutarını değiştirdikçe sözleşme ana tutarı otomatik güncellenir.
                 </div>
               </div>
-              <button type="button" onClick={() => setEditAmountsModal(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8" }}>
+              <button type="button" onClick={() => {if(!savingPlan)setEditAmountsModal(false);}} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8" }}>
                 <X size={18} />
               </button>
             </div>
@@ -1657,7 +1604,8 @@ export default function EdesisSozlesmeDetay({
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "14px" }}>
               <button
                 type="button"
-                onClick={handleAddInstallment}
+                disabled={savingPlan}
+                  onClick={handleAddInstallment}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -1677,7 +1625,8 @@ export default function EdesisSozlesmeDetay({
 
               <button
                 type="button"
-                onClick={handleDistributeRemainderEvenly}
+                disabled={savingPlan}
+                  onClick={handleDistributeRemainderEvenly}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -1699,6 +1648,7 @@ export default function EdesisSozlesmeDetay({
               {localInstallments.length > 1 && (
                 <button
                   type="button"
+                  disabled={savingPlan}
                   onClick={handleRemoveLastInstallment}
                   style={{
                     display: "inline-flex",
@@ -1720,7 +1670,7 @@ export default function EdesisSozlesmeDetay({
             </div>
 
             {/* Table Header */}
-            <div style={{ display: "grid", gridTemplateColumns: "35px 140px 1fr 90px", gap: "8px", padding: "0 10px 6px 10px", fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
+            <div className="installment-editor-row" style={{ display: "grid", gridTemplateColumns: "35px 140px 1fr 90px", gap: "8px", padding: "0 10px 6px 10px", fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
               <span>NO</span>
               <span>VADE TARİHİ</span>
               <span style={{ textAlign: "right" }}>TUTAR (₺)</span>
@@ -1733,6 +1683,7 @@ export default function EdesisSozlesmeDetay({
                 return (
                   <div
                     key={t.taksitNo}
+                    className="installment-editor-row"
                     style={{
                       display: "grid",
                       gridTemplateColumns: "35px 140px 1fr 90px",
@@ -1747,7 +1698,7 @@ export default function EdesisSozlesmeDetay({
                     <span style={{ fontWeight: 700, fontSize: "12px", color: isPaid ? "#16a34a" : "#0f172a" }}>#{t.taksitNo}</span>
                     <input
                       type="text"
-                      disabled={isPaid}
+                      disabled={isPaid || savingPlan}
                       value={t.vadeTarihi || ""}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1758,7 +1709,7 @@ export default function EdesisSozlesmeDetay({
                     <input
                       type="number"
                       step="0.01"
-                      disabled={isPaid}
+                      disabled={isPaid || savingPlan}
                       value={t.taksitTutari}
                       onChange={(e) => {
                         const val = Number(e.target.value) || 0;
@@ -1800,17 +1751,18 @@ export default function EdesisSozlesmeDetay({
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
                   type="button"
-                  onClick={() => setEditAmountsModal(false)}
+                  onClick={() => {if(!savingPlan)setEditAmountsModal(false);}}
                   style={{ padding: "8px 14px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
                 >
                   Vazgeç
                 </button>
                 <button
                   type="button"
+                  disabled={savingPlan}
                   onClick={handleSaveAmounts}
                   style={{ padding: "8px 18px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                 >
-                  Tamamla ve Kaydet ({fmtTRY(brutTutar)})
+                  {savingPlan ? "Kaydediliyor…" : `Tamamla ve Kaydet (${fmtTRY(brutTutar)})`}
                 </button>
               </div>
             </div>
@@ -1821,6 +1773,7 @@ export default function EdesisSozlesmeDetay({
       {/* 4.1 TEK TAKSİT PRATİK DÜZENLEME MODAL */}
       {quickEditInst && (
         <div
+          className="responsive-modal-backdrop"
           style={{
             position: "fixed",
             inset: 0,
@@ -1897,7 +1850,8 @@ export default function EdesisSozlesmeDetay({
               </button>
               <button
                 type="button"
-                onClick={handleConfirmSingleInstallment}
+                disabled={savingPlan}
+                  onClick={handleConfirmSingleInstallment}
                 style={{ padding: "8px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
               >
                 Kaydet ve Uygula

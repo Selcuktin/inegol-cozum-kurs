@@ -32,7 +32,7 @@ export function EditClassModal({ cls, onClose, API, onSaved }) {
     if (!name.trim()) { setErr("Sınıf adı boş bırakılamaz"); return; }
     setSaving(true); setErr("");
     try {
-      await axios.put(`${API}/classes/${cls.id}`, { name, level, room, capacity: Number(capacity), teacher });
+      await axios.put(`${API}/classes/${cls.id}`, { name, level, room, capacity: Number(capacity), teacher,_expected:Object.fromEntries(["name","level","room","capacity","teacher"].map(k=>[k,cls[k]??null])) });
       if (onSaved) onSaved();
       onClose();
     } catch (e) {
@@ -388,9 +388,6 @@ export function Classes({ me, classes = [], onOpen, students = [], onSelect, onN
               </button>
               <button className="btn small secondary" onClick={() => setEditingClass(activeClass)} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
                 <Edit size={14} /> Sınıfı Düzenle
-              </button>
-              <button className="btn small secondary" onClick={() => onNavigate && onNavigate("attendance")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                <UserCheck size={14} /> Yoklama Al
               </button>
               <button className="btn small secondary" onClick={() => onNavigate && onNavigate("schedules")} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
                 <Clock size={14} /> Ders Programı

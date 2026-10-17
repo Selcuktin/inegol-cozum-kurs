@@ -1,11 +1,14 @@
-import React, { useState } from "react";
+import { usePrintTarget } from "../hooks/usePrintTarget";
+import React, { useState, useEffect } from "react";
+import AccountingService from "../lib/edesisAccountingService";
 import { Printer, X, FileText, CheckCircle, AlertCircle } from "lucide-react";
 
 // Türkçe Para Tutarını Yazıya Çevirme
 export function numberToTurkishWords(num) {
-  if (num === null || num === undefined || isNaN(num)) return "Sıfır Türk Lirası";
-  const lira = Math.floor(Math.abs(num));
-  const kurus = Math.round((Math.abs(num) - lira) * 100);
+  if (num === null || num === undefined || !Number.isFinite(Number(num))) return "Sıfır Türk Lirası";
+  const cents = Math.round(Math.abs(Number(num)) * 100);
+  const lira = Math.floor(cents / 100);
+  const kurus = cents % 100;
 
   const birler = ["", "Bir", "İki", "Üç", "Dört", "Beş", "Altı", "Yedi", "Sekiz", "Dokuz"];
   const onlar = ["", "On", "Yirmi", "Otuz", "Kırk", "Elli", "Altmış", "Yetmiş", "Seksen", "Doksan"];
@@ -55,13 +58,16 @@ export function numberToTurkishWords(num) {
 }
 
 export function PromissoryNoteModal({ student, installments: propInstallments, onClose }) {
+  const printRef=usePrintTarget(!!student);
   const [selectedInstIndex, setSelectedInstIndex] = useState(-1); // -1 = Tüm Senetler (Koçan)
+  useEffect(()=>setSelectedInstIndex(-1),[student?.id,student?.sozlesme_no]);
   
   if (!student) return null;
 
-  const customInstallments = (Array.isArray(propInstallments) && propInstallments.length > 0)
-    ? propInstallments
-    : (Array.isArray(student?.installments) && student.installments.length > 0 ? student.installments : null);
+  const customInstallments = Array.isArray(propInstallments) ? propInstallments
+    : Array.isArray(student.installments) ? student.installments
+    : AccountingService.getInstallments().filter(i => student.sozlesme_no ? i.sozlesmeNo === student.sozlesme_no : student.id && i.student_id === student.id);
+  if (!customInstallments.length) return <div className="modal-backdrop"><div className="modal" role="alert"><p>Kayıtlı taksit planı bulunamadı. Önce sözleşmenin ödeme planını yükleyin.</p><button className="btn" onClick={onClose}>Kapat</button></div></div>;
 
   let installments = [];
   let totalFee = 0;
@@ -71,7 +77,7 @@ export function PromissoryNoteModal({ student, installments: propInstallments, o
     instCount = customInstallments.length;
     installments = customInstallments.map((it, idx) => {
       const amount = Number(it.taksitTutari !== undefined ? it.taksitTutari : (it.amount !== undefined ? it.amount : 0));
-      let dueStr = it.vadeTarihi || it.dueDate || "";
+      let dueStr = it.vadeTarihi || it.due_date || it.dueDate || "";
       if (dueStr && dueStr.includes("-") && dueStr.length >= 10) {
         const parts = dueStr.slice(0, 10).split("-");
         dueStr = `${parts[2]}.${parts[1]}.${parts[0]}`;
@@ -84,51 +90,12 @@ export function PromissoryNoteModal({ student, installments: propInstallments, o
       };
     });
     totalFee = installments.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
-  } else {
-    let extraSum = 0;
-    try {
-      const extras = typeof student.extra_fees === "string" ? JSON.parse(student.extra_fees || "{}") : (student.extra_fees || {});
-      extraSum = Object.values(extras).reduce((a, b) => a + (Number(b) || 0), 0);
-    } catch {}
-    const discount = Number(student.discount_amount) || 0;
-    const baseFee = Number(student.total_fee) || 0;
-    totalFee = baseFee > 0 ? Math.max(0, baseFee) : Math.max(0, extraSum - discount);
-    instCount = Math.max(1, parseInt(student.installment_count) || 1);
-    const perInst = Math.round((totalFee / instCount) * 100) / 100;
-
-    // Taksit Planı Üretimi
-    let startYear = new Date().getFullYear();
-    let startMonth = new Date().getMonth() + 1;
-    let startDay = 15;
-    if (student.due_date && student.due_date.length >= 10) {
-      const parts = student.due_date.slice(0, 10).split("-");
-      startYear = parseInt(parts[0]) || startYear;
-      startMonth = parseInt(parts[1]) || startMonth;
-      startDay = parseInt(parts[2]) || startDay;
-    }
-
-    for (let i = 0; i < instCount; i++) {
-      let m = startMonth + i;
-      let y = startYear + Math.floor((m - 1) / 12);
-      m = ((m - 1) % 12) + 1;
-      const dueStr = `${String(Math.min(startDay, 28)).padStart(2, "0")}.${String(m).padStart(2, "0")}.${y}`;
-      const amount = (i === instCount - 1) 
-        ? Math.max(0, Math.round((totalFee - (perInst * (instCount - 1))) * 100) / 100)
-        : perInst;
-
-      installments.push({
-        no: i + 1,
-        dueDate: dueStr,
-        amount,
-        amountWords: numberToTurkishWords(amount),
-      });
-    }
   }
 
-  const displayedNotes = selectedInstIndex === -1 ? installments : [installments[selectedInstIndex]];
+  const displayedNotes = selectedInstIndex === -1 || !installments[selectedInstIndex] ? installments : [installments[selectedInstIndex]];
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
+    <div ref={printRef} className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
       <div 
         className="modal" 
         onClick={(e) => e.stopPropagation()} 
