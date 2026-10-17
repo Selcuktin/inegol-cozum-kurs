@@ -784,6 +784,6 @@ Object.assign(console, originalConsole);
 const summary = { tested_at: new Date().toISOString(), runtime: process.version, database: 'isolated in-memory SQLite; actual production router and SQL', passed: results.filter(r => r.passed).length, failed: results.filter(r => !r.passed).length, results };
 mkdirSync(root + 'test_reports', { recursive: true });
 writeFileSync(root + 'test_reports/audit_real_sqlite_results.json', JSON.stringify(summary, null, 2) + '\n');
-for (const result of results) console.log(`${result.passed ? 'PASS' : 'FAIL'} ${result.name}${result.passed ? '' : ': ' + result.error}`);
+for (const result of results) {console.log(`${result.passed ? 'PASS' : 'FAIL'} ${result.name}${result.passed ? '' : ': ' + result.error}`);if(!result.passed)for(const log of result.logs||[])console.error(log);}
 console.log(JSON.stringify({ passed: summary.passed, failed: summary.failed }));
 process.exitCode = summary.failed ? 1 : 0;
