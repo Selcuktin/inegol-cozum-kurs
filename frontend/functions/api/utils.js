@@ -74,17 +74,30 @@ export function errorResponse(error, status = 400, code = "BAD_REQUEST", details
 }
 
 // Forms carry the fields they originally displayed. Compare those, then guard the write atomically.
-export function recordWriteGuard(db,table,row,expected,fields,visible=row,key={id:row?.id}){
-  if(expected!==undefined && (!expected||typeof expected!=='object'||Array.isArray(expected)||Object.keys(expected).some(k=>!fields.includes(k))))return {error:errorResponse('Geçersiz kayıt sürümü',422,'VALIDATION_ERROR')};
+export function expectedRecordError(expected,fields,visible){
+  if(expected!==undefined && (!expected||typeof expected!=='object'||Array.isArray(expected)||Object.keys(expected).some(k=>!fields.includes(k))))return errorResponse('Geçersiz kayıt sürümü',422,'VALIDATION_ERROR');
   const canonical=value=>{
     if(typeof value==='string'&&/^[{[]/.test(value)){try{return canonical(JSON.parse(value));}catch{}}
     if(value&&typeof value==='object')return JSON.stringify(Object.fromEntries(Object.keys(value).sort().map(k=>[k,value[k]])));
     return value==null?'':String(value);
   };
+  if(expected&&Object.keys(expected).some(k=>canonical(expected[k])!==canonical(visible[k])))return errorResponse('Bu kayıt başka bir işlemde değişti. Yeniden açıp güncel kayıt üzerinden düzenleyin.',409,'RECORD_CHANGED');
+  return null;
+}
+
+export function recordWriteGuard(db,table,row,expected,fields,visible=row,key={id:row?.id}){
+  const error=expectedRecordError(expected,fields,visible);
+  if(error)return {error};
   const keys=expected?Object.keys(expected):fields.filter(k=>k in (row||{}));
-  if(expected&&keys.some(k=>canonical(expected[k])!==canonical(visible[k])))return {error:errorResponse('Bu kayıt başka bir işlemde değişti. Yeniden açıp güncel kayıt üzerinden düzenleyin.',409,'RECORD_CHANGED')};
   const where=Object.keys(key).map(k=>`"${k}" IS ?`).join(' AND ');
   return {statement:db.prepare(`SELECT CASE WHEN ${row?'':'NOT '}EXISTS(SELECT 1 FROM ${table} WHERE ${where} ${row?keys.map(k=>`AND "${k}" IS ?`).join(' '):''}) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END`).bind(...Object.values(key),...(row?keys.map(k=>row[k]??null):[]))};
+}
+
+// Guard the complete previously read list in one query, including rows that did not exist.
+export function recordBatchGuard(db,table,records,keyFields,fields){
+  const join=keyFields.map(k=>`a."${k}" IS json_extract(e.value,'$.${k}')`).join(' AND ');
+  const changed=['id',...fields].map(k=>`a."${k}" IS NOT json_extract(e.value,'$._before.${k}')`).join(' OR ');
+  return db.prepare(`SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM json_each(?) e LEFT JOIN ${table} a ON ${join} WHERE ${changed}) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END`).bind(JSON.stringify(records));
 }
 
 export function successResponse(data, status = 200, extra = {}) {

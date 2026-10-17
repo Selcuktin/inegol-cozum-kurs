@@ -52,6 +52,19 @@ kimliğin kullanılması çakışmadır. İşlem kaydedilip sonraki okuma başar
 `WRITE_COMMITTED` hatası kaydın sunucuda olduğunu açıklar. Bağlantı cevabı hiç
 ulaşmazsa sonuç belirsizdir; yeni bir işlem açmadan kayıt kontrol edilmelidir.
 
+## Toplu işlemlerin sorgu bütçesi
+
+Yoklama, ödev teslimi ve sınav sonucu listeleri JSON üzerinden toplu yazılır;
+öğrenci başına ayrı sorgu veya ayrı işlem açılmaz. Öğrenci kimlikleri tek okumada
+kontrol edilir. Yoklama/teslimin önceki kayıtları da tek sorguyla okunur ve
+aynı toplu işlem içinde yeniden denetlenir. Sonuç, liste uzunluğuyla büyümeyen
+sorgu sayısı ve bütünüyle geri alınabilen yazmadır.
+
+120 öğrencilik üç senaryo, test adaptöründe 50 sorguluk üst sınırla çalışır;
+parametre sınırı da her sorguda ayrıca denetlenir. Bu bütçe
+[Cloudflare D1 sınırlarına](https://developers.cloudflare.com/d1/platform/limits/)
+göre seçilmiştir. Gerçek edge CPU süresi ve günlük hesap kotası ayrı sınırlardır.
+
 ## Tekrar çalıştırılabilir kontroller
 
 Node 22.13 veya üstü gerekir. Üretim veritabanına test kaydı yazılmaz.

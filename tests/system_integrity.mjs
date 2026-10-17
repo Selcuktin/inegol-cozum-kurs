@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {database,row,rows,request,student,pay} from './support/realRouter.mjs';
 const results=[];let operations=0;
 const original={...console};console.log=console.warn=console.error=()=>{};
-async function check(name,test){const db=database();try{await test(db);results.push({name,passed:true});}catch(e){results.push({name,passed:false,error:e.stack});}finally{db.sql.close();}}
+async function check(name,test){const db=database();try{const evidence=await test(db);results.push({name,passed:true,evidence});}catch(e){results.push({name,passed:false,error:e.stack});}finally{db.sql.close();}}
 async function api(db,path,method,body,options){operations++;return request(db,path,method,body,options);}
 function invariant(db){
   for(const c of rows(db,'SELECT * FROM contracts WHERE COALESCE(is_deleted,0)=0')){
@@ -167,6 +167,35 @@ await check('new current-period contracts do not reuse canceled history and dupl
   assert.equal((await api(db,'/contracts','POST',{student_id:old.student_id,student_name:'Anonymous',total_amount:1600,installment_count:3})).status,409);
   assert.deepEqual(rows(db,'SELECT * FROM installments WHERE contract_id=?',created.data.id),plan);
   assert.equal((await api(db,'/contracts','POST',{student_id:old.student_id,student_name:'Anonymous',total_amount:1500,installment_count:3})).data.id,created.data.id);
+});
+
+for(const domain of ['attendance','homework','exam'])await check('120-student '+domain+' bulk write stays below the 50-query edge budget',async db=>{
+  const insert=db.sql.prepare('INSERT INTO students(id,student_name,student_class,parent_name) VALUES(?,?,?,?)');
+  const ids=Array.from({length:120},(_,i)=>'bulk-'+i);ids.forEach(id=>insert.run(id,'Anonymous '+id,'8-A','Anonymous parent'));
+  let path,body,table;
+  if(domain==='attendance'){
+    path='/attendance';table='attendance';body={date:'2026-10-17',lesson_slot:'Bulk',records:ids.map(student_id=>({student_id,status:'geldi',note:'Baseline',_expected:{status:'geldi',note:'',notified_parent:0}}))};
+  }else if(domain==='homework'){
+    const h=await api(db,'/homework','POST',{title:'Bulk test',class_id:'8-A',subject:'Math',due_date:'2026-11-01'});
+    path='/homework/'+h.data.id+'/submissions';table='homework_submissions';body=ids.map(student_id=>({student_id,status:'yapildi',note:'Baseline',_expected:{status:'yapilmadi',note:''}}));
+  }else{
+    const e=await api(db,'/exams','POST',{title:'Bulk test',exam_type:'LGS'});
+    path='/exams/'+e.data.id+'/results';table='exam_results';body=ids.map((student_id,i)=>({student_id,turkish_correct:i%20}));
+  }
+  const start=db.queries;db.queryLimit=start+50;
+  const saved=await api(db,path,'POST',body);db.queryLimit=Infinity;
+  const queries=db.queries-start;assert.equal(saved.status,200,JSON.stringify(saved));assert(queries<=12,'bounded independent of student count');
+  assert.equal(row(db,'SELECT COUNT(*) n FROM '+table).n,120);
+  if(domain==='exam')return {students:120,queries};
+  const before=rows(db,'SELECT * FROM '+table+' ORDER BY student_id');
+  const batch=db.batch;let injected=false;
+  db.batch=async statements=>{if(!injected){injected=true;db.sql.prepare('UPDATE '+table+' SET note=? WHERE student_id=?').run('Parallel editor',ids[119]);}return batch(statements);};
+  const items=domain==='attendance'?body.records:body;
+  items.forEach(r=>{r._expected={status:domain==='attendance'?'geldi':'yapildi',note:'Baseline',...(domain==='attendance'?{notified_parent:0}:{})};r.note='Stale bulk';});
+  assert.equal((await api(db,path,'POST',body)).status,409);
+  const after=rows(db,'SELECT * FROM '+table+' ORDER BY student_id');
+  assert.deepEqual(after.map(r=>({...r})),before.map(r=>({...r,...(r.student_id===ids[119]?{note:'Parallel editor'}:{})})));
+  return {students:120,queries,post_validation_race_rejected:true};
 });
 
 Object.assign(console,original);

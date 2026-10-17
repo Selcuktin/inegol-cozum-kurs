@@ -161,9 +161,11 @@ export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) 
     const items = Array.isArray(body) ? body : [body];
     const exam = await db.prepare("SELECT * FROM exams WHERE id=?").bind(examId).first();
     if (!exam) return errorResponse("Sınav bulunamadı",404);
-    const statements = [];
+    if(!items.length||items.length>500||items.some(i=>!i?.student_id)||new Set(items.map(i=>i.student_id)).size!==items.length)return errorResponse('Geçersiz veya tekrarlı sonuç listesi',422);
+    const students=new Set((await db.prepare('SELECT id FROM students WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(items.map(i=>i.student_id))).all()).results.map(s=>s.id));
+    const saved=[];
     for (const item of items) {
-      if (!item.student_id || !await db.prepare("SELECT id FROM students WHERE id=?").bind(item.student_id).first()) return errorResponse("Kayıtlı öğrenci seçiniz",422);
+      if (!item.student_id || !students.has(item.student_id)) return errorResponse("Kayıtlı öğrenci seçiniz",422);
       for (const subject of ["turkish","math","science","social"]) for (const suffix of ["correct","incorrect"]) {
         const value = Number(item[`${subject}_${suffix}`] ?? 0);
         if (!Number.isInteger(value) || value<0 || value>160) return errorResponse("Doğru ve yanlış sayıları geçersiz",422);
@@ -190,34 +192,14 @@ export async function handleExamRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl) 
 
       const weakTopics = typeof item.weak_topics === "string" ? item.weak_topics : JSON.stringify(item.weak_topics || []);
 
-      // Delete existing for this student in this exam to avoid duplicate
-      statements.push(db.prepare("DELETE FROM exam_results WHERE exam_id = ? AND student_id = ?").bind(examId, item.student_id));
-
-      statements.push(db.prepare(`
-        INSERT INTO exam_results (
-          id, exam_id, student_id, booklet,
-          turkish_correct, turkish_incorrect, turkish_net,
-          math_correct, math_incorrect, math_net,
-          science_correct, science_incorrect, science_net,
-          social_correct, social_incorrect, social_net,
-          total_net, score, class_rank, overall_rank, weak_topics, subject_results, created_at
-        ) VALUES (
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, datetime('now')
-        )
-      `).bind(
-        rid, examId, item.student_id, item.booklet || "A",
-        Number(item.turkish_correct) || 0, Number(item.turkish_incorrect) || 0, tNet,
-        Number(item.math_correct) || 0, Number(item.math_incorrect) || 0, mNet,
-        Number(item.science_correct) || 0, Number(item.science_incorrect) || 0, fNet,
-        Number(item.social_correct) || 0, Number(item.social_incorrect) || 0, sNet,
-        totalNet, score, Number(item.class_rank) || 1, Number(item.overall_rank) || 1, weakTopics, JSON.stringify(normalized)
-      ));
+      saved.push({id:rid,student_id:item.student_id,booklet:item.booklet||'A',turkish_correct:Number(item.turkish_correct)||0,turkish_incorrect:Number(item.turkish_incorrect)||0,turkish_net:tNet,math_correct:Number(item.math_correct)||0,math_incorrect:Number(item.math_incorrect)||0,math_net:mNet,science_correct:Number(item.science_correct)||0,science_incorrect:Number(item.science_incorrect)||0,science_net:fNet,social_correct:Number(item.social_correct)||0,social_incorrect:Number(item.social_incorrect)||0,social_net:sNet,total_net:totalNet,score,class_rank:1,overall_rank:1,weak_topics:weakTopics,subject_results:JSON.stringify(normalized)});
     }
+    const columns=['id','student_id','booklet','turkish_correct','turkish_incorrect','turkish_net','math_correct','math_incorrect','math_net','science_correct','science_incorrect','science_net','social_correct','social_incorrect','social_net','total_net','score','class_rank','overall_rank','weak_topics','subject_results'];
+    const encoded=JSON.stringify(saved);
+    const statements=[
+      db.prepare("DELETE FROM exam_results WHERE exam_id=? AND student_id IN (SELECT json_extract(value,'$.student_id') FROM json_each(?))").bind(examId,encoded),
+      db.prepare(`INSERT INTO exam_results(${columns.join(',')},exam_id,created_at) SELECT ${columns.map(c=>`json_extract(value,'$.${c}')`).join(',')},?,datetime('now') FROM json_each(?)`).bind(examId,encoded)
+    ];
     statements.push(db.prepare(`WITH ranked AS (SELECT r.id,RANK() OVER(ORDER BY r.total_net DESC) AS overall_rank,RANK() OVER(PARTITION BY s.student_class ORDER BY r.total_net DESC) AS class_rank FROM exam_results r LEFT JOIN students s ON s.id=r.student_id WHERE r.exam_id=?) UPDATE exam_results SET overall_rank=(SELECT overall_rank FROM ranked WHERE ranked.id=exam_results.id),class_rank=(SELECT class_rank FROM ranked WHERE ranked.id=exam_results.id) WHERE exam_id=?`).bind(examId,examId));
     await db.batch(statements);
     await logAction(db, user, "exam.results_saved", "exam", examId, `${items.length} sınav sonucu güncellendi`);

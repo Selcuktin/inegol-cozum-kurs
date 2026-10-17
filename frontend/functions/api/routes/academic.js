@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions - Academic Router (Classes, Teachers, Attendance, Schedules, Homework, Mentorship)
-import { json, cachedJson, errorResponse, successResponse, getCurrentUser, logAction, normalizeDate, recordWriteGuard } from "../utils.js";
+import { json, cachedJson, errorResponse, successResponse, getCurrentUser, logAction, normalizeDate, recordWriteGuard, expectedRecordError, recordBatchGuard } from "../utils.js";
 
 export async function getTeachersList(db) {
   if (!db) return [];
@@ -249,34 +249,26 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     const records = body.records || [];
     if (!date || !Array.isArray(records) || !records.length || records.length>120) return errorResponse("Geçersiz yoklama",422);
 
-    const statements = [];const seen=new Set();
-    for (const rec of records) {
-      if (!rec?.student_id || seen.has(rec.student_id) || !["geldi","gelmedi","gec","izinli","raporlu"].includes(rec.status || "geldi") || !await db.prepare("SELECT id FROM students WHERE id=?").bind(rec.student_id).first()) return errorResponse("Geçersiz öğrenci veya yoklama durumu",422);
+    const ids=JSON.stringify(records.map(r=>r?.student_id||''));
+    const students=new Set((await db.prepare('SELECT id FROM students WHERE id IN (SELECT value FROM json_each(?))').bind(ids).all()).results.map(r=>r.id));
+    const previous=new Map((await db.prepare('SELECT * FROM attendance WHERE date=? AND student_id IN (SELECT value FROM json_each(?))').bind(date,ids).all()).results.map(r=>[JSON.stringify([r.student_id,r.lesson_slot]),r]));
+    const seen=new Set();const saved=[];
+    for(const rec of records){
+      if(!rec?.student_id||seen.has(rec.student_id)||!students.has(rec.student_id)||!['geldi','gelmedi','gec','izinli','raporlu'].includes(rec.status||'geldi'))return errorResponse('Geçersiz öğrenci veya yoklama durumu',422);
       seen.add(rec.student_id);
-      const slot = rec.lesson_slot || body.lesson_slot || "Tüm Gün";
-      const previous=await db.prepare('SELECT * FROM attendance WHERE student_id=? AND date=? AND lesson_slot=?').bind(rec.student_id,date,slot).first();
-      const guard=recordWriteGuard(db,'attendance',previous,rec._expected,['status','note','notified_parent'],previous||{status:'geldi',note:'',notified_parent:0},{student_id:rec.student_id,date,lesson_slot:slot});
-      if(guard.error)return guard.error;
-      statements.push(guard.statement);
-      const aid = previous?.id || "att-" + crypto.randomUUID();
-      statements.push(db.prepare("DELETE FROM attendance WHERE student_id = ? AND date = ? AND lesson_slot = ?").bind(rec.student_id,date,slot));
-      statements.push(db.prepare(`
-        INSERT INTO attendance (id, date, class_id, student_id, lesson_slot, status, note, notified_parent, created_by, created_by_name, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `).bind(
-        aid,
-        date,
-        rec.class_id || "",
-        rec.student_id,
-        slot,
-        rec.status || "geldi",
-        rec.note || "",
-        rec.notified_parent ? 1 : 0,
-        user?.user_id || "",
-        user?.name || ""
-      ));
+      const slot=rec.lesson_slot||body.lesson_slot||'Tüm Gün';
+      const before=previous.get(JSON.stringify([rec.student_id,slot]))||null;
+      const error=expectedRecordError(rec._expected,['status','note','notified_parent'],before||{status:'geldi',note:'',notified_parent:0});
+      if(error)return error;
+      saved.push({id:before?.id||'att-'+crypto.randomUUID(),date,student_id:rec.student_id,lesson_slot:slot,class_id:rec.class_id||'',status:rec.status||'geldi',note:rec.note||'',notified_parent:rec.notified_parent?1:0,_before:before});
     }
-    await db.batch(statements);
+    const encoded=JSON.stringify(saved);
+    await db.batch([
+      recordBatchGuard(db,'attendance',saved,['student_id','date','lesson_slot'],['status','note','notified_parent','class_id']),
+      db.prepare("DELETE FROM attendance WHERE EXISTS(SELECT 1 FROM json_each(?) r WHERE student_id=json_extract(r.value,'$.student_id') AND date=json_extract(r.value,'$.date') AND lesson_slot=json_extract(r.value,'$.lesson_slot'))").bind(encoded),
+      db.prepare(`INSERT INTO attendance(id,date,class_id,student_id,lesson_slot,status,note,notified_parent,created_by,created_by_name,created_at)
+        SELECT json_extract(value,'$.id'),json_extract(value,'$.date'),json_extract(value,'$.class_id'),json_extract(value,'$.student_id'),json_extract(value,'$.lesson_slot'),json_extract(value,'$.status'),json_extract(value,'$.note'),json_extract(value,'$.notified_parent'),?,?,datetime('now') FROM json_each(?)`).bind(user?.user_id||'',user?.name||'',encoded)
+    ]);
 
     await logAction(db, user, "attendance.save", "attendance", date, `${date} tarihli ${records.length} yoklama kaydı kaydedildi`);
     return json({ ok: true, count: records.length });
@@ -460,19 +452,24 @@ export async function handleAcademicRoutes(ctxOrPath, maybeReq, maybeEnv, maybeU
     const hw=await db.prepare('SELECT * FROM homework WHERE id=?').bind(hwId).first();
     if(!hw)return errorResponse('Ödev bulunamadı',404);
     if(!Array.isArray(records)||!records.length||records.length>120)return errorResponse('Geçersiz teslim listesi',422);
-    const seen=new Set();const statements=[];
+    const ids=JSON.stringify(records.map(r=>r?.student_id||''));
+    const students=new Set((await db.prepare('SELECT id FROM students WHERE id IN (SELECT value FROM json_each(?))').bind(ids).all()).results.map(r=>r.id));
+    const previous=new Map((await db.prepare('SELECT * FROM homework_submissions WHERE homework_id=? AND student_id IN (SELECT value FROM json_each(?))').bind(hwId,ids).all()).results.map(r=>[r.student_id,r]));
+    const seen=new Set();const saved=[];
     for(const r of records){
-      if(!r?.student_id||seen.has(r.student_id)||!['yapildi','yapilmadi','eksik','gec'].includes(r.status)||!await db.prepare('SELECT id FROM students WHERE id=?').bind(r.student_id).first())return errorResponse('Geçersiz öğrenci veya teslim durumu',422);
+      if(!r?.student_id||seen.has(r.student_id)||!students.has(r.student_id)||!['yapildi','yapilmadi','eksik','gec'].includes(r.status))return errorResponse('Geçersiz öğrenci veya teslim durumu',422);
       seen.add(r.student_id);
-      const previous=await db.prepare('SELECT * FROM homework_submissions WHERE homework_id=? AND student_id=?').bind(hwId,r.student_id).first();
-      const guard=recordWriteGuard(db,'homework_submissions',previous,r._expected,['status','note'],previous||{status:'yapilmadi',note:''},{homework_id:hwId,student_id:r.student_id});
-      if(guard.error)return guard.error;
-      statements.push(guard.statement);
-      const subId=previous?.id||'sub-'+crypto.randomUUID();
-      statements.push(db.prepare('DELETE FROM homework_submissions WHERE homework_id=? AND student_id=?').bind(hwId,r.student_id));
-      statements.push(db.prepare("INSERT INTO homework_submissions(id,homework_id,student_id,status,note,updated_at) VALUES(?,?,?,?,?,datetime('now'))").bind(subId,hwId,r.student_id,r.status,r.note||''));
+      const before=previous.get(r.student_id)||null;
+      const error=expectedRecordError(r._expected,['status','note'],before||{status:'yapilmadi',note:''});
+      if(error)return error;
+      saved.push({id:before?.id||'sub-'+crypto.randomUUID(),homework_id:hwId,student_id:r.student_id,status:r.status,note:r.note||'',_before:before});
     }
-    await db.batch(statements);
+    const encoded=JSON.stringify(saved);
+    await db.batch([
+      recordBatchGuard(db,'homework_submissions',saved,['homework_id','student_id'],['status','note']),
+      db.prepare("DELETE FROM homework_submissions WHERE homework_id=? AND student_id IN (SELECT json_extract(value,'$.student_id') FROM json_each(?))").bind(hwId,encoded),
+      db.prepare(`INSERT INTO homework_submissions(id,homework_id,student_id,status,note,updated_at) SELECT json_extract(value,'$.id'),json_extract(value,'$.homework_id'),json_extract(value,'$.student_id'),json_extract(value,'$.status'),json_extract(value,'$.note'),datetime('now') FROM json_each(?)`).bind(encoded)
+    ]);
 
     await logAction(db, user, "homework.submit_update", "homework", hwId, `${records.length} ödev teslim durumu güncellendi`);
     return json({ ok: true });

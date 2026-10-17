@@ -8,16 +8,17 @@ export function database() {
   const sql = new DatabaseSync(':memory:');
   sql.exec(readFileSync(root + 'frontend/schema.sql', 'utf8'));
   sql.exec('DELETE FROM students; DELETE FROM contracts; DELETE FROM student_incomes; DELETE FROM classes;');
+  const count=()=>{db.queries++;assert(db.queries<=db.queryLimit,'D1 query budget exceeded');};
   const db = {
-    sql,
+    sql,queries:0,queryLimit:Infinity,
     prepare(query) {
       let params = [];
       const statement = {
         bind(...values) { assert.ok(values.length<=100,"D1 accepts at most 100 bind parameters"); params = values; return statement; },
-        async first() { return sql.prepare(query).get(...params) || null; },
-        async all() { return { results: sql.prepare(query).all(...params) }; },
-        async run() { sql.prepare(query).run(...params); return { success: true }; },
-        execute() { const stmt=sql.prepare(query); if(stmt.columns().length) return {success:true,results:stmt.all(...params)}; stmt.run(...params); return { success: true }; },
+        async first() { count();return sql.prepare(query).get(...params) || null; },
+        async all() { count();return { results: sql.prepare(query).all(...params) }; },
+        async run() { count();sql.prepare(query).run(...params); return { success: true }; },
+        execute() { count();const stmt=sql.prepare(query); if(stmt.columns().length) return {success:true,results:stmt.all(...params)}; stmt.run(...params); return { success: true }; },
       };
       return statement;
     },
