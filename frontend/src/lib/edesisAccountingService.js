@@ -50,6 +50,7 @@ function writeCache(key, value) {
 }
 
 let cacheEpoch = 0;
+const readVersions={contracts:0,installments:0,incomes:0,collections:0,summary:0};
 // In-memory cache for ultra-fast render lookups
 const _memory = {
   contracts: readCache("cozum_ssot_contracts_v2", []),
@@ -224,6 +225,7 @@ export const AccountingService = {
   // 1. Fetch & Get Contracts (SSOT from /api/contracts)
   async fetchContracts() {
     const epoch=cacheEpoch;
+    const version=++readVersions.contracts;
     if (typeof fetch === "undefined") return _memory.contracts;
     try {
       const apiUrl = getApiUrl();
@@ -231,6 +233,7 @@ export const AccountingService = {
       if (!res || !res.ok) return _memory.contracts;
       const rows = await res.json();
       if (epoch!==cacheEpoch) return [];
+      if(version!==readVersions.contracts)return _memory.contracts;
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
       const formatted = list.map(formatContractRecord);
@@ -270,6 +273,7 @@ export const AccountingService = {
   // 2. Fetch & Get Installments (SSOT from /api/installments with Peşinat taksitNo: 0 support)
   async fetchInstallments(contractId = null) {
     const epoch=cacheEpoch;
+    const version=++readVersions.installments;
     if (typeof fetch === "undefined") return _memory.installments;
     try {
       const apiUrl = getApiUrl();
@@ -278,6 +282,7 @@ export const AccountingService = {
       if (!res || !res.ok) return _memory.installments;
       const rows = await res.json();
       if (epoch!==cacheEpoch) return [];
+      if(version!==readVersions.installments)return _memory.installments;
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
       const formatted = list.map((r) => {
@@ -317,8 +322,10 @@ export const AccountingService = {
 
       if (contractId) {
         const normId = trNorm(contractId);
+        const contract=_memory.contracts.find(c=>trNorm(c.id)===normId||trNorm(c.sozlesmeNo)===normId);
+        const keys=new Set([normId,trNorm(contract?.id),trNorm(contract?.sozlesmeNo),...formatted.flatMap(i=>[trNorm(i.contractId),trNorm(i.sozlesmeNo)])].filter(Boolean));
         _memory.installments = [
-          ..._memory.installments.filter(t => trNorm(t.contractId) !== normId && trNorm(t.sozlesmeNo) !== normId),
+          ..._memory.installments.filter(t => !keys.has(trNorm(t.contractId)) && !keys.has(trNorm(t.sozlesmeNo))),
           ...formatted
         ];
         writeCache("cozum_ssot_installments_v2", _memory.installments);
@@ -348,6 +355,7 @@ export const AccountingService = {
   // 3. Fetch & Get Incomes (SSOT from /api/student-incomes)
   async fetchIncomes() {
     const epoch=cacheEpoch;
+    const version=++readVersions.incomes;
     if (typeof fetch === "undefined") return _memory.incomes;
     try {
       const apiUrl = getApiUrl();
@@ -355,6 +363,7 @@ export const AccountingService = {
       if (!res || !res.ok) return _memory.incomes;
       const rows = await res.json();
       if (epoch!==cacheEpoch) return [];
+      if(version!==readVersions.incomes)return _memory.incomes;
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
       _memory.incomes = list;
@@ -410,6 +419,7 @@ export const AccountingService = {
   // 4. Collections (Payments - SSOT from /api/payments)
   async fetchCollections() {
     const epoch=cacheEpoch;
+    const version=++readVersions.collections;
     if (typeof fetch === "undefined") return _memory.collections;
     try {
       const apiUrl = getApiUrl();
@@ -417,6 +427,7 @@ export const AccountingService = {
       if (!res || !res.ok) return _memory.collections;
       const rows = await res.json();
       if (epoch!==cacheEpoch) return [];
+      if(version!==readVersions.collections)return _memory.collections;
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
       const formatted = list.map(formatCollectionRecord);
       _memory.collections = formatted;
@@ -450,6 +461,7 @@ export const AccountingService = {
   // 5. Dynamic Summary (SSOT from /api/accounting/summary)
   async fetchSummary() {
     const epoch=cacheEpoch;
+    const version=++readVersions.summary;
     if (typeof fetch === "undefined") return _memory.summary;
     try {
       const apiUrl = getApiUrl();
@@ -457,6 +469,7 @@ export const AccountingService = {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const summary = await res.json();
       if (epoch!==cacheEpoch) return null;
+      if(version!==readVersions.summary)return _memory.summary;
       _memory.summary = summary;
       writeCache("cozum_ssot_summary_v2", summary);
       return summary;
@@ -757,8 +770,8 @@ export const AccountingService = {
   },
 
   // 7. Installment Management with Peşinat (taksitNo: 0) Support
-  saveInstallments(contractIdOrNo, installments = []) {
-    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") return apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(typeof contractIdOrNo === "object" ? contractIdOrNo.id || contractIdOrNo.sozlesmeNo : contractIdOrNo)}/installments`, {method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({installments})}).then(async res => {
+  saveInstallments(contractIdOrNo, installments = [], options = {}) {
+    if (typeof fetch === "function" && process.env.NODE_ENV !== "test") return apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(typeof contractIdOrNo === "object" ? contractIdOrNo.id || contractIdOrNo.sozlesmeNo : contractIdOrNo)}/installments`, {method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({installments,expectedInstallments:options.expectedInstallments})}).then(async res => {
       const saved=await res.json(); await this.fetchCollections(); await this.fetchInstallments(); await this.fetchContracts(); await this.fetchIncomes();
       if(typeof window!=="undefined"){window.dispatchEvent(new Event("cozum_accounting_updated"));window.dispatchEvent(new Event("cozum_students_updated"));}
       return saved;
@@ -867,12 +880,7 @@ export const AccountingService = {
         });
       }
 
-      this.saveInstallments(szlNo, newInsts);
-      return {
-        newBrut: total,
-        count: cntCount,
-        installments: newInsts
-      };
+      return this.saveInstallments(szlNo, newInsts);
     }
 
     // Array form

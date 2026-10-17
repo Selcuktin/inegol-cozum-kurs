@@ -263,7 +263,7 @@ export function enrichStudent(s) {
     ...s,
     parent_phone: resolvedParentPhone,
     program: prog,
-    donem_id: s.donem_id || 113,
+    donem_id: s.donem_id || ({"2026-2027":113,"2025-2026":40,"2026-2027-YAZ":142}[prog] ?? null),
     donem_adi: s.donem_adi || prog,
     status: status,
     enrollment_status: status,

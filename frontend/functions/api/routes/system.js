@@ -221,7 +221,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
 
     return json({
       ok: true,
-      shield_status: (res.results?.[0]?.created_at || "").slice(0,10) === trtDateStr ? "active" : "stale",
+      shield_status: "unknown", // Edge firewall configuration is not available from the application DB.
       failed_logins_24h: failedRes?.cnt || 0,
       foreign_access_24h: foreignRes?.cnt || 0,
       active_sessions_count: activeSessionsRes?.cnt || 0,

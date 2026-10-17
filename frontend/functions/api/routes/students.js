@@ -11,47 +11,6 @@ import {
 } from "../utils.js";
 import { getContractUpdateStatements, installmentWrite } from "./contracts.js";
 
-function computeInstallmentPlan(student, payments) {
-  const n = Math.max(1, parseInt(student.installment_count) || 1);
-  const total = getEffectiveTotalFee(student);
-  const per = Math.round((total / n) * 100) / 100;
-  let paidRemaining = Number(student.paid_amount) || 0;
-
-  let startYear = new Date().getFullYear();
-  let startMonth = new Date().getMonth() + 1;
-  let startDay = 15;
-  if (student.due_date && student.due_date.length >= 10) {
-    const parts = student.due_date.slice(0, 10).split("-");
-    startYear = parseInt(parts[0]) || startYear;
-    startMonth = parseInt(parts[1]) || startMonth;
-    startDay = parseInt(parts[2]) || startDay;
-  }
-
-  const plan = [];
-  for (let i = 0; i < n; i++) {
-    let m = startMonth + i;
-    let y = startYear + Math.floor((m - 1) / 12);
-    m = ((m - 1) % 12) + 1;
-    const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, new Date(y, m, 0).getDate())).padStart(2, "0")}`;
-
-    const installmentAmount = (i === n - 1) ? Math.max(0, Math.round((total - (per * (n - 1))) * 100) / 100) : per;
-    const applied = Math.min(installmentAmount, paidRemaining);
-    paidRemaining = Math.max(0, paidRemaining - installmentAmount);
-    const remaining = Math.max(0, Math.round((installmentAmount - applied) * 100) / 100);
-    const status = applied >= installmentAmount - 0.5 ? "paid" : applied > 0 ? "partial" : "pending";
-
-    plan.push({
-      no: i + 1,
-      due_date: dueStr,
-      amount: installmentAmount,
-      paid: Math.round(applied * 100) / 100,
-      remaining,
-      status,
-    });
-  }
-  return plan;
-}
-
 export async function handleStudentsRoutes({ request, db, env, url, path, user, waitUntil }) {
   // 1. GET /students
   if ((path === "/students" || path.endsWith("/Ogrencies/GetAll")) && request.method === "GET") {
@@ -77,6 +36,7 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
         OR s.id = ('stu-' || c.student_id)
         OR ('stu-' || s.id) = c.student_id
       ) AND (c.is_deleted = 0 OR c.is_deleted IS NULL)
+        AND c.id=(SELECT current.id FROM contracts current WHERE (current.student_id=s.id OR current.student_id=REPLACE(s.id,'stu-','') OR ('stu-'||current.student_id)=s.id) AND COALESCE(current.is_deleted,0)=0 ORDER BY (current.sozlesme_no=COALESCE(s.sozlesme_no,'')) DESC,current.sozlesme_tarihi DESC,current.id DESC LIMIT 1)
       WHERE 1=1
     `;
     let whereClause = "";
@@ -91,8 +51,8 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
       whereParams.push(classFilter);
     }
     if (period && period !== "all") {
-      whereClause += ` AND (s.program = ? OR s.program LIKE ?)`;
-      whereParams.push(period, `${period}%`);
+      whereClause += ` AND s.program = ?`;
+      whereParams.push(period);
     }
 
     query += whereClause + ` ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?`;
@@ -324,7 +284,10 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
       .bind(studentId)
       .all();
     const payments = paymentsRes.results || [];
-    const plan = computeInstallmentPlan(student, payments);
+    const contract=await db.prepare("SELECT * FROM contracts WHERE student_id=? AND COALESCE(is_deleted,0)=0 AND (sozlesme_no=? OR COALESCE(?,'')='') ORDER BY sozlesme_tarihi DESC LIMIT 1").bind(studentId,student.sozlesme_no||'',student.sozlesme_no||'').first();
+    const stored=contract ? (await db.prepare('SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no').bind(contract.id).all()).results || [] : [];
+    const plan=stored.map(i=>({id:i.id,no:i.installment_no,due_date:normalizeDate(i.due_date),amount:i.amount,paid:i.paid_amount,remaining:contract.durum===3?0:Math.max(0,i.amount-i.paid_amount),status:contract.durum===3?'cancelled':i.paid_amount>=i.amount?'paid':i.paid_amount>0?'partial':'pending'}));
+    if(contract){student.contract_status=contract.durum;student.remaining=contract.durum===3?0:plan.reduce((sum,i)=>sum+i.remaining,0);}
 
     const examResultsRes = await db.prepare(`
       SELECT r.*, e.title as exam_title, e.exam_type, e.exam_date, e.publisher
@@ -513,7 +476,7 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
         if (["total_fee", "extra_fees", "discount_amount", "installment_count", "due_date"].some(k => k in patch && JSON.stringify(patch[k]) !== JSON.stringify(existing[k]))) {
           const contract = await db.prepare("SELECT * FROM contracts WHERE student_id=? AND is_deleted=0 AND (sozlesme_no=? OR COALESCE(?,'')='') ORDER BY sozlesme_tarihi DESC LIMIT 1").bind(targetId,existing.sozlesme_no||'',existing.sozlesme_no||'').first();
           if (contract) {
-            const financial = await getContractUpdateStatements(db, contract, { brutTutar: getEffectiveTotalFee({ ...existing, ...patch }), taksitSayisi: patch.installment_count ?? existing.installment_count, due_date: patch.due_date }, false);
+            const financial = await getContractUpdateStatements(db, contract, { brutTutar: getEffectiveTotalFee({ ...existing, ...patch }), taksitSayisi: patch.installment_count ?? existing.installment_count, due_date: normalizeDate(patch.due_date)!==normalizeDate(existing.due_date) ? patch.due_date : undefined }, false);
             if (financial.error) return financial.error;
             financialContract=contract;
             updates[0]=db.prepare(`UPDATE students SET ${sets.join(', ')} WHERE id=? AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)`).bind(...values,contract.id);

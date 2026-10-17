@@ -214,7 +214,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
         if (found) {
           setSelectedContract((prev) => {
-            if (prev && (prev.sozlesmeNo === found.sozlesmeNo || prev.id === found.id)) return prev;
             return found;
           });
           try {
@@ -357,10 +356,11 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   // Dynamic contract counts per period
   const periodCounts = useMemo(() => {
-    const counts = { "113": 0, "40": 0, "142": 0, all: contractsList.length };
+    const counts = { "113": 0, "40": 0, "142": 0, all: contractsList.length,active:{"113":0,"40":0,"142":0,all:0} };
     contractsList.forEach((c) => {
       const id = String(c.donemId);
       if (counts[id] !== undefined) counts[id]++;
+      if(Number(c.durum)===1){counts.active.all++;if(counts.active[id]!==undefined)counts.active[id]++;}
     });
     return counts;
   }, [contractsList]);
@@ -441,6 +441,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
     return {
       totalCount,
+      activeCount:activeContracts.length,
       activeAmount,
       draftCount,
       canceledCount

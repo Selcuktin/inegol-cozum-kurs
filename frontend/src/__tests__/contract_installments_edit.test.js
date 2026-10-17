@@ -1,13 +1,50 @@
 import AccountingService from '../lib/edesisAccountingService';
-import React from 'react';
+import React, {act} from 'react';
 import EdesisSozlesmeDetay from '../components/EdesisSozlesmeDetay';
-import {render,cleanup} from './test_helpers';
+import {render,cleanup,fireEvent} from './test_helpers';
 
 describe('Contract and Installment Dynamic Edits', () => {
   beforeEach(() => {
     localStorage.clear();
   });
   afterEach(cleanup);
+
+  test('background refresh preserves an open plan draft and cancelling discards it',async()=>{
+    const contract={id:'draft-plan',sozlesmeNo:'SZL-DRAFT',brutTutar:1000,netTutar:1000,durum:1};
+    AccountingService.setInitialData({contracts:[contract],installments:[1,2].map(n=>({id:'draft-'+n,contractId:contract.id,sozlesmeNo:contract.sozlesmeNo,taksitNo:n,taksitTutari:500,tahsilEdilen:0,vadeTarihi:'2026-10-15'}))});
+    const view=await render(<EdesisSozlesmeDetay contract={contract}/>);
+    await fireEvent.click(view.getByRole('button',{name:'Tutarları Düzenle'}));
+    await fireEvent.change(view.container.querySelector('.installment-editor-row input[type="number"]'),{target:{value:'650'}});
+    await act(async()=>window.dispatchEvent(new Event('cozum_accounting_updated')));
+    expect(view.container.querySelector('.installment-editor-row input[type="number"]').value).toBe('650');
+    await fireEvent.click(view.getByRole('button',{name:'Vazgeç'}));
+    await fireEvent.click(view.getByRole('button',{name:'Tutarları Düzenle'}));
+    expect(view.container.querySelector('.installment-editor-row input[type="number"]').value).toBe('500');
+  });
+
+  test('redistributing remaining debt preserves partial collections and the gross total',async()=>{
+    const contract={id:'partial-plan',sozlesmeNo:'SZL-PARTIAL',brutTutar:1000,netTutar:1000,durum:1};
+    AccountingService.setInitialData({contracts:[contract],installments:[1,2].map(n=>({id:'partial-'+n,contractId:contract.id,sozlesmeNo:contract.sozlesmeNo,taksitNo:n,taksitTutari:500,tahsilEdilen:n===1?200:0,vadeTarihi:'2026-10-15'}))});
+    const view=await render(<EdesisSozlesmeDetay contract={contract}/>);
+    await fireEvent.click(view.getByRole('button',{name:'Tutarları Düzenle'}));
+    await fireEvent.click(view.getByRole('button',{name:'Kalanı Eşit Dağıt'}));
+    expect([...view.container.querySelectorAll('.installment-editor-row input[type="number"]')].map(e=>Number(e.value))).toEqual([600,400]);
+  });
+
+  test('failed remote plan save keeps the draft open and never announces success',async()=>{
+    const contract={id:'failed-plan',sozlesmeNo:'SZL-FAILED',brutTutar:1000,durum:1};
+    AccountingService.setInitialData({contracts:[contract],installments:[{id:'failed-one',contractId:contract.id,sozlesmeNo:contract.sozlesmeNo,taksitNo:1,taksitTutari:1000,tahsilEdilen:0,vadeTarihi:'2026-10-31'}]});
+    const save=jest.spyOn(AccountingService,'saveInstallments').mockRejectedValue(new Error('Plan başka bir işlemde değişti'));
+    const alert=jest.spyOn(window,'alert').mockImplementation(()=>{});
+    try{
+      const view=await render(<EdesisSozlesmeDetay contract={contract}/>);
+      await fireEvent.click(view.getByRole('button',{name:'Tutarları Düzenle'}));
+      await fireEvent.change(view.container.querySelector('.installment-editor-row input[type="number"]'),{target:{value:'1200'}});
+      await fireEvent.click(view.getByRole('button',{name:'Tamamla ve Kaydet'}));
+      expect(view.container.querySelector('.installment-editor-row input[type="number"]').value).toBe('1200');
+      expect(alert).toHaveBeenCalledWith('Plan başka bir işlemde değişti');expect(view.container.textContent).not.toContain('Sözleşme tutarı ve taksitler kaydedildi');
+    }finally{save.mockRestore();alert.mockRestore();}
+  });
 
   test('missing contact data and installment history stay empty instead of showing sample records',async()=>{
     const contract={id:'no-history',sozlesmeNo:'SZL-DEMO-EMPTY',student_id:'missing-student',ogrenciAdi:'Örnek boş kayıt',brutTutar:1000,toplamTahsilat:200,kalanAlacak:800,taksitSayisi:9,durum:1};

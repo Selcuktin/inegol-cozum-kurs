@@ -155,6 +155,7 @@ const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "e
 
 export function MainApp({ me, onLogout }) {
   const mounted = useRef(true);
+  const dashboardRequest=useRef(0);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   const [data, setData] = useState(() => {
     try {
@@ -272,6 +273,7 @@ export function MainApp({ me, onLogout }) {
   useEffect(()=>{
     if(!mobileOpen)return;
     const previousOverflow=document.body.style.overflow;
+    const trigger=menuButtonRef.current;
     document.body.style.overflow='hidden';
     document.querySelector('.sidebar-close-btn')?.focus();
     const closeOnEscape=e=>{if(e.key==='Escape')setMobileOpen(false);};
@@ -279,7 +281,7 @@ export function MainApp({ me, onLogout }) {
     const closeOnDesktop=()=>{if(desktop.matches)setMobileOpen(false);};
     document.addEventListener('keydown',closeOnEscape);
     desktop.addEventListener('change',closeOnDesktop);
-    return()=>{document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',closeOnEscape);desktop.removeEventListener('change',closeOnDesktop);menuButtonRef.current?.focus({preventScroll:true});};
+    return()=>{document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',closeOnEscape);desktop.removeEventListener('change',closeOnDesktop);trigger?.focus({preventScroll:true});};
   },[mobileOpen]);
   useEffect(()=>{setMobileOpen(false);document.getElementById('main-content')?.scrollIntoView?.({block:'start'});},[page]);
 
@@ -375,9 +377,10 @@ export function MainApp({ me, onLogout }) {
   const toggleTree = (key) => setExpandedTree((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const load = async () => {
+    const version=++dashboardRequest.current;
     try {
       const r = await axios.get(`${API}/dashboard`);
-      if(!mounted.current) return;
+      if(!mounted.current || version!==dashboardRequest.current) return;
       const rawStudents = r.data?.students || [];
       const cleanStudents = StudentService.filterActiveStudents(rawStudents);
       const nextData = { ...r.data, students: cleanStudents };

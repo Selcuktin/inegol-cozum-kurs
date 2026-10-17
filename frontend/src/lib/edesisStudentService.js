@@ -37,6 +37,7 @@ function writeCache(key, value) {
 }
 
 let cacheEpoch = 0;
+let readVersion=0;
 const _memory = {
   students: readCache("cozum_ssot_students_v2", []),
   isFetching: false,
@@ -65,6 +66,7 @@ export const StudentService = {
   // 1. Fetch & Get Students (SSOT from /api/students)
   async fetchStudents() {
     const epoch=cacheEpoch;
+    const version=++readVersion;
     if (typeof fetch === "undefined") return _memory.students;
     try {
       const apiUrl = getApiUrl();
@@ -72,6 +74,7 @@ export const StudentService = {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const rows = await res.json();
       if (epoch!==cacheEpoch) return [];
+      if(version!==readVersion)return _memory.students;
       const list = Array.isArray(rows) ? rows : (rows?.items || rows?.data || []);
 
       _memory.students = list;
@@ -114,6 +117,7 @@ export const StudentService = {
 
   // 2. Action Handlers (Mutations sync directly to Cloudflare Pages API)
   async saveStudent(student, apiBaseUrl = "", options = {}) {
+    const epoch=cacheEpoch;
     if (!student) return null;
     const id = student.id || `student-${crypto.randomUUID().slice(0, 8)}`;
     let studentWithId = { ...student, id };
@@ -138,6 +142,8 @@ export const StudentService = {
       }
     }
 
+    if(epoch!==cacheEpoch)return studentWithId;
+    readVersion++;
     const idx = _memory.students.findIndex((s) => s.id === id);
     if (idx >= 0) {
       _memory.students[idx] = studentWithId;

@@ -25,6 +25,7 @@ import {
   X
 } from "lucide-react";
 import AccountingService, { trNorm } from "../lib/edesisAccountingService";
+import { normalizeDate } from "../lib/installmentService";
 import { StudentService } from "../lib/edesisStudentService";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import { ReceiptModal } from "./ReceiptModal";
@@ -51,6 +52,8 @@ export default function EdesisSozlesmeDetay({
   const [editDateModal, setEditDateModal] = useState(null);
   const [quickEditInst, setQuickEditInst] = useState(null);
   const [editAmountsModal, setEditAmountsModal] = useState(false);
+  const [savingPlan,setSavingPlan]=useState(false);
+  const planBaseline=React.useRef(null);
   const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [receiptModalPayment, setReceiptModalPayment] = useState(null);
   const [isSignedState, setIsSignedState] = useState(() => !!(contract?.isSigned || contract?.kurumImzaAlindi || contract?.veliImzaAlindi));
@@ -72,7 +75,7 @@ export default function EdesisSozlesmeDetay({
 
   React.useEffect(() => {
     if ((contract?.id || contract?.sozlesmeNo) && process.env.NODE_ENV !== "test") {
-      AccountingService.fetchInstallments(contract.id || contract.sozlesmeNo);
+      AccountingService.fetchInstallments(contract.id || contract.sozlesmeNo).then(()=>setAccountingTick(t=>t+1));
     }
   }, [contract?.id, contract?.sozlesmeNo]);
 
@@ -124,6 +127,7 @@ try {
 
   // Find installments for this contract
   const installments = useMemo(() => {
+    void accountingTick; // Service cache changes are announced through this event counter.
     if (!contract || isCancelled) return [];
     const allTaksitler = AccountingService.getInstallments(students) || [];
     const norm = (str) => (str || "").trim().replace(/i/g, "İ").replace(/ı/g, "I").toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
@@ -186,8 +190,8 @@ try {
   const [localInstallments, setLocalInstallments] = useState(installments);
 
   React.useEffect(() => {
-    setLocalInstallments(installments);
-  }, [installments, accountingTick, contract?.id, contract?.sozlesmeNo, contract?.brutTutar]);
+    if(!editAmountsModal)setLocalInstallments(installments);
+  }, [installments, editAmountsModal]);
 
   // Calculations: Dynamically derive from installments if present, ensuring increasing an installment immediately reflects in total!
   const installmentsSum = (localInstallments && localInstallments.length > 0)
@@ -311,27 +315,33 @@ try {
   };
 
   const handleConfirmDateChange = async () => {
+if(savingPlan)return;
+setSavingPlan(true);
 try {
 
     if (!editDateModal || !editDateModal.taksit) return;
     const { taksit, newDate } = editDateModal;
     const updated = localInstallments.map((t) => (t.taksitNo === taksit.taksitNo ? { ...t, vadeTarihi: newDate } : t));
-    await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
+    await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated,{expectedInstallments:planBaseline.current});
     setLocalInstallments(updated);
     showToast(`📅 ${taksit.taksitNo}. Taksit vadesi ${newDate} olarak güncellendi ve kaydedildi.`);
     setEditDateModal(null);
 
 } catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+finally {setSavingPlan(false);}
 };
 
   const handleSaveAmounts = async () => {
+if(savingPlan)return;
+setSavingPlan(true);
 try {
 
-    const res = await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, localInstallments);
+    const res = await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, localInstallments,{expectedInstallments:planBaseline.current});
     showToast(`✅ Sözleşme tutarı ve taksitler kaydedildi: ${fmtTRY(res?.newBrut || brutTutar)} (${localInstallments.length} Taksit)`);
     setEditAmountsModal(false);
 
 } catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+finally {setSavingPlan(false);}
 };
 
   const handleAddInstallment = () => {
@@ -339,8 +349,8 @@ try {
     const lastDate = localInstallments[localInstallments.length - 1]?.vadeTarihi;
     let dateStr = new Date().toISOString().slice(0, 10);
     try {
-      const d = lastDate ? new Date(lastDate) : new Date();
-      d.setMonth(d.getMonth() + 1);
+      const d = lastDate ? new Date(normalizeDate(lastDate)+"T12:00:00Z") : new Date();
+      const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+1);d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));
       dateStr = d.toISOString().slice(0, 10);
     } catch {}
     const newInst = {
@@ -365,7 +375,7 @@ try {
   const handleRemoveLastInstallment = () => {
     if (localInstallments.length <= 1) return;
     const last = localInstallments[localInstallments.length - 1];
-    if (last.durum === 1) {
+    if (Number(last.tahsilEdilen)>0) {
       showToast("⚠️ Tahsil edilmiş taksit silinemez!");
       return;
     }
@@ -390,8 +400,8 @@ try {
         const amt = isLast ? Math.round((perInst + diff) * 100) / 100 : perInst;
         return {
           ...t,
-          taksitTutari: amt,
-          toplamTutar: amt,
+          taksitTutari: Math.round((amt+Number(t.tahsilEdilen||0))*100)/100,
+          toplamTutar: Math.round((amt+Number(t.tahsilEdilen||0))*100)/100,
           kalanTutar: amt
         };
       })
@@ -400,6 +410,8 @@ try {
   };
 
   const handleConfirmSingleInstallment = async () => {
+if(savingPlan)return;
+setSavingPlan(true);
 try {
 
     if (!quickEditInst || !quickEditInst.taksit) return;
@@ -418,12 +430,13 @@ try {
       }
       return t;
     });
-    const res = await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated);
+    const res = await AccountingService.saveInstallments(contract?.sozlesmeNo || contract?.id, updated,{expectedInstallments:planBaseline.current});
     setLocalInstallments(updated);
     showToast(`✅ ${taksit.taksitNo}. Taksit güncellendi: ${fmtTRY(newAmt)} (Yeni Toplam: ${fmtTRY(res?.newBrut)})`);
     setQuickEditInst(null);
 
 } catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+finally {setSavingPlan(false);}
 };
 
   return (
@@ -715,7 +728,7 @@ try {
               <button
                 type="button"
                 disabled={isCancelled}
-                onClick={() => setEditAmountsModal(true)}
+                onClick={() => {planBaseline.current=installments;setEditAmountsModal(true);}}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -910,7 +923,7 @@ try {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setEditDateModal({ taksit: t, newDate: t.vadeTarihi });
+                            planBaseline.current=installments;setEditDateModal({ taksit: t, newDate: t.vadeTarihi });
                           }}
                           style={{
                             padding: "3px 8px",
@@ -932,7 +945,7 @@ try {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setQuickEditInst({
+                              planBaseline.current=installments;setQuickEditInst({
                                 taksit: t,
                                 amount: t.taksitTutari,
                                 date: t.vadeTarihi
@@ -1540,7 +1553,8 @@ try {
               </button>
               <button
                 type="button"
-                onClick={handleConfirmDateChange}
+                disabled={savingPlan}
+                  onClick={handleConfirmDateChange}
                 style={{ padding: "7px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
               >
                 Kaydet
@@ -1564,7 +1578,7 @@ try {
             zIndex: 99999,
             padding: "20px"
           }}
-          onClick={() => setEditAmountsModal(false)}
+          onClick={() => {if(!savingPlan)setEditAmountsModal(false);}}
         >
           <div
             style={{
@@ -1589,7 +1603,7 @@ try {
                   Taksit tutarını değiştirdikçe sözleşme ana tutarı otomatik güncellenir.
                 </div>
               </div>
-              <button type="button" onClick={() => setEditAmountsModal(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8" }}>
+              <button type="button" onClick={() => {if(!savingPlan)setEditAmountsModal(false);}} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8" }}>
                 <X size={18} />
               </button>
             </div>
@@ -1614,7 +1628,8 @@ try {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "14px" }}>
               <button
                 type="button"
-                onClick={handleAddInstallment}
+                disabled={savingPlan}
+                  onClick={handleAddInstallment}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -1634,7 +1649,8 @@ try {
 
               <button
                 type="button"
-                onClick={handleDistributeRemainderEvenly}
+                disabled={savingPlan}
+                  onClick={handleDistributeRemainderEvenly}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -1656,6 +1672,7 @@ try {
               {localInstallments.length > 1 && (
                 <button
                   type="button"
+                  disabled={savingPlan}
                   onClick={handleRemoveLastInstallment}
                   style={{
                     display: "inline-flex",
@@ -1705,7 +1722,7 @@ try {
                     <span style={{ fontWeight: 700, fontSize: "12px", color: isPaid ? "#16a34a" : "#0f172a" }}>#{t.taksitNo}</span>
                     <input
                       type="text"
-                      disabled={isPaid}
+                      disabled={isPaid || savingPlan}
                       value={t.vadeTarihi || ""}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1716,7 +1733,7 @@ try {
                     <input
                       type="number"
                       step="0.01"
-                      disabled={isPaid}
+                      disabled={isPaid || savingPlan}
                       value={t.taksitTutari}
                       onChange={(e) => {
                         const val = Number(e.target.value) || 0;
@@ -1758,17 +1775,18 @@ try {
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
                   type="button"
-                  onClick={() => setEditAmountsModal(false)}
+                  onClick={() => {if(!savingPlan)setEditAmountsModal(false);}}
                   style={{ padding: "8px 14px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
                 >
                   Vazgeç
                 </button>
                 <button
                   type="button"
+                  disabled={savingPlan}
                   onClick={handleSaveAmounts}
                   style={{ padding: "8px 18px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                 >
-                  Tamamla ve Kaydet ({fmtTRY(brutTutar)})
+                  {savingPlan ? "Kaydediliyor…" : `Tamamla ve Kaydet (${fmtTRY(brutTutar)})`}
                 </button>
               </div>
             </div>
@@ -1856,7 +1874,8 @@ try {
               </button>
               <button
                 type="button"
-                onClick={handleConfirmSingleInstallment}
+                disabled={savingPlan}
+                  onClick={handleConfirmSingleInstallment}
                 style={{ padding: "8px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
               >
                 Kaydet ve Uygula

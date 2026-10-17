@@ -54,7 +54,7 @@ export default function EdesisOgrenciListesi({
 
   useEffect(() => {
     const handleUpdate = () => {
-      setStudents(StudentService.getAllStudents(propStudents));
+      setStudents(StudentService.getAllStudents());
     };
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => window.removeEventListener("cozum_students_updated", handleUpdate);
@@ -202,40 +202,38 @@ export default function EdesisOgrenciListesi({
     return Array.from(set).sort();
   }, [students]);
 
+  // A period is membership in its contracts, not a substring of a school year.
+  // ponytail: O(students × contracts) is small for this roster; index by student ID for thousands of records.
+  const periodStudents=useMemo(()=>students.flatMap(s=>{
+    const sid=String(s.id||'').replace(/^stu-/,'');
+    const own=allContracts.filter(c=>String(c.studentId||c.student_id||'').replace(/^stu-/,'')===sid);
+    const relevant=periodFilter==='all'?own:own.filter(c=>String(c.donemId??c.period_id)===periodFilter);
+    if(own.length && !relevant.length)return [];
+    if(!own.length && periodFilter!=='all'){
+      const periodNames={'113':'2026-2027','40':'2025-2026','142':'2026-2027-YAZ'};
+      const name=s.program||s.donem_adi;
+      if(name ? name!==periodNames[periodFilter] : String(s.donem_id||'')!==periodFilter)return [];
+    }
+    const selected=relevant.find(c=>Number(c.durum)===1)||relevant[0];
+    const cancelled=relevant.length>0&&relevant.every(c=>Number(c.durum)===3);
+    return [{...s,sozlesme_no:selected?.sozlesmeNo||s.sozlesme_no,status:cancelled?'İptal / Ayrılan':selected&&Number(selected.durum)===1?'Kesin Kayıt':s.status,is_kesin_kayit:cancelled?false:selected&&Number(selected.durum)===1?true:s.is_kesin_kayit}];
+  }),[students,allContracts,periodFilter]);
+
   // Filtering
   const filteredStudents = useMemo(() => {
-    return students.filter((s) => {
-      // Period filter
-      if (periodFilter !== "all") {
-        const pId = String(s.donem_id || "");
-        const dName = String(s.donem_adi || "");
-        const prog = String(s.program || "");
-        if (periodFilter === "113") {
-          const is2026 = pId === "113" || dName.includes("2026") || prog.includes("2026") || !pId;
-          if (!is2026) return false;
-        } else if (periodFilter === "40") {
-          const is2025 = pId === "40" || dName.includes("2025") || prog.includes("2025");
-          if (!is2025) return false;
-        } else if (pId !== String(periodFilter)) {
-          return false;
-        }
-      }
-      // Status filter
-      if (statusFilter !== "all") {
-        if (statusFilter === "Kesin Kayıt") {
-          const isKesin = s.status === "Kesin Kayıt" || s.status === "Aktif" || s.status === "Kayitli" || s.is_kesin_kayit;
-          if (!isKesin) return false;
-        } else if (statusFilter === "Aday Kayıt") {
-          if (s.status !== "Aday Kayıt" && s.status !== "Aday") return false;
-        } else if (statusFilter === "Yaz Kursu") {
-          if (s.status !== "Yaz Kursu" && !String(s.program || "").includes("YAZ")) return false;
-        } else if (statusFilter === "Mezun / Geçmiş") {
-          if (s.status !== "Mezun / Geçmiş" && s.status !== "Mezun") return false;
-        } else if (statusFilter === "İptal") {
-          if (s.status !== "İptal" && s.status !== "İptal / Ayrılan" && !s.is_deleted && s.durum !== 3) return false;
-        } else if (s.status !== statusFilter) {
-          return false;
-        }
+    return periodStudents.filter((s) => {
+      if(statusFilter!=='all'){
+        if(statusFilter==='Kesin Kayıt'){
+          if(!['Kesin Kayıt','Aktif','Kayitli'].includes(s.status)&&!s.is_kesin_kayit)return false;
+        }else if(statusFilter==='Aday Kayıt'){
+          if(!['Aday Kayıt','Aday'].includes(s.status))return false;
+        }else if(statusFilter==='İptal'){
+          if(!['İptal','İptal / Ayrılan'].includes(s.status))return false;
+        }else if(statusFilter==='Yaz Kursu'){
+          if(s.status!=='Yaz Kursu'&&!(s.program||'').endsWith('-YAZ'))return false;
+        }else if(statusFilter==='Mezun / Geçmiş'){
+          if(!['Mezun / Geçmiş','Mezun'].includes(s.status))return false;
+        }else if(s.status!==statusFilter)return false;
       }
       // Class filter
       if (classFilter !== "all" && String(s.student_class || "").trim() !== String(classFilter).trim()) {
@@ -270,22 +268,9 @@ export default function EdesisOgrenciListesi({
       if (dateB !== dateA) return dateB - dateA;
       return String(b.id || "").localeCompare(String(a.id || ""));
     });
-  }, [students, periodFilter, statusFilter, classFilter, searchQuery]);
+  }, [periodStudents, statusFilter, classFilter, searchQuery]);
 
-  // Counts for pills
-  const kesinCount = useMemo(() => {
-    return students.filter((s) => {
-      const isKesin = s.status === "Kesin Kayıt" || s.status === "Aktif" || s.status === "Kayitli" || s.is_kesin_kayit;
-      if (!isKesin) return false;
-      if (periodFilter === "all") return true;
-      const pId = String(s.donem_id || "");
-      const dName = String(s.donem_adi || "");
-      const prog = String(s.program || "");
-      if (periodFilter === "113") return pId === "113" || dName.includes("2026") || prog.includes("2026") || !pId;
-      if (periodFilter === "40") return pId === "40" || dName.includes("2025") || prog.includes("2025");
-      return pId === String(periodFilter);
-    }).length;
-  }, [students, periodFilter]);
+  const kesinCount=periodStudents.filter(s=>['Kesin Kayıt','Aktif','Kayitli'].includes(s.status)||s.is_kesin_kayit).length;
 
   // Pagination slice
   const totalCount = filteredStudents.length;
@@ -454,6 +439,7 @@ export default function EdesisOgrenciListesi({
               >
                 <option value="113">2026-2027 (Aktif)</option>
                 <option value="40">2025-2026</option>
+                <option value="142">2026-2027-YAZ</option>
                 <option value="all">Tüm Dönemler</option>
               </select>
             </div>

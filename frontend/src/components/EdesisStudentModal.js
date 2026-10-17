@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo } from "react";
 import axios from "axios";
 import { StudentService } from "../lib/edesisStudentService";
 import AccountingService from "../lib/edesisAccountingService";
+import {generateContractInstallments,normalizeDate} from "../lib/installmentService";
 import {
   X,
   User,
@@ -38,13 +39,7 @@ const EXTRA_SERVICES = [
   { k: "kutuphane", label: "Sessiz Kütüphane & Etüt Kullanımı", defaultPrice: 1500 }
 ];
 
-export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStudentAdded, initialData = null }) {
-  const [activeTab, setActiveTab] = useState("genel"); // 'genel' | 'veli' | 'egitim' | 'muhasebe'
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  // Form State
-  const [formData, setFormData] = useState({
+const newStudentForm=(classes)=>({
     // 1. Genel Öğrenci Bilgileri
     student_name: "",
     student_tc: "",
@@ -105,7 +100,22 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
     extra_kutuphane: 0
   });
 
+export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStudentAdded, initialData = null }) {
+  const [activeTab, setActiveTab] = useState("genel"); // 'genel' | 'veli' | 'egitim' | 'muhasebe'
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Form State
+  const [formData, setFormData] = useState(()=>newStudentForm(classes));
+  const changedFields=useRef(new Set());
+  const openedForm=useRef(null);
+  const [savedPlan,setSavedPlan]=useState([]);
+
   React.useEffect(() => {
+    if(!isOpen){openedForm.current=null;return;}
+    const key=initialData?.id || "new";
+    if(openedForm.current===key)return;
+    openedForm.current=key;changedFields.current.clear();setError("");setActiveTab("genel");setSavedPlan([]);
     if (initialData) {
       let extras = {};
       try {
@@ -120,18 +130,27 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         initialData.guardian_phone ||
         "";
       setFormData({
+        ...newStudentForm(classes),
         ...initialData,
         parent_phone: resolvedParentPhone,
-        extra_kaynak: extras.kaynak !== undefined ? Number(extras.kaynak) : 4500,
+        extra_kaynak: extras.kaynak !== undefined ? Number(extras.kaynak) : 0,
         extra_dijital: extras.dijital !== undefined ? Number(extras.dijital) : 0,
-        extra_dnm: extras.dnm !== undefined ? Number(extras.dnm) : 3500,
+        extra_dnm: extras.dnm !== undefined ? Number(extras.dnm) : 0,
         extra_kutuphane: extras.kutuphane !== undefined ? Number(extras.kutuphane) : 0,
       });
-    }
-  }, [initialData]);
+    } else setFormData(newStudentForm(classes));
+  }, [initialData,isOpen,classes]);
+
+  React.useEffect(()=>{
+    if(!isOpen || !initialData?.sozlesme_no)return;
+    let active=true;
+    AccountingService.fetchInstallments(initialData.sozlesme_no).then(rows=>{if(active)setSavedPlan(rows.filter(i=>i.sozlesmeNo===initialData.sozlesme_no));});
+    return()=>{active=false;};
+  },[isOpen,initialData?.id,initialData?.sozlesme_no]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    changedFields.current.add(name);
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? (checked ? 1 : 0) : value
@@ -156,36 +175,11 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
 
   // Canlı Taksit Planı Çizelgesi
   const installmentPlan = useMemo(() => {
-    const count = Math.max(1, parseInt(formData.installment_count) || 1);
-    const per = Math.round((netTotal / count) * 100) / 100;
-    const plan = [];
-
-    let startYear = new Date().getFullYear();
-    let startMonth = new Date().getMonth() + 1;
-    let startDay = 15;
-
-    if (formData.due_date && formData.due_date.length >= 10) {
-      const parts = formData.due_date.split("-");
-      startYear = parseInt(parts[0]) || startYear;
-      startMonth = parseInt(parts[1]) || startMonth;
-      startDay = parseInt(parts[2]) || startDay;
-    }
-
-    for (let i = 0; i < count; i++) {
-      let m = startMonth + i;
-      let y = startYear + Math.floor((m - 1) / 12);
-      m = ((m - 1) % 12) + 1;
-      const dueStr = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(startDay, 28)).padStart(2, "0")}`;
-      const amount = i === count - 1 ? Math.max(0, Math.round((netTotal - per * (count - 1)) * 100) / 100) : per;
-
-      plan.push({
-        no: i + 1,
-        dueDate: dueStr,
-        amount
-      });
-    }
-    return plan;
-  }, [netTotal, formData.installment_count, formData.due_date]);
+    const financeChanged=[...changedFields.current].some(k=>['total_fee','installment_count','due_date','discount_amount'].includes(k)||k.startsWith('extra_'));
+    if(initialData && !financeChanged)return savedPlan.map(i=>({no:i.taksitNo,dueDate:i.vadeTarihi,amount:i.taksitTutari}));
+    if(!normalizeDate(formData.due_date))return [];
+    return generateContractInstallments({brut_tutar:netTotal,installment_count:formData.installment_count},{startDate:formData.due_date,dueDay:Number(formData.due_date.slice(8,10))}).map(i=>({no:i.installment_no,dueDate:i.due_date,amount:i.amount}));
+  }, [netTotal,formData.installment_count,formData.due_date,savedPlan,initialData]);
 
   // Kamera Çekimi
   const videoRef = useRef(null);
@@ -212,6 +206,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
     const ctx = canvas.getContext("2d");
     ctx.drawImage(videoRef.current, 0, 0, 300, 300);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    changedFields.current.add("photo");
     setFormData((prev) => ({ ...prev, photo: dataUrl }));
     stopCamera();
   };
@@ -227,6 +222,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
+    if(loading)return;
     setError("");
 
     if (!formData.student_name.trim()) {
@@ -263,6 +259,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         sozlesme_no: formData.sozlesme_no || initialData?.sozlesme_no || "",
         gelir_kodu: formData.gelir_kodu || initialData?.gelir_kodu || "",
         extra_fees: {
+          ...(typeof initialData?.extra_fees==="string" ? JSON.parse(initialData.extra_fees||"{}") : initialData?.extra_fees || {}),
           kaynak: Number(formData.extra_kaynak || 0),
           dijital: Number(formData.extra_dijital || 0),
           dnm: Number(formData.extra_dnm || 0),
@@ -272,15 +269,16 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
 
       let saved = null;
       if (initialData?.id) {
-        const res = await axios.patch(`${API}/students/${initialData.id}`, payload);
+        const patch=Object.fromEntries(Object.entries(payload).filter(([key])=>changedFields.current.has(key) || (key==='extra_fees' && [...changedFields.current].some(k=>k.startsWith('extra_')))));
+        const res = await axios.patch(`${API}/students/${initialData.id}`, patch);
         saved = res.data;
       } else {
         const res = await axios.post(`${API}/students`, payload);
         saved = res.data;
       }
       const finalStudent = {
-        ...(saved || {}),
         ...payload,
+        ...(saved || {}),
         has_contract: true,
         sozlesme_no: saved?.sozlesme_no || saved?.sozlesmeNo || payload.sozlesme_no || ""
       };
@@ -304,7 +302,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="student-modal-title" style={{ zIndex: 100060 }}>
+    <div className="modal-backdrop" onClick={loading?undefined:onClose} role="dialog" aria-modal="true" aria-labelledby="student-modal-title" style={{ zIndex: 100060 }}>
       <div className="modal wide edesis-wizard-modal" onClick={(e) => e.stopPropagation()}>
         {/* Başlık ve Kapat Butonu */}
         <div className="modal-head">
@@ -312,7 +310,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
             <div className="eyebrow">EDESİS ÖĞRENCİ İŞLERİ · RESMİ KAYIT FORMU</div>
             <h2 id="student-modal-title">{initialData ? `Öğrenci Düzenleme: ${initialData.student_name}` : "Yeni Öğrenci ve Sözleşme Kaydı"}</h2>
           </div>
-          <button className="icon-btn" onClick={onClose} type="button" aria-label="Pencereyi kapat">
+          <button className="icon-btn" disabled={loading} onClick={onClose} type="button" aria-label="Pencereyi kapat">
             <X size={19} aria-hidden="true" />
           </button>
         </div>
@@ -361,7 +359,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-form" noValidate>
+        <form onSubmit={handleSubmit} className="modal-form" inert={loading||undefined} noValidate>
           <div className="modal-form-body" style={{ minHeight: "420px" }}>
             {error && (
               <div className="modal-error" style={{ marginBottom: "14px" }}>
@@ -923,7 +921,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
             </div>
 
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <button type="button" className="btn secondary" onClick={onClose}>
+              <button type="button" className="btn secondary" disabled={loading} onClick={onClose}>
                 Vazgeç
               </button>
 

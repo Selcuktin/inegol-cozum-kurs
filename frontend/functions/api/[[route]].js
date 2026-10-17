@@ -130,6 +130,7 @@ export async function onRequest(context) {
     // 5. Standard 404 Response if no route matched
     return finalize(errorResponse(`Endpoint bulunamadı: ${path}`, 404, "NOT_FOUND"));
   } catch (err) {
+    if(err.message?.includes('PAYMENT_PLAN_CHANGED'))return errorResponse('Ödeme planı başka bir işlemde değişti. Kaydı yeniden açıp güncel plan üzerinden düzenleyin.',409,'PAYMENT_PLAN_CHANGED');
     console.error(JSON.stringify({
       time: new Date().toISOString(),
       type: "unhandled_api_error",

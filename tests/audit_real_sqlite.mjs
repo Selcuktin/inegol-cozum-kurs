@@ -708,6 +708,100 @@ await check('signature UI uses the saved server signer instead of a sample perso
   finally{globalThis.fetch=nativeFetch;}
 });
 
+await check('custom installment totals persist with income and student balances and preserve receipts',async db=>{
+  const c=await student(db,'plan-persistence',{total_fee:61000,extra_fees:{book:8000},installment_count:8});await pay(db,c,5000);
+  const beforePayments=rows(db,'SELECT * FROM payments');
+  const plan=rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id).map((i,n)=>({...i,amount:n===0?5000:8000,due_date:n===0?'2026-10-17':`2027-${String(n).padStart(2,'0')}-20`}));
+  const res=await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:plan});equal(res.status,200);
+  equal(row(db,'SELECT brut_tutar FROM contracts WHERE id=?',c.id).brut_tutar,61000);
+  equal(row(db,'SELECT total_fee FROM students WHERE id=?',c.student_id).total_fee,53000);
+  equal(row(db,'SELECT kalan_alacak FROM student_incomes WHERE contract_id=?',c.id).kalan_alacak,56000);
+  const read=(await request(db,'/contracts/'+c.id+'/installments')).data;
+  equal(read[0].amount,5000);equal(read[1].amount,8000);equal(read[1].due_date,'2027-01-20');
+  assert.deepEqual(rows(db,'SELECT * FROM payments'),beforePayments);
+});
+await check('equivalent student form values do not regenerate a custom payment schedule',async db=>{
+  const c=await student(db,'custom-keep',{extra_fees:{kaynak:0,dijital:0,dnm:0,kutuphane:0},due_date:'2026-10-15'});
+  const custom=rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id).map((i,n)=>({...i,amount:n===0?300:700,due_date:n===0?'2026-10-15':'2027-01-31'}));
+  equal((await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:custom})).status,200);
+  const before=rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id);
+  const form=(await request(db,'/students/'+c.student_id)).data;
+  equal((await request(db,'/students/'+c.student_id,'PATCH',{...form,extra_fees:{kaynak:0,dijital:0,dnm:0,kutuphane:0},school:'Changed school'})).status,200);
+  assert.deepEqual(rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id),before);
+});
+
+await check('student list is unique across historical contracts and detail reads the recorded plan',async db=>{
+  const c=await student(db,'unique-profile');const old=await student(db,'older-profile');
+  db.sql.prepare('UPDATE contracts SET student_id=?,period_id=40,period_name=? WHERE id=?').run(c.student_id,'2025-2026',old.id);
+  const plan=rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id).map((i,n)=>({...i,amount:n===0?300:700,due_date:n===0?'2026-10-15':'2027-01-31'}));
+  equal((await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:plan})).status,200);
+  const list=await request(db,'/students');equal(list.status,200);equal(list.data.items.filter(s=>s.id===c.student_id).length,1);
+  const detail=await request(db,'/students/'+c.student_id+'/detail');equal(detail.status,200);
+  assert.deepEqual(detail.data.installment_plan.map(i=>[i.amount,i.due_date]),plan.map(i=>[i.amount,i.due_date]));
+});
+await check('late older reads cannot overwrite newer accounting and student snapshots',async()=>{
+  try{
+    for(const method of ['fetchContracts','fetchInstallments','fetchIncomes','fetchCollections','fetchStudents']){
+      const service=method==='fetchStudents'?StudentService:AccountingService;
+      const waiting=[];globalThis.fetch=()=>new Promise(resolve=>waiting.push(resolve));
+      const old=service[method]();const fresh=service[method]();
+      waiting[1](new Response(JSON.stringify([{id:'new-'+method,amount:20,brut_tutar:20}])));await fresh;
+      waiting[0](new Response(JSON.stringify([{id:'old-'+method,amount:10,brut_tutar:10}])));const result=await old;
+      equal(result[0].id,'new-'+method);
+    }
+  }finally{globalThis.fetch=nativeFetch;}
+});
+
+await check('concurrent collection makes stale plan writes roll back through every financial editor',async db=>{
+  for(const target of ['installments','student','contract']){
+    const c=await student(db,'payment-race-'+target);
+    const before=rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id);
+    const batch=db.batch.bind(db);db.batch=async statements=>{db.batch=batch;await pay(db,c,400);return batch(statements);};
+    const result=target==='installments'?await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:before.map(i=>({...i,amount:300}))}):target==='student'?await request(db,'/students/'+c.student_id,'PATCH',{total_fee:600}):await request(db,'/contracts/'+c.id,'PATCH',{brutTutar:600});
+    equal(result.status,409);equal(result.data.code,'PAYMENT_PLAN_CHANGED');
+    equal(row(db,'SELECT brut_tutar FROM contracts WHERE id=?',c.id).brut_tutar,1000);
+    equal(row(db,'SELECT total_fee FROM students WHERE id=?',c.student_id).total_fee,1000);
+    equal(row(db,'SELECT paid_amount FROM installments WHERE contract_id=? AND installment_no=1',c.id).paid_amount,400);
+    equal(row(db,'SELECT COUNT(*) AS n FROM payments WHERE contract_id=?',c.id).n,1);
+  }
+});
+await check('stale browser plan cannot replace a subsequently saved schedule',async db=>{
+  const c=await student(db,'plan-conflict');const original=rows(db,'SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no',c.id);
+  const custom=original.map((i,n)=>({...i,amount:n===0?300:700}));
+  equal((await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:custom,expectedInstallments:original})).status,200);
+  const stale=await request(db,'/contracts/'+c.id+'/installments','PUT',{installments:original,expectedInstallments:original});equal(stale.status,409);
+  assert.deepEqual(rows(db,'SELECT amount FROM installments WHERE contract_id=? ORDER BY installment_no',c.id).map(i=>i.amount),[300,700]);
+});
+await check('accounting service persists custom edits through the real API and fresh reads',async db=>{
+  const c=await student(db,'service-roundtrip');await pay(db,c,200);
+  globalThis.fetch=async(url,options={})=>{const parsed=new URL(url,'https://inegol-cozum-kurs.pages.dev');const response=await request(db,parsed.pathname.replace(/^\/api/, '')+parsed.search,options.method||'GET',options.body);return new Response(JSON.stringify(response.data),{status:response.status});};
+  try{
+    AccountingService.resetCustomData();await AccountingService.fetchContracts();const before=await AccountingService.fetchInstallments(c.id);
+    const plan=before.map((i,n)=>({...i,taksitTutari:n===0?300:800,vadeTarihi:n===0?'2026-10-17':'2027-01-31'}));
+    const saved=await AccountingService.saveInstallments(c.sozlesme_no,plan,{expectedInstallments:before});equal(saved.newBrut,1100);
+    AccountingService.resetCustomData();await AccountingService.fetchContracts();const fresh=await AccountingService.fetchInstallments(c.id);
+    equal(AccountingService.getContracts()[0].brutTutar,1100);equal(fresh[1].taksitTutari,800);equal(fresh[1].vadeTarihi,'2027-01-31');equal(fresh[0].tahsilEdilen,200);
+  }finally{globalThis.fetch=nativeFetch;}
+});
+
+await check('security overview returns actual counters without claiming an unverified firewall state',async db=>{
+  const result=await request(db,'/security/overview');equal(result.status,200);equal(result.data.ok,true);equal(result.data.shield_status,'unknown');
+  equal(result.data.failed_logins_24h,0);assert(result.data.active_sessions_count>=1);
+  equal((await request(db,'/security/overview','GET',undefined,{headers:{Authorization:''}})).status,401);
+});
+
+await check('contract-scoped refresh removes stale installment aliases instead of keeping duplicate old rows',async()=>{
+  AccountingService.setInitialData({contracts:[{id:'new-id',sozlesmeNo:'SAME-CODE'}],installments:[{id:'old-inst',contractId:'old-id',sozlesmeNo:'SAME-CODE',taksitNo:1,taksitTutari:500}]});
+  globalThis.fetch=async()=>new Response(JSON.stringify([{id:'fresh-inst',contract_id:'new-id',sozlesme_no:'SAME-CODE',installment_no:1,amount:600,paid_amount:200,due_date:'2026-10-31'}]));
+  try{await AccountingService.fetchInstallments('new-id');const saved=AccountingService.getInstallments();equal(saved.length,1);equal(saved[0].id,'fresh-inst');equal(saved[0].tahsilEdilen,200);}finally{globalThis.fetch=nativeFetch;}
+});
+
+await check('malformed payment-plan rows are rejected without changing financial history',async db=>{
+  const c=await student(db,'invalid-plan');const before=rows(db,'SELECT * FROM installments');
+  for(const body of [null,{installments:[null]},{installments:[false]}])equal((await request(db,'/contracts/'+c.id+'/installments','PUT',body)).status,422);
+  assert.deepEqual(rows(db,'SELECT * FROM installments'),before);
+});
+
 Object.assign(console, originalConsole);
 const summary = { tested_at: new Date().toISOString(), runtime: process.version, database: 'isolated in-memory SQLite; actual production router and SQL', passed: results.filter(r => r.passed).length, failed: results.filter(r => !r.passed).length, results };
 mkdirSync(root + 'test_reports', { recursive: true });

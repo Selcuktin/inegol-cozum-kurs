@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import StudentService from "../lib/edesisStudentService";
 import { getBackendBaseUrl } from "../App";
@@ -44,13 +44,16 @@ export function useAppData(initialData = null) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const requestVersion=useRef(0);
 
   const reload = useCallback(async () => {
+    const version=++requestVersion.current;
     setLoading(true);
     try {
       const baseUrl = typeof getBackendBaseUrl === "function" ? getBackendBaseUrl() : "";
       const apiUrl = `${baseUrl}/api`;
       const r = await axios.get(`${apiUrl}/dashboard`);
+      if(version!==requestVersion.current)return;
       const rawStudents = r.data?.students || [];
       const cleanStudents = StudentService.filterActiveStudents(rawStudents);
       const nextData = {
@@ -65,10 +68,11 @@ export function useAppData(initialData = null) {
         }
       } catch (e) {}
     } catch (err) {
+      if(version!==requestVersion.current)return;
       console.warn("[useAppData] reload error:", err);
       setError(err);
     } finally {
-      setLoading(false);
+      if(version===requestVersion.current)setLoading(false);
     }
   }, []);
 
@@ -79,6 +83,7 @@ export function useAppData(initialData = null) {
       window.addEventListener("cozum_students_updated", handleUpdate);
       window.addEventListener("cozum_accounting_updated", handleUpdate);
       return () => {
+        requestVersion.current++;
         window.removeEventListener("cozum_students_updated", handleUpdate);
         window.removeEventListener("cozum_accounting_updated", handleUpdate);
       };

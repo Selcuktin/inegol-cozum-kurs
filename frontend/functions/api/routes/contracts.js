@@ -1,6 +1,17 @@
 import { json, errorResponse, logAction, getNextSequence, normalizeDate } from "../utils.js";
 import { generateContractInstallments } from "../../../src/lib/installmentService.js";
 
+const planSnapshot=rows=>JSON.stringify(rows.map(i=>[Number(i.installment_no??i.taksitNo),Number(i.taksitTutari??i.amount),Number(i.tahsilEdilen??i.paid_amount??0),normalizeDate(i.vadeTarihi||i.due_date)]).sort((a,b)=>a[0]-b[0]));
+
+// D1 batches roll back on SQL errors. Abort the whole batch if a concurrent write changed its input.
+function unchangedPlan(db,contract,previous){
+  return db.prepare(`SELECT CASE WHEN
+    EXISTS(SELECT 1 FROM contracts WHERE id=? AND brut_tutar=? AND taksit_sayisi=? AND durum<>3 AND COALESCE(is_deleted,0)=0)
+    AND (SELECT COUNT(*) FROM installments WHERE contract_id=?)=json_array_length(?)
+    AND NOT EXISTS(SELECT 1 FROM json_each(?) p LEFT JOIN installments i ON i.contract_id=? AND i.installment_no=json_extract(p.value,'$[0]') WHERE i.id IS NULL OR i.amount<>json_extract(p.value,'$[1]') OR i.paid_amount<>json_extract(p.value,'$[2]') OR i.due_date<>json_extract(p.value,'$[3]'))
+    THEN 1 ELSE json_extract('{}','PAYMENT_PLAN_CHANGED') END`).bind(contract.id,contract.brut_tutar,contract.taksit_sayisi,contract.id,planSnapshot(previous),planSnapshot(previous),contract.id);
+}
+
 // Shared bulk write avoids D1's query/parameter ceilings for long plans.
 export function installmentWrite(db, plan, contractId, incomeId, studentId, count) {
   return db.prepare(`INSERT INTO installments(id,contract_id,income_id,student_id,installment_no,total_installments,due_date,amount,paid_amount,status,created_at)
@@ -9,7 +20,7 @@ export function installmentWrite(db, plan, contractId, incomeId, studentId, coun
 }
 
 // Both student editing and contract editing must update the same financial records.
-export async function getContractUpdateStatements(db, row, patch, syncStudent = true) {
+export async function getContractUpdateStatements(db, row, patch, syncStudent = true, regeneratePlan = true) {
   if (row.durum === 3) return { error: errorResponse('İptal edilmiş sözleşmenin mali planı değiştirilemez',409,'CANCELLED_CONTRACT') };
   const gross = Number(patch.brutTutar ?? row.brut_tutar);
   const count = Number(patch.taksitSayisi ?? row.taksit_sayisi);
@@ -21,7 +32,8 @@ export async function getContractUpdateStatements(db, row, patch, syncStudent = 
   const vat = Math.round((gross - net) * 100) / 100;
   const active="EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)";
   const statements = [db.prepare("UPDATE contracts SET brut_tutar=?, net_tutar=?, kdv_tutari=?, taksit_sayisi=?, odeme_turu=?, odeme_turu_text=?, sozlesme_tarihi=? WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0").bind(gross, net, vat, count, count > 1 ? 1 : 2, count > 1 ? `Taksitli (${count} Taksit)` : "Peşin", patch.sozlesmeTarihi || row.sozlesme_tarihi, row.id)];
-  if (changed) {
+  if(regeneratePlan)statements.unshift(unchangedPlan(db,row,old));
+  if (changed && regeneratePlan) {
     const income = await db.prepare("SELECT id FROM student_incomes WHERE contract_id=? AND is_deleted=0 LIMIT 1").bind(row.id).first();
     const firstDue = normalizeDate(patch.due_date || old[0]?.due_date || row.sozlesme_tarihi);
     const plan = generateContractInstallments({ ...row, brut_tutar: gross, taksit_sayisi: count }, { startDate: firstDue || new Date().toISOString(), dueDay: firstDue ? Number(firstDue.slice(8, 10)) : 15 });
@@ -561,7 +573,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
   if (instMatch && (request.method === "PUT" || request.method === "POST")) {
     const rawId = decodeURIComponent(instMatch[1]);
     const body = await request.json().catch(() => ({}));
-    const installments = Array.isArray(body) ? body : (body.installments || []);
+    const installments = Array.isArray(body) ? body : (body?.installments || []);
 
     const contract = await db.prepare(`
       SELECT * FROM contracts
@@ -573,9 +585,11 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     if (contract.durum === 3) return errorResponse('İptal edilmiş sözleşmenin mali planı değiştirilemez',409,'CANCELLED_CONTRACT');
     if (!Array.isArray(installments) || installments.length === 0 || installments.length > 120) return errorResponse("Geçersiz taksit planı", 422, "VALIDATION_ERROR");
     const previous = (await db.prepare("SELECT * FROM installments WHERE contract_id=?").bind(contract.id).all()).results || [];
+    if(body?.expectedInstallments!==undefined && (!Array.isArray(body.expectedInstallments)||body.expectedInstallments.some(i=>!i||typeof i!=='object')||planSnapshot(body.expectedInstallments)!==planSnapshot(previous)))return errorResponse('Ödeme planı başka bir işlemde değişti. Kaydı yeniden açıp güncel plan üzerinden düzenleyin.',409,'PAYMENT_PLAN_CHANGED');
     const seen = new Set();
     const plan = [];
     for (const inst of installments) {
+      if(!inst || typeof inst!=='object')return errorResponse('Geçersiz taksit satırı',422,'VALIDATION_ERROR');
       const no = Number(inst.taksitNo ?? inst.installment_no);
       const amt = Number(inst.taksitTutari ?? inst.amount);
       const due = normalizeDate(inst.vadeTarihi || inst.due_date);
@@ -590,18 +604,20 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const income = await db.prepare("SELECT id FROM student_incomes WHERE contract_id=? AND is_deleted=0 LIMIT 1").bind(contract.id).first();
     const active="EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)";
     const updates = [
+      unchangedPlan(db,contract,previous),
       db.prepare(`DELETE FROM installments WHERE contract_id=? AND paid_amount=0 AND installment_no NOT IN (SELECT value FROM json_each(?)) AND ${active}`).bind(contract.id,JSON.stringify([...seen]),contract.id),
-      installmentWrite(db,plan,contract.id,income?.id || "",contract.student_id,installments.length),
-      db.prepare("UPDATE contracts SET taksit_sayisi=? WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0").bind(installments.length,contract.id),
-      db.prepare(`UPDATE student_incomes SET taksit_sayisi=? WHERE contract_id=? AND ${active}`).bind(installments.length,contract.id,contract.id)
+      installmentWrite(db,plan,contract.id,income?.id || "",contract.student_id,installments.length)
     ];
-    const total = installments.reduce((sum,i)=>sum+Number(i.taksitTutari ?? i.amount),0);
-    if (Math.abs(total-Number(contract.brut_tutar)) > 0.01) return errorResponse("Taksit toplamı sözleşme tutarına eşit olmalıdır", 422, "PLAN_TOTAL_MISMATCH");
+    const total = Math.round(plan.reduce((sum,i)=>sum+i.amount,0)*100)/100;
+    const financial=await getContractUpdateStatements(db,contract,{brutTutar:total,taksitSayisi:plan.length},true,false);
+    if(financial.error)return financial.error;
+    updates.push(...financial.statements);
+    updates.push(db.prepare(`UPDATE students SET due_date=? WHERE id=? AND sozlesme_no=? AND ${active}`).bind([...plan].sort((a,b)=>a.installment_no-b.installment_no)[0].due_date,contract.student_id,contract.sozlesme_no,contract.id));
     await db.batch(updates);
     if((await db.prepare('SELECT durum FROM contracts WHERE id=?').bind(contract.id).first())?.durum===3)return errorResponse('Sözleşme iptal edildi; değişiklik kaydedilmedi',409,'CANCELLED_CONTRACT');
     await logAction(db,user,"installments.update","contract",contract.id,"Taksit planı güncellendi",waitUntil);
 
-    return json({ ok: true, count: installments.length });
+    return json({ ok: true, newBrut:total, count: installments.length });
   }
 
   return null;
