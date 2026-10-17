@@ -771,6 +771,15 @@ await check('accounting creation, normalized incomes, payment and delete use the
   }finally{globalThis.fetch=nativeFetch;}
 });
 
+await check('dashboard and individual income/installment reads expose identical recorded fields',async db=>{
+  const c=await student(db,'snapshot-parity');await pay(db,c,100);db.sql.prepare("UPDATE installments SET due_date='',status='' WHERE contract_id=? AND installment_no=2").run(c.id);
+  const data=(await request(db,'/dashboard')).data;AccountingService.acceptDashboard(data);
+  for(const [endpoint,local] of [['/student-incomes',AccountingService.getIncomes()],['/installments',AccountingService.getInstallments()]]){
+    const remote=(await request(db,endpoint)).data;
+    for(const row of remote){const saved=local.find(r=>r.id===row.id);assert(saved);for(const field of Object.keys(row))assert.deepEqual(saved[field],row[field],endpoint+' '+field);}
+  }
+});
+
 Object.assign(console, originalConsole);
 const summary = { tested_at: new Date().toISOString(), runtime: process.version, database: 'isolated in-memory SQLite; actual production router and SQL', passed: results.filter(r => r.passed).length, failed: results.filter(r => !r.passed).length, results };
 mkdirSync(root + 'test_reports', { recursive: true });

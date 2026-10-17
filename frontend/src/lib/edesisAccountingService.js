@@ -198,6 +198,7 @@ const formatInstallmentRecord=(r) => {
           contract_id: r.contract_id || r.contractId,
           incomeId: r.income_id || r.incomeId,
           studentId: r.student_id || r.studentId,
+          ogrenciId:r.student_id||r.studentId||r.ogrenciId,
           sozlesmeNo: r.sozlesme_no || r.sozlesmeNo,
           ogrenciAdi: r.student_name || r.ogrenciAdi,
           ogrenciAdiSoyadi: r.student_name || r.ogrenciAdi,
@@ -215,8 +216,8 @@ const formatInstallmentRecord=(r) => {
           paid_amount: paid,
           kalanTutar: rem,
           vadeTarihi: normalizeDate(r.due_date || r.vadeTarihi),
-          due_date: r.due_date || r.vadeTarihi,
-          durumText: r.contract_status===3 ? 'İptal Edildi' : r.status || (paid >= amt && amt > 0 ? "Tam Ödendi" : paid > 0 ? "Kısmi Ödendi" : no === 0 ? "Peşinat" : "Bekliyor"),
+          due_date: r.due_date ?? r.vadeTarihi ?? "",
+          durumText: r.contract_status===3 ? 'İptal Edildi' : r.status ?? r.durumText ?? (paid >= amt && amt > 0 ? "Tam Ödendi" : paid > 0 ? "Kısmi Ödendi" : no === 0 ? "Peşinat" : "Bekliyor"),
           receiptNo: r.receipt_no,
           paymentDate: r.payment_date
         };
