@@ -1,11 +1,11 @@
 import axios from "axios";
 import { API as MAIN_API } from "../../components/layout/AuthAndNav";
+import { installAxiosSynchronization } from "../../lib/dataSync";
 export const API = `${MAIN_API}/lgs`;
 export const api = axios.create({baseURL:API, withCredentials:true});
+installAxiosSynchronization(api);
 api.interceptors.request.use(config=>{const token=localStorage.getItem('session_token');if(token)config.headers.Authorization=`Bearer ${token}`;return config;});
 export const loadError=e=>window.dispatchEvent(new CustomEvent('lgs:load-error',{detail:errMsg(e)}));
-const pending=new Map();const get=api.get.bind(api);
-api.get=(path,options)=>{if(options)return get(path,options);if(pending.has(path))return pending.get(path);const call=get(path).finally(()=>pending.delete(path));pending.set(path,call);return call;};
 export const errMsg = e => e?.response?.data?.detail || e?.message || 'İşlem tamamlanamadı.';
 export async function download(path, filename){
  const r=await api.get(path,{responseType:'blob'}), url=URL.createObjectURL(r.data), a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);

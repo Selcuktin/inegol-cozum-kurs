@@ -44,6 +44,18 @@ test('coalesced reads crossing a write both retry against the new generation',as
   }finally{uninstall();}
 });
 import {synchronizedRequest,installAxiosSynchronization,announceChange} from '../lib/dataSync';
+test('relative LGS requests inherit shared ordering and cannot reuse a pre-write bundle',async()=>{
+  const old=deferred();let reads=0;
+  const client=axios.create({baseURL:'/api/lgs',adapter:async config=>({data:config.method==='get'?(++reads===1?await old.promise:'fresh'):'saved',status:200,statusText:'OK',headers:{},config})});
+  const uninstall=installAxiosSynchronization(client);
+  try{
+    const first=client.get('/exams/e/bundle'),second=client.get('/exams/e/bundle');
+    await Promise.resolve();await Promise.resolve();expect(reads).toBe(1);
+    await client.put('/exams/e',{expected_revision:1});old.resolve('obsolete');
+    expect((await first).data).toBe('fresh');expect((await second).data).toBe('fresh');expect(reads).toBe(2);
+    expect((await client.get('/exams/e/bundle')).data).toBe('fresh');expect(reads).toBe(3);
+  }finally{uninstall();}
+});
 import AccountingService from '../lib/edesisAccountingService';
 import StudentService from '../lib/edesisStudentService';
 import {useDataRefresh} from '../hooks/useDataRefresh';

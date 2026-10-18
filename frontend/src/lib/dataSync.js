@@ -64,7 +64,7 @@ export function installAxiosSynchronization(axios){
       &&config.data==null&&config.validateStatus===Axios.defaults.validateStatus&&typeof config.withXSRFToken!=='function'
       ? JSON.stringify([Axios.getUri(config),config.headers?.toJSON?.()||config.headers,config.auth,config.responseType,config.responseEncoding,config.timeout,config.withCredentials,config.xsrfCookieName,config.xsrfHeaderName,config.withXSRFToken])
       : null;
-    return synchronizedRequest(config.url,config.method,()=>Axios.getAdapter(adapter)(config),identity);
+    return synchronizedRequest(Axios.getUri(config),config.method,()=>Axios.getAdapter(adapter)(config),identity);
   };
   synchronized.cozumSynchronized=true;
   axios.defaults.adapter=synchronized;

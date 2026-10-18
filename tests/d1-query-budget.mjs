@@ -59,5 +59,6 @@ try{
   const replay=await probe();assert.equal(reads(replay),beforeReplay);
   console.log(JSON.stringify({localOnly:true,fixtureContracts:133,beforeRowsRead:reads(before),afterRowsRead:reads(after),financialParity:true,migrationReplay:true}));
 }finally{
+  assert(path.resolve(folder).startsWith(path.resolve(tmpdir())+path.sep+'cozum-d1-budget-'));
   await rm(folder,{recursive:true,force:true});
 }
