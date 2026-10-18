@@ -14,6 +14,7 @@ const BACKUP_TABLES = [
   "installments",
   "exams",
   "exam_results",
+  "lgs_templates", "lgs_exam_types", "lgs_exams", "lgs_results", "lgs_contacts",
   "attendance",
   "appointments",
   "schedules",
@@ -95,7 +96,7 @@ async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUnt
   const pre = await readSnapshot(db);
   await saveSnapshot(db,env,pre,preId,"pre_restore","Sistem Güvenlik",`Geri yükleme öncesi: ${backupId}`);
   // A single batch rolls back completely if any statement fails. Unlisted legacy tables are preserved.
-  try { await db.batch(statements); }
+  try { await db.batch([db.prepare('PRAGMA defer_foreign_keys=ON'), ...statements]); }
   catch (err) { return {ok:false,error:"Geri yükleme başarısız; transaction geri alındı",rolled_back:true,safety_backup_id:preId}; }
   await logAction(db,user,"system.backup_restore","backup",backupId,notes,waitUntil);
   return {ok:true,message:"Veritabanı geri yüklendi",backup_id:backupId,safety_backup_id:preId,restored_counts:restored};

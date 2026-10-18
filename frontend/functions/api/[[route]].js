@@ -6,6 +6,7 @@ import { handleStudentsRoutes } from "./routes/students.js";
 import { handleContractsRoutes } from "./routes/contracts.js";
 import { handleAccountingRoutes } from "./routes/accounting.js";
 import { handleAcademicRoutes } from "./routes/academic.js";
+import { handleLgsRoutes } from "./routes/lgs.js";
 import { handleExamRoutes } from "./routes/exams.js";
 import { handleSystemRoutes } from "./routes/system.js";
 
@@ -103,6 +104,8 @@ export async function onRequest(context) {
     if (path === "/status" || path === "/health") {
       return finalize(cachedJson({ status: "ok", name: "İnegöl Çözüm Kurs Cloudflare Edge API", timestamp: new Date().toISOString() }, 30, 60, 120));
     }
+
+    if (path.startsWith("/lgs/")) return finalize(await handleLgsRoutes(ctx));
 
     // Universal Auth Guard: All data routes require an authenticated session
     if (!user) {

@@ -17,8 +17,8 @@ export function database() {
         bind(...values) { assert.ok(values.length<=100,"D1 accepts at most 100 bind parameters"); params = values; return statement; },
         async first() { count();return sql.prepare(query).get(...params) || null; },
         async all() { count();return { results: sql.prepare(query).all(...params) }; },
-        async run() { count();sql.prepare(query).run(...params); return { success: true }; },
-        execute() { count();const stmt=sql.prepare(query); if(stmt.columns().length) return {success:true,results:stmt.all(...params)}; stmt.run(...params); return { success: true }; },
+        async run() { count();const info=sql.prepare(query).run(...params); return { success: true, meta:{changes:info.changes} }; },
+        execute() { count();const stmt=sql.prepare(query); if(stmt.columns().length) return {success:true,results:stmt.all(...params)}; const info=stmt.run(...params); return { success: true, meta:{changes:info.changes} }; },
       };
       return statement;
     },

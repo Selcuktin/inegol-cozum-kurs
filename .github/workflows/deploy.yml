@@ -38,6 +38,7 @@ jobs:
           node tests/system_integrity.mjs
           node tests/admin_workflows.mjs
           node tests/income_indexes.mjs
+          node tests/lgs_workflows.mjs
       - name: Measure read budget on actual local D1 (no production resources)
         run: npx --yes --package=wrangler@4.151.1 -- node tests/d1-query-budget.mjs
 

@@ -75,7 +75,7 @@ test('PDF network failure is visible and does not claim a successful print',asyn
 test('desktop and mobile navigation expose administrator finance routes',async()=>{
   const openOptic=jest.fn(),setPage=jest.fn();
   const categories=buildNavCategories({setPage,setShowGlobalOptikModal:openOptic,setMobileOpen:()=>{}});const ids=categories.flatMap(c=>c.items.map(i=>i.id));expect(ids).not.toContain('attendance');expect(ids).toEqual(expect.arrayContaining(['exams','schedules']));
-  categories.flatMap(c=>c.items).find(i=>i.id==='exams').subItems.find(i=>i.id==='optik_omr').onClick();expect(setPage).toHaveBeenCalledWith('exams');expect(openOptic).toHaveBeenCalledWith(true);
+  categories.flatMap(c=>c.items).find(i=>i.id==='exams').subItems.find(i=>i.id==='optik_omr').onClick();expect(setPage).toHaveBeenCalledWith('exams');expect(sessionStorage.getItem('lgs_route')).toBe('/sinav/yeni');expect(openOptic).not.toHaveBeenCalled();
   const navigate=jest.fn();const view=await render(<MobileBottomNav page='documents' setPage={navigate}/>);
   expect(view.container.textContent).not.toMatch(/Sınavlar|Yoklama/);await fireEvent.click([...view.container.querySelectorAll('button')].find(b=>b.textContent==='Sözleşmeler'));expect(navigate).toHaveBeenCalledWith('documents');
 });

@@ -343,9 +343,6 @@ export function computeInstallmentPlan(student, payments) {
 }
 
 export function generateMonthlyPdf({ month, collected, expenses, net, monthPayments, monthExpenses, studentsCount }) {
-  // ponytail: static Latin/Turkish font subset; other scripts require expanding the subset.
-  const clean = value => String(value ?? "").normalize('NFC').replace(/[\r\n\t]+/g, " ");
-  const encoded = value => [...clean(value)].map(c=>reportFont.codes[c] || reportFont.codes['?']).join('');
   const money = value => `${Number(value || 0).toLocaleString("tr-TR", {minimumFractionDigits:2,maximumFractionDigits:2})} TL`;
   const lines = [
     'ÖZEL İNEGÖL ÇÖZÜM KURS MERKEZİ', `${month} DÖNEMİ AYLIK MUHASEBE RAPORU`, '',
@@ -358,6 +355,13 @@ export function generateMonthlyPdf({ month, collected, expenses, net, monthPayme
   lines.push('', 'GİDERLER');
   for (const e of monthExpenses) lines.push(`${e.expense_date} | ${e.title || e.category || 'Gider'} | ${money(e.amount)}`);
   if (!monthExpenses.length) lines.push('Bu dönemde gider kaydı bulunmamaktadır.');
+  return generateTextPdf(lines);
+}
+
+export function generateTextPdf(lines) {
+  // ponytail: static Latin/Turkish font subset; other scripts require expanding the subset.
+  const clean = value => String(value ?? "").normalize('NFC').replace(/[\r\n\t]+/g, " ");
+  const encoded = value => [...clean(value)].map(c=>reportFont.codes[c] || reportFont.codes['?']).join('');
   const wrapped=lines.flatMap(line=>{
     const result=[];let text='',width=0;
     for(const c of clean(line)){
@@ -368,8 +372,9 @@ export function generateMonthlyPdf({ month, collected, expenses, net, monthPayme
     }
     result.push(text);return result;
   });
-  const pages = [];
-  for (let i=0;i<wrapped.length;i+=48) pages.push(wrapped.slice(i,i+48));
+  const pages = [];let page=[];
+  for(const line of wrapped){if(line==='\f'){if(page.length)pages.push(page);page=[];continue;}page.push(line);if(page.length===48){pages.push(page);page=[];}}
+  if(page.length||!pages.length)pages.push(page);
   const d=reportFont.descriptor;
   const fontStream=reportFont.fontHex+'>';
   const objects = ['', '<< /Type /Catalog /Pages 2 0 R >>', '',

@@ -15,8 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "../pages/DashboardPage";
 import { can } from "../pages/AuthGuard";
-import { openWhatsApp, OfficialEdesisKarneModal } from "../EdesisModules";
-import { HataKarnesiModal } from "./HataKarnesiModal";
+import { openWhatsApp } from "../EdesisModules";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
 import AccountingService from "../lib/edesisAccountingService";
 import { computeEffective } from "./QuickActionModal";
@@ -45,8 +44,6 @@ export function StudentProfileModal({
   const [loading, setLoading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [selectedKarne, setSelectedKarne] = useState(null);
-  const [showHataKarnesiModal, setShowHataKarnesiModal] = useState(false);
   const [showPromissoryModal, setShowPromissoryModal] = useState(false);
   const [showGelirModal, setShowGelirModal] = useState(false);
   const fileRef = useRef();
@@ -90,17 +87,6 @@ export function StudentProfileModal({
   const plan = detail?.installment_plan || [];
   const { extraSum, discount, effective } = computeEffective(s);
   const canEdit = can(me, "student_create");
-
-  // Öğrencinin katıldığı sınavlar
-  const studentExams =
-    Array.isArray(detail?.exam_results)
-      ? detail.exam_results
-      : (data.exams || [])
-          .map((exam) => {
-            const res = (exam.results || []).find((r) => r.student_id === s.id);
-            return res ? { exam, ...res } : null;
-          })
-          .filter(Boolean);
 
   const uploadContract = async (file) => {
     if (!file) return;
@@ -267,7 +253,7 @@ export function StudentProfileModal({
         <div className="student-profile-tabs" style={{ display: "flex", borderBottom: "1px solid var(--line)", background: "#fff", padding: "0 24px" }}>
           {[
             { id: "genel", label: "Genel & Kimlik", icon: Users },
-            { id: "sinavlar", label: `Sınavlar & Karneler (${studentExams.length})`, icon: Award },
+            { id: "sinavlar", label: "Deneme Karneleri", icon: Award },
             { id: "muhasebe", label: "Muhasebe & Taksitler", icon: Wallet }
           ].map((t) => {
             const Icon = t.icon;
@@ -450,79 +436,7 @@ export function StudentProfileModal({
             </div>
           )}
 
-          {/* SEKME 2: SINAVLAR, KARNELER & HATA ANALİZİ */}
-          {activeTab === "sinavlar" && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-                <h4 style={{ margin: 0, fontSize: "14px", fontWeight: "700" }}>Katıldığı Deneme Sınavları & Net Analizi</h4>
-                <span style={{ fontSize: "12px", color: "#64748b" }}>Toplam {studentExams.length} Sınav Sonucu Bulundu</span>
-              </div>
-
-              {studentExams.length > 0 ? (
-                <div style={{ border: "1px solid var(--line)", borderRadius: "8px", overflow: "hidden" }}>
-                  <table className="data-table" style={{ width: "100%", fontSize: "12px", margin: 0 }}>
-                    <thead>
-                      <tr>
-                        <th>Sınav Adı</th>
-                        <th>Kitapçık</th>
-                        <th>Türkçe</th>
-                        <th>Matematik</th>
-                        <th>Fen</th>
-                        <th>Sosyal</th>
-                        <th>Toplam Net</th>
-                        <th>Puan</th>
-                        <th>Sıralama</th>
-                        <th style={{ textAlign: "right" }}>Karne</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studentExams.map((ex, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            <b>{ex.exam?.title || ex.exam_title || "Kurumsal Deneme"}</b>
-                          </td>
-                          <td>
-                            <span className="badge" style={{ background: "#f1f5f9" }}>
-                              {ex.booklet || "A"}
-                            </span>
-                          </td>
-                          <td>{ex.turkish_net}</td>
-                          <td>{ex.math_net}</td>
-                          <td>{ex.science_net}</td>
-                          <td>{ex.social_net}</td>
-                          <td>
-                            <b style={{ color: "#2563eb" }}>{ex.total_net}</b>
-                          </td>
-                          <td>
-                            <b style={{ color: "#16a34a" }}>{ex.score}</b>
-                          </td>
-                          <td>
-                            <span className="badge" style={{ background: "#fef3c7", color: "#b45309" }}>
-                              #{ex.overall_rank || 1}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <button
-                              className="btn small"
-                              onClick={() => setSelectedKarne({ ...ex, student_name: s.student_name, student_no: s.student_no, student_class: s.student_class })}
-                              style={{ padding: "4px 8px", fontSize: "11px", background: "#7c3aed", color: "#fff" }}
-                            >
-                              Karne Gör
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ padding: "36px", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed var(--line)" }}>
-                  <Award size={32} color="#94a3b8" style={{ margin: "0 auto 8px auto" }} />
-                  <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>Öğrenciye ait henüz bir sınav sonucu kaydı bulunamadı.</p>
-                </div>
-              )}
-            </div>
-          )}
+          {activeTab === "sinavlar" && <section style={{padding:24}}><h4>Deneme Karneleri</h4><p>Öğrenci sonuçları, soru analizi ve gelişim takibi Deneme Analizi bölümünde görüntülenir.</p><button className="btn" onClick={()=>{sessionStorage.setItem('lgs_route','/sinavlar');onNavigate?.('exams');window.dispatchEvent(new CustomEvent('lgs:navigate',{detail:'/sinavlar'}));onClose();}}>Sınavlar ve Karneler</button></section>}
 
           {/* Muhasebe ve kayıtlı taksitler */}
           {activeTab === "muhasebe" && (
@@ -612,8 +526,6 @@ export function StudentProfileModal({
         </div>
       </div>
 
-      {selectedKarne && <OfficialEdesisKarneModal data={selectedKarne} onClose={() => setSelectedKarne(null)} />}
-      {showHataKarnesiModal && <HataKarnesiModal student={s} onClose={() => setShowHataKarnesiModal(false)} />}
       {showPromissoryModal && <PromissoryNoteModal student={s} onClose={() => setShowPromissoryModal(false)} />}
     </div>
   );

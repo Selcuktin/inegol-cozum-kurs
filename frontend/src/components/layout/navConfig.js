@@ -105,10 +105,7 @@ export function buildNavCategories({
         {
           id: "exams", label: "Deneme Sınavları & Karne", icon: Award, perm: "page_exams", isTree: true, treeKey: "olcme",
           subItems: [
-            { id: "exams_list", label: "Deneme Sınavları Listesi", icon: Award, activeCheck: () => page === "exams" && !showGlobalOptikModal && !showGlobalHataKarnesi, onClick: () => { setPage("exams"); setMobileOpen(false); } },
-            { id: "optik_omr", label: "Optik Okuma & Şablonlar (OMR)", icon: Sparkles, onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); } },
-            { id: "hata_karnesi", label: "Kazanım & Hata Karneleri", icon: Target, onClick: () => { setShowGlobalHataKarnesi(true); setMobileOpen(false); } },
-            { id: "kalibrasyon", label: "Milimetrik Kalibrasyon & Baskı", icon: Printer, onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); } }
+            ...[['exams_list','Sınavlar ve Karneler','/sinavlar',Award],['optik_omr','Yeni Optik Veri Oku','/sinav/yeni',Sparkles],['fmt_templates','FMT Şablonları','/sablonlar',Sparkles],['exam_types','Puanlama Ayarları','/sinav-turleri',Target]].map(([id,label,route,icon])=>({id,label,icon,onClick:()=>{sessionStorage.setItem('lgs_route',route);setPage('exams');window.dispatchEvent(new CustomEvent('lgs:navigate',{detail:route}));setMobileOpen(false);}}))
           ]
         }
       ]

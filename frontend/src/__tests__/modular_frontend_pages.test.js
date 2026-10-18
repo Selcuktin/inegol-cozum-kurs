@@ -181,7 +181,7 @@ describe("AŞAMA 4: Modüler Frontend Mimarisi, Sayfalar & AuthGuard TDD Test Pa
         />
       );
 
-      expect(container.querySelector('[data-testid="exam-optical-page-container"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="auth-guard-unauthorized"]')).not.toBeNull();
     });
   });
 
