@@ -53,9 +53,15 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
    * TIER 1: CORE KPI CARDS, AGING REPORT & WHATSAPP
    * ===================================================================== */
   describe("Tier 1: Master Financial KPI Cards & Core Calculations", () => {
+    test.each(["dashboard", "gelirler", "tahsilatlar", "giderler", "senetler", "backup", "gecikenler", "vade_takvimi"])("summary cards and their period note are scoped to due-date pages: %s", async activeTab => {
+      const {container}=await render(<MuhasebeV2Dashboard me={{role:"admin"}} data={getDashboardData()} API={API} activeTab={activeTab}/>);
+      const visible=activeTab==="gecikenler"||activeTab==="vade_takvimi";
+      expect(container.querySelectorAll('.muhasebe-kpi-card')).toHaveLength(visible?6:0);
+      expect(container.textContent.includes('Ciro ve kasa özeti tüm dönemleri kapsar.')).toBe(visible);
+    });
     test("T1.1: renders 6 master financial KPI cards", async () => {
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={getDashboardData()}
           API={API}
@@ -73,7 +79,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
     test("T1.2: calculates Toplam Kayıt Cirosu accurately from students' total_fee", async () => {
       // 60,000 + 45,000 + 50,000 = 155,000
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={getDashboardData()}
           API={API}
@@ -87,7 +93,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
     test("T1.3: calculates Gerçekleşen Tahsilat and Tahsilat Başarı Oranı %", async () => {
       // 10000 + 10000 + 25000 + 20000 + 10000 = 75,000. 75,000 / 155,000 = 48%
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={getDashboardData()}
           API={API}
@@ -102,7 +108,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
     test("T1.4: calculates Kalan Toplam Alacak and Net Likit Mevcut", async () => {
       // Remaining: 155,000 - 75,000 = 80,000. Net liquid: 45,000
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={getDashboardData()}
           API={API}
@@ -116,7 +122,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
 
     test("T1.5: calculates Gecikmiş Taksitler and overdue students count", async () => {
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={getDashboardData()}
           API={API}
@@ -202,7 +208,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
   describe("Tier 2: Edge Cases, Filtering & Boundary Conditions", () => {
     test("T2.1: handles zero data gracefully without division by zero errors", async () => {
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={{ students: [], payments: [], expenses: [] }}
           API={API}
@@ -415,7 +421,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
   describe("Tier 4: Realistic Scenario - Student Registration to Aging & WhatsApp", () => {
     test("T4: Full workflow - Track student debt, trigger WhatsApp reminder, collect payment, issue receipt", async () => {
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={getDashboardData()}
           API={API}
@@ -476,7 +482,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
       }));
 
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={{ students: mockRealCohort, payments: [], expenses: [] }}
           API={API}
