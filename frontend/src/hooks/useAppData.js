@@ -61,7 +61,9 @@ export function useAppData(initialData = null) {
     reload();
     let timer;
     const invalidate=()=>{requestVersion.current++;};
-    const handleUpdate = () => {
+    const handleUpdate = (event) => {
+      // Exam-only saves do not change the financial dashboard. Session changes still clear it.
+      if(accountScope.current===dataScope() && /\/api\/lgs(?:\/|$)/.test(event?.detail?.path||''))return;
       if(accountScope.current!==dataScope()){accountScope.current=dataScope();setData(emptyData());}
       invalidate();clearTimeout(timer);timer=setTimeout(reload,50);
     };

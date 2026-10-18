@@ -59,8 +59,19 @@ test('relative LGS requests inherit shared ordering and cannot reuse a pre-write
 import AccountingService from '../lib/edesisAccountingService';
 import StudentService from '../lib/edesisStudentService';
 import {useDataRefresh} from '../hooks/useDataRefresh';
+import {useAppData} from '../hooks/useAppData';
 import {render,cleanup} from './test_helpers';
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
+test('LGS saves do not reread financial dashboard; financial and account changes still refresh',async()=>{
+  jest.useFakeTimers();const get=jest.spyOn(axios,'get').mockResolvedValue({data:{students:[],contracts:[],payments:[]}});
+  function Probe(){useAppData();return null;}
+  try{
+    await render(<Probe/>);expect(get).toHaveBeenCalledTimes(1);
+    await act(async()=>{window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path:'/api/lgs/exams/e'}}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(1);
+    await act(async()=>{window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path:'/api/payments'}}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(2);
+    await act(async()=>{localStorage.setItem('session_token','new-account');window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path:'/api/lgs/results/r/contact'}}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(3);
+  }finally{jest.useRealTimers();}
+});
 beforeEach(()=>{localStorage.clear();AccountingService.resetCustomData();StudentService.resetClientData();});
 afterEach(async()=>{await cleanup();jest.restoreAllMocks();});
 
