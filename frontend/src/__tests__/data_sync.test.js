@@ -1,5 +1,48 @@
 import axios from 'axios';
 import React,{act} from 'react';
+
+test('identical concurrent Axios dashboard reads share one request, later refresh stays fresh',async()=>{
+  const gate=deferred();let calls=0;
+  const client=axios.create({adapter:async config=>({data:++calls===1?await gate.promise:'new',status:200,statusText:'OK',headers:{},config})});
+  const uninstall=installAxiosSynchronization(client);
+  try{
+    const first=client.get('/api/dashboard'),second=client.get('/api/dashboard');
+    await Promise.resolve();await Promise.resolve();expect(calls).toBe(1);
+    gate.resolve('snapshot');
+    expect((await first).data).toBe('snapshot');expect((await second).data).toBe('snapshot');
+    expect((await client.get('/api/dashboard')).data).toBe('new');expect(calls).toBe(2);
+  }finally{uninstall();}
+});
+
+test('Axios coalescing separates parameters and Authorization, and evicts failures',async()=>{
+  let calls=0;
+  const client=axios.create({adapter:async config=>{calls++;throw new Error('offline');}});
+  const uninstall=installAxiosSynchronization(client);
+  try{
+    const requests=[
+      client.get('/api/contracts',{params:{period:1}}),
+      client.get('/api/contracts',{params:{period:2}}),
+      client.get('/api/contracts',{params:{period:1},headers:{Authorization:'Bearer other'}}),
+      client.get('/api/contracts',{params:{period:1},auth:{username:'other',password:'fixture'}}),
+    ];
+    await Promise.allSettled(requests);expect(calls).toBe(4);
+    await expect(client.get('/api/contracts',{params:{period:1}})).rejects.toThrow('offline');
+    expect(calls).toBe(5);
+  }finally{uninstall();}
+});
+
+test('coalesced reads crossing a write both retry against the new generation',async()=>{
+  const gate=deferred();let reads=0;
+  const client=axios.create({adapter:async config=>({data:++reads===1?await gate.promise:'fresh',status:200,statusText:'OK',headers:{},config})});
+  const uninstall=installAxiosSynchronization(client);
+  try{
+    const first=client.get('/api/dashboard'),second=client.get('/api/dashboard');
+    await synchronizedRequest('/api/payments','POST',async()=>({ok:true}));
+    gate.resolve('stale');
+    expect((await first).data).toBe('fresh');expect((await second).data).toBe('fresh');
+    expect(reads).toBe(2);
+  }finally{uninstall();}
+});
 import {synchronizedRequest,installAxiosSynchronization,announceChange} from '../lib/dataSync';
 import AccountingService from '../lib/edesisAccountingService';
 import StudentService from '../lib/edesisStudentService';
