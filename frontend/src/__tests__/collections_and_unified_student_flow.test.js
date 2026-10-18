@@ -34,12 +34,13 @@ describe("Tahsilatlar & Tek Sayfadan Yönetim Testleri", () => {
     expect(formatted.odemeKodu).toMatch(/^ODM-/);
   });
 
-  test("AccountingService.getCollections payments parametresini hafızaya işler ve döner", () => {
+  test("AccountingService.getCollections reads fallback props without changing authoritative memory", () => {
     const dummyPayments = [
       { id: "p1", student_name: "Ali Veli", amount: 5000, bank: "VakıfBank", payment_date: "2026-10-01" },
       { id: "p2", student_name: "Ayşe Yılmaz", amount: 6000, bank: "Nakit Ana Kasa", payment_date: "2026-10-02" }
     ];
 
+    AccountingService.resetCustomData();
     const result = AccountingService.getCollections(dummyPayments);
     expect(result.length).toBe(2);
     expect(result[0].student_name).toBe("Ali Veli");
@@ -48,7 +49,7 @@ describe("Tahsilatlar & Tek Sayfadan Yönetim Testleri", () => {
     expect(result[1].tahsilatTutari).toBe(6000);
 
     const cached = AccountingService.getCollections();
-    expect(cached.length).toBe(2);
+    expect(cached.length).toBe(0);
   });
 
   test("KayitModulu tablosunda Düzenle ve Sözleşme butonları bulunur", async () => {

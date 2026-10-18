@@ -49,8 +49,12 @@ export async function onRequest(context) {
     const finalize = (res) => {
       if (res && res.headers) {
         try {
+          res.headers.set('Cache-Control','private, no-store, max-age=0');
+          res.headers.set('Pragma','no-cache');
+          res.headers.set('Expires','0');
+          res.headers.set('Vary','Origin, Authorization, Cookie');
           res.headers.set("Server-Timing", `edge;dur=${Date.now() - startTime}`);
-          const cors = getCorsHeaders(request);
+          const cors = getCorsHeaders(request, env);
           Object.entries(cors).forEach(([k, v]) => res.headers.set(k, v));
         } catch {}
       }
@@ -70,6 +74,13 @@ export async function onRequest(context) {
       }
       return res;
     };
+
+    // Validate the shared JSON boundary before any domain can apply a partial or malformed body.
+    if((request.method!=='DELETE'||request.body!==null)&&(user||path.startsWith('/auth/'))&&['POST','PUT','PATCH','DELETE'].includes(request.method)&&request.headers.get('content-type')?.includes('application/json')){
+      let body;
+      try{body=await request.clone().json();}catch{return finalize(errorResponse('Geçersiz JSON isteği',400,'INVALID_JSON'));}
+      if(!body||typeof body!=='object')return finalize(errorResponse('İstek bir kayıt veya kayıt listesi içermelidir',422,'VALIDATION_ERROR'));
+    }
 
     // 4. Dispatch Auth domain routes first
     let response = await handleAuthRoutes(ctx);
@@ -130,6 +141,8 @@ export async function onRequest(context) {
     // 5. Standard 404 Response if no route matched
     return finalize(errorResponse(`Endpoint bulunamadı: ${path}`, 404, "NOT_FOUND"));
   } catch (err) {
+    if(err.message?.includes('RECORD_CHANGED'))return errorResponse('Bu kayıt başka bir işlemde değişti. Yeniden açıp güncel kayıt üzerinden düzenleyin.',409,'RECORD_CHANGED');
+    if(err.message?.includes('PAYMENT_PLAN_CHANGED'))return errorResponse('Ödeme planı başka bir işlemde değişti. Kaydı yeniden açıp güncel plan üzerinden düzenleyin.',409,'PAYMENT_PLAN_CHANGED');
     console.error(JSON.stringify({
       time: new Date().toISOString(),
       type: "unhandled_api_error",
@@ -140,6 +153,6 @@ export async function onRequest(context) {
       stack: err.stack,
       duration_ms: Date.now() - startTime
     }));
-    return errorResponse(`Sunucu hatası: ${err.message || String(err)}`, 500, "SERVER_ERROR");
+    return errorResponse("İşlem tamamlanamadı. Lütfen tekrar deneyin veya yöneticiyle iletişime geçin.", 500, "SERVER_ERROR");
   }
 }

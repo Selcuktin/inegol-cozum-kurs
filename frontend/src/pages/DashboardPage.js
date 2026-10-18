@@ -31,9 +31,9 @@ export function PageHead({ eyebrow, title, children }) {
   );
 }
 
-export function Button({ children, onClick, secondary = false, testid }) {
+export function Button({ children, onClick, secondary = false, testid, type = "button", ...props }) {
   return (
-    <button data-testid={testid} onClick={onClick} className={secondary ? "btn secondary" : "btn"}>
+    <button {...props} type={type} data-testid={testid} onClick={onClick} className={secondary ? "btn secondary" : "btn"}>
       {children}
     </button>
   );
@@ -90,8 +90,8 @@ export function DashboardPage({
   onNavigate,
   onSelect
 }) {
-  const outstanding = Math.max(0, totalExpected - totalCollected);
-  const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+  const outstanding = data.accounting?.totalRemaining ?? data.summary?.totalRemaining ?? Math.max(0, totalExpected - totalCollected);
+  const collectionRate = totalExpected > 0 ? Math.round(((totalExpected-outstanding) / totalExpected) * 100) : 0;
   const todayLabel = new Intl.DateTimeFormat("tr-TR", {
     weekday: "long",
     day: "numeric",
@@ -99,10 +99,8 @@ export function DashboardPage({
     year: "numeric"
   }).format(new Date()).toUpperCase();
 
-  const studentsCount = (data.students || []).length || 104;
-  const contractsCount = (data.contracts && data.contracts.length > 0)
-    ? data.contracts.length
-    : (data.students || []).filter((s) => s.sozlesme_no || s.total_fee).length || 69;
+  const studentsCount = (data.students || []).length;
+  const contractsCount = (data.contracts || []).filter(c=>!c.is_deleted && Number(c.durum)===1).length;
 
   // Yaklaşan & Vadesi Gelen Tahsilatlar (Ne Zaman, Kimden, Ne Kadar Alınacak)
   const upcomingInstallments = useMemo(() => {
@@ -123,8 +121,7 @@ export function DashboardPage({
       pending.sort((a, b) => new Date(a.vadeTarihi || a.due_date || "2099-12-31") - new Date(b.vadeTarihi || b.due_date || "2099-12-31"));
       return pending.map((inst) => {
         const s = studentsList.find((st) =>
-          (st.id && String(st.id) === String(inst.studentId || inst.student_id)) ||
-          (st.student_name && trNorm(st.student_name) === trNorm(inst.ogrenciAdi || inst.ogrenciAdiSoyadi || ""))
+          (st.id && String(st.id) === String(inst.studentId || inst.student_id))
         );
         const parentName = s?.parent_name && s.parent_name !== s.student_name ? s.parent_name : (s?.parent_name || "Veli");
         const parentPhone = s?.parent_phone || s?.student_phone || "";
@@ -143,24 +140,7 @@ export function DashboardPage({
       });
     }
 
-    // Fallback: Testler veya boş hafıza durumunda öğrencilerden türet
-    return studentsList.slice(0, 6).map((s, idx) => {
-      const fee = s.total_fee || 75000;
-      const count = s.installment_count || 10;
-      const amt = Math.round(fee / count) || 7500;
-      return {
-        id: `synth_due_${s.id || idx}`,
-        student_name: s.student_name,
-        student_class: s.student_class || "8-A",
-        parent_name: s.parent_name && s.parent_name !== s.student_name ? s.parent_name : (s.parent_name || "Veli"),
-        parent_phone: s.parent_phone || s.student_phone || "",
-        sozlesmeNo: s.sozlesme_no || `SZL2026${String(idx + 100).padStart(5, "0")}`,
-        installment_no: idx + 1,
-        due_date: s.due_date || new Date(Date.now() + (idx * 7 + 4) * 86400000).toISOString().slice(0, 10),
-        amount: amt,
-        student: s
-      };
-    });
+    return [];
   }, [data.students]);
 
   // Sınıf Kontenjanları (Test uyumluluğu ve sade genel bakış için)
@@ -486,7 +466,7 @@ export function DashboardPage({
         <Stat
           icon={Users}
           label="Sözleşme & Öğrenci"
-          value={`${contractsCount} Sözleşme`}
+          value={`${contractsCount} Aktif Sözleşme`}
           note={`${studentsCount} Kayıtlı Öğrenci`}
           color="green"
           trend="Aktif Portföy"

@@ -12,7 +12,6 @@ export function StudentsPage({
   guardedOpen = () => {},
   setSelected = () => {},
   setPage = () => {},
-  setShowGlobalKarne = () => {},
   onEditStudent = () => {}
 }) {
   const handleSelectOrOpenContract = (st, contract) => {
@@ -48,18 +47,6 @@ export function StudentsPage({
           onOpenGelir={(st) => handleSelectOrOpenContract(st)}
           onOpenContract={(contract, st) => handleSelectOrOpenContract(st, contract)}
           onEditStudent={onEditStudent}
-          onOpenKarne={(st) =>
-            setShowGlobalKarne({
-              student_name: st.student_name,
-              student_class: st.student_class,
-              score: 450,
-              total_net: 65,
-              overall_rank: 1,
-              class_rank: 1,
-              booklet: "A",
-              exam: { title: "Kurumsal Deneme" }
-            })
-          }
           onNavigate={setPage}
         />
       </div>

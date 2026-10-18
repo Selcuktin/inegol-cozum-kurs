@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { usePrintMode } from "../hooks/usePrintMode";
+import { csvRow } from "../lib/csv";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   FileText,
   Calendar,
@@ -51,11 +53,13 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   useEffect(() => {
     const handleUpdate = () => {
-      setContractsList(AccountingService.getContracts(students, propContracts));
+      setContractsList(AccountingService.getContracts(students));
     };
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => {
+      window.removeEventListener("cozum_snapshot_updated", handleUpdate);
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };
@@ -84,6 +88,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const [sortOrder, setSortOrder] = useState("desc");
 
   // Pagination
+  const printing=usePrintMode();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -119,39 +124,23 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     return null;
   };
 
-  const findMatchingContract = (targetKey, list = []) => {
-    if (!targetKey || !Array.isArray(list) || list.length === 0) return null;
-    const cleanKey = String(targetKey).trim();
-    const cleanId = cleanKey.replace(/^stu-/, "");
-    const normKey = trNorm(cleanKey);
-    return list.find((c) => {
-      if (!c) return false;
-      if (c.sozlesmeNo && String(c.sozlesmeNo) === cleanKey) return true;
-      if (c.id != null && (String(c.id) === cleanKey || String(c.id).replace(/^stu-/, "") === cleanId)) return true;
-      if (c.studentId != null && (String(c.studentId) === cleanKey || String(c.studentId).replace(/^stu-/, "") === cleanId)) return true;
-      if (c.ogrenciId != null && (String(c.ogrenciId) === cleanKey || String(c.ogrenciId).replace(/^stu-/, "") === cleanId)) return true;
-      if (c.ogrenciNo != null && String(c.ogrenciNo) === cleanKey) return true;
-      if (trNorm(c.sozlesmeNo) === normKey) return true;
-      if (trNorm(c.id) === normKey) return true;
-      if (trNorm(c.ogrenciAdi) === normKey) return true;
-      if (trNorm(c.ogrenciAdiSoyadi) === normKey) return true;
-      if (trNorm(c.musteriUnvan) === normKey) return true;
-      return false;
-    }) || null;
-  };
+  const findMatchingContract = useCallback((targetKey, list = []) => {
+    if (!targetKey || !Array.isArray(list)) return null;
+    const key=String(targetKey).trim();
+    const exact=list.find(c=>String(c.sozlesmeNo || "")===key || String(c.id)===key);
+    if(exact)return exact;
+    const id=key.replace(/^stu-/, "");
+    const matching=list.filter(c=>String(c.studentId || c.ogrenciId || c.student_id || "").replace(/^stu-/, "")===id);
+    const currentStudent=students.find(s=>String(s.id).replace(/^stu-/, "")===id);
+    return matching.find(c=>c.sozlesmeNo===currentStudent?.sozlesme_no) || (matching.length===1 ? matching[0] : null);
+  }, [students]);
 
   const [selectedContract, setSelectedContract] = useState(() => {
     try {
       const targetKey = getTargetContractKey();
       if (targetKey) {
-        const all = AccountingService.getContracts(students, propContracts);
+        const all = AccountingService.getContracts(students);
         let found = findMatchingContract(targetKey, all);
-        if (!found && typeof sessionStorage !== "undefined") {
-          const sName = sessionStorage.getItem("cozum_open_contract_student");
-          const sId = sessionStorage.getItem("cozum_open_contract_student_id");
-          if (sName) found = findMatchingContract(sName, all);
-          if (!found && sId) found = findMatchingContract(sId, all);
-        }
         if (found) {
           try {
             sessionStorage.removeItem("cozum_open_contract_no");
@@ -184,37 +173,8 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
         let found = findMatchingContract(targetKey, contractsList);
 
-        // If not found, check student name or student id from sessionStorage
-        if (!found && typeof sessionStorage !== "undefined") {
-          const sName = sessionStorage.getItem("cozum_open_contract_student");
-          const sId = sessionStorage.getItem("cozum_open_contract_student_id");
-          if (sName) found = findMatchingContract(sName, contractsList);
-          if (!found && sId) found = findMatchingContract(sId, contractsList);
-        }
-
-        // If still not found, check in students array and synthesize on the fly
-        if (!found && Array.isArray(students) && students.length > 0) {
-          const normKey = trNorm(targetKey);
-          const sNameKey = typeof sessionStorage !== "undefined" ? trNorm(sessionStorage.getItem("cozum_open_contract_student") || "") : "";
-          const sIdKey = typeof sessionStorage !== "undefined" ? String(sessionStorage.getItem("cozum_open_contract_student_id") || "") : "";
-
-          const st = students.find((s) => 
-            (s.id && String(s.id) === String(targetKey)) || 
-            (s.id && sIdKey && String(s.id) === sIdKey) ||
-            (s.sozlesme_no && String(s.sozlesme_no) === String(targetKey)) || 
-            (s.student_name && trNorm(s.student_name) === normKey) ||
-            (s.student_name && sNameKey && trNorm(s.student_name) === sNameKey)
-          );
-          if (st) {
-            found = findMatchingContract(st.sozlesme_no, contractsList) || 
-                    findMatchingContract(st.student_name, contractsList) ||
-                    findMatchingContract(st.id, contractsList);
-          }
-        }
-
         if (found) {
           setSelectedContract((prev) => {
-            if (prev && (prev.sozlesmeNo === found.sozlesmeNo || prev.id === found.id)) return prev;
             return found;
           });
           try {
@@ -231,26 +191,15 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     syncTargetContract();
     window.addEventListener("hashchange", syncTargetContract);
     return () => window.removeEventListener("hashchange", syncTargetContract);
-  }, [contractsList, students]);
+  }, [contractsList, students, findMatchingContract]);
   const [showPaymentPlanModal, setShowPaymentPlanModal] = useState(null);
   const [showMebPrintModal, setShowMebPrintModal] = useState(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showNewContractModal, setShowNewContractModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelling,setCancelling]=useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-
-  // Manage print isolation classes on body
-  useEffect(() => {
-    if (showMebPrintModal) {
-      document.body.classList.add("meb-print-active");
-    } else {
-      document.body.classList.remove("meb-print-active");
-    }
-    return () => {
-      document.body.classList.remove("meb-print-active");
-    };
-  }, [showMebPrintModal]);
 
   const allRegisteredStudents = useMemo(() => {
     try {
@@ -356,10 +305,11 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   // Dynamic contract counts per period
   const periodCounts = useMemo(() => {
-    const counts = { "113": 0, "40": 0, "142": 0, all: contractsList.length };
+    const counts = { "113": 0, "40": 0, "142": 0, all: contractsList.length,active:{"113":0,"40":0,"142":0,all:0} };
     contractsList.forEach((c) => {
       const id = String(c.donemId);
       if (counts[id] !== undefined) counts[id]++;
+      if(Number(c.durum)===1){counts.active.all++;if(counts.active[id]!==undefined)counts.active[id]++;}
     });
     return counts;
   }, [contractsList]);
@@ -440,6 +390,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
     return {
       totalCount,
+      activeCount:activeContracts.length,
       activeAmount,
       draftCount,
       canceledCount
@@ -448,13 +399,15 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
   // Pagination calculation
   const totalRecords = filteredContracts.length;
-  const totalPages = pageSize === "all" ? 1 : Math.ceil(totalRecords / (Number(pageSize) || 25));
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(totalRecords / (Number(pageSize) || 25)));
+  useEffect(() => { setCurrentPage(p => Math.min(p, totalPages)); }, [totalPages]);
   const paginatedContracts = useMemo(() => {
+    if (printing) return filteredContracts;
     if (pageSize === "all") return filteredContracts;
     const size = Number(pageSize) || 25;
     const start = (currentPage - 1) * size;
     return filteredContracts.slice(start, start + size);
-  }, [filteredContracts, currentPage, pageSize]);
+  }, [filteredContracts, currentPage, pageSize, printing]);
 
   // Sort toggle handler
   const handleSort = (field) => {
@@ -482,7 +435,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
       c.durum === 1 ? "Aktif" : c.durum === 3 ? "İptal" : "Taslak"
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(";"))].join("\r\n");
+    const csvContent = "\uFEFF" + [headers, ...rows].map(csvRow).join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -491,27 +444,34 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast("✅ Sözleşmeler Excel (CSV) formatında indirildi.");
   };
 
   // Cancel contract action
-  const handleConfirmCancel = () => {
-    if (!showCancelModal) return;
+  const handleConfirmCancel = async () => {
+    if (!showCancelModal || cancelling) return;
     if (!cancelReason || cancelReason.trim().length < 5) {
       alert("Lütfen en az 5 karakterlik iptal nedeni belirtiniz.");
       return;
     }
-    AccountingService.cancelContract(showCancelModal, cancelReason);
-    setContractsList(AccountingService.getContracts(students));
-    showToast(`⚠️ ${showCancelModal.sozlesmeNo} numaralı sözleşme iptal edildi.`);
-    setShowCancelModal(null);
-    setCancelReason("");
+    setCancelling(true);
+    try{
+      await AccountingService.cancelContract(showCancelModal, cancelReason);
+      setContractsList(AccountingService.getContracts(students));
+      showToast(`⚠️ ${showCancelModal.sozlesmeNo} numaralı sözleşme iptal edildi.`);
+      setShowCancelModal(null);
+      setCancelReason("");
+    }catch(error){window.alert(error.message || 'Sözleşme iptal edilemedi');}
+    finally{setCancelling(false);}
   };
 
   // Delete contract action
-  const handleDeleteContract = (contract) => {
+  const handleDeleteContract = async (contract) => {
+try {
+
     if (window.confirm(`${contract.sozlesmeNo} sözleşmesini silmek istediğinize emin misiniz?`)) {
-      AccountingService.deleteContract(contract);
+      await AccountingService.deleteContract(contract);
       // Immediately filter from state so activeAmount and totalCount drop instantly on screen
       setContractsList((prev) =>
         prev.filter((c) => c.sozlesmeNo !== contract.sozlesmeNo && c.id !== contract.id)
@@ -519,11 +479,12 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
       showToast(`🗑️ ${contract.sozlesmeNo} sözleşmesi silindi.`);
     }
     setOpenDropdownId(null);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   const printStudent = useMemo(() => {
     if (!showMebPrintModal) return null;
-    const name = trNorm(showMebPrintModal.ogrenciAdi || showMebPrintModal.student_name || showMebPrintModal.musteriUnvan || "");
     const sId = String(showMebPrintModal.ogrenciId || showMebPrintModal.studentId || showMebPrintModal.student_id || "");
     const cleanId = sId.replace(/^stu-/, "");
     const szlNo = showMebPrintModal.sozlesmeNo || showMebPrintModal.sozlesme_no || "";
@@ -532,11 +493,10 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
     const list = Array.isArray(allRegisteredStudents) && allRegisteredStudents.length > 0 ? allRegisteredStudents : (students || []);
     return list.find((s) => {
       if (!s) return false;
+      if (cleanId) return String(s.id).replace(/^stu-/, "") === cleanId;
       if (szlNo && s.sozlesme_no && String(s.sozlesme_no) === szlNo) return true;
-      if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
       if (tc && s.student_tc && String(s.student_tc).trim() === tc) return true;
       if (ogrNo && String(s.student_no) === ogrNo) return true;
-      if (name && trNorm(s.student_name) === name) return true;
       return false;
     }) || null;
   }, [showMebPrintModal, allRegisteredStudents, students]);
@@ -608,7 +568,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   return (
     <>
       <div
-        className={`edesis-contracts-view ${showMebPrintModal || showPaymentPlanModal ? "no-print" : ""}`}
+        className={`admin-record-list edesis-contracts-view ${showMebPrintModal || showPaymentPlanModal ? "no-print" : ""}`}
       style={{
         backgroundColor: "#f5f8fa",
         minHeight: "100vh",
@@ -654,6 +614,7 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
 
       {/* TOP HEADER & ACTION BUTTONS */}
       <div
+        className="erp-page-header"
         style={{
           display: "flex",
           justifyContent: "space-between",
@@ -1139,15 +1100,15 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                           const matchingGelir = gelirMap[sNo];
                           const isGelirMatchValid = matchingGelir && !matchingGelir.is_deleted && (!matchingGelir.student_name || trNorm(matchingGelir.student_name) === trNorm(c.ogrenciAdi || c.student_name));
                           const gross = Number(c.brutTutar !== undefined ? c.brutTutar : (c.brut_tutar !== undefined ? c.brut_tutar : 0));
-                          const collected = c.toplamTahsilat !== undefined 
-                            ? Number(c.toplamTahsilat) 
-                            : (c.toplam_tahsilat !== undefined 
-                              ? Number(c.toplam_tahsilat) 
+                          const collected = c.toplamTahsilat !== undefined
+                            ? Number(c.toplamTahsilat)
+                            : (c.toplam_tahsilat !== undefined
+                              ? Number(c.toplam_tahsilat)
                               : (isGelirMatchValid ? Number(matchingGelir.toplamTahsilat) : 0));
-                          const remaining = c.kalanAlacak !== undefined 
-                            ? Number(c.kalanAlacak) 
-                            : (c.kalan_alacak !== undefined 
-                              ? Number(c.kalan_alacak) 
+                          const remaining = c.kalanAlacak !== undefined
+                            ? Number(c.kalanAlacak)
+                            : (c.kalan_alacak !== undefined
+                              ? Number(c.kalan_alacak)
                               : (isGelirMatchValid ? Number(matchingGelir.kalanAlacak) : Math.max(0, gross - collected)));
                           const pct = gross > 0 ? Math.min(100, Math.max(0, (collected / gross) * 100)) : 0;
                           return (
@@ -1193,10 +1154,10 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
                           const sNo = c.sozlesmeNo || c.sozlesme_no;
                           const matchingGelir = gelirMap[sNo];
                           const isGelirMatchValid = matchingGelir && !matchingGelir.is_deleted && (!matchingGelir.student_name || trNorm(matchingGelir.student_name) === trNorm(c.ogrenciAdi || c.student_name));
-                          const collected = c.toplamTahsilat !== undefined 
-                            ? Number(c.toplamTahsilat) 
-                            : (c.toplam_tahsilat !== undefined 
-                              ? Number(c.toplam_tahsilat) 
+                          const collected = c.toplamTahsilat !== undefined
+                            ? Number(c.toplamTahsilat)
+                            : (c.toplam_tahsilat !== undefined
+                              ? Number(c.toplam_tahsilat)
                               : (isGelirMatchValid ? Number(matchingGelir.toplamTahsilat) : 0));
                           return (
                             <span style={{ fontWeight: 700, fontSize: "13px", color: "#f59e0b" }}>
@@ -1467,8 +1428,9 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
       <CancelContractModal
         contract={showCancelModal}
         cancelReason={cancelReason}
+        saving={cancelling}
         setCancelReason={setCancelReason}
-        onClose={() => setShowCancelModal(null)}
+        onClose={() => {if(!cancelling)setShowCancelModal(null);}}
         onConfirm={handleConfirmCancel}
       />
 

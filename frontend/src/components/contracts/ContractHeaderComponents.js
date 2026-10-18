@@ -12,6 +12,7 @@ import {
 export function ContractSummaryCards({ stats, fmtCurrency }) {
   return (
     <div
+      className="erp-summary-grid"
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -34,11 +35,12 @@ export function ContractSummaryCards({ stats, fmtCurrency }) {
       >
         <div>
           <div style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px" }}>
-            TOPLAM SÖZLEŞME
+            AKTİF KAYIT
           </div>
           <div style={{ fontSize: "24px", fontWeight: 700, color: "#1e293b", marginTop: "4px" }}>
-            {stats.totalCount}
+            {stats.activeCount}
           </div>
+          <div style={{fontSize:'11px',color:'#64748b',marginTop:'4px'}}>Toplam {stats.totalCount} · İptal {stats.canceledCount} · Taslak {stats.draftCount}</div>
         </div>
         <div
           style={{
@@ -193,6 +195,7 @@ export function ContractFiltersBar({
 }) {
   return (
     <div
+      className="erp-filter-panel"
       style={{
         background: "#fff",
         borderRadius: "8px",
@@ -244,10 +247,10 @@ export function ContractFiltersBar({
                 padding: "4px"
               }}
             >
-              <option value="-1">{`Tümü (${periodCounts?.all || 0} Sözleşme)`}</option>
-              <option value="113">{`2026-2027 (${periodCounts?.["113"] || 0} Sözleşme)`}</option>
-              <option value="40">{`2025-2026 (${periodCounts?.["40"] || 0} Sözleşme)`}</option>
-              <option value="142">{`2026-2027-YAZ (${periodCounts?.["142"] || 0} Sözleşme)`}</option>
+              <option value="-1">{`Tümü (${periodCounts?.active?.all || 0} aktif / ${periodCounts?.all || 0} toplam)`}</option>
+              <option value="113">{`2026-2027 (${periodCounts?.active?.["113"] || 0} aktif / ${periodCounts?.["113"] || 0} toplam)`}</option>
+              <option value="40">{`2025-2026 (${periodCounts?.active?.["40"] || 0} aktif / ${periodCounts?.["40"] || 0} toplam)`}</option>
+              <option value="142">{`2026-2027-YAZ (${periodCounts?.active?.["142"] || 0} aktif / ${periodCounts?.["142"] || 0} toplam)`}</option>
             </select>
           </div>
 

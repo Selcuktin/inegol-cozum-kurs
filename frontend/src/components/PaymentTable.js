@@ -5,14 +5,7 @@ export const money = (n) => new Intl.NumberFormat("tr-TR", { style: "currency", 
 export const today = () => new Date().toISOString().slice(0, 10);
 
 export function PaymentTable({ payments = [], students = [], onSelect, onOpenReceipt, onOpenPromissory }) {
-  const list = payments.length ? payments : students.map((s, i) => ({
-    id: `p${i}`,
-    student_id: s.id,
-    payment_date: today(),
-    method: i % 2 === 0 ? "Nakit Kasa" : "Kredi Kartı",
-    note: "Dönem taksit ödemesi",
-    amount: s.paid_amount || 4000
-  }));
+  const list = payments;
 
   return (
     <>

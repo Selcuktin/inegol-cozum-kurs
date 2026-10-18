@@ -1,3 +1,5 @@
+import { usePrintMode } from "../hooks/usePrintMode";
+import { csvRow } from "../lib/csv";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   FileText,
@@ -30,8 +32,10 @@ import {
 
 export { fmtCurrency, fmtDate };
 
+const EMPTY_STUDENTS=[];
+
 export default function EdesisGelirListesi({
-  students = [],
+  students = EMPTY_STUDENTS,
   onSelectStudent,
   onOpenGelir,
   onNavigate
@@ -51,9 +55,11 @@ export default function EdesisGelirListesi({
     const handleUpdate = () => {
       setIncomesList(AccountingService.getIncomes(students));
     };
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => {
+      window.removeEventListener("cozum_snapshot_updated", handleUpdate);
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };
@@ -74,6 +80,7 @@ export default function EdesisGelirListesi({
   const [sortOrder, setSortOrder] = useState("desc");
 
   // Sayfalama
+  const printing=usePrintMode();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -160,6 +167,7 @@ export default function EdesisGelirListesi({
       }
 
       // Durum kontrolleri
+      if(Number(g.durum)===4 && statusQuickFilter!=='all')return false;
       const isFullyPaid = g.tamTahsilEdildiMi || (Number(g.kalanAlacak) <= 0);
       const isOverdue = g.vadesiGectiMi || (Number(g.kalanAlacak) > 0 && g.vadeTarihi && g.vadeTarihi.slice(0, 10) < todayStr);
 
@@ -218,11 +226,13 @@ export default function EdesisGelirListesi({
 
   // Sayfalanmış Gelirler
   const paginatedIncomes = useMemo(() => {
+    if (printing) return sortedIncomes;
     const start = (currentPage - 1) * pageSize;
     return sortedIncomes.slice(start, start + pageSize);
-  }, [sortedIncomes, currentPage, pageSize]);
+  }, [sortedIncomes, currentPage, pageSize, printing]);
 
   const totalPages = Math.ceil(sortedIncomes.length / pageSize) || 1;
+  useEffect(() => { setCurrentPage(p => Math.min(p, totalPages)); }, [totalPages]);
 
   // 4 KPI Sayaç İstatistikleri (Döneme göre canlı)
   const stats = useMemo(() => {
@@ -233,6 +243,7 @@ export default function EdesisGelirListesi({
 
     filteredIncomes.forEach((g) => {
       count++;
+      if(Number(g.durum)===4)return;
       grossTotal += Number(g.brutTutar) || 0;
       collectedTotal += Number(g.toplamTahsilat) || 0;
       remainingTotal += Number(g.kalanAlacak) || 0;
@@ -275,22 +286,22 @@ export default function EdesisGelirListesi({
     ];
 
     const rows = sortedIncomes.map((g) => [
-      `"${g.gelirKodu || ""}"`,
-      `"${fmtDate(g.gelirTarihi)}"`,
-      `"${fmtDate(g.vadeTarihi)}"`,
-      `"${g.ogrenciAdiSoyadi || g.musteriUnvan || ""}"`,
-      `"${g.musteriUnvan || ""}"`,
-      `"${g.sinifAdi || ""}"`,
-      `"${g.sozlesmeNo || ""}"`,
-      `"${g.gelirKategoriAdi || "Öğrenci Sözleşmesi"}"`,
-      `"${(Number(g.brutTutar) || 0).toFixed(2)}"`,
-      `"${(Number(g.toplamTahsilat) || 0).toFixed(2)}"`,
-      `"${(Number(g.kalanAlacak) || 0).toFixed(2)}"`,
-      `"${g.taksitSayisi || 1}"`,
-      `"${g.tamTahsilEdildiMi || g.kalanAlacak <= 0 ? "Tam Ödendi" : (g.vadesiGectiMi ? "Vadesi Geçti" : "Açık / Taksitli")}"`
+      `${g.gelirKodu || ""}`,
+      `${fmtDate(g.gelirTarihi)}`,
+      `${fmtDate(g.vadeTarihi)}`,
+      `${g.ogrenciAdiSoyadi || g.musteriUnvan || ""}`,
+      `${g.musteriUnvan || ""}`,
+      `${g.sinifAdi || ""}`,
+      `${g.sozlesmeNo || ""}`,
+      `${g.gelirKategoriAdi || "Öğrenci Sözleşmesi"}`,
+      `${(Number(g.brutTutar) || 0).toFixed(2)}`,
+      `${(Number(g.toplamTahsilat) || 0).toFixed(2)}`,
+      `${(Number(g.kalanAlacak) || 0).toFixed(2)}`,
+      `${g.taksitSayisi || 1}`,
+      `${Number(g.durum)===4 ? 'İptal Edildi' : g.tamTahsilEdildiMi || g.kalanAlacak <= 0 ? "Tam Ödendi" : (g.vadesiGectiMi ? "Vadesi Geçti" : "Açık / Taksitli")}`
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
+    const csvContent = "\uFEFF" + [headers, ...rows].map(csvRow).join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -299,31 +310,41 @@ export default function EdesisGelirListesi({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast("📊 Gelir listesi Excel/CSV formatında indirildi.");
   };
 
   // PRATİK GELİR SİLME İŞLEMİ
-  const handleDeleteIncome = (gelir) => {
-    AccountingService.deleteIncome(gelir);
-    setIncomesList((prev) => prev.filter((item) => item.gelirKodu !== gelir.gelirKodu && item.id !== gelir.id));
-    setShowDeleteModal(null);
-    showToast(`🗑️ ${gelir.gelirKodu} numaralı gelir kaydı silindi.`);
+  const handleDeleteIncome = async (gelir) => {
+    try{
+      await AccountingService.deleteIncome(gelir);
+      setIncomesList(AccountingService.getIncomes());
+      setShowDeleteModal(null);
+      showToast(`🗑️ ${gelir.gelirKodu} numaralı gelir kaydı silindi.`);
+    }catch(error){window.alert(error.message||'Gelir silinemedi');}
   };
 
   // PRATİK GELİR EKLEME İŞLEMİ (Taksit bölme & sözleşme senkronizasyonu ile)
-  const handleAddNewIncome = (newIncomeData) => {
-    const res = AccountingService.addNewIncome(newIncomeData);
+  const handleAddNewIncome = async (newIncomeData) => {
+try {
+
+    const res = await AccountingService.addNewIncome(newIncomeData);
     setIncomesList(AccountingService.getIncomes());
     setShowNewIncomeModal(false);
     showToast(`✅ ${res.income.gelirKodu} numaralı yeni gelir ve ${res.installments.length} adet taksiti başarıyla eklendi.`);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   // PRATİK HIZLI TAHSİLAT ALMA İŞLEMİ
-  const handleQuickCollection = (gelir, collectAmount) => {
+  const handleQuickCollection = async (gelir, collectAmount) => {
+try {
+
     const amt = Number(collectAmount) || 0;
     if (amt <= 0) return;
 
-    AccountingService.recordCollection({
+    await AccountingService.recordCollection({
+      id:gelir.collection_id,
       gelirKodu: gelir.gelirKodu,
       sozlesmeNo: gelir.sozlesmeNo,
       amount: amt,
@@ -336,10 +357,13 @@ export default function EdesisGelirListesi({
     setIncomesList(AccountingService.getIncomes());
     setShowQuickCollectModal(null);
     showToast(`💰 ${gelir.gelirKodu} için ${fmtCurrency(amt)} tutarında tahsilat başarıyla kaydedildi.`);
-  };
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+};
 
   return (
     <div
+      className="erp-ledger-page admin-record-list"
       style={{
         padding: isFullScreen ? "20px" : "0",
         background: isFullScreen ? "#f8fafc" : "transparent",
@@ -389,6 +413,7 @@ export default function EdesisGelirListesi({
 
       {/* ÜST BAŞLIK VE HIZLI EYLEMLER BAR */}
       <div
+        className="erp-page-header"
         style={{
           background: "#fff",
           borderRadius: "8px",
@@ -524,6 +549,7 @@ export default function EdesisGelirListesi({
 
       {/* 4 ÖZET SAYAÇ KARTI (Edesis ile 1:1 Parite) */}
       <div
+        className="erp-summary-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -693,6 +719,7 @@ export default function EdesisGelirListesi({
 
       {/* FİLTRE VE ARAMA KONTROL PANELİ */}
       <div
+        className="erp-filter-panel"
         style={{
           background: "#fff",
           borderRadius: "8px",
@@ -1120,6 +1147,7 @@ export default function EdesisGelirListesi({
                 </tr>
               ) : (
                 paginatedIncomes.map((g, idx) => {
+                  const isCancelled=Number(g.durum)===4;
                   const isMenuOpen = openDropdownId === g.gelirKodu;
                   const openUpwards = (idx >= paginatedIncomes.length - 2 && paginatedIncomes.length > 3);
                   const isFullyPaid = g.tamTahsilEdildiMi || (Number(g.kalanAlacak) <= 0);
@@ -1221,10 +1249,10 @@ export default function EdesisGelirListesi({
                                 Sözleşme & Muhasebe Detayı
                               </div>
 
-                              {!isFullyPaid && (
+                              {!isCancelled && !isFullyPaid && (
                                 <div
                                   onClick={() => {
-                                    setShowQuickCollectModal(g);
+                                    setShowQuickCollectModal({...g,collection_id:"pay_"+crypto.randomUUID()});
                                     setOpenDropdownId(null);
                                   }}
                                   style={{
@@ -1477,19 +1505,19 @@ export default function EdesisGelirListesi({
                             borderRadius: "6px",
                             fontSize: "11px",
                             fontWeight: 700,
-                            background: isFullyPaid
+                            background: isCancelled ? '#fee2e2' : isFullyPaid
                               ? "#dcfce7"
                               : isOverdue
                               ? "#fee2e2"
                               : "#fef3c7",
-                            color: isFullyPaid
+                            color: isCancelled ? '#991b1b' : isFullyPaid
                               ? "#166534"
                               : isOverdue
                               ? "#991b1b"
                               : "#92400e"
                           }}
                         >
-                          {isFullyPaid ? "Tam Ödendi" : isOverdue ? "Vadesi Geçti" : "Açık / Taksitli"}
+                          {isCancelled ? 'İptal Edildi' : isFullyPaid ? "Tam Ödendi" : isOverdue ? "Vadesi Geçti" : "Açık / Taksitli"}
                         </span>
                       </td>
                     </tr>
@@ -1517,7 +1545,7 @@ export default function EdesisGelirListesi({
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span>Toplam {sortedIncomes.length} kayıttan</span>
             <span>
-              <b>{(currentPage - 1) * pageSize + 1}</b> -{" "}
+              <b>{sortedIncomes.length ? (currentPage - 1) * pageSize + 1 : 0}</b> -{" "}
               <b>{Math.min(currentPage * pageSize, sortedIncomes.length)}</b> arası gösteriliyor
             </span>
           </div>

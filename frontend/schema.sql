@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS student_incomes (
   kalan_taksit_sayisi INTEGER DEFAULT 10,
   durum INTEGER DEFAULT 1,
   durum_text TEXT DEFAULT 'Enum_GelirDurumu_1',
+  notes TEXT DEFAULT '',
   created_at TEXT DEFAULT '',
   created_by TEXT DEFAULT '',
   is_deleted INTEGER DEFAULT 0
@@ -223,6 +224,8 @@ CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
 CREATE INDEX IF NOT EXISTS idx_payments_contract ON payments(contract_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_student ON contracts(student_id);
 CREATE INDEX IF NOT EXISTS idx_incomes_student ON student_incomes(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_incomes_contract_id ON student_incomes(contract_id);
+CREATE INDEX IF NOT EXISTS idx_student_incomes_sozlesme_no ON student_incomes(sozlesme_no);
 CREATE INDEX IF NOT EXISTS idx_students_name ON students(student_name);
 CREATE INDEX IF NOT EXISTS idx_students_tc ON students(student_tc);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(student_class);
@@ -269,7 +272,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 
 -- Seed initial students
 INSERT OR IGNORE INTO students (id, student_name, student_phone, school, student_class, student_tc, student_address, parent_name, parent_phone, parent_tc, parent_address, program, total_fee, paid_amount, installment_count, due_date, created_at)
-VALUES 
+VALUES
 ('student-001', 'Örnek Öğrenci 1', '0555 000 00 01', 'İnegöl Anadolu Lisesi', '11-A', '10000000001', 'İnegöl / Bursa', 'Veli 1', '0555 000 00 02', '20000000001', 'İnegöl / Bursa', 'TYT - AYT', 24000, 12000, 6, '2026-04-15', datetime('now')),
 ('student-002', 'Örnek Öğrenci 2', '0555 000 00 03', 'İnegöl Borsa İstanbul', '8-B', '10000000002', 'İnegöl / Bursa', 'Veli 2', '0555 000 00 04', '20000000002', 'İnegöl / Bursa', 'LGS Hazırlık', 18000, 6000, 6, '2026-03-28', datetime('now'));
 
@@ -299,6 +302,7 @@ CREATE TABLE IF NOT EXISTS exams (
   description TEXT DEFAULT '',
   created_by TEXT DEFAULT '',
   created_by_name TEXT DEFAULT '',
+  answer_keys TEXT DEFAULT '{}',
   created_at TEXT DEFAULT ''
 );
 
@@ -324,6 +328,7 @@ CREATE TABLE IF NOT EXISTS exam_results (
   class_rank INTEGER DEFAULT 0,
   overall_rank INTEGER DEFAULT 0,
   weak_topics TEXT DEFAULT '[]',
+  subject_results TEXT DEFAULT '{}',
   created_at TEXT DEFAULT ''
 );
 
@@ -436,7 +441,7 @@ CREATE TABLE IF NOT EXISTS optical_printer_profiles (
 );
 
 INSERT OR IGNORE INTO optical_templates (id, name, exam_type, paper_size, columns_count, question_count, created_at)
-VALUES 
+VALUES
 ('opt-lgs-90', 'LGS 90 Soru Tek Oturum Standart Form', 'LGS', 'A4', 4, 90, datetime('now')),
 ('opt-tyt-120', 'TYT 120 Soru Standart ÖSYM Formu', 'TYT', 'A4', 4, 120, datetime('now')),
 ('opt-ayt-160', 'AYT 160 Soru 4 Branş Formu', 'AYT', 'A4', 4, 160, datetime('now')),
@@ -452,10 +457,23 @@ VALUES
 
 
 -- Migration Seed for contracts and student_incomes (Anonymized demo records)
-INSERT OR IGNORE INTO contracts (id, sozlesme_no, student_id, student_name, student_class, period_id, period_name, net_tutar, kdv_tutari, brut_tutar, odeme_turu, odeme_turu_text, taksit_sayisi, durum, is_signed, veli_imza_alindi, kurum_imza_alindi, kurum_imzalayan, sozlesme_tarihi, sozlesme_url, created_at) VALUES 
+INSERT OR IGNORE INTO contracts (id, sozlesme_no, student_id, student_name, student_class, period_id, period_name, net_tutar, kdv_tutari, brut_tutar, odeme_turu, odeme_turu_text, taksit_sayisi, durum, is_signed, veli_imza_alindi, kurum_imza_alindi, kurum_imzalayan, sozlesme_tarihi, sozlesme_url, created_at) VALUES
 ('cnt_demo_001', 'SZL202600001', 'student-001', 'Örnek Öğrenci 1', '11-A', 113, '2026-2027', 21818.18, 2181.82, 24000.00, 1, 'Taksitli (6 Taksit)', 6, 1, 0, 0, 0, '', '2026-09-01T00:00:00', '', datetime('now')),
 ('cnt_demo_002', 'SZL202600002', 'student-002', 'Örnek Öğrenci 2', '8-B', 113, '2026-2027', 16363.64, 1636.36, 18000.00, 1, 'Taksitli (6 Taksit)', 6, 1, 0, 0, 0, '', '2026-09-01T00:00:00', '', datetime('now'));
 
-INSERT OR IGNORE INTO student_incomes (id, gelir_kodu, sozlesme_no, student_id, student_name, student_class, musteri_unvan, title, period_id, period_name, net_tutar, kdv_tutari, brut_tutar, toplam_tahsilat, kalan_alacak, tam_tahsil_edildi_mi, gelir_tarihi, vade_tarihi, taksit_sayisi, kalan_taksit_sayisi, durum, created_at) VALUES 
+INSERT OR IGNORE INTO student_incomes (id, gelir_kodu, sozlesme_no, student_id, student_name, student_class, musteri_unvan, title, period_id, period_name, net_tutar, kdv_tutari, brut_tutar, toplam_tahsilat, kalan_alacak, tam_tahsil_edildi_mi, gelir_tarihi, vade_tarihi, taksit_sayisi, kalan_taksit_sayisi, durum, created_at) VALUES
 ('glr_demo_001', 'GLR202600001', 'SZL202600001', 'student-001', 'Örnek Öğrenci 1', '11-A', 'Örnek Öğrenci 1', 'Sözleşme: SZL202600001', 113, '2026-2027', 21818.18, 2181.82, 24000.00, 12000.00, 12000.00, 0, '2026-09-01T00:00:00', '2026-10-15T00:00:00', 6, 3, 2, datetime('now')),
 ('glr_demo_002', 'GLR202600002', 'SZL202600002', 'student-002', 'Örnek Öğrenci 2', '8-B', 'Örnek Öğrenci 2', 'Sözleşme: SZL202600002', 113, '2026-2027', 16363.64, 1636.36, 18000.00, 6000.00, 12000.00, 0, '2026-09-01T00:00:00', '2026-10-15T00:00:00', 6, 4, 2, datetime('now'));
+
+CREATE TABLE IF NOT EXISTS appointments (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  teacher_name TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  date TEXT NOT NULL,
+  time_slot TEXT NOT NULL,
+  room TEXT DEFAULT '',
+  topic TEXT DEFAULT '',
+  status TEXT DEFAULT 'onaylandi',
+  created_at TEXT DEFAULT ''
+);

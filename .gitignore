@@ -58,3 +58,14 @@ credentials.json
 .dev.vars
 *.dev.vars
 memory/*credential*
+
+# Private audit evidence and financial reconciliation reports
+/DETAYLI_INCELEME_*.md
+/DUZELTME_DURUMU_*.md
+/EDESIS_MUTABAKAT_*.md
+/test_reports/audit_evidence.json
+/test_reports/audit_real_sqlite_results.json
+/test_reports/predeploy_backup_latest.json
+/test_reports/live-data-preservation.json
+/test_reports/live_deploy_console.txt
+/test_reports/fix_*

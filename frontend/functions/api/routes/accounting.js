@@ -1,4 +1,17 @@
-import { json, errorResponse, logAction, enrichStudent } from "../utils.js";
+const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+import { json, errorResponse, logAction, enrichStudent, normalizeDate } from "../utils.js";
+
+const contractTotalsSql = `SELECT COUNT(*) AS cnt, COALESCE(SUM(c.brut_tutar),0) AS rev,
+  COALESCE(SUM(MAX(0,c.brut_tutar-COALESCE(
+    (SELECT MAX(i.toplam_tahsilat) FROM student_incomes i WHERE (i.contract_id=c.id OR i.sozlesme_no=c.sozlesme_no) AND COALESCE(i.is_deleted,0)=0 AND i.durum<>4),
+    (SELECT SUM(p.amount) FROM payments p WHERE p.contract_id=c.id AND COALESCE(p.is_cancelled,0)=0),0))),0) AS rem
+  FROM contracts c WHERE COALESCE(c.is_deleted,0)=0 AND c.durum<>3`;
+const paymentsSql = `SELECT p.*, s.student_name, s.student_class, s.student_no, s.parent_name, s.parent_phone,
+  c.sozlesme_no, i.installment_no AS taksit_no,
+  (SELECT g.gelir_kodu FROM student_incomes g WHERE g.id=i.income_id) AS gelir_kodu
+  FROM payments p LEFT JOIN students s ON p.student_id=s.id
+  LEFT JOIN contracts c ON c.id=p.contract_id LEFT JOIN installments i ON i.id=p.installment_id
+  ORDER BY p.payment_date DESC,p.created_at DESC`;
 
 export async function getDynamicAccountingSummary(db, students = [], preloadedSummary = null) {
   let cRow = preloadedSummary?.[0] || null;
@@ -8,32 +21,31 @@ export async function getDynamicAccountingSummary(db, students = [], preloadedSu
   let overdueRow = preloadedSummary?.[4] || null;
 
   if (!preloadedSummary && db) {
-    try {
-      const [cRowRes, iRowRes, pRowRes, instRowRes, overdueRowRes] = await Promise.all([
-        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(brut_tutar), 0) as rev FROM contracts WHERE is_deleted = 0").first().catch(() => null),
-        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0").first().catch(() => null),
-        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)").first().catch(() => null),
-        db.prepare("SELECT COUNT(*) as cnt FROM installments").first().catch(() => null),
+    {
+      const [cRowRes, iRowRes, pRowRes, instRowRes, overdueRowRes] = await db.batch([
+        db.prepare(contractTotalsSql),
+        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0"),
+        db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)"),
+        db.prepare("SELECT COUNT(*) as cnt FROM installments"),
         db.prepare(`
-          SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt 
-          FROM installments 
-          WHERE (status = 'Gecikmis' OR (due_date < date('now') AND paid_amount < amount))
-        `).first().catch(() => null)
+          SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt
+          FROM installments
+          WHERE (date(CASE WHEN due_date LIKE '__.__.____' THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2) ELSE due_date END) < date('now','+3 hours') AND COALESCE(paid_amount,0) < amount)
+            AND EXISTS(SELECT 1 FROM contracts c WHERE c.id=installments.contract_id AND COALESCE(c.is_deleted,0)=0 AND c.durum<>3)
+        `)
       ]);
-      cRow = cRowRes;
-      iRow = iRowRes;
-      pRow = pRowRes;
-      instRow = instRowRes;
-      overdueRow = overdueRowRes;
-    } catch (err) {
-      console.error("Dynamic accounting summary query error:", err);
+      cRow = cRowRes.results[0];
+      iRow = iRowRes.results[0];
+      pRow = pRowRes.results[0];
+      instRow = instRowRes.results[0];
+      overdueRow = overdueRowRes.results[0];
     }
   }
 
   const sozlesmelerCount = cRow?.cnt || 0;
   const totalRevenue = cRow?.rev ? Number(cRow.rev) : 0;
-  const totalCollected = (pRow?.total_paid ? Number(pRow.total_paid) : (iRow?.coll ? Number(iRow.coll) : 0));
-  const totalRemaining = Math.max(0, totalRevenue - totalCollected);
+  const totalCollected = Number(pRow?.total_paid ?? 0);
+  const totalRemaining = Number(cRow?.rem ?? Math.max(0, totalRevenue - Number(iRow?.coll ?? totalCollected)));
   const gelirlerCount = iRow?.cnt || 0;
   const taksitlerCount = instRow?.cnt || 0;
   const tahsilatlarCount = pRow?.cnt || 0;
@@ -58,7 +70,7 @@ export async function getDynamicAccountingSummary(db, students = [], preloadedSu
 }
 
 export async function handleAccountingRoutes({ request, db, env, path, user, waitUntil }) {
-  // 1. GET /dashboard - All 11 D1 queries fired in a single concurrent Promise.all
+  // One D1 transaction supplies the complete financial snapshot and its totals.
   if (path === "/dashboard" && request.method === "GET") {
     const [
       studentsRes,
@@ -71,44 +83,44 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
       iRowRes,
       pRowRes,
       instRowRes,
-      overdueRowRes
-    ] = await Promise.all([
-      db.prepare("SELECT *, CASE WHEN signed_contract_path != '' AND signed_contract_path IS NOT NULL THEN 'stored' ELSE '' END as signed_contract_path FROM students ORDER BY created_at DESC, id DESC").all().catch(() => ({ results: [] })),
-      db.prepare("SELECT * FROM classes").all().catch(() => ({ results: [] })),
-      db.prepare(`
-        SELECT p.*, s.student_name, s.student_class, s.student_no, s.parent_name, s.parent_phone, s.sozlesme_no
-        FROM payments p
-        LEFT JOIN students s ON p.student_id = s.id
-        ORDER BY p.payment_date DESC, p.created_at DESC
-      `).all().catch(() => ({ results: [] })),
-      db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC LIMIT 100").all().catch(() => ({ results: [] })),
-      db.prepare("SELECT * FROM teachers ORDER BY name ASC").all().catch(() => ({ results: [] })),
+      overdueRowRes,
+      incomesRes,
+      installmentsRes
+    ] = await db.batch([
+      db.prepare("SELECT *, CASE WHEN signed_contract_path != '' AND signed_contract_path IS NOT NULL THEN 'stored' ELSE '' END as signed_contract_path FROM students ORDER BY created_at DESC, id DESC"),
+      db.prepare("SELECT * FROM classes"),
+      db.prepare(paymentsSql),
+      db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC"),
+      db.prepare("SELECT * FROM teachers ORDER BY name ASC"),
       db.prepare(`
         SELECT c.*,
-          (SELECT COALESCE(SUM(p.amount), 0) FROM payments p 
-           WHERE (p.contract_id = c.id OR (p.student_id = c.student_id AND c.student_id IS NOT NULL AND c.student_id != '')) 
-             AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) as calculated_paid
-        FROM contracts c 
-        WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL) 
+          COALESCE((SELECT MAX(i.toplam_tahsilat) FROM student_incomes i WHERE (i.contract_id=c.id OR i.sozlesme_no=c.sozlesme_no) AND COALESCE(i.is_deleted,0)=0),(SELECT COALESCE(SUM(p.amount), 0) FROM payments p
+           WHERE p.contract_id = c.id
+             AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) ) as calculated_paid
+        FROM contracts c
+        WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)
         ORDER BY c.sozlesme_tarihi DESC
-      `).all().catch(() => ({ results: [] })),
-      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(brut_tutar), 0) as rev FROM contracts WHERE is_deleted = 0").first().catch(() => null),
-      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0").first().catch(() => null),
-      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)").first().catch(() => null),
-      db.prepare("SELECT COUNT(*) as cnt FROM installments").first().catch(() => null),
+      `),
+      db.prepare(contractTotalsSql),
+      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0"),
+      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)"),
+      db.prepare("SELECT COUNT(*) as cnt FROM installments"),
       db.prepare(`
-        SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt 
-        FROM installments 
-        WHERE (status = 'Gecikmis' OR (due_date < date('now') AND paid_amount < amount))
-      `).first().catch(() => null)
+        SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt
+        FROM installments
+        WHERE (date(CASE WHEN due_date LIKE '__.__.____' THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2) ELSE due_date END) < date('now','+3 hours') AND COALESCE(paid_amount,0) < amount)
+          AND EXISTS(SELECT 1 FROM contracts c WHERE c.id=installments.contract_id AND COALESCE(c.is_deleted,0)=0 AND c.durum<>3)
+      `),
+      db.prepare("SELECT * FROM student_incomes WHERE COALESCE(is_deleted,0)=0"),
+      db.prepare("SELECT i.*,c.sozlesme_no,c.student_name,c.durum AS contract_status,c.period_id,c.period_name FROM installments i JOIN contracts c ON c.id=i.contract_id WHERE COALESCE(c.is_deleted,0)=0 ORDER BY i.due_date,i.installment_no")
     ]);
 
     const students = (studentsRes.results || []).map(enrichStudent);
-    const accountingSummary = await getDynamicAccountingSummary(db, students, [cRowRes, iRowRes, pRowRes, instRowRes, overdueRowRes]);
+    const accountingSummary = await getDynamicAccountingSummary(db, students, [cRowRes.results[0], iRowRes.results[0], pRowRes.results[0], instRowRes.results[0], overdueRowRes.results[0]]);
     const contracts = (contractsRes.results || []).map((r) => {
       const gross = Number(r.brut_tutar) || 0;
       const paid = Number(r.calculated_paid) || 0;
-      const remaining = Math.max(0, gross - paid);
+      const remaining = r.durum === 3 ? 0 : Math.max(0, gross - paid);
       return {
         ...r,
         sozlesmeNo: r.sozlesme_no,
@@ -141,6 +153,8 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     return json({
       students,
       contracts,
+      incomes:incomesRes.results||[],
+      installments:installmentsRes.results||[],
       classes: classesRes.results || [],
       payments: paymentsRes.results || [],
       expenses: expensesRes.results || [],
@@ -157,7 +171,7 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
 
   // 2. GET /accounting/summary
   if (path === "/accounting/summary" && request.method === "GET") {
-    const studentsRes = await db.prepare("SELECT * FROM students").all().catch(() => ({ results: [] }));
+    const studentsRes = await db.prepare("SELECT * FROM students").all();
     const students = (studentsRes.results || []).map(enrichStudent);
     const summary = await getDynamicAccountingSummary(db, students);
     return json(summary);
@@ -165,12 +179,7 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
 
   // 3. GET /payments
   if (path === "/payments" && request.method === "GET") {
-    const paymentsRes = await db.prepare(`
-      SELECT p.*, s.student_name, s.student_class, s.student_no, s.parent_name, s.parent_phone, s.sozlesme_no
-      FROM payments p
-      LEFT JOIN students s ON p.student_id = s.id
-      ORDER BY p.payment_date DESC, p.created_at DESC
-    `).all().catch(() => ({ results: [] }));
+    const paymentsRes = await db.prepare(paymentsSql).all();
     return json(paymentsRes.results || []);
   }
 
@@ -178,17 +187,23 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
   if (path === "/payments" && request.method === "POST") {
     const p = await request.json().catch(() => ({}));
     const amount = Number(p.amount) || 0;
-    if (amount <= 0) return errorResponse("Geçersiz tahsilat tutarı", 422, "VALIDATION_ERROR");
+    if (!Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) / 100 !== amount) return errorResponse("Geçersiz tahsilat tutarı", 422, "VALIDATION_ERROR");
+
+    const existingPayment = p.id ? await db.prepare("SELECT p.*,i.installment_no,c.sozlesme_no FROM payments p LEFT JOIN installments i ON i.id=p.installment_id LEFT JOIN contracts c ON c.id=p.contract_id WHERE p.id=?").bind(p.id).first() : null;
+    if (existingPayment) {
+      if ((p.student_id && String(existingPayment.student_id).replace(/^stu-/, "") !== String(p.student_id).replace(/^stu-/, "")) || Number(existingPayment.amount) !== amount || existingPayment.is_cancelled || (p.contract_id && existingPayment.contract_id !== p.contract_id) || (p.installment_id && existingPayment.installment_id !== p.installment_id) || (p.installment_no != null && Number(existingPayment.installment_no)!==Number(p.installment_no)) || (p.sozlesme_no && existingPayment.sozlesme_no!==p.sozlesme_no)) return errorResponse("İşlem kimliği başka tahsilatta kullanılmış", 409, "IDEMPOTENCY_CONFLICT");
+      return json(existingPayment);
+    }
 
     // Resilient student resolution strictly by ID, TC, or Contract
     let student = null;
     if (p.student_id) {
       const cleanId = String(p.student_id).replace(/^stu-/, "");
       student = await db.prepare(`
-        SELECT * FROM students 
+        SELECT * FROM students
         WHERE id = ? OR id = ? OR ('stu-' || id) = ? OR student_tc = ? OR sozlesme_no = ?
         LIMIT 1
-      `).bind(p.student_id, cleanId, p.student_id, p.student_id, p.student_id).first().catch(() => null);
+      `).bind(p.student_id, cleanId, p.student_id, p.student_id, p.student_id).first();
     }
     if (!student && p.sozlesme_no) {
       student = await db.prepare(`
@@ -196,33 +211,35 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
         LEFT JOIN contracts c ON (c.student_id = s.id OR ('stu-' || c.student_id) = s.id)
         WHERE s.sozlesme_no = ? OR c.sozlesme_no = ?
         LIMIT 1
-      `).bind(p.sozlesme_no, p.sozlesme_no).first().catch(() => null);
+      `).bind(p.sozlesme_no, p.sozlesme_no).first();
     }
     if (!student && p.contract_id) {
       student = await db.prepare(`
         SELECT s.* FROM students s
         JOIN contracts c ON (c.student_id = s.id OR ('stu-' || c.student_id) = s.id)
         WHERE c.id = ? LIMIT 1
-      `).bind(p.contract_id).first().catch(() => null);
+      `).bind(p.contract_id).first();
     }
     if (!student) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
 
     // Resilient contract resolution strictly by IDs
     let contract = null;
     if (p.contract_id) {
-      contract = await db.prepare("SELECT * FROM contracts WHERE id = ? LIMIT 1").bind(p.contract_id).first().catch(() => null);
+      contract = await db.prepare("SELECT * FROM contracts WHERE id = ? LIMIT 1").bind(p.contract_id).first();
     }
     if (!contract && p.sozlesme_no) {
-      contract = await db.prepare("SELECT * FROM contracts WHERE sozlesme_no = ? LIMIT 1").bind(p.sozlesme_no).first().catch(() => null);
+      contract = await db.prepare("SELECT * FROM contracts WHERE sozlesme_no = ? LIMIT 1").bind(p.sozlesme_no).first();
     }
+    if(!contract && (p.contract_id || p.sozlesme_no)) return errorResponse("Sözleşme bulunamadı",404,"NOT_FOUND");
+    if(!contract && (await db.prepare("SELECT COUNT(*) AS n FROM contracts WHERE student_id=? AND COALESCE(is_deleted,0)=0").bind(student.id).first())?.n>1) return errorResponse("Öğrencinin birden fazla sözleşmesi var; sözleşme seçiniz",409,"CONTRACT_REQUIRED");
     if (!contract && student) {
       const cleanStudentId = String(student.id).replace(/^stu-/, "");
       contract = await db.prepare(`
-        SELECT * FROM contracts 
+        SELECT * FROM contracts
         WHERE (student_id = ? OR student_id = ? OR ('stu-' || student_id) = ?)
           AND (is_deleted = 0 OR is_deleted IS NULL)
         LIMIT 1
-      `).bind(student.id, cleanStudentId, student.id).first().catch(() => null);
+      `).bind(student.id, cleanStudentId, student.id).first();
     }
 
     // Target specific installment
@@ -231,211 +248,96 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     const contractNo = contract?.sozlesme_no || p.sozlesme_no || "";
 
     if (p.installment_id) {
-      targetInst = await db.prepare("SELECT * FROM installments WHERE id = ?").bind(p.installment_id).first().catch(() => null);
+      targetInst = await db.prepare("SELECT * FROM installments WHERE id = ?").bind(p.installment_id).first();
     } else if (p.installment_no !== undefined && p.installment_no !== null && (contractKey || contractNo)) {
       targetInst = await db.prepare(`
-        SELECT * FROM installments 
-        WHERE (contract_id = ? OR contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?)) 
-          AND installment_no = ? 
+        SELECT * FROM installments
+        WHERE (contract_id = ? OR contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?))
+          AND installment_no = ?
         LIMIT 1
-      `).bind(contractKey, contractNo, contractNo, Number(p.installment_no)).first().catch(() => null);
+      `).bind(contractKey, contractNo, contractNo, Number(p.installment_no)).first();
     }
     if (!targetInst && (contractKey || contractNo)) {
       targetInst = await db.prepare(`
-        SELECT * FROM installments 
-        WHERE (contract_id = ? OR contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?)) 
-          AND (paid_amount < amount OR paid_amount IS NULL OR status != 'Odendi') 
-        ORDER BY installment_no ASC 
+        SELECT * FROM installments
+        WHERE (contract_id = ? OR contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?))
+          AND (paid_amount < amount OR paid_amount IS NULL OR status != 'Odendi')
+        ORDER BY installment_no ASC
         LIMIT 1
-      `).bind(contractKey, contractNo, contractNo).first().catch(() => null);
+      `).bind(contractKey, contractNo, contractNo).first();
     }
     if (!targetInst && student?.id && p.installment_no !== undefined && p.installment_no !== null) {
       targetInst = await db.prepare("SELECT * FROM installments WHERE student_id = ? AND installment_no = ? LIMIT 1")
-        .bind(student.id, Number(p.installment_no)).first().catch(() => null);
+        .bind(student.id, Number(p.installment_no)).first();
     }
     if (!targetInst && student?.id) {
       targetInst = await db.prepare("SELECT * FROM installments WHERE student_id = ? AND (paid_amount < amount OR paid_amount IS NULL OR status != 'Odendi') ORDER BY installment_no ASC LIMIT 1")
-        .bind(student.id).first().catch(() => null);
+        .bind(student.id).first();
     }
 
+    const sameStudent = (a,b) => String(a).replace(/^stu-/, "") === String(b).replace(/^stu-/, "");
+    if (!contract || contract.is_deleted || contract.durum === 3 || !sameStudent(contract.student_id, student.id)) return errorResponse("Sözleşme öğrenciye ait değil veya aktif değil", 422, "INVALID_CONTRACT");
+    if (!targetInst || !sameStudent(targetInst.student_id, student.id) || (targetInst.contract_id !== contract.id && targetInst.contract_id !== contract.sozlesme_no)) return errorResponse("Taksit bu sözleşmeye ait değil", 422, "INVALID_INSTALLMENT");
+    if (p.installment_id && targetInst.id !== p.installment_id) return errorResponse("Taksit bulunamadı", 404, "NOT_FOUND");
+    const incomes = (await db.prepare("SELECT id FROM student_incomes WHERE (contract_id=? OR sozlesme_no=?) AND COALESCE(is_deleted,0)=0").bind(contract.id,contract.sozlesme_no).all()).results || [];
+    if(incomes.length!==1) return errorResponse("Sözleşmenin gelir kaydı eksik veya birden fazla; önce muhasebe mutabakatı gerekir",409,"RECONCILIATION_REQUIRED");
+    if (amount > Math.round((Number(targetInst.amount)-Number(targetInst.paid_amount || 0))*100)/100) return errorResponse("Tutar seçili taksitin kalanını aşıyor; ayrı taksitleri ayrı tahsil edin", 409, "OVERPAYMENT");
     // IDEMPOTENCY GUARD: If target installment is already paid, reject duplicate payment!
     if (targetInst && targetInst.status === "Odendi" && Number(targetInst.paid_amount || 0) >= Number(targetInst.amount || 0)) {
       return errorResponse("Bu taksit zaten tahsil edilmiştir. Tekrar tahsilat almak için önce önceki tahsilatı iptal ediniz.", 409, "ALREADY_PAID");
     }
 
     const id = p.id || ("pay_" + crypto.randomUUID().slice(0, 10));
-    const payDate = p.payment_date || p.tahsilatTarihi || new Date().toISOString().slice(0, 10);
+    const payDate = normalizeDate(p.payment_date || p.tahsilatTarihi || new Date().toISOString());
+    if (!payDate) return errorResponse("Geçersiz tahsilat tarihi",422,"VALIDATION_ERROR");
     const payBank = p.bank || p.kasaBankaAdi || "";
     const payNote = p.note || p.gelirAciklama || (targetInst ? `${contract?.sozlesme_no || ""} ${targetInst.installment_no}. Taksit Tahsilatı` : "Tahsilat");
     const payMethod = p.method || "Nakit";
     const instId = targetInst?.id || p.installment_id || "";
     const contractId = contract?.id || p.contract_id || "";
 
-    // ATOMIC db.batch() EXECUTION
+    // ponytail: imported opening balances remain intact until legacy payment links are reconciled.
+    // A transient status inside this transaction prevents duplicate retries applying the same amount twice.
+    const pending = "EXISTS (SELECT 1 FROM payments WHERE id=? AND status='Pending')";
     const batchStmts = [
-      db.prepare(`
-        INSERT INTO payments (id, student_id, contract_id, installment_id, amount, method, bank, payment_date, note, status, is_cancelled, created_by, created_by_name, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Odendi', 0, ?, ?, datetime('now'))
-      `).bind(id, student.id, contractId, instId, amount, payMethod, payBank, payDate, payNote, user?.user_id || "", user?.name || "")
+      db.prepare(`INSERT INTO payments(id,student_id,contract_id,installment_id,amount,method,bank,payment_date,note,status,is_cancelled,created_by,created_by_name,created_at)
+        SELECT ?,?,?,?,?,?,?,?,?,'Pending',0,?,?,datetime('now') FROM installments WHERE id=? AND ROUND(COALESCE(paid_amount,0)+?,2)<=ROUND(amount,2)
+        AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)
+        ON CONFLICT(id) DO NOTHING`).bind(id,student.id,contractId,instId,amount,payMethod,payBank,payDate,payNote,user?.user_id || "",user?.name || "",instId,amount,contractId),
+      db.prepare(`UPDATE installments SET paid_amount=ROUND(COALESCE(paid_amount,0)+?,2),status=CASE WHEN ROUND(COALESCE(paid_amount,0)+?,2)>=ROUND(amount,2) THEN 'Odendi' ELSE 'KismenOdendi' END,payment_date=?,receipt_no=? WHERE id=? AND ${pending}`).bind(amount,amount,payDate,id,instId,id),
+      db.prepare(`UPDATE students SET paid_amount=ROUND(COALESCE(paid_amount,0)+?,2) WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=?) AND ${pending}`).bind(amount,student.id,contract.sozlesme_no,id),
+      db.prepare(`UPDATE student_incomes SET toplam_tahsilat=ROUND(toplam_tahsilat+?,2),kalan_alacak=MAX(0,ROUND(brut_tutar-toplam_tahsilat-?,2)),tam_tahsil_edildi_mi=CASE WHEN toplam_tahsilat+?>=brut_tutar THEN 1 ELSE 0 END WHERE (contract_id=? OR sozlesme_no=?) AND is_deleted=0 AND ${pending}`).bind(amount,amount,amount,contract.id,contract.sozlesme_no,id),
+      db.prepare("UPDATE payments SET status='Odendi' WHERE id=? AND status='Pending'").bind(id)
     ];
-
-    if (targetInst) {
-      const newPaid = Math.min(targetInst.amount, Number(targetInst.paid_amount || 0) + amount);
-      const newStatus = newPaid >= targetInst.amount ? "Odendi" : "KismenOdendi";
-      batchStmts.push(
-        db.prepare("UPDATE installments SET paid_amount = ?, status = ?, payment_date = ?, receipt_no = ? WHERE id = ?")
-          .bind(newPaid, newStatus, payDate, id, targetInst.id)
-      );
-    }
-
-    // Update students.paid_amount computed
-    batchStmts.push(
-      db.prepare(`
-        UPDATE students 
-        SET paid_amount = (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE student_id = ? AND (is_cancelled = 0 OR is_cancelled IS NULL))
-        WHERE id = ?
-      `).bind(student.id, student.id)
-    );
-
-    // Update student_incomes computed
-    if (contract) {
-      batchStmts.push(
-        db.prepare(`
-          UPDATE student_incomes 
-          SET toplam_tahsilat = (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (contract_id = ? OR student_id = ?) AND (is_cancelled = 0 OR is_cancelled IS NULL)),
-              kalan_alacak = MAX(0, brut_tutar - (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (contract_id = ? OR student_id = ?) AND (is_cancelled = 0 OR is_cancelled IS NULL))),
-              tam_tahsil_edildi_mi = CASE WHEN MAX(0, brut_tutar - (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (contract_id = ? OR student_id = ?) AND (is_cancelled = 0 OR is_cancelled IS NULL))) <= 0 THEN 1 ELSE 0 END
-          WHERE contract_id = ? OR sozlesme_no = ?
-        `).bind(contract.id, student.id, contract.id, student.id, contract.id, student.id, contract.id, contract.sozlesme_no)
-      );
-    }
-
-    if (typeof db.batch === "function") {
-      await db.batch(batchStmts);
-    } else {
-      for (const s of batchStmts) await s.run().catch(() => {});
-    }
+    await db.batch(batchStmts);
+    const saved = await db.prepare("SELECT * FROM payments WHERE id=?").bind(id).first();
+    if (!saved) return errorResponse("Taksit bakiyesi değişti; tahsilat kaydedilmedi",409,"BALANCE_CHANGED");
 
     await logAction(db, user, "payment.create", "payment", id, `${student.student_name} · ${amount} ₺ · ${payMethod}`, waitUntil);
-    return json({ id, student_id: student.id, student_name: student.student_name, amount, payment_date: payDate, ...p }, 201);
+    return json({ ...saved, student_name: student.student_name }, 201);
   }
 
-  // 3b. POST /payments/cancel (Atomic db.batch Cancellation)
-  if (path === "/payments/cancel" && request.method === "POST") {
-    const p = await request.json().catch(() => ({}));
-    
-    // Find payment to cancel
-    let pay = null;
-    if (p.payment_id) {
-      pay = await db.prepare("SELECT * FROM payments WHERE id = ?").bind(p.payment_id).first().catch(() => null);
-    }
-    if (!pay && p.installment_id) {
-      pay = await db.prepare("SELECT * FROM payments WHERE installment_id = ? AND (is_cancelled = 0 OR is_cancelled IS NULL) ORDER BY payment_date DESC LIMIT 1").bind(p.installment_id).first().catch(() => null);
-    }
-    if (!pay && (p.contract_id || p.sozlesme_no) && p.installment_no !== undefined) {
-      pay = await db.prepare(`
-        SELECT p.* FROM payments p
-        JOIN contracts c ON p.contract_id = c.id OR p.student_id = c.student_id
-        WHERE (c.id = ? OR c.sozlesme_no = ?) AND p.note LIKE ? AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)
-        ORDER BY p.payment_date DESC LIMIT 1
-      `).bind(p.contract_id || p.sozlesme_no, p.contract_id || p.sozlesme_no, `%${p.installment_no}. Taksit%`).first().catch(() => null);
-    }
-    if (!pay && p.student_id) {
-      pay = await db.prepare("SELECT * FROM payments WHERE student_id = ? AND (is_cancelled = 0 OR is_cancelled IS NULL) ORDER BY payment_date DESC LIMIT 1").bind(p.student_id).first().catch(() => null);
-    }
-
-    const payId = pay?.id || p.payment_id;
-    const studentId = pay?.student_id || p.student_id;
-    const contractId = pay?.contract_id || p.contract_id;
-
-    // Use D1 db.batch() for true ACID transaction
-    const stmts = [];
-    if (payId) {
-      stmts.push(db.prepare("UPDATE payments SET status = 'İptal Edildi', is_cancelled = 1 WHERE id = ?").bind(payId));
-    }
-    const instId = pay?.installment_id || p.installment_id;
-    if (instId) {
-      stmts.push(db.prepare("UPDATE installments SET paid_amount = 0, status = 'Bekliyor', payment_date = '', receipt_no = '' WHERE id = ?").bind(instId));
-    } else if ((contractId || p.sozlesme_no) && p.installment_no !== undefined) {
-      stmts.push(db.prepare(`
-        UPDATE installments 
-        SET paid_amount = 0, status = 'Bekliyor', payment_date = '', receipt_no = '' 
-        WHERE (contract_id = ? OR contract_id IN (SELECT id FROM contracts WHERE sozlesme_no = ?)) AND installment_no = ?
-      `).bind(contractId || "", p.sozlesme_no || "", Number(p.installment_no)));
-    }
-
-    if (studentId) {
-      stmts.push(db.prepare(`
-        UPDATE students 
-        SET paid_amount = (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE student_id = ? AND (is_cancelled = 0 OR is_cancelled IS NULL))
-        WHERE id = ?
-      `).bind(studentId, studentId));
-    }
-
-    if (contractId || p.sozlesme_no) {
-      stmts.push(db.prepare(`
-        UPDATE student_incomes 
-        SET toplam_tahsilat = (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (contract_id = ? OR student_id = ?) AND (is_cancelled = 0 OR is_cancelled IS NULL)),
-            kalan_alacak = MAX(0, brut_tutar - (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (contract_id = ? OR student_id = ?) AND (is_cancelled = 0 OR is_cancelled IS NULL))),
-            tam_tahsil_edildi_mi = 0
-        WHERE contract_id = ? OR sozlesme_no = ?
-      `).bind(contractId || "", studentId || "", contractId || "", studentId || "", contractId || "", p.sozlesme_no || ""));
-    }
-
-    if (stmts.length > 0) {
-      if (typeof db.batch === "function") {
-        await db.batch(stmts);
-      } else {
-        for (const s of stmts) await s.run().catch(() => {});
-      }
-    }
-
-    await logAction(db, user, "payment.cancel", "payment", payId || "", "Tahsilat iptal edildi", waitUntil);
-    return json({ ok: true, cancelled_id: payId });
-  }
-
-  // 4. DELETE /payments/:id (Atomic cancellation)
+  // Cancellation is shared by the cancel button and DELETE, and retains the payment record.
   const paymentIdMatch = path.match(/^\/payments\/([^\/]+)$/);
-  if (paymentIdMatch && request.method === "DELETE") {
-    const payId = paymentIdMatch[1];
-    const pay = await db.prepare("SELECT * FROM payments WHERE id = ?").bind(payId).first();
-    if (!pay) return errorResponse("Tahsilat bulunamadı", 404, "NOT_FOUND");
-
-    const stmts = [
-      db.prepare("UPDATE payments SET status = 'İptal Edildi', is_cancelled = 1 WHERE id = ?").bind(payId)
-    ];
-
-    if (pay.installment_id) {
-      stmts.push(db.prepare("UPDATE installments SET paid_amount = 0, status = 'Bekliyor', payment_date = '', receipt_no = '' WHERE id = ?").bind(pay.installment_id));
-    }
-
-    stmts.push(
-      db.prepare(`
-        UPDATE students 
-        SET paid_amount = (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE student_id = ? AND (is_cancelled = 0 OR is_cancelled IS NULL))
-        WHERE id = ?
-      `).bind(pay.student_id, pay.student_id)
-    );
-
-    if (pay.contract_id) {
-      stmts.push(
-        db.prepare(`
-          UPDATE student_incomes 
-          SET toplam_tahsilat = (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (contract_id = ? OR student_id = ?) AND (is_cancelled = 0 OR is_cancelled IS NULL)),
-              kalan_alacak = MAX(0, brut_tutar - (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (contract_id = ? OR student_id = ?) AND (is_cancelled = 0 OR is_cancelled IS NULL))),
-              tam_tahsil_edildi_mi = 0
-          WHERE contract_id = ?
-        `).bind(pay.contract_id, pay.student_id, pay.contract_id, pay.student_id, pay.contract_id)
-      );
-    }
-
-    if (typeof db.batch === "function") {
-      await db.batch(stmts);
-    } else {
-      for (const s of stmts) await s.run().catch(() => {});
-    }
-    await logAction(db, user, "payment.delete", "payment", payId, `${pay.amount} ₺ tahsilat iptal edildi`, waitUntil);
-    return json({ ok: true });
+  if ((path === "/payments/cancel" && request.method === "POST") || (paymentIdMatch && request.method === "DELETE")) {
+    const p = request.method === "DELETE" ? { payment_id: paymentIdMatch[1] } : await request.json().catch(() => ({}));
+    let pay = null;
+    if (p.payment_id) pay = await db.prepare("SELECT * FROM payments WHERE id=?").bind(p.payment_id).first();
+    else if (p.installment_id) pay = await db.prepare("SELECT * FROM payments WHERE installment_id=? AND COALESCE(is_cancelled,0)=0 ORDER BY created_at DESC LIMIT 1").bind(p.installment_id).first();
+    else if ((p.contract_id || p.sozlesme_no) && p.installment_no != null) pay = await db.prepare(`SELECT p.* FROM payments p JOIN installments i ON i.id=p.installment_id JOIN contracts c ON c.id=i.contract_id WHERE (c.id=? OR c.sozlesme_no=?) AND i.installment_no=? AND COALESCE(p.is_cancelled,0)=0 ORDER BY p.created_at DESC LIMIT 1`).bind(p.contract_id || "",p.sozlesme_no || "",Number(p.installment_no)).first();
+    if (!pay) return errorResponse("Tahsilat bulunamadı; hiçbir bakiye değiştirilmedi",404,"NOT_FOUND");
+    if (pay.is_cancelled) return json({ok:true,cancelled_id:pay.id,already_cancelled:true});
+    if (!pay.installment_id || !pay.contract_id) return errorResponse("Eski tahsilatın taksit bağlantısı yok. İptal öncesi bu kayıt uzlaştırılmalı",409,"LEGACY_PAYMENT_UNLINKED");
+    const active = "EXISTS (SELECT 1 FROM payments p JOIN contracts c ON c.id=p.contract_id WHERE p.id=? AND COALESCE(p.is_cancelled,0)=0 AND c.durum<>3 AND COALESCE(c.is_deleted,0)=0)";
+    await db.batch([
+      db.prepare(`UPDATE installments SET paid_amount=MAX(0,ROUND(paid_amount-?,2)),status=CASE WHEN paid_amount-?>=amount THEN 'Odendi' WHEN paid_amount-?>0 THEN 'KismenOdendi' ELSE 'Bekliyor' END,payment_date=CASE WHEN paid_amount-?>0 THEN payment_date ELSE '' END,receipt_no=CASE WHEN paid_amount-?>0 THEN receipt_no ELSE '' END WHERE id=? AND ${active}`).bind(pay.amount,pay.amount,pay.amount,pay.amount,pay.amount,pay.installment_id,pay.id),
+      db.prepare(`UPDATE students SET paid_amount=MAX(0,ROUND(paid_amount-?,2)) WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=(SELECT sozlesme_no FROM contracts WHERE id=?)) AND ${active}`).bind(pay.amount,pay.student_id,pay.contract_id,pay.id),
+      db.prepare(`UPDATE student_incomes SET toplam_tahsilat=MAX(0,ROUND(toplam_tahsilat-?,2)),kalan_alacak=MAX(0,brut_tutar-MAX(0,ROUND(toplam_tahsilat-?,2))),tam_tahsil_edildi_mi=CASE WHEN MAX(0,toplam_tahsilat-?)>=brut_tutar THEN 1 ELSE 0 END WHERE contract_id=? AND ${active}`).bind(pay.amount,pay.amount,pay.amount,pay.contract_id,pay.id),
+      db.prepare("UPDATE payments SET is_cancelled=1,status='İptal Edildi' WHERE id=? AND COALESCE(is_cancelled,0)=0 AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)").bind(pay.id,pay.contract_id)
+    ]);
+    if(!(await db.prepare('SELECT is_cancelled FROM payments WHERE id=?').bind(pay.id).first())?.is_cancelled) return errorResponse('İptal edilmiş sözleşmenin tahsilatını değiştirmeden önce iade/aktarım mutabakatı gerekir',409,'CANCELLED_CONTRACT');
+    await logAction(db,user,"payment.cancel","payment",pay.id,"Tahsilat iptal edildi; diğer tahsilatlar korundu",waitUntil);
+    return json({ok:true,cancelled_id:pay.id});
   }
 
   // 4b. POST /payments/:id/send-receipt-email (Cloudflare Email Sending integration)
@@ -447,9 +349,10 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     // Find payment
     const pay = await db.prepare("SELECT * FROM payments WHERE id = ?").bind(payId).first();
     if (!pay) return errorResponse("Tahsilat bulunamadı", 404, "NOT_FOUND");
+    if (pay.is_cancelled || pay.status === "İptal Edildi") return errorResponse("İptal edilmiş tahsilat için geçerli makbuz gönderilemez",409,"CANCELLED_PAYMENT");
 
     // Find student
-    const student = await db.prepare("SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?)").bind(pay.student_id, pay.student_id).first().catch(() => null);
+    const student = await db.prepare("SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?)").bind(pay.student_id, pay.student_id).first();
     const recipientEmail = String(body.email || student?.guardian_email || student?.father_email || student?.mother_email || "").trim();
 
     if (!recipientEmail || !recipientEmail.includes("@")) {
@@ -511,19 +414,19 @@ Telefon: 0224 715 00 00
       <div style="text-align: center;">
         <span class="badge">TAHSİLAT MAKBUZU · RESMİ BELGE</span>
       </div>
-      <p style="font-size: 15px; line-height: 1.5;">Sayın <strong>${parentName}</strong>,</p>
-      <p style="font-size: 14px; color: #475569; line-height: 1.5;"><strong>${studentName}</strong> isimli öğrencinizin eğitim ücreti ödemesi kurumumuz tarafından tahsil edilmiş ve kayıtlarımıza işlenmiştir.</p>
-      
+      <p style="font-size: 15px; line-height: 1.5;">Sayın <strong>${escapeHtml(parentName)}</strong>,</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.5;"><strong>${escapeHtml(studentName)}</strong> isimli öğrencinizin eğitim ücreti ödemesi kurumumuz tarafından tahsil edilmiş ve kayıtlarımıza işlenmiştir.</p>
+
       <div class="amount-box">
         <div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px;">TAHSİL EDİLEN TUTAR</div>
         <div class="amount-val">${amountStr}</div>
       </div>
 
-      <div class="row"><span class="label">Makbuz No:</span><span class="val">${receiptNo}</span></div>
-      <div class="row"><span class="label">Tahsilat Tarihi:</span><span class="val">${payDate}</span></div>
-      <div class="row"><span class="label">Öğrenci:</span><span class="val">${studentName}</span></div>
-      <div class="row"><span class="label">Ödeme Yöntemi:</span><span class="val">${payMethod}</span></div>
-      <div class="row"><span class="label">Açıklama:</span><span class="val">${pay.note || "Eğitim Dönemi Tahsilatı"}</span></div>
+      <div class="row"><span class="label">Makbuz No:</span><span class="val">${escapeHtml(receiptNo)}</span></div>
+      <div class="row"><span class="label">Tahsilat Tarihi:</span><span class="val">${escapeHtml(payDate)}</span></div>
+      <div class="row"><span class="label">Öğrenci:</span><span class="val">${escapeHtml(studentName)}</span></div>
+      <div class="row"><span class="label">Ödeme Yöntemi:</span><span class="val">${escapeHtml(payMethod)}</span></div>
+      <div class="row"><span class="label">Açıklama:</span><span class="val">${escapeHtml(pay.note || "Eğitim Dönemi Tahsilatı")}</span></div>
     </div>
     <div class="footer">
       Bu belge Özel İnegöl Çözüm Kurs Merkezi Muhasebe Otomasyonu tarafından elektronik olarak üretilmiştir.<br>
@@ -537,6 +440,7 @@ Telefon: 0224 715 00 00
     let deliveryStatus = "simulated";
     let errorDetail = null;
 
+    if (!env?.EMAIL || typeof env.EMAIL.send !== "function") return errorResponse("E-posta gönderimi yapılandırılmamış",503,"EMAIL_NOT_CONFIGURED");
     if (env?.EMAIL && typeof env.EMAIL.send === "function") {
       try {
         await env.EMAIL.send({
@@ -549,7 +453,7 @@ Telefon: 0224 715 00 00
         deliveryStatus = "delivered";
       } catch (err) {
         console.error("Cloudflare Email binding error:", err);
-        errorDetail = err.message;
+        return errorResponse("E-posta iletilemedi; tekrar deneyiniz",502,"EMAIL_DELIVERY_FAILED");
       }
     }
 
@@ -572,27 +476,35 @@ Telefon: 0224 715 00 00
   if (path === "/expenses" && request.method === "POST") {
     const e = await request.json().catch(() => ({}));
     const amount = Number(e.amount) || 0;
-    if (amount <= 0) return errorResponse("Geçersiz gider tutarı", 422, "VALIDATION_ERROR");
+    if (!Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) / 100 !== amount) return errorResponse("Geçersiz gider tutarı", 422, "VALIDATION_ERROR");
 
-    const id = "exp_" + crypto.randomUUID().slice(0, 10);
+    const id = e.id || "exp_" + crypto.randomUUID().slice(0, 10);
+    if (typeof id !== "string" || !id.trim() || id.length > 120) return errorResponse("Geçersiz gider kimliği",422);
+    const values={title:e.title || "Gider",amount,expense_date:e.expense_date || new Date().toISOString().slice(0,10),category:e.category || "Genel",account:e.account || "Nakit Ana Kasa"};
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(values.expense_date) || Number.isNaN(Date.parse(values.expense_date)) || new Date(values.expense_date).toISOString().slice(0,10)!==values.expense_date) return errorResponse("Geçersiz gider tarihi",422);
+    const same = saved => Object.entries(values).every(([key,value])=>saved[key]===value);
+    const previous=await db.prepare("SELECT * FROM expenses WHERE id=?").bind(id).first();
+    if(previous) return same(previous) ? json({...previous,already_recorded:true}) : errorResponse("İşlem kimliği başka giderde kullanılmış",409,"IDEMPOTENCY_CONFLICT");
     await db
       .prepare(
-        "INSERT INTO expenses (id, title, amount, expense_date, category, account, created_by, created_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+        "INSERT OR IGNORE INTO expenses (id, title, amount, expense_date, category, account, created_by, created_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
       )
       .bind(
         id,
-        e.title || "Gider",
+        values.title,
         amount,
-        e.expense_date || new Date().toISOString().slice(0, 10),
-        e.category || "Genel",
-        e.account || "Nakit Ana Kasa",
+        values.expense_date,
+        values.category,
+        values.account,
         user?.user_id || "",
         user?.name || ""
       )
       .run();
+    const saved=await db.prepare("SELECT * FROM expenses WHERE id=?").bind(id).first();
+    if(!saved || !same(saved)) return errorResponse("İşlem kimliği başka giderde kullanılmış",409,"IDEMPOTENCY_CONFLICT");
 
     await logAction(db, user, "expense.create", "expense", id, `${e.title} · ${amount} ₺ (${e.account || "Nakit Ana Kasa"})`, waitUntil);
-    return json({ id, ...e, amount }, 201);
+    return json(saved, 201);
   }
 
   // 6. DELETE /expenses/:id

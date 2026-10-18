@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {useDataRefresh} from "../../hooks/useDataRefresh";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import { Check, FileText, MessageCircle } from "lucide-react";
 import { AbsenceLetterModal } from "../../components/AbsenceLetterModal";
@@ -10,6 +11,8 @@ import { openWhatsApp, formatDate } from "../shared";
 export function AttendancePage({ me, API, classes }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [selectedClass, setSelectedClass] = useState("");
+  const dirty=useRef(false);
+  const contextKey=useRef("");
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -18,37 +21,41 @@ export function AttendancePage({ me, API, classes }) {
   const [selectedSlot, setSelectedSlot] = useState("1. Ders (09:00 - 09:45)");
   const [selectedStudentForLetter, setSelectedStudentForLetter] = useState(null);
 
-  const loadAttendance = useCallback(async () => {
+  const loadAttendance = useCallback(async (current=()=>true) => {
+    const key=[selectedDate,selectedClass,selectedSlot].join("|");
+    if(contextKey.current!==key){contextKey.current=key;dirty.current=false;}
+    if(dirty.current)return;
     setLoading(true);
     try {
-      let url = `${API}/attendance?date=${selectedDate}`;
+      let url = `${API}/attendance?date=${selectedDate}&lesson_slot=${encodeURIComponent(selectedSlot)}`;
       if (selectedClass) url += `&class_id=${encodeURIComponent(selectedClass)}`;
       const res = await axios.get(url);
-      setRecords(res.data || []);
+      if(current()&&!dirty.current)setRecords((res.data || []).map(r=>({...r,_expected:{status:r.status,note:r.note,notified_parent:r.notified_parent}})));
     } catch (err) {
-      console.error("Attendance load error:", err);
+      throw err;
     } finally {
-      setLoading(false);
+      if(current())setLoading(false);
     }
-  }, [API, selectedDate, selectedClass]);
+  }, [API, selectedDate, selectedClass, selectedSlot]);
 
-  useEffect(() => {
-    loadAttendance();
-  }, [loadAttendance]);
+  const loadError=useDataRefresh(loadAttendance,[loadAttendance]);
 
   const setStatus = (studentId, status) => {
+    dirty.current=true;setSavedSuccess(false);
     setRecords((prev) =>
       prev.map((r) => (r.student_id === studentId ? { ...r, status } : r))
     );
   };
 
   const setNote = (studentId, note) => {
+    dirty.current=true;setSavedSuccess(false);
     setRecords((prev) =>
       prev.map((r) => (r.student_id === studentId ? { ...r, note } : r))
     );
   };
 
   const markAllPresent = () => {
+    dirty.current=true;setSavedSuccess(false);
     setRecords((prev) => prev.map((r) => ({ ...r, status: "geldi" })));
   };
 
@@ -76,12 +83,14 @@ export function AttendancePage({ me, API, classes }) {
           class_id: r.student_class,
           status: r.status,
           note: r.note,
-          notified_parent: r.notified_parent
+          notified_parent: r.notified_parent,
+          _expected:r._expected
         }))
       });
+      dirty.current=false;
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2500);
-      loadAttendance();
+      await loadAttendance();
     } catch (err) {
       alert("Yoklama kaydedilemedi: " + err.message);
     } finally {
@@ -103,10 +112,11 @@ export function AttendancePage({ me, API, classes }) {
     try {
       await axios.post(`${API}/attendance/notify`, {
         student_id: r.student_id,
-        date: selectedDate
+        date: selectedDate,
+        lesson_slot:selectedSlot
       });
       setRecords((prev) =>
-        prev.map((x) => (x.student_id === r.student_id ? { ...x, notified_parent: 1 } : x))
+        prev.map((x) => (x.student_id === r.student_id ? { ...x, notified_parent: 1,_expected:{...x._expected,notified_parent:1} } : x))
       );
     } catch (e) {
       console.error(e);
@@ -123,14 +133,16 @@ export function AttendancePage({ me, API, classes }) {
 
   return (
     <div className="educational-module">
+      {loadError&&<div role="alert">Güncel yoklama yüklenemedi: {loadError.message}</div>}
+      {dirty.current&&<div role="status">Kaydedilmemiş yoklama değişiklikleri var.</div>}
       <div className="page-head">
         <div>
           <div className="eyebrow">GÜNLÜK YOKLAMA · EDESİS YÖNETİMİ</div>
           <h1>Sınıf Yoklama Sistemi</h1>
         </div>
         <div className="head-actions">
-          <button 
-            className="btn secondary" 
+          <button
+            className="btn secondary"
             onClick={handleBulkNotifyAbsent}
             style={{ display: "flex", gap: "6px", alignItems: "center", borderColor: "#16a34a", color: "#16a34a" }}
             title="Devamsız tüm öğrencilerin velilerine sırayla WhatsApp mesajı hazırlar"
@@ -140,7 +152,7 @@ export function AttendancePage({ me, API, classes }) {
           <button className="btn secondary" onClick={markAllPresent}>
             <Check size={16} /> Tümünü Geldi İşaretle
           </button>
-          <button className="btn" disabled={saving} onClick={handleSave}>
+          <button className="btn" disabled={saving||loading||!records.length} onClick={handleSave}>
             {saving ? "Kaydediliyor..." : savedSuccess ? "✓ Kaydedildi!" : "Yoklamayı Kaydet"}
           </button>
         </div>
@@ -153,6 +165,7 @@ export function AttendancePage({ me, API, classes }) {
             <label>Tarih:</label>
             <input
               type="date"
+              disabled={saving}
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
             />
@@ -160,6 +173,7 @@ export function AttendancePage({ me, API, classes }) {
           <div className="form-group inline">
             <label>Ders Saati:</label>
             <select
+              disabled={saving}
               value={selectedSlot}
               onChange={(e) => setSelectedSlot(e.target.value)}
             >
@@ -176,6 +190,7 @@ export function AttendancePage({ me, API, classes }) {
           <div className="form-group inline">
             <label>Sınıf:</label>
             <select
+              disabled={saving}
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
             >
@@ -324,9 +339,9 @@ export function AttendancePage({ me, API, classes }) {
       </div>
 
       {selectedStudentForLetter && (
-        <AbsenceLetterModal 
-          student={selectedStudentForLetter} 
-          onClose={() => setSelectedStudentForLetter(null)} 
+        <AbsenceLetterModal
+          student={selectedStudentForLetter}
+          onClose={() => setSelectedStudentForLetter(null)}
         />
       )}
     </div>

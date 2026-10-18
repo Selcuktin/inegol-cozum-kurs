@@ -40,6 +40,8 @@ export function OmniSearchModal({
 
   // Debounced search query
   useEffect(() => {
+    let active=true;
+    if(!isOpen)return;
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       setResults({ students: [], contracts: [], payments: [], total: 0 });
@@ -53,17 +55,18 @@ export function OmniSearchModal({
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await axios.get(`/api/search/omni?q=${encodeURIComponent(trimmed)}`);
+        if(!active)return;
         setResults(res.data || { students: [], contracts: [], payments: [], total: 0 });
         setSelectedIndex(0);
       } catch (err) {
         console.error("Omni search error:", err);
       } finally {
-        setLoading(false);
+        if(active)setLoading(false);
       }
     }, 200);
 
-    return () => clearTimeout(debounceRef.current);
-  }, [query]);
+    return () => {active=false;clearTimeout(debounceRef.current);};
+  }, [query,isOpen]);
 
   // Flattened items for keyboard arrow navigation
   const allItems = [

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {useDataRefresh} from "../../hooks/useDataRefresh";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import {
   Award,
@@ -90,7 +91,7 @@ export function ExamsPage({ me, API, students, classes }) {
     return () => window.removeEventListener("click", handleOutsideClick);
   }, []);
 
-  const loadExams = useCallback(async () => {
+  const loadExams = useCallback(async (current=()=>true) => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/exams`);
@@ -108,6 +109,7 @@ export function ExamsPage({ me, API, students, classes }) {
         })
       );
 
+      if(!current())return;
       setExams(fullList);
 
       // Otomatik seçim: Önceden seçili sınav varsa onu güncelle, yoksa katılımcısı olan ilk sınavı seç
@@ -119,23 +121,23 @@ export function ExamsPage({ me, API, students, classes }) {
       });
     } catch (err) {
       console.error("Exams load error:", err);
-      setExams([]);
-      setSelectedExam(null);
+      throw err;
     } finally {
-      setLoading(false);
+      if(current())setLoading(false);
     }
   }, [API]);
 
-  useEffect(() => {
-    loadExams();
-  }, [loadExams]);
+  const loadExamsError=useDataRefresh(loadExams,[loadExams]);
 
+  const examRequest=useRef(0);
   const openExamDetail = async (exam) => {
+    const version=++examRequest.current;
     try {
       const res = await axios.get(`${API}/exams/${exam.id}`);
+      if(version!==examRequest.current)return;
       setSelectedExam(res.data || exam);
-    } catch {
-      setSelectedExam(exam);
+    } catch(error) {
+      if(version===examRequest.current)alert("Sınavın güncel detayı yüklenemedi: "+error.message);return;
     }
     setTimeout(() => {
       document.getElementById("exam-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -157,7 +159,7 @@ export function ExamsPage({ me, API, students, classes }) {
       setShowAddModal(false);
       setNewTitle("");
       setNewDesc("");
-      loadExams();
+      await loadExams();
     } catch (err) {
       alert("Sınav eklenemedi: " + (err.response?.data?.detail || err.message));
     }
@@ -168,7 +170,7 @@ export function ExamsPage({ me, API, students, classes }) {
     try {
       await axios.delete(`${API}/exams/${id}`);
       if (selectedExam?.id === id) setSelectedExam(null);
-      loadExams();
+      await loadExams();
     } catch (err) {
       alert("Silinemedi: " + err.message);
     }
@@ -180,22 +182,22 @@ export function ExamsPage({ me, API, students, classes }) {
     const divisor = selectedExam.exam_type === "LGS" ? 3 : 4;
     const tc = Number(resTurkC) || 0;
     const ti = Number(resTurkI) || 0;
-    const tNet = Math.max(0, tc - ti / divisor);
+    const tNet = tc - ti / divisor;
 
     const mc = Number(resMatC) || 0;
     const mi = Number(resMatI) || 0;
-    const mNet = Math.max(0, mc - mi / divisor);
+    const mNet = mc - mi / divisor;
 
     const sc = Number(resSciC) || 0;
     const si = Number(resSciI) || 0;
-    const fNet = Math.max(0, sc - si / divisor);
+    const fNet = sc - si / divisor;
 
     const socC = Number(resSocC) || 0;
     const socI = Number(resSocI) || 0;
-    const sNet = Math.max(0, socC - socI / divisor);
+    const sNet = socC - socI / divisor;
 
     const totalNet = Math.round((tNet + mNet + fNet + sNet) * 100) / 100;
-    const score = Math.round((100 + totalNet * 3.3) * 100) / 100;
+    const score = null;
 
     const weakArr = resWeakTopics
       ? resWeakTopics.split(",").map((s) => s.trim()).filter(Boolean)
@@ -232,8 +234,8 @@ export function ExamsPage({ me, API, students, classes }) {
       setResSocC("");
       setResSocI("");
       setResWeakTopics("");
-      openExamDetail(selectedExam);
-      loadExams();
+      await openExamDetail(selectedExam);
+      await loadExams();
     } catch (err) {
       alert("Sonuç kaydedilemedi: " + (err.response?.data?.detail || err.message));
     }
@@ -312,6 +314,7 @@ export function ExamsPage({ me, API, students, classes }) {
 
   return (
     <div className="educational-module edesis-exam-layout">
+      {loadExamsError&&<div role="alert">Güncel kayıtlar yüklenemedi: {loadExamsError.message}</div>}
       {/* ÜST SUB-NAVBAR: Edesis Modül Sekmeleri */}
       <div className="edesis-subnav-bar">
         <button
@@ -978,7 +981,7 @@ export function ExamsPage({ me, API, students, classes }) {
                                 </strong>
                               </td>
                               <td style={{ textAlign: "right" }}>
-                                <strong style={{ fontSize: "14px" }}>{r.score}</strong>
+                                <strong style={{ fontSize: "14px" }}>{r.score ?? "—"}</strong>
                               </td>
                               <td style={{ textAlign: "center" }}>
                                 <div className="action-buttons-cell">
@@ -993,7 +996,7 @@ export function ExamsPage({ me, API, students, classes }) {
                                     className="btn-wa-trigger"
                                     title="Veliye WhatsApp Sonuç Mesajı Gönder"
                                     onClick={() => {
-                                      const text = `Sayın Velimiz, İnegöl Çözüm Kursu öğrencimiz ${r.student_name}, ${selectedExam.title} deneme sınavında Toplam ${r.total_net} Net ve ${r.score} Puan alarak derece yapmıştır. Detaylı karnesi hazırlanmıştır.`;
+                                      const text = `Sayın Velimiz, İnegöl Çözüm Kursu öğrencimiz ${r.student_name}, ${selectedExam.title} deneme sınavında Toplam ${r.total_net} Net alarak derece yapmıştır. Detaylı karnesi hazırlanmıştır.`;
                                       openWhatsApp(r.parent_phone || r.student_phone, text);
                                     }}
                                   >
@@ -1272,6 +1275,7 @@ export function ExamsPage({ me, API, students, classes }) {
       {showCevapKeyModal && (
         <EdesisCevapKeyModal
           exam={showCevapKeyModal}
+          API={API} students={students} classes={classes} onResultsUpdated={loadExams}
           onClose={() => setShowCevapKeyModal(null)}
         />
       )}

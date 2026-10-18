@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import "./App.css";
 import axios from "axios";
 import {
@@ -44,6 +44,8 @@ import {
   Brand, AuthCallback, Login, PwaBanner, MobileBottomNav,
   getBackendBaseUrl, API, LOGO, ROLE_LABEL
 } from "./components/layout/AuthAndNav";
+import {useAppData} from "./hooks/useAppData";
+import {installAxiosSynchronization} from "./lib/dataSync";
 import { buildNavCategories } from "./components/layout/navConfig";
 import { UsersPage, Reminders, Reports, AuditPage, downloadBlob } from "./pages/SystemPages";
 import { StudentProfileModal, StudentDetailDrawer } from "./components/StudentProfileModal";
@@ -84,6 +86,7 @@ if (typeof window !== "undefined") {
   window.__API_BASE__ = API;
 }
 
+installAxiosSynchronization(axios);
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common["Bypass-Tunnel-Reminder"] = "true";
 
@@ -140,6 +143,9 @@ function App() {
       onLogout={async () => {
         try { await axios.post(`${API}/auth/logout`); } catch {}
         localStorage.removeItem("session_token");
+        await purgeClientStorage(false);
+        AccountingService.resetCustomData();
+        StudentService.resetClientData();
         delete axios.defaults.headers.common["Authorization"];
         setMe(null);
         setAuthState("guest");
@@ -148,21 +154,10 @@ function App() {
   );
 }
 
-const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "attendance", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
+const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
 
 export function MainApp({ me, onLogout }) {
-  const [data, setData] = useState(() => {
-    try {
-      if (typeof window !== "undefined") {
-        const cached = localStorage.getItem("cozum_dashboard_data_v1");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && Array.isArray(parsed.students) && parsed.students.length > 0) return parsed;
-        }
-      }
-    } catch (e) {}
-    return { summary: {}, students: [], classes: [], payments: [], expenses: [], exams: [], attendanceToday: [], topRankings: [], todaySchedules: [] };
-  });
+  const {data,reload:load,error:dataError,loading:dataLoading,totalCollected,totalExpected,totalExpenses}=useAppData();
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const fullHash = window.location.hash.replace(/^#/, "");
@@ -198,6 +193,8 @@ export function MainApp({ me, onLogout }) {
   };
   const [page, setPageState] = useState(getInitialPage);
   const setPage = (p) => {
+    setMobileOpen(false);
+    if (!VALID_PAGES.includes(p)) p = "dashboard";
     setPageState(p);
     if (typeof window !== "undefined") {
       const currentFullHash = window.location.hash.replace(/^#/, "");
@@ -262,6 +259,21 @@ export function MainApp({ me, onLogout }) {
   const [selected, setSelected] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButtonRef=useRef(null);
+  useEffect(()=>{
+    if(!mobileOpen)return;
+    const previousOverflow=document.body.style.overflow;
+    const trigger=menuButtonRef.current;
+    document.body.style.overflow='hidden';
+    document.querySelector('.sidebar-close-btn')?.focus();
+    const closeOnEscape=e=>{if(e.key==='Escape')setMobileOpen(false);};
+    const desktop=window.matchMedia('(min-width: 901px)');
+    const closeOnDesktop=()=>{if(desktop.matches)setMobileOpen(false);};
+    document.addEventListener('keydown',closeOnEscape);
+    desktop.addEventListener('change',closeOnDesktop);
+    return()=>{document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',closeOnEscape);desktop.removeEventListener('change',closeOnDesktop);trigger?.focus({preventScroll:true});};
+  },[mobileOpen]);
+  useEffect(()=>{setMobileOpen(false);document.getElementById('main-content')?.scrollIntoView?.({block:'start'});},[page]);
 
   const [kayitTab, setKayitTabState] = useState(() => {
     if (typeof window !== "undefined") {
@@ -313,7 +325,6 @@ export function MainApp({ me, onLogout }) {
   const [showGlobalKarne, setShowGlobalKarne] = useState(null);
   const [showGlobalHataKarnesi, setShowGlobalHataKarnesi] = useState(false);
   const [showGlobalPromissory, setShowGlobalPromissory] = useState(false);
-  const [showGlobalAbsenceLetter, setShowGlobalAbsenceLetter] = useState(false);
   const [showOmniSearch, setShowOmniSearch] = useState(false);
 
   // Global Ctrl + K / Cmd + K shortcut for Omni Search
@@ -354,34 +365,8 @@ export function MainApp({ me, onLogout }) {
   });
   const toggleTree = (key) => setExpandedTree((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const load = async () => {
-    try {
-      const r = await axios.get(`${API}/dashboard`);
-      const rawStudents = r.data?.students || [];
-      const cleanStudents = StudentService.filterActiveStudents(rawStudents);
-      const nextData = { ...r.data, students: cleanStudents };
-      setData(nextData);
-      try {
-        if (typeof window !== "undefined") localStorage.setItem("cozum_dashboard_data_v1", JSON.stringify(nextData));
-      } catch (e) {}
-    } catch (e) {
-      console.warn("[App] load error:", e);
-    }
-  };
-  useEffect(() => {
-    load();
-    const handleUpdate = () => load();
-    window.addEventListener("cozum_students_updated", handleUpdate);
-    window.addEventListener("cozum_accounting_updated", handleUpdate);
-    return () => {
-      window.removeEventListener("cozum_students_updated", handleUpdate);
-      window.removeEventListener("cozum_accounting_updated", handleUpdate);
-    };
-  }, []);
   const filtered = useMemo(() => (data.students || []).filter((s) => trIncludes(`${s.student_name} ${s.parent_name} ${s.student_phone}`, search)), [data.students, search]);
-  const totalCollected = data.summary?.collected || (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);
-  const totalExpected = (data.students || []).reduce((a, s) => a + computeEffective(s).effective, 0);
-  const totalExpenses = data.summary?.expenses || (data.expenses || []).reduce((a, e) => a + (e.amount || 0), 0);
+
 
   const [quickOpen, setQuickOpen] = useState(false);
   useEffect(() => {
@@ -397,8 +382,7 @@ export function MainApp({ me, onLogout }) {
   const navCategories = useMemo(() => buildNavCategories({
     page, accountingTab, setPage, setAccountingTab, setMobileOpen,
     guardedOpen, setShowGlobalPromissory, kayitTab, setKayitTab,
-    showGlobalOptikModal, showGlobalHataKarnesi, setShowGlobalOptikModal,
-    setShowGlobalHataKarnesi
+    showGlobalOptikModal, showGlobalHataKarnesi, setShowGlobalOptikModal, setShowGlobalHataKarnesi
   }), [page, accountingTab, kayitTab, showGlobalOptikModal, showGlobalHataKarnesi]);
 
   return (
@@ -414,7 +398,7 @@ export function MainApp({ me, onLogout }) {
           tabIndex="0"
         />
       )}
-      <aside className={mobileOpen ? "sidebar mobile-open" : "sidebar"} aria-label="Ana Menü Gezintisi">
+      <aside id="main-navigation" className={mobileOpen ? "sidebar mobile-open" : "sidebar"} aria-label="Ana Menü Gezintisi">
         <div className="sidebar-brand-row">
           <Brand />
           <button type="button" className="sidebar-close-btn" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat">
@@ -440,8 +424,10 @@ export function MainApp({ me, onLogout }) {
                           type="button"
                           data-testid={`nav-tree-${item.id}`}
                           className={`nav-tree-parent ${isParentActive ? "active-parent" : ""}`}
+                          aria-expanded={isTreeOpen}
                           onClick={() => {
                             toggleTree(item.treeKey);
+                            if(window.matchMedia('(max-width: 900px)').matches)return;
                             if (item.id === "kayit") { setPage("kayit"); setKayitTab("kokpit"); }
                             else if (item.id === "payments") { setPage("payments"); setAccountingTab("dashboard"); }
                             else if (item.id === "exams") setPage("exams");
@@ -558,10 +544,10 @@ export function MainApp({ me, onLogout }) {
           </div>
         </div>
       </aside>
-      <div className="main">
+      <div className="main" inert={mobileOpen || undefined}>
         <PwaBanner />
         <header className="topbar" role="banner">
-          <button className="mobile-menu" data-testid="mobile-menu" aria-label="Menüyü aç" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} aria-hidden="true" /></button>
+          <button ref={menuButtonRef} className="mobile-menu" data-testid="mobile-menu" aria-label="Menüyü aç" aria-expanded={mobileOpen} aria-controls="main-navigation" onClick={() => setMobileOpen(!mobileOpen)}><Menu size={20} aria-hidden="true" /></button>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div className="edesis-quick-actions-wrapper" style={{ position: "relative" }}>
               <button
@@ -602,9 +588,9 @@ export function MainApp({ me, onLogout }) {
               )}
             </div>
           </div>
-          <div 
-            className="top-search" 
-            onClick={() => setShowOmniSearch(true)} 
+          <div
+            className="top-search"
+            onClick={() => setShowOmniSearch(true)}
             style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
             title="Genel Akıllı Arama (Kısayol: Ctrl + K)"
           >
@@ -650,6 +636,8 @@ export function MainApp({ me, onLogout }) {
           </div>
         </header>
         <main id="main-content" role="main" tabIndex="-1" className={`content ${page === "students" || page === "documents" ? "content-fullwidth" : ""}`}>
+          {dataError&&<div role="alert" style={{padding:12,background:'#fef2f2',color:'#991b1b'}}>Güncel veriler yüklenemedi. <button onClick={load}>Tekrar dene</button></div>}
+          {dataLoading&&<div role="status" className="sr-only">Güncel veriler yükleniyor</div>}
           {page === "dashboard" && (
             <DashboardPage me={me} data={data} totalCollected={totalCollected} totalExpected={totalExpected} totalExpenses={totalExpenses} onOpen={guardedOpen} onNavigate={setPage} onSelect={setSelected} />
           )}
@@ -678,9 +666,6 @@ export function MainApp({ me, onLogout }) {
           {page === "exams" && (
             <ExamOpticalPage me={me} API={API} students={data.students || []} classes={data.classes || []} showOptikModal={showGlobalOptikModal} onCloseOptikModal={() => setShowGlobalOptikModal(false)} showKarneModal={showGlobalKarne} onCloseKarneModal={() => setShowGlobalKarne(null)} />
           )}
-          {page === "attendance" && (
-            <AcademicPage me={me} mode="attendance" classes={data.classes || []} students={data.students || []} teachers={data.teachers || []} API={API} reload={load} guardedOpen={guardedOpen} setSelected={setSelected} onNavigate={setPage} />
-          )}
           {page === "schedules" && (
             <AcademicPage me={me} mode="schedules" classes={data.classes || []} students={data.students || []} teachers={data.teachers || []} API={API} reload={load} guardedOpen={guardedOpen} setSelected={setSelected} onNavigate={setPage} />
           )}
@@ -695,7 +680,6 @@ export function MainApp({ me, onLogout }) {
               guardedOpen={guardedOpen}
               setSelected={setSelected}
               setPage={setPage}
-              setShowGlobalKarne={setShowGlobalKarne}
               onEditStudent={(st) => setEditingStudent(st)}
             />
           )}
@@ -726,7 +710,7 @@ export function MainApp({ me, onLogout }) {
           {page === "audit" && <AuditPage />}
         </main>
       </div>
-      <MobileBottomNav page={page} setPage={setPage} setModal={setModal} canPayment={can(me, "payment_create")} />
+      <MobileBottomNav page={page} setPage={setPage} menuOpen={mobileOpen} setModal={setModal} canPayment={can(me, "payment_create")} />
       <EdesisStudentModal
         isOpen={modal === "student" || editingStudent !== null}
         onClose={() => { setModal(null); setEditingStudent(null); }}
@@ -781,8 +765,7 @@ export function MainApp({ me, onLogout }) {
       {showGlobalKarne && <OfficialEdesisKarneModal data={showGlobalKarne} onClose={() => setShowGlobalKarne(null)} />}
       {showGlobalHataKarnesi && <HataKarnesiModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", student_class: "TYT-AYT" }} onClose={() => setShowGlobalHataKarnesi(false)} />}
       {showGlobalPromissory && <PromissoryNoteModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", total_fee: 55000, installment_count: 10 }} onClose={() => setShowGlobalPromissory(false)} />}
-      {showGlobalAbsenceLetter && <AbsenceLetterModal student={data.students?.[0] || { student_name: "Örnek Öğrenci" }} daysAbsent={10} onClose={() => setShowGlobalAbsenceLetter(false)} />}
-      
+
       <OmniSearchModal
         isOpen={showOmniSearch}
         onClose={() => setShowOmniSearch(false)}
@@ -794,25 +777,6 @@ export function MainApp({ me, onLogout }) {
   );
 }
 
-export const CANCELLED_STUDENT_NAMES = ["SERHAT SERBEST", "EMİR PARILDAR", "EMRİYE AYTAN", "NEVRA KILINÇ"];
-
-export const ACTIVE_2026_CONTRACT_STUDENT_NAMES = [
-  "SEBİLE AKDEMİR", "ELİFSU ÇAĞLAYAN", "YAVUZ EMİR BALCI",
-  "MUSTAFA SİNİR", "ZEYNEP MASAL ÇELİK", "EBUBEKİR ASAF VERGİLİ"
-];
-
-export function getStudentCategory(s) {
-  if (s?.is_kesin_kayit) return "kesin";
-  const name = (s?.student_name || "").toUpperCase();
-  let prog = s?.program || "";
-  const fee = Number(s?.total_fee) || 0;
-
-  if (ACTIVE_2026_CONTRACT_STUDENT_NAMES.some((k) => name.includes(k))) prog = "2026-2027";
-  if (CANCELLED_STUDENT_NAMES.some((c) => name.includes(c)) || s?.status === "İptal / Ayrılan" || s?.enrollment_status === "İptal / Ayrılan") return "iptal";
-  if (prog === "2026-2027-YAZ" || s?.status === "Yaz Kursu" || s?.enrollment_status === "Yaz Kursu") return "yaz";
-  if (prog === "2025-2026" || s?.status === "Mezun / Geçmiş" || s?.enrollment_status === "Mezun / Geçmiş") return "mezun";
-  if (fee < 10) return "deneme";
-  return "kesin";
-}
+export { getStudentCategory } from "./components/tabs/muhasebeHelpers";
 
 export default App;

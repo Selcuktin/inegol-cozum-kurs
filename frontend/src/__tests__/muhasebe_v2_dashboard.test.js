@@ -483,27 +483,12 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
         />
       );
 
-      // Verify exact Edesis Master KPIs matching screenshot
-      expect(container.textContent).toContain("4.190.138 ₺"); // Toplam Gelir
-      expect(container.textContent).toContain("468.441 ₺");   // Tahsil Edilen
-      expect(container.textContent).toContain("3.721.696 ₺"); // Kalan Bakiye
-      expect(container.textContent).toContain("100.401 ₺");   // Toplam Gider
-      expect(container.textContent).toContain("4.089.736 ₺"); // Net Kâr/Zarar
-      expect(container.textContent).toContain("%97,6");       // Kâr Marjı
+      const cards = Array.from(container.querySelectorAll(".stat-card"));
+      expect(cards.find(c=>c.textContent.includes("TOPLAM KAYIT CİROSU")).textContent).toContain("3.965.000");
+      expect(cards.find(c=>c.textContent.includes("GERÇEKLEŞEN TAHSİLAT")).textContent).toContain("₺0");
+      expect(container.textContent).not.toContain("4.190.138");
+      expect(container.textContent).not.toContain("100.401");
 
-      // Verify Edesis 'Bugün Neler' strip
-      expect(container.textContent).toContain("Bugün Neler");
-      expect(container.textContent).toContain("BUGÜN TAHSİL EDİLEN");
-      expect(container.textContent).toContain("BUGÜN TAHSİL EDİLECEK");
-      expect(container.textContent).toContain("BUGÜN ÖDENEN");
-      expect(container.textContent).toContain("BUGÜN ÖDENECEK");
-
-      // Verify Edesis 'Vadesi Geçmiş' row
-      expect(container.textContent).toContain("Vadesi Geçmiş");
-      expect(container.textContent).toContain("216.350 ₺");
-
-      // Verify Edesis 'Kasa + Banka Durumu'
-      expect(container.textContent).toContain("982.938 ₺");
     });
   });
 
@@ -536,7 +521,7 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
         />
       );
 
-      expect(container.textContent).toContain("Otomatik Yedekleme: Her Akşam Saat 20:00 (TRT) Aktif");
+      expect(container.textContent).toContain("Son kayıtlı yedek:");
       expect(container.textContent).toContain("backup_20261009_200000");
       expect(container.textContent).toContain("Her Akşam 20:00 Otomatik Sistem Yedeği");
       expect(container.textContent).toContain("Şimdi Manuel Yedek Al");
@@ -546,4 +531,3 @@ describe("R1: Edesis Muhasebe V2 Dashboard & Finansal Raporlama Portali (muhaseb
     });
   });
 });
-

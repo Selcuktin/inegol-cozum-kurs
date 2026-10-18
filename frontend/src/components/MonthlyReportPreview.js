@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import {usePrintTarget} from "../hooks/usePrintTarget";
+import React from "react";
 import {
   Printer,
   FileDown,
@@ -13,6 +14,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import AccountingService from "../lib/edesisAccountingService";
+import { csvRow } from "../lib/csv";
 
 const MONTH_NAMES = {
   "01": "Ocak",
@@ -38,6 +40,7 @@ function formatMoney(amount) {
 }
 
 export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) {
+  const printRef=usePrintTarget();
   // Parse year and month
   const [yearStr, monthStr] = month.split("-");
   const monthName = MONTH_NAMES[monthStr] || monthStr;
@@ -49,69 +52,53 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
   const reportDate = new Date().toLocaleDateString("tr-TR");
   const reportNo = `RPR-${yearStr}${monthStr}-01`;
 
-  // 1. Filter payments in this month from authentic Edesis + local data
-  const monthlyPayments = useMemo(() => {
+  // Use one authoritative list, including an empty successful result.
+  const monthlyPayments = (() => {
     const list = [];
-    const seen = new Set();
 
     // From AccountingService collections
-    (AccountingService.getCollections() || []).forEach(t => {
-      const dt = (t.tahsilatTarihi || t.payment_date || "").slice(0, 7);
+    const payments = Array.isArray(data.payments) ? data.payments : AccountingService.getCollections();
+    payments.forEach(t => {
+      if (t.is_cancelled || t.status === "İptal Edildi" || t.status === "cancelled") return;
+      const dt = (t.tahsilatTarihi || t.payment_date || t.date || "").slice(0, 7);
       if (dt === month) {
-        seen.add(t.id || t.odemeKodu);
         list.push({
           id: t.id,
-          code: t.odemeKodu || `THS-${t.id}`,
-          date: t.tahsilatTarihi ? t.tahsilatTarihi.slice(0, 10) : "",
+          code: t.odemeKodu || t.receipt_no || `THS-${t.id}`,
+          date: (t.tahsilatTarihi || t.payment_date || t.date || "").slice(0, 10),
           studentName: t.musteriUnvan || t.student_name || "Öğrenci",
-          account: t.kasaBankaAdi || t.bank || "Nakit Ana Kasa",
-          amount: Number(t.tahsilatTutari || t.amount) || 0,
+          account: t.kasaBankaAdi || t.bank || t.account || t.method || "Nakit Ana Kasa",
+          amount: Number(t.tahsilatTutari ?? t.amount) || 0,
           note: t.aciklama || t.note || "Taksit Tahsilatı"
-        });
-      }
-    });
-
-    // From local data.payments if any
-    (data.payments || []).forEach(p => {
-      const dt = (p.payment_date || p.date || "").slice(0, 7);
-      if (dt === month && !seen.has(p.id)) {
-        list.push({
-          id: p.id,
-          code: p.receipt_no || `MK-${p.id}`,
-          date: (p.payment_date || p.date || "").slice(0, 10),
-          studentName: p.student_name || "Öğrenci",
-          account: p.account || p.method || "Nakit Kasa",
-          amount: Number(p.amount) || 0,
-          note: p.note || "Aylık Ödeme"
         });
       }
     });
 
     // Sort by date descending
     return list.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  }, [month, data.payments]);
+  })();
 
   // 2. Filter installments due in this month from AccountingService taksitler
-  const monthlyDueInstallments = useMemo(() => {
-    return (AccountingService.getInstallments() || [])
-      .filter(t => (t.vadeTarihi || t.due_date || "").slice(0, 7) === month)
+  const monthlyDueInstallments = (() => {
+    return (Array.isArray(data.installments) ? data.installments : AccountingService.getInstallments())
+      .filter(t => Number(t.contract_status) !== 3 && (t.vadeTarihi || t.due_date || "").slice(0, 7) === month)
       .map(t => ({
         id: t.id,
-        studentName: t.ogrenciAdiSoyadi || t.ogrenciAdi || t.musteriUnvan || "Öğrenci",
+        studentName: t.ogrenciAdiSoyadi || t.ogrenciAdi || t.musteriUnvan || t.student_name || "Öğrenci",
         className: t.sinifAdi || "—",
-        contractNo: t.gelirAciklama ? t.gelirAciklama.replace("Sözleşme: ", "") : (t.sozlesmeNo || t.gelirKodu),
-        installmentNo: t.taksitNo,
-        amount: Number(t.taksitTutari || t.amount) || 0,
-        paid: Number(t.tahsilEdilen || t.paid_amount) || 0,
-        remaining: Number(t.kalanTutar) || 0,
+        contractNo: t.gelirAciklama ? t.gelirAciklama.replace("Sözleşme: ", "") : (t.sozlesmeNo || t.sozlesme_no || t.gelirKodu),
+        installmentNo: t.taksitNo ?? t.installment_no,
+        amount: Number(t.taksitTutari ?? t.amount) || 0,
+        paid: Number(t.tahsilEdilen ?? t.paid_amount) || 0,
+        remaining: Number(t.kalanTutar ?? Math.max(0, Number(t.amount || 0) - Number(t.paid_amount || 0))),
         dueDate: (t.vadeTarihi || t.due_date || "").slice(0, 10),
-        status: t.kalanTutar === 0 ? "Ödendi" : (t.durumText || "Bekliyor")
+        status: Number(t.kalanTutar ?? Math.max(0, Number(t.amount || 0) - Number(t.paid_amount || 0))) === 0 ? "Ödendi" : (t.durumText || "Bekliyor")
       }))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [month]);
+  })();
 
   // 3. Filter expenses in this month
-  const monthlyExpenses = useMemo(() => {
+  const monthlyExpenses = (() => {
     const list = [];
     (data.expenses || []).forEach(e => {
       const dt = (e.expense_date || e.date || "").slice(0, 7);
@@ -127,28 +114,17 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
       }
     });
 
-    // If no expense entries in database for this month, show standard institutional operational baseline
-    if (list.length === 0) {
-      list.push(
-        { id: 1, title: "Personel & Eğitmen Maaş / SGK Ödemeleri", category: "Personel", date: `${yearStr}-${monthStr}-15`, amount: 185000, method: "VakıfBank Transfer" },
-        { id: 2, title: "Bina Kirası (Osmaniye Mah. No:19)", category: "Kira", date: `${yearStr}-${monthStr}-05`, amount: 45000, method: "Halkbank Havale" },
-        { id: 3, title: "Elektrik, Su, Isınma & Doğalgaz Faturaları", category: "Faturalar", date: `${yearStr}-${monthStr}-20`, amount: 12450, method: "Otomatik Ödeme" },
-        { id: 4, title: "Yayın, Deneme Sınavı & Optik Materyal Alımı", category: "Yayın", date: `${yearStr}-${monthStr}-10`, amount: 28500, method: "Kredi Kartı / POS" },
-        { id: 5, title: "İletişim, İnternet, Toplu SMS & Yazılım Lisansı", category: "Teknoloji", date: `${yearStr}-${monthStr}-12`, amount: 3850, method: "Banka Transfer" }
-      );
-    }
-
     return list;
-  }, [month, data.expenses, yearStr, monthStr]);
+  })();
 
   // Calculations
-  const totalCollected = monthlyPayments.reduce((acc, p) => acc + p.amount, 0);
-  const totalDueInstallments = monthlyDueInstallments.reduce((acc, t) => acc + t.amount, 0);
-  const totalExpenses = monthlyExpenses.reduce((acc, e) => acc + e.amount, 0);
-  const netCashFlow = totalCollected - totalExpenses;
+  const totalCollected = monthlyPayments.reduce((acc, p) => acc + Math.round(p.amount * 100), 0) / 100;
+  const totalDueInstallments = monthlyDueInstallments.reduce((acc, t) => acc + Math.round(t.amount * 100), 0) / 100;
+  const totalExpenses = monthlyExpenses.reduce((acc, e) => acc + Math.round(e.amount * 100), 0) / 100;
+  const netCashFlow = Math.round((totalCollected - totalExpenses) * 100) / 100;
 
   // Account breakdown for this month
-  const accountBreakdown = useMemo(() => {
+  const accountBreakdown = (() => {
     const map = {
       "T.C. VAKIFLAR BANKASI (Nevin Çakmak)": 0,
       "T.C. HALKBANK İNEGÖL ŞUBESİ": 0,
@@ -173,7 +149,7 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
     });
 
     return map;
-  }, [monthlyPayments]);
+  })();
 
   // Excel / CSV Export
   const handleExportCSV = () => {
@@ -191,19 +167,19 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
     csv += "--- AY İÇİ TAHSİLATLAR DÖKÜMÜ ---\n";
     csv += "Tarih;Makbuz No;Öğrenci Adı Soyadı;Kasa/Hesap;Tutar;Açıklama\n";
     monthlyPayments.forEach(p => {
-      csv += `${p.date};${p.code};"${p.studentName}";"${p.account}";${p.amount};"${p.note}"\n`;
+      csv += csvRow([p.date,p.code,p.studentName,p.account,p.amount,p.note]) + "\n";
     });
 
     csv += "\n--- VADESİ GELEN TAKSİTLER ---\n";
     csv += "Vade Tarihi;Öğrenci Adı Soyadı;Sınıf;Sözleşme No;Taksit No;Tutar;Durum\n";
     monthlyDueInstallments.forEach(t => {
-      csv += `${t.dueDate};"${t.studentName}";"${t.className}";"${t.contractNo}";${t.installmentNo};${t.amount};${t.status}\n`;
+      csv += csvRow([t.dueDate,t.studentName,t.className,t.contractNo,t.installmentNo,t.amount,t.status]) + "\n";
     });
 
     csv += "\n--- KURUM GİDERLERİ DÖKÜMÜ ---\n";
     csv += "Tarih;Gider Başlığı;Kategori;Tutar;Ödeme Yöntemi\n";
     monthlyExpenses.forEach(e => {
-      csv += `${e.date};"${e.title}";"${e.category}";${e.amount};"${e.method}"\n`;
+      csv += csvRow([e.date,e.title,e.category,e.amount,e.method]) + "\n";
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -228,7 +204,7 @@ export function MonthlyReportPreview({ month = "2026-10", data = {}, onPrint }) 
   };
 
   return (
-    <div className="monthly-report-preview-container" style={{ marginTop: "24px" }}>
+    <div ref={printRef} className="monthly-report-preview-container" style={{ marginTop: "24px" }}>
       {/* Önizleme Kontrol Başlığı */}
       <div 
         style={{

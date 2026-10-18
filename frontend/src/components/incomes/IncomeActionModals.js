@@ -26,6 +26,7 @@ export function NewIncomeModal({ open, onClose, onSubmit }) {
   if (!open) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -392,6 +393,7 @@ export function DeleteIncomeModal({ income, onClose, onConfirm }) {
   if (!income) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -513,6 +515,7 @@ export function QuickCollectModal({ income, onClose, onConfirm }) {
   if (!income) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,

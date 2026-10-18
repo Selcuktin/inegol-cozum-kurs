@@ -1,179 +1,31 @@
-import AccountingService from "../lib/edesisAccountingService";
-import edesisData from "../data/edesisAccountingData.json";
+import AccountingService from '../lib/edesisAccountingService';
 
-describe("AccountingService End-to-End Sync & Data Safety Suite", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    AccountingService.setInitialData({
-      incomes: edesisData.gelirler,
-      contracts: edesisData.sozlesmeler,
-      installments: edesisData.taksitler,
-      collections: edesisData.tahsilatlar
-    });
-  });
+beforeEach(()=>{AccountingService.resetCustomData();localStorage.clear();});
+afterEach(()=>jest.restoreAllMocks());
 
-  afterEach(() => {
-    localStorage.clear();
-    AccountingService.resetCustomData();
-  });
+test('getters cannot overwrite an authoritative snapshot from old props or mutate it by reference',()=>{
+  AccountingService.acceptDashboard({contracts:[{id:'current',brut_tutar:1200,durum:1}],payments:[{id:'saved',amount:200}],installments:[],incomes:[]});
+  expect(AccountingService.getContracts([],[{id:'old'}])[0].id).toBe('current');
+  expect(AccountingService.getCollections([{id:'old-payment'}])[0].id).toBe('saved');
+  const copy=AccountingService.getContracts();copy[0].brutTutar=1;expect(AccountingService.getContracts()[0].brutTutar).toBe(1200);
+  AccountingService.acceptDashboard({contracts:[],payments:[],installments:[],incomes:[]});
+  expect(AccountingService.getContracts([],[{id:'resurrected'}])).toEqual([]);
+  expect(AccountingService.getCollections([{id:'resurrected'}])).toEqual([]);
+});
 
-  test("1. Pristine Baseline Data Integrity: Authentic counts match exactly without mutation", () => {
-    const incomes = AccountingService.getIncomes();
-    const contracts = AccountingService.getContracts();
-    const installments = AccountingService.getInstallments();
-    const collections = AccountingService.getCollections();
+test.each(['addNewIncome','deleteContract','updateContract','saveInstallments','recordCollection','cancelCollection'])('%s always uses the real API and reports server failure',async method=>{
+  const fetch=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:false,status:409,json:async()=>({detail:'Conflict'})});
+  AccountingService.setInitialData({contracts:[{id:'kept',brutTutar:1000}],collections:[{id:'kept-payment',amount:200}]});
+  await expect(AccountingService[method](method==='addNewIncome'?{student_id:'s',brutTutar:1000}:method==='recordCollection'||method==='cancelCollection'?{id:'x',student_id:'s',amount:100}:'kept',[])).rejects.toThrow('Conflict');
+  expect(fetch).toHaveBeenCalled();expect(AccountingService.getContracts()[0].id).toBe('kept');expect(AccountingService.getCollections()[0].id).toBe('kept-payment');
+});
 
-    expect(incomes.length).toBe(129);
-    expect(contracts.length).toBe(121);
-    expect(installments.length).toBe(682);
-    expect(collections.length).toBe(164);
+test('failed refresh rejects instead of presenting cached financial data as a successful read',async()=>{
+  AccountingService.setInitialData({contracts:[{id:'cached'}]});jest.spyOn(globalThis,'fetch').mockRejectedValue(new Error('Offline'));
+  await expect(AccountingService.refresh()).rejects.toThrow('Offline');expect(AccountingService.getContracts()[0].id).toBe('cached');
+});
 
-    // Verify first authentic contract SZL202600150
-    expect(contracts[0].sozlesmeNo).toBe("SZL202600150");
-    expect(contracts[0].ogrenciAdi).toBe("HATİCE KÜBRA ÜNALAN");
-  });
-
-  test("2. Income Addition & Installment Splitting: 60.000 TL split into 6 monthly installments", () => {
-    const res = AccountingService.addNewIncome({
-      ogrenciAdi: "BARIŞ MANÇO",
-      veliAdi: "DEVLET MANÇO",
-      sinifAdi: "8-A",
-      brutTutar: 60000,
-      kdvOrani: 10,
-      taksitSayisi: 6,
-      gelirKategoriAdi: "Eğitim Hizmeti",
-      aciklama: "Yeni Kayıt Sözleşmesi"
-    });
-
-    expect(res.income.brutTutar).toBe(60000);
-    expect(res.income.ogrenciAdiSoyadi).toBe("BARIŞ MANÇO");
-    expect(res.installments.length).toBe(6);
-
-    // Verify installment division
-    res.installments.forEach((inst, idx) => {
-      expect(inst.taksitNo).toBe(idx + 1);
-      expect(inst.taksitTutari).toBe(10000);
-      expect(inst.kalanTutar).toBe(10000);
-      expect(inst.tahsilEdilen).toBe(0);
-      expect(inst.durumText).toBe("Vadesi Gelmedi");
-      expect(inst.gelirKodu).toBe(res.income.gelirKodu);
-    });
-
-    // Incomes count should increment by 1
-    const updatedIncomes = AccountingService.getIncomes();
-    expect(updatedIncomes.length).toBe(130);
-    expect(updatedIncomes[0].ogrenciAdiSoyadi).toBe("BARIŞ MANÇO");
-
-    // Installments count should increment by 6
-    const updatedInstallments = AccountingService.getInstallments();
-    expect(updatedInstallments.length).toBe(688);
-
-    // Contracts count should increment by 1
-    const updatedContracts = AccountingService.getContracts();
-    expect(updatedContracts.length).toBe(122);
-  });
-
-  test("3. Partial Collection & Debt Amortization: Collection reduces debt and allocates across installments", () => {
-    const res = AccountingService.addNewIncome({
-      ogrenciAdi: "SEZEN AKSU",
-      brutTutar: 30000,
-      taksitSayisi: 3
-    });
-
-    const incomeCode = res.income.gelirKodu;
-
-    // Collect 15.000 TL (1.5 installments)
-    AccountingService.recordCollection({
-      gelirKodu: incomeCode,
-      amount: 15000,
-      bank: "T.C. VAKIFLAR BANKASI İNEGÖL ŞB.",
-      method: "Havale/EFT",
-      note: "1. ve 2. Taksit Kısmi Ödemesi"
-    });
-
-    // Verify Income totals updated
-    const incomes = AccountingService.getIncomes();
-    const updatedInc = incomes.find(g => g.gelirKodu === incomeCode);
-    expect(updatedInc.toplamTahsilat).toBe(15000);
-    expect(updatedInc.kalanAlacak).toBe(15000);
-    expect(updatedInc.tamTahsilEdildiMi).toBe(false);
-
-    // Verify Installments amortization
-    const installments = AccountingService.getInstallments().filter(t => t.gelirKodu === incomeCode);
-    // 1st installment (10.000 TL) is fully paid
-    expect(installments[0].tahsilEdilen).toBe(10000);
-    expect(installments[0].kalanTutar).toBe(0);
-    expect(installments[0].durumText).toBe("Tam Ödendi");
-
-    // 2nd installment (10.000 TL) has 5.000 paid, 5.000 remaining
-    expect(installments[1].tahsilEdilen).toBe(5000);
-    expect(installments[1].kalanTutar).toBe(5000);
-
-    // 3rd installment (10.000 TL) untouched
-    expect(installments[2].tahsilEdilen).toBe(0);
-    expect(installments[2].kalanTutar).toBe(10000);
-
-    // Verify Collections count
-    const collections = AccountingService.getCollections();
-    expect(collections.length).toBe(165);
-    expect(collections[0].tahsilatTutari).toBe(15000);
-  });
-
-  test("4. Zero Data Loss Guarantee: Resetting custom data restores pristine authentic Edesis dataset", () => {
-    // Add custom income
-    AccountingService.addNewIncome({
-      ogrenciAdi: "TEMPORARY TEST",
-      brutTutar: 50000,
-      taksitSayisi: 5
-    });
-
-    expect(AccountingService.getIncomes().length).toBe(130);
-    expect(AccountingService.getInstallments().length).toBe(687);
-
-    // Call resetCustomData and restore baseline
-    AccountingService.resetCustomData();
-    AccountingService.setInitialData({
-      incomes: edesisData.gelirler,
-      contracts: edesisData.sozlesmeler,
-      installments: edesisData.taksitler,
-      collections: edesisData.tahsilatlar
-    });
-
-    // Verify exact original counts restored
-    expect(AccountingService.getIncomes().length).toBe(129);
-    expect(AccountingService.getContracts().length).toBe(121);
-    expect(AccountingService.getInstallments().length).toBe(682);
-    expect(AccountingService.getCollections().length).toBe(164);
-
-    // Ensure the underlying authentic file was NEVER mutated
-    expect(edesisData.gelirler.length).toBe(129);
-    expect(edesisData.taksitler.length).toBe(682);
-  });
-
-  test("5. Target Installment Collection: Specific installment is marked paid and persists across cache", () => {
-    const testSzl = "SZL_PERSIST_TEST";
-    const testInsts = [
-      { taksitNo: 1, taksitTutari: 5000, tahsilEdilen: 0, kalanTutar: 5000, durumText: "Bekliyor", sozlesmeNo: testSzl },
-      { taksitNo: 2, taksitTutari: 5000, tahsilEdilen: 0, kalanTutar: 5000, durumText: "Bekliyor", sozlesmeNo: testSzl }
-    ];
-    AccountingService.saveInstallments(testSzl, testInsts);
-
-    const coll = AccountingService.recordCollection({
-      sozlesmeNo: testSzl,
-      installment_no: 1,
-      amount: 5000,
-      bank: "Nakit Ana Kasa",
-      alreadyPersisted: true
-    });
-
-    expect(coll).toBeDefined();
-    expect(coll.amount).toBe(5000);
-
-    const insts = AccountingService.getInstallments().filter(t => t.sozlesmeNo === testSzl);
-    expect(insts.length).toBe(2);
-    expect(insts[0].tahsilEdilen).toBe(5000);
-    expect(insts[0].kalanTutar).toBe(0);
-    expect(insts[0].durumText).toBe("Tam Ödendi");
-    expect(insts[1].tahsilEdilen).toBe(0);
-  });
+test('core snapshots do not persist business records in localStorage',()=>{
+  AccountingService.acceptDashboard({contracts:[{id:'private'}],payments:[{id:'private-payment'}]});
+  for(const key of ['cozum_ssot_contracts_v2','cozum_ssot_collections_v2','cozum_dashboard_data_v1'])expect(localStorage.getItem(key)).toBeNull();
 });

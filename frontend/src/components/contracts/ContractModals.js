@@ -1,3 +1,4 @@
+import { usePrintTarget } from "../../hooks/usePrintTarget";
 import React, { useState, useEffect, useMemo } from "react";
 import {
   FileText,
@@ -38,31 +39,17 @@ export function fmtDate(isoStr) {
 }
 
 export function PaymentPlanModal({ contract, onClose }) {
+  const printRef=usePrintTarget(!!contract);
   if (!contract) return null;
   const allInsts = AccountingService.getInstallments();
   const contractInsts = allInsts
-    .filter((t) => t.sozlesmeNo === contract.sozlesmeNo)
+    .filter((t) => (contract.id && t.contract_id === contract.id) || ((contract.sozlesmeNo || contract.sozlesme_no) && t.sozlesmeNo === (contract.sozlesmeNo || contract.sozlesme_no)))
     .sort((a, b) => (Number(a.taksitNo) || 0) - (Number(b.taksitNo) || 0));
-  const hasRealInsts = contractInsts.length > 0;
-  const planItems = hasRealInsts
-    ? contractInsts
-    : Array.from({ length: contract.taksitSayisi || 1 }, (_, i) => {
-        const instNum = i + 1;
-        const instAmount = (Number(contract.brutTutar) || 0) / (contract.taksitSayisi || 1);
-        const baseDate = new Date(contract.sozlesmeTarihi || new Date());
-        baseDate.setMonth(baseDate.getMonth() + i);
-        return {
-          taksitNo: instNum,
-          vadeTarihi: baseDate.toISOString().slice(0, 10),
-          taksitTutari: instAmount,
-          durumText: "Bekliyor",
-          durum: 0
-        };
-      });
+  const planItems = contractInsts;
 
   return (
     <div
-      className="modal-backdrop"
+      ref={printRef} className="modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -79,7 +66,7 @@ export function PaymentPlanModal({ contract, onClose }) {
       }}
       onClick={onClose}
     >
-      <div
+      <div className="modal"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "#fff",
@@ -117,6 +104,9 @@ export function PaymentPlanModal({ contract, onClose }) {
           </button>
         </div>
 
+        <h2 style={{fontSize:18}}>Ödeme Planı · {contract.sozlesmeNo} · {contract.ogrenciAdi}</h2>
+        {Number(contract.durum)===3 && <p role="status">İPTAL EDİLMİŞ SÖZLEŞME · Arşiv ödeme planı</p>}
+        {!planItems.length && <p role="alert">Kayıtlı ödeme planı bulunamadı. Güncel sözleşme verisini yükleyip yeniden deneyin.</p>}
         <div style={{ marginBottom: "16px" }}>
           <div
             style={{
@@ -151,7 +141,7 @@ export function PaymentPlanModal({ contract, onClose }) {
           </thead>
           <tbody>
             {planItems.map((t) => {
-              const isPaid = t.durum === 1;
+              const isPaid = Number(t.tahsilEdilen ?? t.paid_amount ?? 0) >= Number(t.taksitTutari ?? t.amount ?? 0);
               return (
                 <tr
                   key={t.taksitNo}
@@ -173,7 +163,7 @@ export function PaymentPlanModal({ contract, onClose }) {
                         fontWeight: 600
                       }}
                     >
-                      {isPaid ? "Tahsil Edildi" : "Bekliyor"}
+                      {t.durumText || (isPaid ? "Tahsil Edildi" : "Bekliyor")}
                     </span>
                   </td>
                 </tr>
@@ -186,6 +176,7 @@ export function PaymentPlanModal({ contract, onClose }) {
           <div style={{ display: "flex", gap: "8px" }}>
             <button
               type="button"
+              disabled={!planItems.length}
               onClick={() => window.print()}
               style={{
                 display: "inline-flex",
@@ -236,6 +227,7 @@ function normTr(str) {
 }
 
 export function MebContractPrintModal({ contract, printStudent, students = [], onClose }) {
+  const printRef=usePrintTarget(!!contract);
   const [showEditDrawer, setShowEditDrawer] = useState(false);
 
   // Intelligently resolve the full student record if printStudent is missing or partial
@@ -249,7 +241,6 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
 
     if (!list || list.length === 0) return null;
 
-    const sNameNorm = normTr(contract.ogrenciAdi || contract.student_name || contract.ogrenciAdiSoyadi || contract.musteriUnvan || "");
     const sId = String(contract.ogrenciId || contract.studentId || contract.student_id || "");
     const cleanId = sId.replace(/^stu-/, "");
     const szlNo = String(contract.sozlesmeNo || contract.sozlesme_no || "").trim();
@@ -258,11 +249,10 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
 
     return list.find((s) => {
       if (!s) return false;
+      if (cleanId) return String(s.id).replace(/^stu-/, "") === cleanId;
       if (szlNo && s.sozlesme_no && String(s.sozlesme_no).trim() === szlNo) return true;
-      if (cleanId && (String(s.id) === sId || String(s.id).replace(/^stu-/, "") === cleanId)) return true;
       if (tc && s.student_tc && String(s.student_tc).trim() === tc) return true;
       if (ogrNo && s.student_no && String(s.student_no).trim() === ogrNo) return true;
-      if (sNameNorm && normTr(s.student_name) === sNameNorm) return true;
       return false;
     }) || null;
   }, [contract, printStudent, students]);
@@ -290,17 +280,17 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
     const rawPhone = cnt.parent_phone || cnt.veliTelefon || st?.parent_phone || st?.guardian_phone || st?.father_phone || st?.mother_phone || cnt.musteriTelefon || st?.student_phone || cnt.student_phone || "";
     const pPhone = rawPhone !== "—" ? rawPhone : "";
 
-    const cNo = cnt.sozlesmeNo || cnt.sozlesme_no || st?.sozlesme_no || (cnt.id ? String(cnt.id) : "MEB-2026-001");
+    const cNo = cnt.sozlesmeNo || cnt.sozlesme_no || (cnt.id ? String(cnt.id) : "—");
 
     const rawDate = cnt.sozlesmeTarihi || cnt.sozlesme_tarihi || cnt.contract_date || cnt.created_at || st?.sozlesme_tarihi;
     const dFormatted = fmtDate(rawDate);
-    const cDate = dFormatted !== "—" ? dFormatted : new Date().toLocaleDateString("tr-TR");
+    const cDate = dFormatted;
 
     const tc = cnt.student_tc || cnt.studentTc || cnt.tc || st?.student_tc || st?.tc || st?.tckn || "";
 
-    const sClass = cnt.sinifAdi || cnt.student_class || st?.student_class || st?.class_level || st?.sinif || "Mezun / YKS";
+    const sClass = cnt.sinifAdi || cnt.student_class || st?.student_class || st?.class_level || st?.sinif || "—";
 
-    const sPeriod = cnt.donemAdi || cnt.period_name || cnt.donem_adi || st?.donem_adi || st?.term || "2026-2027 Eğitim-Öğretim Dönemi";
+    const sPeriod = cnt.donemAdi || cnt.period_name || cnt.donem_adi || st?.donem_adi || st?.term || "—";
 
     const rawFee = cnt.brutTutar ?? cnt.brut_tutar ?? cnt.total_amount ?? cnt.netTutar ?? st?.total_fee ?? 0;
     const grossFee = Number(rawFee) || 0;
@@ -330,14 +320,14 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
 
   const initialVals = useMemo(() => computeInitialValues(contract, resolvedStudent), [contract, resolvedStudent]);
 
-  const [editableContractNo, setEditableContractNo] = useState(() => initialVals.cNo || "MEB-2026-001");
-  const [editableContractDate, setEditableContractDate] = useState(() => initialVals.cDate || new Date().toLocaleDateString("tr-TR"));
+  const [editableContractNo, setEditableContractNo] = useState(() => initialVals.cNo || "—");
+  const [editableContractDate, setEditableContractDate] = useState(() => initialVals.cDate || "—");
   const [editableStudentTc, setEditableStudentTc] = useState(() => initialVals.tc || "");
   const [editableStudentName, setEditableStudentName] = useState(() => initialVals.sName || "");
   const [editableParentName, setEditableParentName] = useState(() => initialVals.pName || "");
   const [editableParentPhone, setEditableParentPhone] = useState(() => initialVals.pPhone || "");
-  const [editableClass, setEditableClass] = useState(() => initialVals.sClass || "Mezun / YKS");
-  const [editablePeriod, setEditablePeriod] = useState(() => initialVals.sPeriod || "2026-2027 Eğitim-Öğretim Dönemi");
+  const [editableClass, setEditableClass] = useState(() => initialVals.sClass || "—");
+  const [editablePeriod, setEditablePeriod] = useState(() => initialVals.sPeriod || "—");
   const [editableGrossFee, setEditableGrossFee] = useState(() => initialVals.grossFee || 0);
   const [editableInstallments, setEditableInstallments] = useState(() => initialVals.instCount || 1);
   const [editableOfficer, setEditableOfficer] = useState(() => initialVals.officer || "Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi");
@@ -347,14 +337,14 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
   useEffect(() => {
     if (!contract) return;
     const v = computeInitialValues(contract, resolvedStudent);
-    setEditableContractNo(v.cNo || "MEB-2026-001");
-    setEditableContractDate(v.cDate || new Date().toLocaleDateString("tr-TR"));
+    setEditableContractNo(v.cNo || "—");
+    setEditableContractDate(v.cDate || "—");
     setEditableStudentTc(v.tc || "");
     setEditableStudentName(v.sName || "");
     setEditableParentName(v.pName || "");
     setEditableParentPhone(v.pPhone || "");
-    setEditableClass(v.sClass || "Mezun / YKS");
-    setEditablePeriod(v.sPeriod || "2026-2027 Eğitim-Öğretim Dönemi");
+    setEditableClass(v.sClass || "—");
+    setEditablePeriod(v.sPeriod || "—");
     setEditableGrossFee(v.grossFee || 0);
     setEditableInstallments(v.instCount || 1);
     setEditableOfficer(v.officer || "Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi");
@@ -363,14 +353,14 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
 
   const handleResetToOriginal = () => {
     const v = computeInitialValues(contract, resolvedStudent);
-    setEditableContractNo(v.cNo || "MEB-2026-001");
-    setEditableContractDate(v.cDate || new Date().toLocaleDateString("tr-TR"));
+    setEditableContractNo(v.cNo || "—");
+    setEditableContractDate(v.cDate || "—");
     setEditableStudentTc(v.tc || "");
     setEditableStudentName(v.sName || "");
     setEditableParentName(v.pName || "");
     setEditableParentPhone(v.pPhone || "");
-    setEditableClass(v.sClass || "Mezun / YKS");
-    setEditablePeriod(v.sPeriod || "2026-2027 Eğitim-Öğretim Dönemi");
+    setEditableClass(v.sClass || "—");
+    setEditablePeriod(v.sPeriod || "—");
     setEditableGrossFee(v.grossFee || 0);
     setEditableInstallments(v.instCount || 1);
     setEditableOfficer(v.officer || "Osman SEYMEN - Özel İnegöl Çözüm Kurs Merkezi");
@@ -381,7 +371,7 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
 
   return (
     <div
-      className="modal-backdrop meb-contract-modal-backdrop"
+      ref={printRef} className="modal-backdrop meb-contract-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -663,7 +653,6 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
             color: "#000",
             fontFamily: "'Times New Roman', Times, serif",
             minHeight: "255mm",
-            maxHeight: "268mm",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between"
@@ -671,6 +660,7 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
         >
           <div>
             <div style={{ textAlign: "center", marginBottom: "16px", borderBottom: "1.5px solid #000", paddingBottom: "10px" }}>
+              {Number(contract.durum)===3 && <div role="status" style={{border:"2px solid #b91c1c",color:"#b91c1c",padding:8,fontWeight:800}}>İPTAL EDİLMİŞ SÖZLEŞME · Arşiv nüshası</div>}
               <div style={{ fontSize: "14px", fontWeight: "bold", letterSpacing: "0.5px" }}>T.C.</div>
               <div style={{ fontSize: "14px", fontWeight: "bold", letterSpacing: "0.5px" }}>MİLLÎ EĞİTİM BAKANLIĞI</div>
               <div style={{ fontSize: "13px", fontWeight: "bold" }}>ÖZEL ÖĞRETİM KURUMLARI GENEL MÜDÜRLÜĞÜ</div>
@@ -737,7 +727,7 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
                     SINIFI / ÖĞRETİM PROGRAMI:
                   </td>
                   <td style={{ border: "1px solid #000", padding: "7px 10px" }}>
-                    {editableClass || "—"} ({editablePeriod || "2026-2027 Eğitim-Öğretim Dönemi"})
+                    {editableClass || "—"} ({editablePeriod || "—"})
                   </td>
                 </tr>
                 <tr>
@@ -754,7 +744,7 @@ export function MebContractPrintModal({ contract, printStudent, students = [], o
                   </td>
                   <td style={{ border: "1px solid #000", padding: "7px 10px" }}>
                     {editablePaymentPlanText || (editableInstallments > 1 ? `Taksitli (${editableInstallments} Taksit)` : "Peşin")} · Başlangıç:{" "}
-                    {fmtDate(contract.baslamaTarihi || "2026-10-01")} - Bitiş: {fmtDate(contract.bitisTarihi || "2027-06-30")}
+                    {fmtDate(contract.baslamaTarihi || contract.baslama_tarihi)} - Bitiş: {fmtDate(contract.bitisTarihi || contract.bitis_tarihi)}
                   </td>
                 </tr>
               </tbody>
@@ -843,6 +833,7 @@ export function ContractSummaryModal({ contract, onClose, onOpenMebPrint, onOpen
   if (!contract) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -1115,10 +1106,11 @@ export function ContractSummaryModal({ contract, onClose, onOpenMebPrint, onOpen
   );
 }
 
-export function CancelContractModal({ contract, cancelReason, setCancelReason, onClose, onConfirm }) {
+export function CancelContractModal({ contract, cancelReason, setCancelReason, onClose, onConfirm, saving=false }) {
   if (!contract) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -1154,12 +1146,14 @@ export function CancelContractModal({ contract, cancelReason, setCancelReason, o
           <b>{contract.sozlesmeNo}</b> numaralı ({contract.ogrenciAdi}) sözleşmesini iptal etmek üzeresiniz. Lütfen iptal gerekçesini yazınız:
         </p>
         <p style={{ fontSize: "11px", color: "#dc2626", fontWeight: 600, marginBottom: "12px" }}>
-          ⚠️ Dikkat: Bu işlem öğrencinin SÖZLEŞMESİNİ iptal eder (Tahsilat silme veya geri alma işlemi değildir).
+          Kalan sözleşme alacağı kapatılır ve yeni tahsilat durdurulur. Tahsilat geçmişi korunur; otomatik para iadesi yapılmaz.
         </p>
         <textarea
           rows={3}
           placeholder="İptal gerekçesi (Örn: Veli talebiyle kayıt iptali, nakil vb.)..."
           value={cancelReason}
+          disabled={saving}
+          maxLength={2000}
           onChange={(e) => setCancelReason(e.target.value)}
           style={{
             width: "100%",
@@ -1191,6 +1185,7 @@ export function CancelContractModal({ contract, cancelReason, setCancelReason, o
           <button
             type="button"
             onClick={onConfirm}
+            disabled={saving}
             style={{
               padding: "8px 16px",
               background: "#ef4444",
@@ -1202,7 +1197,7 @@ export function CancelContractModal({ contract, cancelReason, setCancelReason, o
               cursor: "pointer"
             }}
           >
-            İptal Et
+            {saving ? 'Kaydediliyor…' : 'İptal Et'}
           </button>
         </div>
       </div>
@@ -1214,6 +1209,7 @@ export function ContractTemplateModal({ open, onClose }) {
   if (!open) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -1369,6 +1365,7 @@ export function NewContractWizardModal({
   if (!open) return null;
   return (
     <div
+      className="responsive-modal-backdrop"
       style={{
         position: "fixed",
         top: 0,
@@ -1418,7 +1415,9 @@ export function NewContractWizardModal({
         </div>
 
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
+try {
+
             e.preventDefault();
             if (!contractStudentName.trim()) {
               showToast("⚠️ Lütfen öğrenci adını giriniz.");
@@ -1426,7 +1425,8 @@ export function NewContractWizardModal({
             }
 
             const finalParent = contractParentName.trim() || contractStudentName.trim();
-            const res = AccountingService.addNewIncome({
+            const res = await AccountingService.addNewIncome({
+              studentId: selectedStudentForContract?.id,
               ogrenciAdi: contractStudentName.trim(),
               veliAdi: finalParent,
               sinifAdi: contractStudentClass || "Genel",
@@ -1442,21 +1442,22 @@ export function NewContractWizardModal({
               allRegisteredStudents.find((st) => (st.student_name || "").trim().toUpperCase() === normName);
 
             if (targetStudent) {
-              StudentService.saveStudent({
-                ...targetStudent,
-                has_contract: true,
-                sozlesme_no: res.contract?.sozlesmeNo || targetStudent.sozlesme_no,
-                parent_name: finalParent,
-                parent_phone: contractParentPhone.trim() || targetStudent.parent_phone,
-                parent_relation: contractParentRelation || targetStudent.parent_relation || "Veli",
-                total_fee: Number(contractAmount) || targetStudent.total_fee
-              });
+              const patch={};
+              if(finalParent!==targetStudent.parent_name)patch.parent_name=finalParent;
+              if(contractParentPhone.trim()&&contractParentPhone.trim()!==targetStudent.parent_phone)patch.parent_phone=contractParentPhone.trim();
+              if(contractParentRelation&&contractParentRelation!==targetStudent.parent_relation)patch.parent_relation=contractParentRelation;
+              if(Object.keys(patch).length){
+                patch._expected=Object.fromEntries(Object.keys(patch).map(k=>[k,targetStudent[k]??null]));
+                await StudentService.saveStudent({id:targetStudent.id,...patch});
+              }
             }
 
             setContractsList(AccountingService.getContracts(students));
             showToast(`✅ ${res.contract?.sozlesmeNo || "Yeni"} numaralı yeni sözleşme kaydedildi.`);
             onClose();
-          }}
+
+} catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+}}
         >
           <div style={{ marginBottom: "16px", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
             <label

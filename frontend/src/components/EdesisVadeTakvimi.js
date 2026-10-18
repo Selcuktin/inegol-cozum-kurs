@@ -1,3 +1,4 @@
+import { csvRow } from "../lib/csv";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Search,
@@ -51,12 +52,16 @@ export function fmtDate(isoStr) {
   }
 }
 
+const EMPTY_STUDENTS=[];
+
 export default function EdesisVadeTakvimi({
-  students = [],
+  students = EMPTY_STUDENTS,
   onSelectStudent,
   onOpenGelir,
   onNavigate
 }) {
+  const [progressMonth,setProgressMonth]=useState(()=>new Date().toISOString().slice(0,7));
+  const changeProgressMonth=delta=>{const date=new Date(progressMonth+'-01T12:00:00Z');date.setUTCMonth(date.getUTCMonth()+delta);setProgressMonth(date.toISOString().slice(0,7));};
   const [allTaksitler, setAllTaksitler] = useState(() => AccountingService.getInstallments(students));
 
   useEffect(() => {
@@ -67,9 +72,11 @@ export default function EdesisVadeTakvimi({
     const handleUpdate = () => {
       setAllTaksitler(AccountingService.getInstallments(students));
     };
+    window.addEventListener("cozum_snapshot_updated", handleUpdate);
     window.addEventListener("cozum_accounting_updated", handleUpdate);
     window.addEventListener("cozum_students_updated", handleUpdate);
     return () => {
+      window.removeEventListener("cozum_snapshot_updated", handleUpdate);
       window.removeEventListener("cozum_accounting_updated", handleUpdate);
       window.removeEventListener("cozum_students_updated", handleUpdate);
     };
@@ -128,28 +135,6 @@ export default function EdesisVadeTakvimi({
 
   // 2. EDESİS KPI KARTLARI (media_1791241193046.png BİREBİR)
   const kpi = useMemo(() => {
-    // 2026-2027 döneminde Edesis'in tam değerleri:
-    // Toplam: ₺4.183.536 (535 taksit)
-    // Bekleyen: ₺3.497.846 (460 taksit)
-    // Gecikmiş: ₺216.350 (19 taksit ort. 38,7 gün)
-    // Tahsil Edilen: ₺469.340 (56 taksit)
-    // Performans: %27
-    if (period === "2026-2027") {
-      return {
-        toplamTutar: 4183536,
-        toplamAdet: 535,
-        bekleyenTutar: 3497846,
-        bekleyenAdet: 460,
-        gecikmisTutar: 216350,
-        gecikmisAdet: 19,
-        gecikmisOrtGun: "38,7",
-        tahsilTutar: 469340,
-        tahsilAdet: 56,
-        performansOran: 27,
-        haftalikDegisim: "%84 azaldı"
-      };
-    }
-
     // Diğer dönemler veya tümü seçildiğinde dinamik hesaplama
     let topTutar = 0;
     let bekleyenTutar = 0;
@@ -165,9 +150,9 @@ export default function EdesisVadeTakvimi({
       const isPaid = (Number(t.kalanTutar) <= 0) || (t.durumText === "Tam Ödendi");
       const isOverdue = t.vadesiGectiMi || (Number(t.kalanTutar) > 0 && t.gecikmeGunSayisi > 0);
 
+      tahsilTutar += Number(t.tahsilEdilen) || 0;
+      if(Number(t.tahsilEdilen)>0)tahsilCount++;
       if (isPaid) {
-        tahsilTutar += Number(t.tahsilEdilen || t.taksitTutari) || 0;
-        tahsilCount++;
       } else if (isOverdue) {
         gecikmisTutar += Number(t.kalanTutar) || 0;
         gecikmisCount++;
@@ -191,10 +176,16 @@ export default function EdesisVadeTakvimi({
       gecikmisOrtGun: ortGun,
       tahsilTutar,
       tahsilAdet: tahsilCount,
-      performansOran: perf,
-      haftalikDegisim: "%84 azaldı"
+      performansOran: perf
     };
-  }, [baseTaksitler, period]);
+  }, [baseTaksitler]);
+
+  const monthlyProgress=useMemo(()=>{
+    const rows=baseTaksitler.filter(t=>String(t.vadeTarihi||t.due_date||'').startsWith(progressMonth));
+    const total=rows.reduce((n,t)=>n+Number(t.taksitTutari||0),0);
+    const paid=rows.reduce((n,t)=>n+Number(t.tahsilEdilen||0),0);
+    return {total,paid,rate:total>0?Math.round(paid/total*100):0};
+  },[baseTaksitler,progressMonth]);
 
   // 3. TABLO FİLTRELEME (Ödenmemişler filtresi aktifse 479 kayıt)
   const filteredTaksitler = useMemo(() => {
@@ -256,6 +247,7 @@ export default function EdesisVadeTakvimi({
   // Sayfalama
   const totalItems = filteredTaksitler.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  useEffect(() => { setCurrentPage(p => Math.min(p, totalPages)); }, [totalPages]);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalItems);
   const currentRows = filteredTaksitler.slice(startIndex, endIndex);
@@ -301,14 +293,15 @@ export default function EdesisVadeTakvimi({
       t.gecikmeGunSayisi || 0,
       t.durumText
     ]);
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(";"), ...rows.map((e) => e.join(";"))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = "\uFEFF" + [headers, ...rows].map(csvRow).join("\r\n");
+    const encodedUri = URL.createObjectURL(new Blob([csvContent], {type: "text/csv;charset=utf-8;"}));
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `Edesis_Vade_Takvimi_${period}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(encodedUri), 1000);
     showToast("Vade Takvimi Excel formatında indirildi.");
   };
 
@@ -548,14 +541,14 @@ export default function EdesisVadeTakvimi({
         <div style={{ display: "inline-flex", alignItems: "center", gap: "12px", borderBottom: "2px solid #ef4444", paddingBottom: "6px" }}>
           <span style={{ fontSize: "12px", fontWeight: "700", color: "#dc2626" }}>Tahsilat İlerlemesi</span>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: "700", color: "#0f172a" }}>
-            <ChevronLeft size={14} style={{ cursor: "pointer" }} />
-            <span>Ekim 2026</span>
-            <ChevronRight size={14} style={{ cursor: "pointer" }} />
+            <button className="icon-btn" aria-label="Önceki ay" onClick={()=>changeProgressMonth(-1)}><ChevronLeft size={14}/></button>
+            <span>{new Date(progressMonth+'-01T12:00:00Z').toLocaleDateString('tr-TR',{month:'long',year:'numeric'})}</span>
+            <button className="icon-btn" aria-label="Sonraki ay" onClick={()=>changeProgressMonth(1)}><ChevronRight size={14}/></button>
           </div>
         </div>
 
         <div style={{ fontSize: "12px", fontWeight: "800", color: "#334155" }}>
-          <span>₺132.370,01 / ₺484.780,02</span> <span style={{ color: "#64748b", fontWeight: "600" }}>(%27)</span>
+          <span>{fmtCurrency(monthlyProgress.paid)} / {fmtCurrency(monthlyProgress.total)}</span> <span style={{ color: "#64748b", fontWeight: "600" }}>(%{monthlyProgress.rate})</span>
         </div>
       </div>
 

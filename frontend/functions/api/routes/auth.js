@@ -38,7 +38,8 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
       : (env?.ADMIN_PASSWORD ? [env.ADMIN_PASSWORD.trim()] : []);
     const adminPasswords = configuredAdminPasswords.length > 0
       ? configuredAdminPasswords
-      : ["cozum2026"];
+      : [];
+    if (!adminPasswords.length) return errorResponse("Yönetici giriş ayarı eksik. Kurum yöneticisine başvurunuz.", 503, "AUTH_NOT_CONFIGURED");
 
     if (!password || !adminPasswords.includes(password)) {
       await logAction(
