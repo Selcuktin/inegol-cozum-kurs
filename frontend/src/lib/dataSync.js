@@ -3,6 +3,7 @@ import Axios from 'axios';
 let generation=0;
 const writes=new Set();
 const listeners=new Set();
+const activeReads=new Map();
 const scope=()=>typeof localStorage==='undefined'?'':`${localStorage.getItem('session_token')||''}|${localStorage.getItem('custom_api_url')||''}`;
 export const dataScope=scope;
 let lastScope=scope();
@@ -12,22 +13,22 @@ const isWrite=method=>!['GET','HEAD','OPTIONS'].includes(String(method||'GET').t
 const stale=()=>Object.assign(new Error('Veri bu sırada değişti. Güncel kayıt yeniden yükleniyor.'),{code:'STALE_RESPONSE'});
 
 export function dataGeneration(){
-  if(lastScope!==scope()){lastScope=scope();generation++;}
+  if(lastScope!==scope()){lastScope=scope();generation++;activeReads.clear();}
   return generation;
 }
 export function announceChange(path='',publish=true){
-  generation++;
+  generation++;activeReads.clear();
   for(const listener of listeners)listener(path);
   if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path}}));
   if(publish&&typeof localStorage!=='undefined'){try{localStorage.setItem(channel,String(Date.now())+Math.random());}catch{}}
 }
 export function subscribeDataChanges(listener){listeners.add(listener);return()=>listeners.delete(listener);}
 
-export async function synchronizedRequest(url,method,send){
+export async function synchronizedRequest(url,method,send,readIdentity=null){
   if(!isApi(url))return send();
   if(isWrite(method)){
     const session=scope();
-    generation++;
+    generation++;activeReads.clear();
     let release;const pending=new Promise(resolve=>{release=resolve;});writes.add(pending);
     try{const result=await send();if(session!==scope())throw stale();return result;}
     finally{writes.delete(pending);release();announceChange(String(url));}
@@ -38,7 +39,15 @@ export async function synchronizedRequest(url,method,send){
     if(writes.size)await Promise.all([...writes]);
     if(session!==scope())throw stale();
     const version=dataGeneration();
-    const result=await send();
+    const key=readIdentity===null?null:JSON.stringify([session,version,readIdentity]);
+    let pending=key===null?null:activeReads.get(key);
+    if(!pending){
+      pending=Promise.resolve(send());
+      if(key!==null)activeReads.set(key,pending);
+    }
+    let result;
+    try{result=await pending;}
+    finally{if(key!==null&&activeReads.get(key)===pending)activeReads.delete(key);}
     if(session!==scope())throw stale();
     if(version===dataGeneration())return result;
   }
@@ -49,7 +58,14 @@ export function installAxiosSynchronization(axios){
   const adapter=axios.defaults.adapter;
   if(adapter?.cozumSynchronized)return()=>{};
   // Wrap the adapter once: every caller, including existing components, crosses the same boundary.
-  const synchronized=config=>synchronizedRequest(config.url,config.method,()=>Axios.getAdapter(adapter)(config));
+  const synchronized=config=>{
+    // Share only identical in-flight reads; cancellation and subsequent refreshes stay independent.
+    const identity=String(config.method||'get').toUpperCase()==='GET'&&!config.signal&&!config.cancelToken
+      &&config.data==null&&config.validateStatus===Axios.defaults.validateStatus&&typeof config.withXSRFToken!=='function'
+      ? JSON.stringify([Axios.getUri(config),config.headers?.toJSON?.()||config.headers,config.auth,config.responseType,config.responseEncoding,config.timeout,config.withCredentials,config.xsrfCookieName,config.xsrfHeaderName,config.withXSRFToken])
+      : null;
+    return synchronizedRequest(config.url,config.method,()=>Axios.getAdapter(adapter)(config),identity);
+  };
   synchronized.cozumSynchronized=true;
   axios.defaults.adapter=synchronized;
   return()=>{axios.defaults.adapter=adapter;};
