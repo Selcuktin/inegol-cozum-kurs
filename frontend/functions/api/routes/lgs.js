@@ -6,7 +6,11 @@ const fail=(message,status=422)=>{throw Object.assign(new Error(message),{status
 const uuid=()=>crypto.randomUUID();
 const parse=row=>row?{...JSON.parse(row.document),id:row.id,revision:row.revision}:null;
 const results=rows=>rows.map(r=>parse(r));
-const strongKey=r=>/^\d{11}$/.test(r.tc)?`tc:${r.tc}`:r.student_no&&r.name?`no:${norm(r.student_no)}:${norm(r.name)}`:'';
+const strongKey=r=>{
+  const d=String(r.tc).split('').map(Number),sum=ns=>ns.reduce((a,b)=>a+b,0);
+  const tc=/^[1-9]\d{10}$/.test(r.tc)&&!/^([0-9])\1{10}$/.test(r.tc)&&((sum(d.slice(0,9).filter((_,i)=>i%2===0))*7-sum(d.slice(0,9).filter((_,i)=>i%2===1)))%10+10)%10===d[9]&&sum(d.slice(0,10))%10===d[10];
+  return tc&&r.name?`tc:${r.tc}:${norm(r.name)}`:r.student_no&&r.name?`no:${norm(r.student_no)}:${norm(r.name)}`:'';
+};
 const config=e=>({...e.exam_type,penalty:e.penalty,mapping:e.mapping,answer_keys:e.answer_keys,booklet_maps:e.booklet_maps||{}});
 const publicAnalysis=a=>({count:a.count,avg_sd:a.avg_sd,avg_raw:a.avg_raw,avg_total_net:a.avg_total_net,subjects:a.subjects.map(({key,avg_net})=>({key,avg_net}))});
 const attachment=(data,name,type)=>new Response(data,{headers:{'Content-Type':type,'Content-Disposition':`attachment; filename="${name}"`,'X-Content-Type-Options':'nosniff','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
@@ -34,7 +38,7 @@ export async function handleLgsRoutes(ctx){
 
     if(parts[0]==='templates'||parts[0]==='exam-types'){
       const table=parts[0]==='templates'?'lgs_templates':'lgs_exam_types',isTemplate=table==='lgs_templates',id=parts[1],manual=id==='manual';
-      if(method==='GET'&&!id)return json(results((await db.prepare(`SELECT id,document,revision FROM ${table} WHERE deleted=0 ORDER BY id LIMIT 201`).all()).results||[]));
+      if(method==='GET'&&!id){const rows=(await db.prepare(`SELECT id,document,revision FROM ${table} WHERE deleted=0 ORDER BY id LIMIT 201`).all()).results||[];if(rows.length>200)fail('En fazla 200 etkin kayıt desteklenir; kullanılmayan şablon/türleri arşivleyin.',409);return json(results(rows));}
       if(method==='POST'&&isTemplate&&!id&&request.headers.get('content-type')?.includes('multipart/form-data')){
         const fd=await request.formData(),files=fd.getAll('files');if(!files.length||files.length>10)fail('1–10 FMT dosyası seçin.');const docs=[];
         for(const file of files){if(typeof file==='string'||file.size>200000)fail('FMT dosyası en fazla 200 KB olabilir.');const doc={id:uuid(),name:file.name.replace(/\.fmt$/i,''),file_name:file.name,...parseFmt(decode(await file.arrayBuffer()))};validateTemplate(doc);docs.push(doc);}
@@ -82,7 +86,10 @@ export async function handleLgsRoutes(ctx){
       if(typeof b.name!=='string'||!b.name.trim()||b.name.length>200||!/^\d{4}-\d{2}-\d{2}$/.test(b.date)||!Number.isFinite(Date.parse(b.date))||new Date(b.date).toISOString().slice(0,10)!==b.date)fail('Sınav adı ve geçerli tarih gerekli.');
       if(old&&b.template_id!==old.template_id)fail('Mevcut sınavın veri şablonu değiştirilemez. Yeni bir sınav olarak okuyun.');
       const e={id,name:b.name.trim(),date:b.date,exam_type_id:b.exam_type_id,exam_type:et,template_id:b.template_id,template_name:tpl.name,template_fields:tpl.fields,penalty:b.penalty,mapping:b.mapping,answer_keys:b.answer_keys,booklet_maps:b.booklet_maps||{},file_name:old?.file_name||b.file_name||'',created_at:old?.created_at||new Date().toISOString(),creation_hash:old?.creation_hash||hash};
-      const raw=old?current.raw_text:b.raw_text,students=extractStudents(raw,tpl.fields),cfg=config(e);validateConfig(cfg,tpl.fields,students);const scored=scoreAll(students,cfg),a=analyze(scored,cfg);e.student_count=scored.length;e.summary=Object.fromEntries(['count','avg_sd','avg_raw','max_sd','avg_total_net'].map(k=>[k,a[k]]));
+      const raw=old?current.raw_text:b.raw_text,students=extractStudents(raw,tpl.fields),cfg=config(e);
+      e.source_hash=old?.source_hash||[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw)))].map(n=>n.toString(16).padStart(2,'0')).join('');
+      if(!old && b.allow_duplicate!==true && await db.prepare("SELECT id FROM lgs_exams WHERE json_extract(document,'$.source_hash')=? AND deleted=0 AND json_extract(document,'$.name')=? AND json_extract(document,'$.date')=? LIMIT 1").bind(e.source_hash,e.name,e.date).first())return errorResponse('Aynı ad, tarih ve veri dosyasıyla bir sınav zaten kayıtlı. Yeniden okumak istediğinizi onaylayın.',409,'DUPLICATE_EXAM');
+      validateConfig(cfg,tpl.fields,students);const scored=scoreAll(students,cfg),a=analyze(scored,cfg);e.student_count=scored.length;e.summary=Object.fromEntries(['count','avg_sd','avg_raw','max_sd','avg_total_net'].map(k=>[k,a[k]]));
       const summary={id,name:e.name,date:e.date,created_at:e.created_at,exam_type:{name:et.name},student_count:scored.length,summary:e.summary,count:scored.length},writeToken=uuid(),statements=[];
       if(old)statements.push(db.prepare('UPDATE lgs_exams SET document=?,analysis=?,summary=?,revision=revision+1,write_token=? WHERE id=? AND revision=? AND deleted=0').bind(JSON.stringify(e),JSON.stringify(a),JSON.stringify(summary),writeToken,id,current.revision));
       else statements.push(db.prepare('INSERT INTO lgs_exams(id,document,raw_text,analysis,summary,created_at,write_token) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(id,JSON.stringify(e),raw,JSON.stringify(a),JSON.stringify(summary),e.created_at,writeToken));
@@ -91,7 +98,7 @@ export async function handleLgsRoutes(ctx){
         statements.push(db.prepare(`INSERT INTO lgs_results(id,exam_id,line_no,rank,student_key,document,share_token)
           SELECT json_extract(value,'$.id'),?,json_extract(value,'$.line_no'),json_extract(value,'$.rank'),json_extract(value,'$.student_key'),json_remove(value,'$.student_key','$.share_token'),json_extract(value,'$.share_token') FROM json_each(?)
           WHERE EXISTS(SELECT 1 FROM lgs_exams WHERE id=? AND write_token=?)
-          ON CONFLICT(id) DO UPDATE SET document=excluded.document,rank=excluded.rank,revision=lgs_results.revision+1`).bind(id,JSON.stringify(docs),id,writeToken));
+          ON CONFLICT(id) DO UPDATE SET document=excluded.document,rank=excluded.rank,student_key=excluded.student_key,revision=lgs_results.revision+1`).bind(id,JSON.stringify(docs),id,writeToken));
       }
       const saved=await db.batch(statements);
       if(!saved[0].meta.changes){
@@ -128,6 +135,7 @@ export async function handleLgsRoutes(ctx){
       const shareUrl=()=>`${url.origin}/#veli/${row.share_token}`;
       if(action==='share'&&method==='GET'){const c=await db.prepare('SELECT document,revision FROM lgs_contacts WHERE id=?').bind(contactKey).first();return json({...c?JSON.parse(c.document):{veli_tel:r.veli_tel||'',veli_email:''},revision:c?.revision||0,url:row.shared?shareUrl():''});}
       if(action==='share'&&method==='POST'){await db.prepare('UPDATE lgs_results SET shared=1 WHERE id=?').bind(row.id).run();return json({url:shareUrl()});}
+      if(action==='share'&&method==='DELETE'){await db.prepare('UPDATE lgs_results SET shared=0,share_token=? WHERE id=?').bind(uuid(),row.id).run();return json({ok:true,url:''});}
       if(action==='contact'&&method==='PUT'){
         const b=await body(request);if(typeof b.veli_tel!=='string'||b.veli_tel.length>30||typeof b.veli_email!=='string'||b.veli_email.length>254||b.veli_email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.veli_email))fail('Geçerli telefon ve e-posta girin.');
         if(!Number.isInteger(b.expected_revision)||b.expected_revision<0)fail('İletişim kaydı sürümü gerekli.');

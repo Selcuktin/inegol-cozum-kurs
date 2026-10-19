@@ -33,15 +33,17 @@ export default function StudentKarne() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    let current=true;
     setData(null);
-    api.get(`/results/${rid}/bundle`).then(r=>{if(r.data.exam.id!==eid)throw new Error('Karne bu sınava ait değil.');setData(r.data);}).catch(loadError);
+    api.get(`/results/${rid}/bundle`).then(r=>{if(!current)return;if(r.data.exam.id!==eid)throw new Error('Karne bu sınava ait değil.');setData(r.data);}).catch(e=>{if(current)loadError(e);});
+    return()=>{current=false;};
   }, [eid, rid]);
 
   if (!data) return <Loading />;
   const { exam, r, analysis } = data;
   const subjects = exam.exam_type.subjects;
   const avg = Object.fromEntries(analysis.subjects.map((s) => [s.key, s]));
-  const radar = subjects.map((s) => ({ name: s.name, ogrenci: Math.max(0, (100 * r.subjects[s.key].net) / s.question_count), kurum: avg[s.key]?.success_pct || 0 }));
+  const radar = subjects.map((s) => ({ name: s.name, ogrenci: Math.max(0, (100 * r.subjects[s.key].net) / ([...r.subjects[s.key].key].filter(k=>k!==' ').length||1)), kurum: avg[s.key]?.success_pct || 0 }));
 
   const pdf = async () => {
     setBusy(true);

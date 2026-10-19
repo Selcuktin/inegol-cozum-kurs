@@ -283,7 +283,8 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         has_contract: true,
         sozlesme_no: saved?.sozlesme_no || saved?.sozlesmeNo || payload.sozlesme_no || ""
       };
-      await Promise.all([AccountingService.fetchContracts(),AccountingService.fetchIncomes(),AccountingService.fetchInstallments()]);
+      const snapshot=await AccountingService.refreshAfterWrite();
+      if(Array.isArray(snapshot?.students))StudentService.acceptSnapshot(StudentService.filterActiveStudents(snapshot.students));
       AccountingService.unTombstone(finalStudent.student_name, finalStudent.sozlesme_no, finalStudent.id);
       await StudentService.saveStudent(finalStudent, API, { skipRemoteSync: true });
       if (typeof window !== "undefined") {
@@ -294,7 +295,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
       stopCamera();
       onClose();
     } catch (err) {
-      setError(err.response?.data?.detail || "Öğrenci kaydedilirken bir hata oluştu.");
+      setError(err.response?.data?.detail || err.message || "Öğrenci kaydedilirken bir hata oluştu.");
     } finally {
       setLoading(false);
     }

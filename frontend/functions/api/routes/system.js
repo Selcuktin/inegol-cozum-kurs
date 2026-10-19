@@ -28,6 +28,7 @@ const BACKUP_TABLES = [
   "optical_printer_profiles",
   "audit_logs"
 ];
+const checksumOf=async text=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))].map(n=>n.toString(16).padStart(2,'0')).join('');
 
 async function ensureBackupTable(db) {
   if (!db) return;
@@ -39,7 +40,10 @@ async function ensureBackupTable(db) {
       snapshot_data TEXT NOT NULL,
       table_counts TEXT NOT NULL,
       created_by TEXT DEFAULT 'Sistem',
-      notes TEXT DEFAULT ''
+      notes TEXT DEFAULT '',
+      size_bytes INTEGER,
+      sha256 TEXT,
+      storage TEXT
     )
   `).run();
 }
@@ -56,16 +60,18 @@ async function readSnapshot(db) {
 async function saveSnapshot(db, env, snapshot, id, type, author, notes) {
   const text = JSON.stringify(snapshot);
   const r2 = env?.BACKUPS || env?.R2 || env?.BACKUP_BUCKET;
-  if (r2?.put) await r2.put(`${id}.json`, text);
-  const large = new TextEncoder().encode(text).length > 1500000;
+  const bytes=new TextEncoder().encode(text),size=bytes.length;
+  const checksum=await checksumOf(text);
+  if (r2?.put) await r2.put(`${id}.json`, text,{customMetadata:{sha256:checksum,size_bytes:String(size)}});
+  const large = size > 1500000;
   if (large && !r2?.put) throw new Error("Büyük yedek için R2 depolama gereklidir");
   const counts = Object.fromEntries(Object.entries(snapshot.tables).map(([t,rows]) => [t,rows.length]));
-  await db.prepare("INSERT INTO system_backups(id,created_at,backup_type,snapshot_data,table_counts,created_by,notes) VALUES(?,?,?,?,?,?,?)").bind(id,snapshot.created_at,type,large ? "{}" : text,JSON.stringify(counts),author,notes).run();
+  await db.prepare("INSERT INTO system_backups(id,created_at,backup_type,snapshot_data,table_counts,created_by,notes,size_bytes,sha256,storage) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,snapshot.created_at,type,r2?.put ? "{}" : text,JSON.stringify(counts),author,notes,size,checksum,r2?.put?'r2':'d1').run();
   return { counts, r2_saved: !!r2?.put };
 }
 
 async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUntil = null, env = null) {
-  if (!snap?.tables || Array.isArray(snap.tables)) return {ok:false,error:"Geçersiz yedek"};
+  if (!snap?.tables || typeof snap.tables!=='object' || Array.isArray(snap.tables)) return {ok:false,error:"Geçersiz yedek"};
   const existing = (await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).results.map(t=>t.name);
   const statements = [];
   const restored = {};
@@ -76,14 +82,20 @@ async function restoreSnapshotData(db, snap, user, backupId, notes = "", waitUnt
       continue;
     }
     const columns = (await db.prepare(`PRAGMA table_info("${table}")`).all()).results.map(c=>c.name);
+    if(rows.some(r=>!r||typeof r!=='object'||Array.isArray(r)))return {ok:false,error:`${table}: geçersiz kayıt`};
     const keys = rows.length ? Object.keys(rows[0]) : [];
-    if (keys.some(k => !columns.includes(k)) || rows.some(r => JSON.stringify(Object.keys(r)) !== JSON.stringify(keys))) return {ok:false,error:`${table} kolonları yedekle uyumsuz`};
+    if (keys.some(k => !columns.includes(k)) || rows.some(r => Object.keys(r).length!==keys.length || keys.some(k=>!Object.prototype.hasOwnProperty.call(r,k)))) return {ok:false,error:`${table} kolonları yedekle uyumsuz`};
     statements.push(db.prepare(`DELETE FROM "${table}"`));
     if (rows.length) {
-      // ponytail: one JSON parameter per table keeps restore atomic within D1 query limits; cap bind bytes before writing.
-      const data = JSON.stringify(rows);
-      if (new TextEncoder().encode(data).length > 1900000) return {ok:false,error:`${table} yedeği tek atomik geri yükleme sınırını aşıyor; kontrollü aktarım gerekir`};
-      statements.push(db.prepare(`INSERT INTO "${table}" (${keys.map(k=>`"${k}"`).join(',')}) SELECT ${keys.map(k=>`json_extract(value, '$."${k}"')`).join(',')} FROM json_each(?)`).bind(data));
+      // ponytail: bounded JSON binds in one atomic batch; large installations need streamed staging.
+      let chunk=[],size=2;
+      const append=()=>{if(chunk.length)statements.push(db.prepare(`INSERT INTO "${table}" (${keys.map(k=>`"${k}"`).join(',')}) SELECT ${keys.map(k=>`json_extract(value, '$."${k}"')`).join(',')} FROM json_each(?)`).bind('['+chunk.join(',')+']'));chunk=[];size=2;};
+      for(const row of rows){const text=JSON.stringify(row),bytes=new TextEncoder().encode(text).length;
+        if(bytes>1900000)return {ok:false,error:`${table}: tek kayıt geri yükleme sınırını aşıyor`};
+        if(chunk.length&&(size+bytes+1>500000||chunk.length>=300))append();
+        chunk.push(text);size+=bytes+1;
+      }
+      append();
     }
     restored[table] = rows.length;
   }
@@ -248,14 +260,17 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
     }
 
     const includeAudit = user.role === ROLE_ADMIN && (kind === "audit" || kind === "all");
-    const [studentRows, paymentRows, expenseRows, auditRows] = await db.batch([
-      db.prepare(`SELECT s.*, c.durum AS contract_status, c.brut_tutar AS contract_gross,
+    const queries = {
+      students: () => db.prepare(`SELECT s.*, c.durum AS contract_status, c.brut_tutar AS contract_gross,
         COALESCE((SELECT MAX(g.toplam_tahsilat) FROM student_incomes g WHERE g.contract_id=c.id AND COALESCE(g.is_deleted,0)=0),s.paid_amount) AS current_paid
         FROM students s LEFT JOIN contracts c ON c.student_id=s.id AND c.sozlesme_no=s.sozlesme_no AND COALESCE(c.is_deleted,0)=0 ORDER BY s.student_name`),
-      db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id=s.id WHERE COALESCE(p.is_cancelled,0)=0 ORDER BY p.payment_date DESC"),
-      db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC"),
-      db.prepare(includeAudit ? "SELECT * FROM audit_logs ORDER BY created_at DESC" : "SELECT * FROM audit_logs WHERE 0")
-    ]);
+      payments: () => db.prepare("SELECT p.*, s.student_name FROM payments p LEFT JOIN students s ON p.student_id=s.id WHERE COALESCE(p.is_cancelled,0)=0 ORDER BY p.payment_date DESC"),
+      expenses: () => db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC"),
+      audit: () => db.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC")
+    };
+    const kinds = kind === "all" ? ["students", "payments", "expenses", ...(includeAudit ? ["audit"] : [])] : [kind];
+    const exported = await db.batch(kinds.map(k => queries[k]()));
+    const { students: studentRows, payments: paymentRows, expenses: expenseRows, audit: auditRows } = Object.fromEntries(kinds.map((k, i) => [k, exported[i]]));
     let csv = "\uFEFF"; // UTF-8 BOM for Excel
 
     if (kind === "students" || kind === "all") {
@@ -328,6 +343,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
         if (r2Obj) data = await r2Obj.text().catch(() => null);
       }
       if (!data) return errorResponse("Yedek bulunamadı", 404);
+      if(bRow?.sha256 && await checksumOf(data)!==bRow.sha256)return errorResponse('Yedek bütünlük kontrolü başarısız.',409,'BACKUP_CORRUPT');
       return new Response(data, {
         headers: {
           "Content-Type": "application/json; charset=utf-8",
@@ -337,7 +353,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       });
     }
 
-    const res = await db.prepare("SELECT id, created_at, backup_type, table_counts, created_by, notes, length(snapshot_data) as size_bytes FROM system_backups ORDER BY created_at DESC LIMIT 50").all().catch(() => ({ results: [] }));
+    const res = await db.prepare("SELECT id, created_at, backup_type, table_counts, created_by, notes, COALESCE(size_bytes,CASE WHEN snapshot_data<>'{}' THEN length(CAST(snapshot_data AS BLOB)) END) as size_bytes,sha256,storage FROM system_backups ORDER BY created_at DESC,id DESC LIMIT 50").all();
     const now = new Date();
     const trtDate = new Date(now.getTime() + 3 * 3600 * 1000);
     const trtDateStr = trtDate.toISOString().slice(0, 10);
@@ -413,6 +429,7 @@ export async function handleSystemRoutes(ctxOrPath, maybeReq, maybeEnv, maybeUrl
       }
     }
     if (!snap) return errorResponse("Yedek bulunamadı", 404);
+    if(bRow?.sha256 && await checksumOf(JSON.stringify(snap))!==bRow.sha256)return errorResponse('Yedek bütünlük kontrolü başarısız; hiçbir kayıt değiştirilmedi.',409,'BACKUP_CORRUPT');
 
     const result = await restoreSnapshotData(db, snap, user, backupId, `Veritabanı ${backupId} yedeğinden geri yüklendi`, ctxOrPath?.waitUntil, env);
     if (!result.ok) return errorResponse(result.error || "Geri yükleme başarısız oldu", 500, "RESTORE_FAILED", result);

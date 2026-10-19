@@ -84,8 +84,12 @@ CREATE TABLE IF NOT EXISTS system_backups (
   snapshot_data TEXT NOT NULL,
   table_counts TEXT NOT NULL,
   created_by TEXT DEFAULT 'Sistem',
-  notes TEXT DEFAULT ''
+  notes TEXT DEFAULT '',
+  size_bytes INTEGER,
+  sha256 TEXT,
+  storage TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_system_backups_recent ON system_backups(created_at DESC,id DESC);
 
 CREATE TABLE IF NOT EXISTS classes (
   id TEXT PRIMARY KEY,
@@ -220,6 +224,13 @@ CREATE TABLE IF NOT EXISTS installments (
 CREATE INDEX IF NOT EXISTS idx_installments_contract ON installments(contract_id);
 CREATE INDEX IF NOT EXISTS idx_installments_student ON installments(student_id);
 CREATE INDEX IF NOT EXISTS idx_installments_due ON installments(due_date);
+CREATE INDEX IF NOT EXISTS idx_installments_due_normalized
+ON installments (
+  date(CASE WHEN due_date LIKE '__.__.____'
+    THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2)
+    ELSE due_date END),
+  contract_id, amount, paid_amount
+);
 CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
 CREATE INDEX IF NOT EXISTS idx_payments_contract ON payments(contract_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_student ON contracts(student_id);
@@ -227,6 +238,7 @@ CREATE INDEX IF NOT EXISTS idx_incomes_student ON student_incomes(student_id);
 CREATE INDEX IF NOT EXISTS idx_student_incomes_contract_id ON student_incomes(contract_id);
 CREATE INDEX IF NOT EXISTS idx_student_incomes_sozlesme_no ON student_incomes(sozlesme_no);
 CREATE INDEX IF NOT EXISTS idx_students_name ON students(student_name);
+CREATE INDEX IF NOT EXISTS idx_students_legacy_id ON students(CAST(REPLACE(id, 'stu-', '') AS TEXT));
 CREATE INDEX IF NOT EXISTS idx_students_tc ON students(student_tc);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(student_class);
 
@@ -483,6 +495,7 @@ CREATE TABLE IF NOT EXISTS lgs_templates (id TEXT PRIMARY KEY, document TEXT NOT
 CREATE TABLE IF NOT EXISTS lgs_exam_types (id TEXT PRIMARY KEY, document TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, deleted INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS lgs_exams (id TEXT PRIMARY KEY, document TEXT NOT NULL, raw_text TEXT NOT NULL, analysis TEXT NOT NULL, summary TEXT NOT NULL, created_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, write_token TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS idx_lgs_exams_recent ON lgs_exams(deleted,created_at DESC,id);
+CREATE INDEX IF NOT EXISTS idx_lgs_exams_source ON lgs_exams(json_extract(document,'$.source_hash'));
 CREATE TABLE IF NOT EXISTS lgs_results (id TEXT PRIMARY KEY, exam_id TEXT NOT NULL REFERENCES lgs_exams(id), line_no INTEGER NOT NULL, rank INTEGER NOT NULL, student_key TEXT NOT NULL DEFAULT '', document TEXT NOT NULL, share_token TEXT NOT NULL UNIQUE, shared INTEGER NOT NULL DEFAULT 0, contact TEXT NOT NULL DEFAULT '{}', revision INTEGER NOT NULL DEFAULT 1, UNIQUE(exam_id,line_no));
 CREATE INDEX IF NOT EXISTS idx_lgs_results_exam_rank ON lgs_results(exam_id,rank);
 CREATE INDEX IF NOT EXISTS idx_lgs_results_student ON lgs_results(student_key,exam_id);

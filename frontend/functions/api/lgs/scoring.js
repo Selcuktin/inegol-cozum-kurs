@@ -56,8 +56,8 @@ export function extractStudents(text, fields) {
     check(line.length>=width, `${i+1}. satır seçilen şablona göre kısa (${line.length}/${width}). Şablonu kontrol edin.`);
     const info={},answers={};
     fields.forEach((f,index)=>{const raw=line.slice(f.start-1,f.start-1+f.length).padEnd(f.length,' ');if(f.role==='cevap')answers[index]=raw.toUpperCase();else if(f.role!=='diger'&&!info[f.role])info[f.role]=raw.replace(/\*/g,' ').replace(/\s+/g,' ').trim();});
-    const name=info.ad_soyad||[info.ad,info.soyad].filter(Boolean).join(' '), booklet=(info.kitapcik||'A').toUpperCase().match(/[ABCD]/)?.[0];
-    check(booklet,`${i+1}. satırdaki kitapçık geçersiz.`);
+    const name=info.ad_soyad||[info.ad,info.soyad].filter(Boolean).join(' '), booklet=fields.some(f=>f.role==='kitapcik')?(info.kitapcik||'').toUpperCase():'A';
+    check(/^[ABCD]$/.test(booklet),`${i+1}. satırdaki kitapçık geçersiz; tek bir A, B, C veya D gerekli.`);
     return [{line_no:i+1,student_no:info.ogrenci_no||'',name,sinif:info.sinif||'',sube:info.sube||'',tc:info.tc||'',veli_tel:(info.veli_tel||'').replace(/ /g,''),booklet,answers,is_key:norm(name).includes('CEVAP')}];
   });
 }
@@ -84,8 +84,13 @@ const sp=(net,s)=>50+10*(net-s.mean)/(s.sd>0?s.sd:1);
 const scale=(value,lo,hi,base,top)=>hi<=lo?base:round(Math.min(top,Math.max(base,base+(top-base)*(value-lo)/(hi-lo))),3);
 export function scoreAll(students,cfg) {
   const rows=students.filter(s=>!s.is_key).map(st=>{const subjects={};for(const s of cfg.subjects){const m=cfg.mapping[s.key],answers=st.answers[m.field_index].slice(m.start-1,m.start-1+s.question_count),key=bookletKey(cfg,st.booklet,s);let d=0,y=0,b=0;[...answers].forEach((a,q)=>{const k=key[q];if(k===' ')return;if(k==='X'||k==='*')d++;else if(a===' ')b++;else if(a===k)d++;else y++;});subjects[s.key]={answers,key,d,y,b,net:round(d-(cfg.penalty?y/cfg.penalty:0))};}return {...st,answers:undefined,is_key:undefined,subjects,branch:[st.sinif,st.sube].filter(Boolean).join(' ')||'Belirtilmemiş'};});
-  const subjects=cfg.subjects.map(s=>cfg.sd_source==='exam'?{...s,mean:mean(rows.map(r=>r.subjects[s.key].net)),sd:sd(rows.map(r=>r.subjects[s.key].net))||1}:s), maxW=sum(subjects.map(s=>s.coefficient*s.question_count))||1, tmin=cfg.tasp_min??sum(subjects.map(s=>s.coefficient*sp(0,s))),tmax=cfg.tasp_max??sum(subjects.map(s=>s.coefficient*sp(s.question_count,s)));
-  for(const r of rows){r.total_net=round(sum(Object.values(r.subjects).map(x=>x.net)));r.score_raw=scale(sum(subjects.map(s=>s.coefficient*r.subjects[s.key].net)),0,maxW,cfg.base_score,cfg.max_score);r.score_sd=scale(sum(subjects.map(s=>s.coefficient*sp(r.subjects[s.key].net,s))),tmin,tmax,cfg.base_score,cfg.max_score);}
+  const subjects=cfg.subjects.map(s=>cfg.sd_source==='exam'?{...s,mean:mean(rows.map(r=>r.subjects[s.key].net)),sd:sd(rows.map(r=>r.subjects[s.key].net))||1}:s);
+  for(const r of rows){
+    const effective=s=>[...r.subjects[s.key].key].filter(k=>k!==' ').length;
+    const maxW=sum(subjects.map(s=>s.coefficient*effective(s))),tmin=cfg.tasp_min??sum(subjects.map(s=>s.coefficient*sp(0,s))),tmax=cfg.tasp_max??sum(subjects.map(s=>s.coefficient*sp(effective(s),s)));
+    check(maxW>0&&tmax>tmin,'Etkin TASP aralığı geçersiz. Alt/üst sınırları ve değerlendirmeye alınan soruları kontrol edin.');
+    r.total_net=round(sum(Object.values(r.subjects).map(x=>x.net)));r.score_raw=scale(sum(subjects.map(s=>s.coefficient*r.subjects[s.key].net)),0,maxW,cfg.base_score,cfg.max_score);r.score_sd=scale(sum(subjects.map(s=>s.coefficient*sp(r.subjects[s.key].net,s))),tmin,tmax,cfg.base_score,cfg.max_score);
+  }
   rows.sort((a,b)=>b.score_sd-a.score_sd||b.score_raw-a.score_raw||b.total_net-a.total_net||a.line_no-b.line_no);
   const branches={};rows.forEach((r,i)=>{r.rank=i+1;r.branch_rank=branches[r.branch]=(branches[r.branch]||0)+1;});return rows;
 }
@@ -103,7 +108,7 @@ export function analyze(results,cfg) {
     questions[b]={count:group.length,subjects:out,unmapped:Object.fromEntries(Object.entries(unmapped).map(([k,v])=>[k,[...new Set(v)].sort()]))};
   }
   return {count:results.length,avg_sd:avg(scores),avg_raw:avg(raw),max_sd:Math.max(0,...scores),min_sd:Math.min(...scores),max_raw:Math.max(0,...raw),min_raw:Math.min(...raw),std_sd:round(sd(scores)),avg_total_net:avg(results.map(r=>r.total_net)),booklets,questions,
-    subjects:subjects.map(s=>{const rs=results.map(r=>r.subjects[s.key]),nets=rs.map(r=>r.net);return {...s,avg_d:avg(rs.map(r=>r.d)),avg_y:avg(rs.map(r=>r.y)),avg_b:avg(rs.map(r=>r.b)),avg_net:avg(nets),max_net:Math.max(...nets),min_net:Math.min(...nets),sd_net:round(sd(nets)),success_pct:round(100*avg(nets)/s.question_count,1)};}),
+    subjects:subjects.map(s=>{const rs=results.map(r=>r.subjects[s.key]),nets=rs.map(r=>r.net);return {...s,avg_d:avg(rs.map(r=>r.d)),avg_y:avg(rs.map(r=>r.y)),avg_b:avg(rs.map(r=>r.b)),avg_net:avg(nets),max_net:Math.max(...nets),min_net:Math.min(...nets),sd_net:round(sd(nets)),success_pct:round(mean(rs.map(r=>100*r.net/([...r.key].filter(k=>k!==' ').length||1))),1)};}),
     branches:Object.entries(groups).sort(([a],[b])=>a.localeCompare(b)).map(([branch,rs])=>({branch,count:rs.length,avg_sd:avg(rs.map(r=>r.score_sd)),avg_raw:avg(rs.map(r=>r.score_raw)),avg_net:avg(rs.map(r=>r.total_net)),nets:Object.fromEntries(subjects.map(s=>[s.key,avg(rs.map(r=>r.subjects[s.key].net))]))})),
     histogram:Array.from({length:Math.ceil((cfg.max_score-cfg.base_score)/25)},(_,i)=>{const lo=cfg.base_score+i*25,hi=Math.min(cfg.max_score,lo+25);return {range:`${lo}-${hi}`,count:scores.filter(v=>v>=lo&&(v<hi||hi===cfg.max_score&&v===hi)).length};}),
     top:results.slice(0,10).map(({rank,name,branch,score_sd,score_raw,total_net})=>({rank,name,branch,score_sd,score_raw,total_net}))};

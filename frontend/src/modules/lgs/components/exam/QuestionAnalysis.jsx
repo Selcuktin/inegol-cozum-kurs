@@ -18,10 +18,10 @@ function QuestionRow({ row, total }) {
       <td className="p-2 text-center font-mono text-xs text-slate-500">{row.blank}</td>
       <td className="p-2 text-center font-mono text-xs text-slate-500">{row.multi}</td>
       <td className="w-56 p-2">
-        <div className="flex items-center gap-2">
+        {!row.key.trim()?<span className="text-xs text-slate-500">Değerlendirme dışı</span>:<div className="flex items-center gap-2">
           <div className="h-2 flex-1 overflow-hidden rounded bg-slate-100"><div className={`h-full ${pctColor}`} style={{ width: `${row.correct_pct}%` }} /></div>
           <span className="w-12 text-right font-mono text-xs font-semibold">%{num(row.correct_pct, 1)}</span>
-        </div>
+        </div>}
       </td>
     </tr>
   );

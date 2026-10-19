@@ -83,7 +83,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       FROM contracts c
       LEFT JOIN students s ON (
         c.student_id = s.id
-        OR c.student_id = REPLACE(s.id, 'stu-', '')
+        OR c.student_id = CAST(REPLACE(s.id, 'stu-', '') AS TEXT)
         OR ('stu-' || c.student_id) = s.id
       )
       WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)

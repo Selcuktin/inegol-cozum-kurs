@@ -12,8 +12,10 @@ yazmaz ve ağ isteği başlatmaz. Başarılı bir boş liste de geçerli sonuçt
 `useAppData` ve muhasebe servisinin tam yenilemesi bu görüntüyü kullanır.
 Gelir eşleştirmesinin `contract_id` ve `sozlesme_no` alanları ayrı indeksler
 kullanır. Mevcut kurulumda `0002_add_relational_indexes.sql` içindeki bu iki
-`CREATE INDEX IF NOT EXISTS` ifadesi uygulanmalıdır; Pages kod yayını D1
-migration'larını kendiliğinden uygulamaz. Yeni kurulum için `schema.sql` de aynı
+`CREATE INDEX IF NOT EXISTS` ifadesi uygulanmalıdır. CI, ana dal yayınından önce
+yalnız bekleyen D1 migration'larını çalıştırır; elle Pages yayını tek başına
+şema güncellemez. Eski veritabanı için önce doğrulanmış `d1_migrations` başlangıcı
+gerekir; geçmiş veri migration'ları körlemesine tekrarlanmaz. Yeni kurulum için `schema.sql` de aynı
 indeksleri içerir. `node tests/income_indexes.mjs`, gerçek dashboard sonuçlarının
 değişmediğini ve iki arama dalının indeks kullandığını yerel SQLite'ta doğrular.
 Gelir ve taksit alanları servis sınırında ekranın kullandığı adlara çevrilir.
@@ -31,6 +33,10 @@ Yazma isteği otomatik tekrarlanmaz.
 Yazma sonu, diğer sekmenin bildirimi ve pencereye dönüş, ilgili okumaları
 geçersiz kılar. Oturum veya API adresi değişince önceki hesabın belleği bırakılır.
 `useDataRefresh` eski ekranın/filtrenin ve kapanmış bileşenin yanıtını kabul etmez.
+Mali snapshot servis ve kök ekran arasında paylaşılır. LGS ekranı tek başına
+açılırken mali snapshot okunmaz; mali ekran/işlem açıldığında yüklenir. Sekmeler
+arası bildirim işlem yolunu da taşır; LGS yazması diğer sekmede gereksiz mali
+yenileme başlatmaz. Taksit okumalarının sürümü sözleşme anahtarına göre ayrıdır.
 Sunucu, kimlik doğrulamalı verileri tarayıcı veya ortak önbelleğe koydurmaz.
 
 Bu mekanizma cihazlar arasında anlık mesajlaşma sağlamaz. Başka cihazdan gelen
@@ -57,6 +63,11 @@ Sunucu bu kimlikle ikinci tahsilatı oluşturmaz; farklı tutar/öğrenci için 
 kimliğin kullanılması çakışmadır. İşlem kaydedilip sonraki okuma başarısız olursa
 `WRITE_COMMITTED` hatası kaydın sunucuda olduğunu açıklar. Bağlantı cevabı hiç
 ulaşmazsa sonuç belirsizdir; yeni bir işlem açmadan kayıt kontrol edilmelidir.
+
+Bir taksitte birden fazla kısmi ödeme olabilir. Makbuz listesi tutar/tarih/işlem
+kimliğini ve iptal durumunu gösterir; aynı tutarlı iki gerçek ödeme birleştirilmez.
+Birden fazla aktif ödeme varsa iptal isteği seçilen `payment_id` değerini taşır;
+sunucu taksit kimliğinden sessizce son ödemeyi seçmez. İptal kaydı silinmez.
 
 ## Toplu işlemlerin sorgu bütçesi
 

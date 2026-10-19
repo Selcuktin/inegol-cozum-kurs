@@ -149,7 +149,7 @@ export function Login({ onLoginSuccess, API: apiProp }) {
         onLoginSuccess(userObj);
       }
     } catch (e) {
-      setQuickError(e.response?.data?.detail || "Giriş başarısız oldu. Lütfen parolanızı kontrol edin.");
+      setQuickError(e.response?.data?.detail || e.response?.data?.error || "Giriş başarısız oldu. Lütfen parolanızı kontrol edin.");
     } finally {
       setQuickLoading(false);
     }

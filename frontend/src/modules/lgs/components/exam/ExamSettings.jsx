@@ -18,15 +18,17 @@ export function ExamSettings({ exam, booklets, onSaved }) {
   const [types, setTypes] = useState([]);
   const [typeId, setTypeId] = useState(exam.exam_type_id);
   const current = types.find((t) => t.id === typeId);
-  const subjects = typeId === exam.exam_type_id || !current ? exam.exam_type.subjects : current.subjects;
+  const subjects = current?.subjects || exam.exam_type.subjects;
   const unmapped = subjects.filter((s) => !mapping[s.key]);
 
   useEffect(() => {
-    api.get("/exam-types").then((r) => setTypes(r.data)).catch(loadError);
+    let current=true;
+    api.get("/exam-types").then((r) => {if(current)setTypes(r.data);}).catch(e=>{if(current)loadError(e);});
+    return()=>{current=false;};
   }, []);
 
-  const changeType = (id) => {
-    const t = types.find((x) => x.id === id);
+  const changeType = (id, available=types) => {
+    const t = available.find((x) => x.id === id);
     if (!t) return;
     const counts = Object.fromEntries(t.subjects.map((s) => [s.key, s.question_count]));
     setTypeId(id);

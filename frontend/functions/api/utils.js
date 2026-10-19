@@ -358,7 +358,7 @@ export function generateMonthlyPdf({ month, collected, expenses, net, monthPayme
   return generateTextPdf(lines);
 }
 
-export function generateTextPdf(lines) {
+export function generateTextPdf(lines, {brand=null,charts=[]}={}) {
   // ponytail: static Latin/Turkish font subset; other scripts require expanding the subset.
   const clean = value => String(value ?? "").normalize('NFC').replace(/[\r\n\t]+/g, " ");
   const encoded = value => [...clean(value)].map(c=>reportFont.codes[c] || reportFont.codes['?']).join('');
@@ -372,9 +372,10 @@ export function generateTextPdf(lines) {
     }
     result.push(text);return result;
   });
-  const pages = [];let page=[];
-  for(const line of wrapped){if(line==='\f'){if(page.length)pages.push(page);page=[];continue;}page.push(line);if(page.length===48){pages.push(page);page=[];}}
-  if(page.length||!pages.length)pages.push(page);
+  const pages = [];let page=[],section=0;
+  const push=()=>{pages.push({lines:page,section});page=[];};
+  for(const line of wrapped){if(line==='\f'){if(page.length)push();section++;continue;}page.push(line);const limit=brand?Math.max(20,44-(charts[section]?.length||0)):48;if(page.length===limit)push();}
+  if(page.length||!pages.length)push();
   const d=reportFont.descriptor;
   const fontStream=reportFont.fontHex+'>';
   const objects = ['', '<< /Type /Catalog /Pages 2 0 R >>', '',
@@ -383,11 +384,15 @@ export function generateTextPdf(lines) {
     `<< /Length ${fontStream.length} /Length1 ${reportFont.length1} /Filter [/ASCIIHexDecode /FlateDecode] >>\nstream\n${fontStream}\nendstream`,
     `<< /Length ${reportFont.cmap.length} >>\nstream\n${reportFont.cmap}\nendstream`
   ];
+  const imageId=brand?objects.length:null;
+  if(brand)objects.push(`<< /Type /XObject /Subtype /Image /Width ${brand.width} /Height ${brand.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length ${brand.hex.length+1} >>\nstream\n${brand.hex}>\nendstream`);
   const pageIds=[];
-  pages.forEach((page,index) => {
+  pages.forEach(({lines:page,section},index) => {
     const id=objects.length;pageIds.push(id);
-    const content=['BT','/F1 9 Tf','40 795 Td','14 TL',...page.flatMap(line=>[`<${encoded(line)}> Tj`,'T*']),`<${encoded(`Sayfa ${index+1} / ${pages.length}`)}> Tj`,'ET'].join('\n');
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${id+1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    const header=brand?['q 48 0 0 57.56 505 765 cm /Logo Do Q','0.76 0.08 0.12 rg 40 748 515 3 re f','0.05 0.12 0.25 rg',`BT /F1 15 Tf 40 795 Td <${encoded('İNEGÖL ÇÖZÜM KURS')}> Tj ET`,`BT /F1 9 Tf 40 774 Td <${encoded('Ölçme, değerlendirme ve bireysel gelişim')}> Tj ET`,'0 0 0 rg']:[];
+    const chart=(charts[section]||[]).flatMap((s,i)=>{const y=85+((charts[section].length-i)*12),pct=Math.min(100,Math.max(0,s.percent)),average=Math.min(100,Math.max(0,s.average));return [`BT /F1 8 Tf 40 ${y} Td <${encoded(s.name)}> Tj ET`,`0.93 0.95 0.97 rg 180 ${y} 250 6 re f`,`0.76 0.08 0.12 rg 180 ${y} ${pct*2.5} 6 re f`,`0.08 0.2 0.5 RG 1.5 w ${180+average*2.5} ${y-2} m ${180+average*2.5} ${y+8} l S`,`0 0 0 rg BT /F1 8 Tf 440 ${y} Td <${encoded('%'+pct.toFixed(1))}> Tj ET`];});
+    const content=[...header,'BT','/F1 9 Tf',brand?'40 724 Td':'40 795 Td','14 TL',...page.flatMap(line=>[`<${encoded(line)}> Tj`,'T*']),'ET',...(chart.length?[`BT /F1 9 Tf 40 ${110+charts[section].length*12} Td <${encoded('Başarı yüzdesi - Kırmızı: öğrenci / Mavi çizgi: kurum')}> Tj ET`,...chart]:[]),`BT /F1 8 Tf 40 35 Td <${encoded(`Sayfa ${index+1} / ${pages.length}`)}> Tj ET`].join('\n');
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> ${brand?`/XObject << /Logo ${imageId} 0 R >>`:''} >> /Contents ${id+1} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
   });
   objects[2]=`<< /Type /Pages /Kids [${pageIds.map(id=>`${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
   let pdf='%PDF-1.4\n';const offsets=[0];

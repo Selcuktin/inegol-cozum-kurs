@@ -6,6 +6,10 @@ on:
     - cron: '0 17 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: cozum-daily-backup
+  cancel-in-progress: false
+
 jobs:
   backup:
     runs-on: ubuntu-latest
@@ -16,5 +20,13 @@ jobs:
           curl --silent --show-error --fail-with-body --connect-timeout 15 --max-time 90 -X POST "https://inegol-cozum-kurs.pages.dev/api/backup" \
             -H "Authorization: Bearer ${{ secrets.BACKUP_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"notes": "GitHub Actions 20:00 TRT Günlük Otomatik Snapshot"}'
+            -d '{"notes": "GitHub Actions 20:00 TRT Günlük Otomatik Snapshot"}' > backup-result.json
+          node -e 'const r=require("./backup-result.json");if(!r.ok||!r.backup_id)process.exit(1);console.log("Completed backup:",r.backup_id,"R2:",r.r2_saved);'
           echo "Triggered successfully."
+      - name: Preserve backup completion record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-completion-${{ github.run_id }}
+          path: backup-result.json
+          retention-days: 30

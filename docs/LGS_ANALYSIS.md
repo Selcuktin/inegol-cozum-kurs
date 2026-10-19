@@ -3,8 +3,10 @@
 Ana menüde **Deneme Sınavları & Karne** bölümünü açın. FMT şablonunu ve sınav türünü seçip optik okuyucunun TXT/DAT çıktısını yükleyin. Ders alanlarını, kitapçıkları ve cevap anahtarını kontrol ettikten sonra hesaplayın. Varsayılan LGS ortalama/standart sapma değerleri tahminidir; resmi değerler biliniyorsa Puanlama Ayarları bölümünde güncellenmelidir. Hesaplanan puanlar resmi LGS sonucu değildir.
 
 - A/B/C/D kitapçıkları, 3/4 yanlış kuralı ve yanlışın doğruyu götürmediği puanlama desteklenir. `X`/`*` iptal soruyu herkese doğru sayar; anahtardaki boş konum değerlendirilmez. Farklı kitapçık için tam anahtar veya A ile açık soru eşleştirmesi gerekir. Eşleştirilmemiş kitapçıklar birleşik soru analizine katılmaz.
+- Kitapçık alanı varsa boş/çoklu işaret A varsayılmaz; satır düzeltilmelidir. Boş anahtar konumu puan ve başarı paydasından da çıkarılır. TASP'ın otomatik değerleri hesaplandıktan sonra alt/üst aralık doğrulanır.
 - Sınav sonuçları, ders/şube/soru analizi, bireysel gelişim, PDF liste, bireysel/toplu/şube PDF ve gerçek XLSX çıktısı vardır. Sonuç arama/filtreleme/sayfalama yeni veritabanı sorgusu yapmaz.
 - Veli bağlantısı yalnızca yöneticinin paylaşım düğmesiyle etkinleşir. Bağlantıya sahip kişi ilgili karneyi açabilir; TC, telefon, diğer öğrenciler ve kurumun ham verileri paylaşılmaz. WhatsApp bağlantısı veya e-posta taslağı açılır; gönderimi yönetici tamamlar. Sunucudan otomatik e-posta gönderimi yapılandırılmamıştır.
+- Paylaşımı Kapat eski bağlantıyı geçersiz kılar; yeniden paylaşıldığında farklı bağlantı oluşur. Dolgu/geçersiz T.C. değerleri iletişim/gelişim eşleştirmesinde kullanılmaz.
 
 ## Kalıcılık ve maliyet
 
@@ -17,6 +19,8 @@ Analiz yalnızca kayıt/değişiklik anında hesaplanır. Detay ekranı seçili 
 ## Kurulum ve kontroller
 
 Yeni kurulum `frontend/schema.sql` kullanır. Var olan kurulumda yalnızca `frontend/migrations/0007_lgs_analysis.sql` uygulanır; geçmiş migration dosyaları topluca tekrar uygulanmaz. Yeni tablolar idempotent oluşturulur, yalnızca şablon ve puanlama yapılandırmaları eklenir. Örnek TXT tamamen anonimdir.
+
+19 Ekim sonrası mevcut kurulumlar, doğrulanmış migration geçmişi üzerinden yalnız bekleyen 0008–0010 adımlarını uygular. Aynı ad/tarih/dosya yeniden okunurken uyarı çıkar; açık onayla ayrı sınav oluşturulabilir. Karne PDF'si kurum logosunu ve ders başarı çubuklarını içerir.
 
 Node 22 ve üzeri:
 

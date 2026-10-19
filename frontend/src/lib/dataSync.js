@@ -20,7 +20,7 @@ export function announceChange(path='',publish=true){
   generation++;activeReads.clear();
   for(const listener of listeners)listener(path);
   if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path}}));
-  if(publish&&typeof localStorage!=='undefined'){try{localStorage.setItem(channel,String(Date.now())+Math.random());}catch{}}
+  if(publish&&typeof localStorage!=='undefined'){try{localStorage.setItem(channel,JSON.stringify({revision:String(Date.now())+Math.random(),path}));}catch{}}
 }
 export function subscribeDataChanges(listener){listeners.add(listener);return()=>listeners.delete(listener);}
 
@@ -72,7 +72,7 @@ export function installAxiosSynchronization(axios){
 }
 
 if(typeof window!=='undefined'){
-  window.addEventListener('storage',e=>{if([channel,'session_token','custom_api_url'].includes(e.key))announceChange('',false);});
+  window.addEventListener('storage',e=>{if([channel,'session_token','custom_api_url'].includes(e.key)){let path='';if(e.key===channel){try{const change=JSON.parse(e.newValue);if(typeof change?.path==='string')path=change.path;}catch{}}announceChange(path,false);}});
   window.addEventListener('focus',()=>announceChange('',false));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')announceChange('',false);});
 }

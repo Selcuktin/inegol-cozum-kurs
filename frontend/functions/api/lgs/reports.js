@@ -1,4 +1,5 @@
 import { generateTextPdf } from '../utils.js';
+import reportLogo from '../assets/reportLogo.js';
 
 const number=n=>Number(n??0).toLocaleString('tr-TR',{maximumFractionDigits:3});
 export function reportPdf(exam, results, analysis, mode='karne') {
@@ -26,7 +27,8 @@ export function reportPdf(exam, results, analysis, mode='karne') {
       for(const s of exam.exam_type.subjects){const x=r.subjects[s.key];lines.push(s.name,`C: ${x.answers.replace(/ /g,'–')}`,`A: ${x.key.replace(/ /g,'–')}`);}
     });
   }
-  return generateTextPdf(lines);
+  const charts=mode==='karneler'||mode==='karne'||!mode?results.map(r=>exam.exam_type.subjects.map(s=>({name:s.name,percent:100*r.subjects[s.key].net/([...r.subjects[s.key].key].filter(k=>k!==' ').length||1),average:analysis.subjects.find(x=>x.key===s.key)?.success_pct||0}))):[];
+  return generateTextPdf(lines,{brand:reportLogo,charts});
 }
 
 // Minimal uncompressed OOXML workbook: native byte arrays, no server dependency.

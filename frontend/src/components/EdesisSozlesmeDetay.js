@@ -28,7 +28,8 @@ import AccountingService, { trNorm } from "../lib/edesisAccountingService";
 import { normalizeDate } from "../lib/installmentService";
 import { StudentService } from "../lib/edesisStudentService";
 import { PromissoryNoteModal } from "./PromissoryNoteModal";
-import { ReceiptModal } from "./ReceiptModal";
+import { ReceiptModal,InstallmentReceipts } from "./ReceiptModal";
+import {Root as Dialog,Content as DialogContent,Title as DialogTitle} from '@radix-ui/react-dialog';
 
 const EMPTY_ARR = [];
 
@@ -49,6 +50,7 @@ export default function EdesisSozlesmeDetay({
   const [toastMsg, setToastMsg] = useState(null);
   const [collectModal, setCollectModal] = useState(null);
   const [cancelModal, setCancelModal] = useState(null);
+  const [savingPayment,setSavingPayment]=useState(false);
   const [editDateModal, setEditDateModal] = useState(null);
   const [quickEditInst, setQuickEditInst] = useState(null);
   const [editAmountsModal, setEditAmountsModal] = useState(false);
@@ -200,6 +202,8 @@ try {
   const kdvTutari = isCancelled ? Number(contract?.kdvTutari ?? contract?.kdv_tutari ?? 0) : Math.round((brutTutar - netTutar) * 100) / 100;
   const totalPaid = isCancelled || !localInstallments.length ? Number(contract?.toplamTahsilat ?? contract?.toplam_tahsilat ?? 0) : localInstallments.reduce((acc, it) => acc + (Number(it.tahsilEdilen) || 0), 0);
   const totalRemaining = isCancelled ? 0 : Math.max(0, brutTutar - totalPaid);
+  const todayTrt=new Date(Date.now()+3*3600000).toISOString().slice(0,10);
+  const overdueCount=isCancelled?0:localInstallments.filter(t=>{const due=normalizeDate(t.vadeTarihi);return due&&due<todayTrt&&t.kalanTutar>0;}).length;
 
   const fmtTRY = (num) => {
     return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(num || 0);
@@ -258,11 +262,14 @@ try {
   }, []);
 
   const handleConfirmCollect = async () => {
+if(savingPayment)return;
 try {
 
     if (!collectModal || !collectModal.taksit) return;
     const { taksit, amount } = collectModal;
-    const paidAmount = Number(amount) || taksit.taksitTutari;
+    const paidAmount = Number(amount);
+    if(!Number.isFinite(paidAmount)||paidAmount<=0||Math.round(paidAmount*100)/100!==paidAmount)throw new Error('Geçerli, sıfırdan büyük bir tahsilat tutarı giriniz.');
+    setSavingPayment(true);
 
     await AccountingService.recordCollection({
       id:collectModal.id,
@@ -274,7 +281,7 @@ try {
       installment_id: taksit.id,
       amount: paidAmount,
       method: collectModal.method || "Nakit",
-      bank: collectModal.method === "Banka Havale / EFT" ? "T.C. VAKIFLAR BANKASI İNEGÖL ŞB." : "Nakit Ana Kasa",
+      bank: collectModal.method === "Havale / EFT" ? "T.C. VAKIFLAR BANKASI İNEGÖL ŞB." : collectModal.method === "Kredi Kartı" ? "POS / Kredi Kartı Kasası" : collectModal.method === "Senet / Çek" ? "Senet / Portföy" : "Nakit Ana Kasa",
       date: collectModal.date,
       note: `${contract.sozlesmeNo || ""} ${taksit.taksitNo}. Taksit Tahsilatı`,
       gelirKodu: taksit.gelirKodu || contract.gelirKodu
@@ -285,32 +292,43 @@ try {
     setCollectModal(null);
 
 } catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+finally{setSavingPayment(false);}
 };
 
   const handleOpenCancel = (taksit) => {
-    setCancelModal({ taksit });
+    const payments=installmentPayments(taksit).filter(p=>!p.is_cancelled);
+    if(!payments.length){window.alert('Bu taksitin iptal edilebilir kayıtlı tahsilatı bulunamadı. Eski açılış bakiyesi için mutabakat gerekir.');return;}
+    setCancelModal({ taksit, payments, paymentId:payments.length===1?payments[0].id:'' });
   };
 
   const handleConfirmCancel = async () => {
+    if(savingPayment)return;
     try {
     if (!cancelModal || !cancelModal.taksit) return;
     const { taksit } = cancelModal;
-    const cancelAmt = Number(taksit.tahsilEdilen || taksit.paid_amount || taksit.taksitTutari || 0);
+    const payment=cancelModal.payments.find(p=>p.id===cancelModal.paymentId);
+    if(!payment)throw new Error('İptal edilecek tahsilatı seçiniz.');
+    setSavingPayment(true);
 
     await AccountingService.cancelCollection({
+      payment_id:payment.id,
       studentId: contract?.studentId || contract?.student_id || contract?.ogrenciId || student?.id,
       contractId: contract?.id,
       sozlesmeNo: contract?.sozlesmeNo || taksit.sozlesmeNo,
       installment_no: taksit.taksitNo,
       installment_id: taksit.id,
-      amount: cancelAmt
     });
 
     setLocalInstallments(await AccountingService.fetchInstallments(contract.id));
     showToast(`↩️ ${taksit.taksitNo}. Taksit tahsilatı iptal edildi ve geri alındı.`);
     setCancelModal(null);
     } catch(error) { window.alert(error.message || "İptal edilemedi"); }
+    finally{setSavingPayment(false);}
   };
+
+  const installmentPayments=t=>AccountingService.getCollections().filter(p=>
+    ((contract.id && p.contract_id===contract.id) || (contract.sozlesmeNo && p.sozlesmeNo===contract.sozlesmeNo)) &&
+    (p.installment_id ? p.installment_id===t.id : Number(p.taksitNo ?? p.installment_no)===Number(t.taksitNo)));
 
   const handleConfirmDateChange = async () => {
 if(savingPlan)return;
@@ -761,7 +779,7 @@ finally {setSavingPlan(false);}
               </div>
               <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "6px", border: "1px solid #f1f5f9" }}>
                 <div style={{ fontSize: "11px", color: "#64748b" }}>Geciken Taksit</div>
-                <div style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>0</div>
+                <div style={{ fontSize: "15px", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>{overdueCount}</div>
               </div>
             </div>
 
@@ -887,14 +905,8 @@ finally {setSavingPlan(false);}
                           </button>
                         )}
 
-                            {AccountingService.getCollections().filter(p=>!p.is_cancelled &&
-                              ((contract.id && p.contract_id===contract.id) || (contract.sozlesmeNo && p.sozlesmeNo===contract.sozlesmeNo)) &&
-                              ((t.id && p.installment_id===t.id) || Number(p.taksitNo ?? p.installment_no)===Number(t.taksitNo))).map(p=>(
-                              <button key={p.id} type="button" className="btn small secondary" title="Kayıtlı tahsilat makbuzu"
-                                onClick={e=>{e.stopPropagation();setReceiptModalPayment({...p,amount:p.tahsilatTutari ?? p.amount,payment_date:p.tahsilatTarihi || p.payment_date});}}>
-                                <Printer size={12}/> Makbuz · {fmtTRY(p.tahsilatTutari ?? p.amount)}
-                              </button>
-                            ))}
+                        {t.durum!==1 && t.tahsilEdilen>0 && <button type="button" className="btn small secondary" onClick={()=>handleOpenCancel(t)}>Tahsilat İptali</button>}
+                        <InstallmentReceipts payments={installmentPayments(t)} onOpen={p=>setReceiptModalPayment({...p,amount:p.tahsilatTutari ?? p.amount,payment_date:p.tahsilatTarihi || p.payment_date})}/>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1281,6 +1293,7 @@ finally {setSavingPlan(false);}
 
       {/* 1. TAHSİLAT ONAY POPUP MODAL */}
       {collectModal && (
+        <Dialog open onOpenChange={open=>{if(!open&&!savingPayment)setCollectModal(null);}}>
         <div
           className="responsive-modal-backdrop"
           style={{
@@ -1293,9 +1306,9 @@ finally {setSavingPlan(false);}
             zIndex: 99999,
             padding: "20px"
           }}
-          onClick={() => setCollectModal(null)}
+          onClick={() => {if(!savingPayment)setCollectModal(null);}}
         >
-          <div
+          <DialogContent asChild aria-describedby={undefined}><div
             style={{
               background: "#fff",
               borderRadius: "12px",
@@ -1313,9 +1326,9 @@ finally {setSavingPlan(false);}
                   <CreditCard size={18} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
+                  <DialogTitle asChild><h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
                     Taksit Tahsilatı ({collectModal.taksit.taksitNo}. Taksit)
-                  </h3>
+                  </h3></DialogTitle>
                   <div style={{ fontSize: "11px", color: "#64748b" }}>
                     Vade: {collectModal.taksit.vadeTarihi}
                   </div>
@@ -1324,6 +1337,8 @@ finally {setSavingPlan(false);}
               <button
                 type="button"
                 onClick={() => setCollectModal(null)}
+                aria-label="Tahsilat penceresini kapat"
+                disabled={savingPayment}
                 style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8" }}
               >
                 <X size={18} />
@@ -1333,7 +1348,7 @@ finally {setSavingPlan(false);}
             <div style={{ background: "#f8fafc", padding: "12px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "16px", fontSize: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                 <span style={{ color: "#64748b" }}>Öğrenci:</span>
-                <span style={{ fontWeight: 700, color: "#0f172a" }}>{contract?.ogrenciAdi || "EGEMEN KUŞTUL"}</span>
+                <span style={{ fontWeight: 700, color: "#0f172a" }}>{contract?.ogrenciAdi || student?.student_name || '—'}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                 <span style={{ color: "#64748b" }}>Taksit Tutarı:</span>
@@ -1341,18 +1356,19 @@ finally {setSavingPlan(false);}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "#64748b" }}>Sözleşme No:</span>
-                <span style={{ fontWeight: 600, color: "#475569" }}>{contract?.sozlesmeNo || "SZL202600148"}</span>
+                <span style={{ fontWeight: 600, color: "#475569" }}>{contract?.sozlesmeNo || '—'}</span>
               </div>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
               <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>
+                <label htmlFor="contract-collection-amount" style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>
                   TAHSİL EDİLECEK TUTAR (₺)
                 </label>
                 <input
                   type="number"
                   step="0.01"
+                  id="contract-collection-amount" required min="0.01"
                   value={collectModal.amount}
                   onChange={(e) => setCollectModal({ ...collectModal, amount: e.target.value })}
                   style={{ width: "100%", height: "38px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "13px", fontWeight: 700, outline: "none" }}
@@ -1360,10 +1376,11 @@ finally {setSavingPlan(false);}
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>
+                <label htmlFor="contract-collection-method" style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>
                   ÖDEME YÖNTEMİ
                 </label>
                 <select
+                  id="contract-collection-method"
                   value={collectModal.method}
                   onChange={(e) => setCollectModal({ ...collectModal, method: e.target.value })}
                   style={{ width: "100%", height: "38px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "12px", background: "#fff", outline: "none" }}
@@ -1376,11 +1393,12 @@ finally {setSavingPlan(false);}
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>
+                <label htmlFor="contract-collection-date" style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>
                   TAHSİLAT TARİHİ
                 </label>
                 <input
                   type="date"
+                  id="contract-collection-date" required
                   value={collectModal.date}
                   onChange={(e) => setCollectModal({ ...collectModal, date: e.target.value })}
                   style={{ width: "100%", height: "38px", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "0 10px", fontSize: "12px", outline: "none" }}
@@ -1392,6 +1410,7 @@ finally {setSavingPlan(false);}
               <button
                 type="button"
                 onClick={() => setCollectModal(null)}
+                disabled={savingPayment}
                 style={{ padding: "8px 16px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
               >
                 Vazgeç
@@ -1399,17 +1418,20 @@ finally {setSavingPlan(false);}
               <button
                 type="button"
                 onClick={handleConfirmCollect}
+                disabled={savingPayment}
                 style={{ padding: "8px 18px", background: "#10b981", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
-                <Check size={14} /> Tahsilatı Onayla
+                <Check size={14} /> {savingPayment?'Kaydediliyor…':'Tahsilatı Onayla'}
               </button>
             </div>
-          </div>
+          </div></DialogContent>
         </div>
+        </Dialog>
       )}
 
       {/* 2. TAHSİLATI GERİ AL / İPTAL ET POPUP MODAL */}
       {cancelModal && (
+        <Dialog open onOpenChange={open=>{if(!open&&!savingPayment)setCancelModal(null);}}>
         <div
           className="responsive-modal-backdrop"
           style={{
@@ -1422,9 +1444,9 @@ finally {setSavingPlan(false);}
             zIndex: 99999,
             padding: "20px"
           }}
-          onClick={() => setCancelModal(null)}
+          onClick={() => {if(!savingPayment)setCancelModal(null);}}
         >
-          <div
+          <DialogContent asChild aria-describedby={undefined}><div
             style={{
               background: "#fff",
               borderRadius: "12px",
@@ -1441,9 +1463,9 @@ finally {setSavingPlan(false);}
                 <X size={20} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
+                <DialogTitle asChild><h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
                   Tahsilatı Geri Al / İptal Et
-                </h3>
+                </h3></DialogTitle>
                 <div style={{ fontSize: "11px", color: "#64748b" }}>
                   {cancelModal.taksit.taksitNo}. Taksit İşlemi
                 </div>
@@ -1451,15 +1473,19 @@ finally {setSavingPlan(false);}
             </div>
 
             <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "12px 14px", marginBottom: "18px", fontSize: "12px", color: "#991b1b", lineHeight: "1.5" }}>
-              <b>{cancelModal.taksit.taksitNo}. Taksit</b> için yapılmış olan <b>{fmtTRY(cancelModal.taksit.tahsilEdilen)}</b> tutarındaki tahsilatı geri almak istediğinize emin misiniz?
-              <br /><br />
-              Bu işlem sonrası taksit tekrar <b>"Vadesi Gelmedi"</b> durumuna dönecek ve kalan borç tutarı eski haline getirilecektir.
+              <label htmlFor="cancel-payment">İptal edilecek tahsilat</label>
+              <select id="cancel-payment" value={cancelModal.paymentId} onChange={e=>setCancelModal({...cancelModal,paymentId:e.target.value})} style={{width:'100%',margin:'8px 0'}}>
+                <option value="">Tahsilat seçiniz</option>
+                {cancelModal.payments.map(p=><option key={p.id} value={p.id}>{fmtTRY(p.amount)} · {p.payment_date} · {p.id}</option>)}
+              </select>
+              Yalnızca seçilen tahsilat geri alınır. Diğer kısmi ödemeler ve iptal geçmişi korunur; taksitin kalan borcu seçilen tutar kadar artar.
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
               <button
                 type="button"
                 onClick={() => setCancelModal(null)}
+                disabled={savingPayment}
                 style={{ padding: "8px 16px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
               >
                 Vazgeç
@@ -1467,13 +1493,15 @@ finally {setSavingPlan(false);}
               <button
                 type="button"
                 onClick={handleConfirmCancel}
+                disabled={savingPayment || !cancelModal.paymentId}
                 style={{ padding: "8px 18px", background: "#dc2626", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
                 <X size={14} /> Evet, Tahsilatı Geri Al
               </button>
             </div>
-          </div>
+          </div></DialogContent>
         </div>
+        </Dialog>
       )}
 
       {/* 3. VADE DEĞİŞTİRME POPUP MODAL */}

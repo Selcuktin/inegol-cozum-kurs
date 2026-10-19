@@ -13,7 +13,9 @@ export default function VeliKarne() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    axios.get(`${API}/public/karne/${token}`).then((r) => setData(r.data)).catch(() => setError("Karne bulunamadı veya bağlantı geçersiz."));
+    let current=true;setData(null);setError('');
+    axios.get(`${API}/public/karne/${token}`).then((r) => {if(current)setData(r.data);}).catch(() => {if(current)setError("Karne bulunamadı veya bağlantı geçersiz.");});
+    return()=>{current=false;};
   }, [token]);
 
   if (error) return <div className="p-10 text-center text-sm text-red-600" data-testid="veli-error">{error}</div>;

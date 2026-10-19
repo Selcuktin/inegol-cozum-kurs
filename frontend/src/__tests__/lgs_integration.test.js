@@ -4,7 +4,7 @@ import {TextEncoder,TextDecoder} from 'util';
 global.TextEncoder=TextEncoder;global.TextDecoder=TextDecoder;
 // CRA's Jest 27 resolver predates package subpath exports; exercise the real router core.
 jest.mock('react-router-dom',()=>jest.requireActual('react-router'));
-jest.mock('../modules/lgs/api',()=>({api:{get:jest.fn(),put:jest.fn(),post:jest.fn()},loadError:jest.fn(),errMsg:e=>e.message,num:n=>String(n??0),subjectColor:()=> '#123',PENALTIES:[{value:3,label:'3 yanlış'},{value:4,label:'4 yanlış'}]}));
+jest.mock('../modules/lgs/api',()=>({api:{get:jest.fn(),put:jest.fn(),post:jest.fn(),delete:jest.fn()},loadError:jest.fn(),errMsg:e=>e.message,num:n=>String(n??0),subjectColor:()=> '#123',PENALTIES:[{value:3,label:'3 yanlış'},{value:4,label:'4 yanlış'}]}));
 const {MemoryRouter,Routes,Route}=require('react-router-dom');
 const {api,loadError}=require('../modules/lgs/api');
 const {ExamSettings}=require('../modules/lgs/components/exam/ExamSettings');
@@ -53,4 +53,10 @@ test('archive appends the next server page and preserves earlier rows',async()=>
 test('contact save sends its expected revision and uses returned revision on the next edit',async()=>{
  api.get.mockResolvedValue({data:{veli_tel:'05550000000',veli_email:'qa@example.invalid',revision:3,url:''}});api.put.mockResolvedValue({data:{veli_tel:'05550000000',veli_email:'qa@example.invalid',revision:4}});
  const view=await render(wrap(<SharePanel rid="result" result={r} exam={exam}/>));await fireEvent.click(view.container.querySelector('[data-testid="veli-save-button"]'));expect(api.put).toHaveBeenLastCalledWith('/results/result/contact',expect.objectContaining({expected_revision:3}));await fireEvent.click(view.container.querySelector('[data-testid="veli-save-button"]'));expect(api.put).toHaveBeenLastCalledWith('/results/result/contact',expect.objectContaining({expected_revision:4}));
+});
+
+test('a report share can be revoked without changing its contact or exam',async()=>{
+ api.get.mockResolvedValue({data:{veli_tel:'05550000000',veli_email:'qa@example.invalid',revision:3,url:'https://example.invalid/#veli/old'}});api.delete.mockResolvedValue({data:{ok:true,url:''}});
+ const view=await render(wrap(<SharePanel rid="result" result={r} exam={exam}/>));await fireEvent.click(view.container.querySelector('[data-testid="share-revoke-button"]'));
+ expect(api.delete).toHaveBeenCalledWith('/results/result/share');expect(view.container.querySelector('[data-testid="share-url"]')).toBeNull();expect(view.container.querySelector('[data-testid="veli-email-input"]').value).toBe('qa@example.invalid');
 });

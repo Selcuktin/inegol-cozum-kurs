@@ -114,6 +114,8 @@ function StepFile({ parsed, onFile, busy, subjects, mapping, setMapping }) {
 export default function NewExam() {
   const navigate = useNavigate();
   const requestId=useRef(crypto.randomUUID());
+  const fileVersion=useRef(0);
+  const duplicateAcknowledged=useRef(false);
   const [types, setTypes] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [step, setStep] = useState(0);
@@ -123,7 +125,8 @@ export default function NewExam() {
   const [keys, setKeys] = useState({ A: {} });
   const [maps, setMaps] = useState({});
   const [busy, setBusy] = useState(false);
-  const set = (p) => {if(p.template_id||p.exam_type_id){setParsed(null);setMapping({});setKeys({A:{}});setMaps({});}setForm({ ...form, ...p });};
+  const set = (p) => {if(p.template_id||p.exam_type_id){fileVersion.current++;setBusy(false);setParsed(null);setMapping({});setKeys({A:{}});setMaps({});}setForm({ ...form, ...p });};
+  useEffect(()=>()=>{fileVersion.current++;},[]);
 
   useEffect(() => {
     Promise.all([api.get("/exam-types"), api.get("/templates")]).then(([a, b]) => {
@@ -140,6 +143,9 @@ export default function NewExam() {
 
   const onFile = async (file) => {
     if (!file) return;
+    duplicateAcknowledged.current=false;
+    const version=++fileVersion.current;
+    setParsed(null);setMapping({});setKeys({A:{}});setMaps({});
     setBusy(true);
     const fd = new FormData();
     fd.append("file", file);
@@ -147,6 +153,7 @@ export default function NewExam() {
     fd.append("exam_type_id", form.exam_type_id);
     try {
       const r = await api.post("/parse", fd);
+      if(version!==fileVersion.current)return;
       setParsed(r.data);
       setMapping(r.data.mapping);
       const next = {};
@@ -155,9 +162,9 @@ export default function NewExam() {
       setKeys(next);
       toast.success(`${r.data.total} satır okundu`);
     } catch (e) {
-      toast.error(errMsg(e));
+      if(version===fileVersion.current)toast.error(errMsg(e));
     } finally {
-      setBusy(false);
+      if(version===fileVersion.current)setBusy(false);
     }
   };
 
@@ -166,10 +173,11 @@ export default function NewExam() {
   const submit = async () => {
     setBusy(true);
     try {
-      const r = await api.post("/exams", { ...form, request_id:requestId.current, mapping, answer_keys: keys, booklet_maps: maps, raw_text: parsed.text, file_name: parsed.file_name });
+      const r = await api.post("/exams", { ...form, request_id:requestId.current, allow_duplicate:duplicateAcknowledged.current, mapping, answer_keys: keys, booklet_maps: maps, raw_text: parsed.text, file_name: parsed.file_name });
       toast.success("Sınav okundu ve puanlar hesaplandı");
       navigate(`/sinav/${r.data.id}`);
     } catch (e) {
+      if(e.response?.data?.code==='DUPLICATE_EXAM'&&!duplicateAcknowledged.current&&window.confirm('Bu dosya aynı ad ve tarihle daha önce okunmuş. Ayrı bir sınav olarak yeniden okumak istiyor musunuz?')){duplicateAcknowledged.current=true;return submit();}
       toast.error(errMsg(e));
       setBusy(false);
     }

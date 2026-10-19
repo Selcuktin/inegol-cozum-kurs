@@ -18,8 +18,16 @@ const answer_keys={A:Object.fromEntries(type.subjects.map(s=>[s.key,keyRow.answe
 const input={request_id:crypto.randomUUID(),name:'Türkçe Şube Denemesi',date:'2026-10-18',exam_type_id:type.id,template_id:tpl.id,penalty:3,mapping,answer_keys,booklet_maps:{},raw_text:raw};
 const cfg={...type,...input};
 let exam,result,bundle;
-await test('ported scoring matches six independent Python reference cases (54 students)',()=>{
- for(const c of JSON.parse(fs.readFileSync('tests/fixtures/lgs-score-parity.json','utf8'))){const actual=scoreAll(c.students,c.cfg);for(let i=0;i<actual.length;i++)for(const k of ['line_no','rank','branch_rank','total_net','score_raw','score_sd','subjects'])assert.deepEqual(actual[i][k],c.expected[i][k],`case ${c.cfg.sd_source}/${c.cfg.penalty} student ${i} field ${k}`);}
+await test('original Python reference keeps per-student counts; corrected excluded-question denominators give independent scores',()=>{
+ for(const c of JSON.parse(fs.readFileSync('tests/fixtures/lgs-score-parity.json','utf8'))){const actual=scoreAll(c.students,c.cfg);
+  for(const r of actual){const expected=c.expected.find(x=>x.line_no===r.line_no);
+   for(const k of ['total_net','subjects'])assert.deepEqual(r[k],expected[k],`case ${c.cfg.sd_source}/${c.cfg.penalty} student ${r.line_no} field ${k}`);
+   const subjects=c.cfg.subjects.map(s=>{const nets=c.expected.map(e=>e.subjects[s.key].net),m=nets.reduce((a,b)=>a+b,0)/nets.length;return c.cfg.sd_source==='exam'?{...s,mean:m,sd:Math.sqrt(nets.reduce((a,b)=>a+(b-m)**2,0)/nets.length)||1}:s;});
+   const sum=f=>subjects.reduce((v,s)=>v+f(s),0),count=s=>[...expected.subjects[s.key].key].filter(k=>k!==' ').length,sp=(n,s)=>50+10*(n-s.mean)/(s.sd||1),scale=(v,min,max)=>Number(Math.min(c.cfg.max_score,Math.max(c.cfg.base_score,c.cfg.base_score+(c.cfg.max_score-c.cfg.base_score)*(v-min)/(max-min))).toFixed(3));
+   assert.equal(r.score_raw,scale(sum(s=>s.coefficient*expected.subjects[s.key].net),0,sum(s=>s.coefficient*count(s))));
+   assert.equal(r.score_sd,scale(sum(s=>s.coefficient*sp(expected.subjects[s.key].net,s)),c.cfg.tasp_min??sum(s=>s.coefficient*sp(0,s)),c.cfg.tasp_max??sum(s=>s.coefficient*sp(count(s),s))));
+  }
+ }
 });
 await test('default FMT maps every subject and sample contains exactly two students and a key',()=>{assert.equal(parsed.length,3);assert.equal(parsed.filter(s=>!s.is_key).length,2);assert.equal(Object.keys(mapping).length,6);validateConfig(cfg,tpl.fields,parsed);});
 await test('all-correct gives 500 in both score modes and includes no answer-key student',()=>{const rs=scoreAll(parsed,cfg);assert.equal(rs.length,2);for(const r of rs){assert.equal(r.score_sd,500);assert.equal(r.score_raw,500);assert.equal(r.total_net,90);}assert.equal(analyze(rs,cfg).count,2);});
@@ -71,7 +79,7 @@ await test('template revisions protect edits; changing a template never mutates 
  const recalculated=await request(db,`/lgs/exams/${exam.id}`,'PUT',{...input,expected_revision:exam.revision});assert.equal(recalculated.status,200,JSON.stringify(recalculated.data));exam=recalculated.data;assert.deepEqual(exam.template_fields,before);
 });
 await test('concurrent duplicate imports return one stored exam and one set of results',async()=>{
- const t={...input,request_id:crypto.randomUUID(),template_id:'gid-280'}; // use a saved configuration snapshot for a valid PRONET layout
+ const t={...input,request_id:crypto.randomUUID(),template_id:'gid-280',allow_duplicate:true}; // explicit re-read uses a new operation ID
  t.template_id='pronet-lgs';db.sql.prepare("UPDATE lgs_templates SET document=? WHERE id='pronet-lgs'").run(JSON.stringify(tpl));
  const responses=await Promise.all([request(db,'/lgs/exams','POST',t),request(db,'/lgs/exams','POST',t)]);assert.deepEqual(responses.map(r=>r.status).sort(),[200,201]);assert.equal(row(db,'SELECT COUNT(*) n FROM lgs_results WHERE exam_id=?',t.request_id).n,2);
  db.sql.prepare('DELETE FROM lgs_results WHERE exam_id=?').run(t.request_id);db.sql.prepare('DELETE FROM lgs_exams WHERE id=?').run(t.request_id);

@@ -19,7 +19,10 @@ export function SharePanel({ rid, result, exam }) {
   const [busy, setBusy] = useState("");
 
   useEffect(() => {
-    api.get(`/results/${rid}/share`).then((r) => setC(r.data)).catch(loadError);
+    let current=true;
+    setC({veli_tel:'',veli_email:'',url:'',revision:0});
+    api.get(`/results/${rid}/share`).then((r) => {if(current)setC(r.data);}).catch(e=>{if(current)loadError(e);});
+    return()=>{current=false;};
   }, [rid]);
 
   const act = async (kind, fn) => {
@@ -72,6 +75,7 @@ export function SharePanel({ rid, result, exam }) {
         <Button variant="outline" className="w-full md:w-auto" onClick={saveContact} disabled={!!busy} data-testid="veli-save-button">{spin("save", Save)}Kaydet</Button>
       </div>
       <div className="mt-5 flex flex-col sm:flex-row flex-wrap gap-2">
+        {c.url && <Button variant="outline" disabled={!!busy} onClick={()=>act('revoke',async()=>{await api.delete(`/results/${rid}/share`);setC(x=>({...x,url:''}));toast.success('Eski karne bağlantısı kapatıldı. Yeniden paylaşımda yeni link oluşturulur.');})} data-testid="share-revoke-button">Paylaşımı Kapat</Button>}
         <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700" onClick={whatsapp} disabled={!!busy || !c.veli_tel} data-testid="share-whatsapp-button">{spin("wa", MessageCircle)}WhatsApp ile Gönder</Button>
         <Button className="w-full sm:w-auto bg-blue-800 hover:bg-blue-900" onClick={email} disabled={!!busy || !c.veli_email} data-testid="share-email-button">{spin("mail", Mail)}E-posta Taslağı Aç</Button>
         <Button variant="outline" className="w-full sm:w-auto" onClick={copy} disabled={!!busy} data-testid="share-copy-button">{spin("copy", Copy)}Linki Kopyala</Button>
