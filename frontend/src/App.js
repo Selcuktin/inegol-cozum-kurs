@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, lazy, Suspense, useEffect, useMemo, useState, useRef } from "react";
 import "./App.css";
 import axios from "axios";
 import {
@@ -7,18 +7,14 @@ import {
   LogOut, Menu, Printer, RefreshCw, Search, Settings, ShieldCheck, Sparkles, Target,
   TrendingDown, TrendingUp, UserCheck, UserCog, UserPlus, Users, Wallet, X, Zap
 } from "lucide-react";
-import {
-  openWhatsApp, OfficialEdesisKarneModal, EdesisOptikModal, ExamsPage,
-  AttendancePage, SchedulesPage, EdesisDashboardWidgets
-} from "./EdesisModules";
+import {openWhatsApp} from "./modules/shared";
+import {SchedulesPage} from "./modules/academic/SchedulesPage";
 import { EdesisStudentModal } from "./components/EdesisStudentModal";
 import { PromissoryNoteModal } from "./components/PromissoryNoteModal";
 import { ReceiptModal } from "./components/ReceiptModal";
-import { AbsenceLetterModal } from "./components/AbsenceLetterModal";
-import { HataKarnesiModal } from "./components/HataKarnesiModal";
 import { ClassDetailModal } from "./components/ClassDetailModal";
 import { MuhasebeV2Dashboard } from "./components/MuhasebeV2Dashboard";
-import { EdesisTestBenchModal } from "./components/EdesisTestBenchModal";
+const EdesisTestBenchModal=lazy(()=>import('./components/EdesisTestBenchModal').then(m=>({default:m.EdesisTestBenchModal})));
 import { TeachersPage } from "./components/TeachersPage";
 import { MonthlyReportPreview } from "./components/MonthlyReportPreview";
 import { KayitModulu } from "./components/KayitModulu";
@@ -62,9 +58,8 @@ export {
   computeEffective, DISCOUNT_TYPES, EXTRA_KEYS
 };
 export {
-  openWhatsApp, OfficialEdesisKarneModal, EdesisOptikModal, ExamsPage,
-  AttendancePage, SchedulesPage, EdesisDashboardWidgets, EdesisStudentModal,
-  PromissoryNoteModal, ReceiptModal, AbsenceLetterModal, HataKarnesiModal,
+  openWhatsApp, SchedulesPage, EdesisStudentModal,
+  PromissoryNoteModal, ReceiptModal,
   ClassDetailModal, MuhasebeV2Dashboard, EdesisTestBenchModal, TeachersPage,
   MonthlyReportPreview, KayitModulu, EdesisSozlesmeler, EdesisOgrenciListesi,
   EdesisGelirListesi, EdesisVadeTakvimi, EdesisTahsilatListesi,
@@ -90,13 +85,15 @@ installAxiosSynchronization(axios);
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common["Bypass-Tunnel-Reminder"] = "true";
 
+const PublicKarne = lazy(()=>import('./modules/lgs/LgsModule').then(m=>({default:m.PublicKarne})));
 function App() {
   const [authState, setAuthState] = useState("checking");
   const [me, setMe] = useState(null);
+  const publicToken = window.location.hash.match(/^#veli\/([a-f0-9-]{36})$/)?.[1];
   const hasSessionInUrl = typeof window !== "undefined" && window.location.hash.includes("session_id=");
 
   useEffect(() => {
-    if (hasSessionInUrl) return;
+    if (hasSessionInUrl || publicToken) return;
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const urlToken = sp.get("token");
@@ -121,8 +118,9 @@ function App() {
         setAuthState("guest");
       }
     })();
-  }, [hasSessionInUrl]);
+  }, [hasSessionInUrl, publicToken]);
 
+  if (publicToken) return <Suspense fallback={<p>Karne yükleniyor…</p>}><PublicKarne token={publicToken}/></Suspense>;
   if (hasSessionInUrl) return <AuthCallback API={API} />;
   if (authState === "checking") return <div className="auth-screen"><div className="auth-card"><h1>Yükleniyor...</h1></div></div>;
   if (authState === "guest") {
@@ -157,7 +155,6 @@ function App() {
 const VALID_PAGES = ["dashboard", "kayit", "students", "classes", "teachers", "exams", "schedules", "payments", "kasalar", "gelir", "vade", "tahsilat", "reminders", "documents", "reports", "users", "audit", "backup"];
 
 export function MainApp({ me, onLogout }) {
-  const {data,reload:load,error:dataError,loading:dataLoading,totalCollected,totalExpected,totalExpenses}=useAppData();
   const getInitialPage = () => {
     if (typeof window !== "undefined") {
       const fullHash = window.location.hash.replace(/^#/, "");
@@ -192,7 +189,7 @@ export function MainApp({ me, onLogout }) {
     return "dashboard";
   };
   const [page, setPageState] = useState(getInitialPage);
-  const setPage = (p) => {
+  const setPage = useCallback((p) => {
     setMobileOpen(false);
     if (!VALID_PAGES.includes(p)) p = "dashboard";
     setPageState(p);
@@ -210,7 +207,7 @@ export function MainApp({ me, onLogout }) {
       }
       localStorage.setItem("active_page", p);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -324,8 +321,10 @@ export function MainApp({ me, onLogout }) {
   const [showGlobalOptikModal, setShowGlobalOptikModal] = useState(false);
   const [showGlobalKarne, setShowGlobalKarne] = useState(null);
   const [showGlobalHataKarnesi, setShowGlobalHataKarnesi] = useState(false);
+  useEffect(()=>{if(showGlobalOptikModal||showGlobalHataKarnesi||showGlobalKarne){sessionStorage.setItem('lgs_route',showGlobalOptikModal?'/sablonlar':'/sinavlar');setPage('exams');window.dispatchEvent(new CustomEvent('lgs:navigate',{detail:showGlobalOptikModal?'/sablonlar':'/sinavlar'}));setShowGlobalOptikModal(false);setShowGlobalHataKarnesi(false);setShowGlobalKarne(null);}},[showGlobalOptikModal,showGlobalHataKarnesi,showGlobalKarne,setPage]);
   const [showGlobalPromissory, setShowGlobalPromissory] = useState(false);
   const [showOmniSearch, setShowOmniSearch] = useState(false);
+  const {data,reload:load,error:dataError,loading:dataLoading,totalCollected,totalExpected,totalExpenses}=useAppData(null,page!=='exams'||!!modal||showOmniSearch||showTestBench||showGlobalPromissory);
 
   // Global Ctrl + K / Cmd + K shortcut for Omni Search
   useEffect(() => {
@@ -383,7 +382,7 @@ export function MainApp({ me, onLogout }) {
     page, accountingTab, setPage, setAccountingTab, setMobileOpen,
     guardedOpen, setShowGlobalPromissory, kayitTab, setKayitTab,
     showGlobalOptikModal, showGlobalHataKarnesi, setShowGlobalOptikModal, setShowGlobalHataKarnesi
-  }), [page, accountingTab, kayitTab, showGlobalOptikModal, showGlobalHataKarnesi]);
+  }), [page, accountingTab, kayitTab, showGlobalOptikModal, showGlobalHataKarnesi, setPage]);
 
   return (
     <div className="app-shell">
@@ -717,7 +716,7 @@ export function MainApp({ me, onLogout }) {
         classes={data.classes || []}
         API={API}
         initialData={editingStudent}
-        onStudentAdded={() => { load(); setModal(null); setEditingStudent(null); }}
+        onStudentAdded={() => { setModal(null); setEditingStudent(null); }}
       />
       {modal && modal !== "student" && <Modal type={modal} selected={selected} data={data} close={() => setModal(null)} reload={load} API={API} />}
       <StudentProfileModal
@@ -742,28 +741,15 @@ export function MainApp({ me, onLogout }) {
         }}
       />
 
-      <EdesisTestBenchModal
+      {showTestBench && <Suspense fallback={<p>Tanılama araçları yükleniyor…</p>}><EdesisTestBenchModal
         isOpen={showTestBench}
         onClose={() => setShowTestBench(false)}
         data={data}
         API={API}
         onOpenGlobalModal={guardedOpen}
         onNavigate={(p) => { setPage(p); setShowTestBench(false); }}
-      />
+      /></Suspense>}
 
-      {showGlobalOptikModal && (
-        <EdesisOptikModal
-          exam={data.exams?.[0] || { id: "exam-001", title: "Özdebir LGS / TYT Deneme Sınavı", booklet_types: "A,B" }}
-          onClose={() => setShowGlobalOptikModal(false)}
-          API={API}
-          students={data.students || []}
-          classes={data.classes || []}
-          onResultsUpdated={load}
-        />
-      )}
-
-      {showGlobalKarne && <OfficialEdesisKarneModal data={showGlobalKarne} onClose={() => setShowGlobalKarne(null)} />}
-      {showGlobalHataKarnesi && <HataKarnesiModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", student_class: "TYT-AYT" }} onClose={() => setShowGlobalHataKarnesi(false)} />}
       {showGlobalPromissory && <PromissoryNoteModal student={data.students?.[0] || { student_name: "Örnek Öğrenci", total_fee: 55000, installment_count: 10 }} onClose={() => setShowGlobalPromissory(false)} />}
 
       <OmniSearchModal

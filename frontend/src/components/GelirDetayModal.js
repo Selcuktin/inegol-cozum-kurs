@@ -28,7 +28,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import AccountingService from "../lib/edesisAccountingService";
-import { ReceiptModal } from "./ReceiptModal";
+import { ReceiptModal,InstallmentReceipts } from "./ReceiptModal";
 
 // Para birimi formatlayıcı (₺50.000,00)
 function fmtTRY(amount, decimals = true) {
@@ -66,6 +66,7 @@ export function GelirDetayModal({
   onOpenProfile
 }) {
   const printRef=usePrintTarget();
+  const [selectedPaymentInstallment,setSelectedPaymentInstallment]=useState(null);
   const [activeTabNotes, setActiveTabNotes] = useState("notes"); // 'notes' | 'activity'
   const [newNote, setNewNote] = useState("");
   const [notesList, setNotesList] = useState('');
@@ -226,6 +227,7 @@ export function GelirDetayModal({
 
   // Hızlı Tahsilat Ekle Modalını Aç (Kısmi veya Tam Ödeme)
   const handleOpenAddPayment = (prefillTaksit = null) => {
+    setSelectedPaymentInstallment(prefillTaksit || displayNextPending);
     paymentId.current="pay_"+crypto.randomUUID();
     const defaultAmt = prefillTaksit
       ? (prefillTaksit.kalanTutar || prefillTaksit.taksitTutari)
@@ -265,7 +267,7 @@ try {
       tahsilatTarihi: `${payDate}T${new Date().toTimeString().slice(0, 8)}`,
       note: payNote || `${szNo} nolu sözleşme tahsilatı`,
       aciklama: payNote || `${szNo} nolu sözleşme tahsilatı`,
-      taksitNo: displayNextPending?.taksitNo || 1,
+      taksitNo: selectedPaymentInstallment?.taksitNo,
       durumText: "Aktif",
       created_at: new Date().toISOString()
     };
@@ -274,8 +276,8 @@ try {
       id: newPay.id,
       studentId: student?.id || targetSozlesme?.ogrenciId,
       contractId: targetSozlesme?.id,
-      installment_id: displayNextPending?.id,
-      installment_no: displayNextPending?.taksitNo,
+      installment_id: selectedPaymentInstallment?.id,
+      installment_no: selectedPaymentInstallment?.taksitNo,
       date: payDate,
       gelirKodu: gCode,
       sozlesmeNo: szNo,
@@ -713,16 +715,7 @@ try {
                                     <Plus size={13} />
                                   </button>
                                 )}
-                                {allHistory.filter(p=>!p.is_cancelled && ((t.id && p.installment_id===t.id) || Number(p.taksitNo ?? p.installment_no)===Number(t.taksitNo))).map(p=><button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); handleOpenReceipt(p); }}
-                                  title="Kayıtlı tahsilat makbuzu"
-                                  className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                                  style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: "3px" }}
-                                >
-                                  <Printer size={13} /> {fmtTRY(p.tahsilatTutari ?? p.amount)}
-                                </button>)}
+                                <InstallmentReceipts payments={allHistory.filter(p=>p.installment_id?p.installment_id===t.id:Number(p.taksitNo ?? p.installment_no)===Number(t.taksitNo))} onOpen={handleOpenReceipt}/>
                                 <button
                                   type="button"
                                   title="Kilitli Kayıt"
@@ -1417,7 +1410,7 @@ try {
                   </button>
                 </div>
                 <div style={{ fontSize: "11px", color: "#64748b", marginTop: "5px" }}>
-                  💡 Kısmi ödeme yapabilirsiniz; girilen tutar sıradaki taksitlerden düşülecek ve makbuza işlenecektir.
+                  Kısmi ödeme yapabilirsiniz; tutar seçilen taksitten düşülür ve bu taksidin makbuzuna işlenir.
                 </div>
               </div>
 

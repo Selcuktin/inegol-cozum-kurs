@@ -333,7 +333,7 @@ describe("CHALLENGER EMPIRICAL SUITE: Financial Arithmetic & Schedule Collision 
       ];
 
       const { container } = await render(
-        <MuhasebeV2Dashboard
+        <MuhasebeV2Dashboard activeTab="gecikenler"
           me={{ role: "admin" }}
           data={{ students: futureStudent, payments: [], expenses: [], classes: [] }}
           API={API}

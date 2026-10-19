@@ -7,7 +7,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(self), microphone=(), geolocation=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; connect-src 'self' https://inegol-cozum-kurs.pages.dev https://*.inegol-cozum-kurs.pages.dev https://*.mywire.org https://auth.emergentagent.com http://localhost:* ws://localhost:*; img-src 'self' data: blob: https:; font-src 'self' data: https:; object-src 'none'; base-uri 'self';
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' https://inegol-cozum-kurs.pages.dev https://*.inegol-cozum-kurs.pages.dev https://*.mywire.org https://auth.emergentagent.com http://localhost:* ws://localhost:*; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self';
 
 /sw.js
   Cache-Control: no-cache, no-store, must-revalidate, max-age=0

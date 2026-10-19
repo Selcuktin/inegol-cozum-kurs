@@ -323,14 +323,20 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     const p = request.method === "DELETE" ? { payment_id: paymentIdMatch[1] } : await request.json().catch(() => ({}));
     let pay = null;
     if (p.payment_id) pay = await db.prepare("SELECT * FROM payments WHERE id=?").bind(p.payment_id).first();
-    else if (p.installment_id) pay = await db.prepare("SELECT * FROM payments WHERE installment_id=? AND COALESCE(is_cancelled,0)=0 ORDER BY created_at DESC LIMIT 1").bind(p.installment_id).first();
-    else if ((p.contract_id || p.sozlesme_no) && p.installment_no != null) pay = await db.prepare(`SELECT p.* FROM payments p JOIN installments i ON i.id=p.installment_id JOIN contracts c ON c.id=i.contract_id WHERE (c.id=? OR c.sozlesme_no=?) AND i.installment_no=? AND COALESCE(p.is_cancelled,0)=0 ORDER BY p.created_at DESC LIMIT 1`).bind(p.contract_id || "",p.sozlesme_no || "",Number(p.installment_no)).first();
+    else {
+      const matches=p.installment_id ? (await db.prepare("SELECT * FROM payments WHERE installment_id=? AND COALESCE(is_cancelled,0)=0 ORDER BY created_at DESC LIMIT 2").bind(p.installment_id).all()).results :
+        (p.contract_id || p.sozlesme_no) && p.installment_no != null ? (await db.prepare(`SELECT p.* FROM payments p JOIN installments i ON i.id=p.installment_id JOIN contracts c ON c.id=i.contract_id WHERE (c.id=? OR c.sozlesme_no=?) AND i.installment_no=? AND COALESCE(p.is_cancelled,0)=0 ORDER BY p.created_at DESC LIMIT 2`).bind(p.contract_id || "",p.sozlesme_no || "",Number(p.installment_no)).all()).results : [];
+      if(matches.length>1)return errorResponse('Bu taksitte birden fazla tahsilat var; iptal edilecek makbuzu seçiniz.',409,'PAYMENT_REQUIRED');
+      pay=matches[0];
+    }
     if (!pay) return errorResponse("Tahsilat bulunamadı; hiçbir bakiye değiştirilmedi",404,"NOT_FOUND");
     if (pay.is_cancelled) return json({ok:true,cancelled_id:pay.id,already_cancelled:true});
     if (!pay.installment_id || !pay.contract_id) return errorResponse("Eski tahsilatın taksit bağlantısı yok. İptal öncesi bu kayıt uzlaştırılmalı",409,"LEGACY_PAYMENT_UNLINKED");
     const active = "EXISTS (SELECT 1 FROM payments p JOIN contracts c ON c.id=p.contract_id WHERE p.id=? AND COALESCE(p.is_cancelled,0)=0 AND c.durum<>3 AND COALESCE(c.is_deleted,0)=0)";
     await db.batch([
-      db.prepare(`UPDATE installments SET paid_amount=MAX(0,ROUND(paid_amount-?,2)),status=CASE WHEN paid_amount-?>=amount THEN 'Odendi' WHEN paid_amount-?>0 THEN 'KismenOdendi' ELSE 'Bekliyor' END,payment_date=CASE WHEN paid_amount-?>0 THEN payment_date ELSE '' END,receipt_no=CASE WHEN paid_amount-?>0 THEN receipt_no ELSE '' END WHERE id=? AND ${active}`).bind(pay.amount,pay.amount,pay.amount,pay.amount,pay.amount,pay.installment_id,pay.id),
+      db.prepare(`UPDATE installments SET paid_amount=MAX(0,ROUND(paid_amount-?,2)),status=CASE WHEN paid_amount-?>=amount THEN 'Odendi' WHEN paid_amount-?>0 THEN 'KismenOdendi' ELSE 'Bekliyor' END,
+        payment_date=COALESCE((SELECT payment_date FROM payments WHERE installment_id=installments.id AND id<>? AND COALESCE(is_cancelled,0)=0 ORDER BY created_at DESC,id DESC LIMIT 1),''),
+        receipt_no=COALESCE((SELECT id FROM payments WHERE installment_id=installments.id AND id<>? AND COALESCE(is_cancelled,0)=0 ORDER BY created_at DESC,id DESC LIMIT 1),'') WHERE id=? AND ${active}`).bind(pay.amount,pay.amount,pay.amount,pay.id,pay.id,pay.installment_id,pay.id),
       db.prepare(`UPDATE students SET paid_amount=MAX(0,ROUND(paid_amount-?,2)) WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=(SELECT sozlesme_no FROM contracts WHERE id=?)) AND ${active}`).bind(pay.amount,pay.student_id,pay.contract_id,pay.id),
       db.prepare(`UPDATE student_incomes SET toplam_tahsilat=MAX(0,ROUND(toplam_tahsilat-?,2)),kalan_alacak=MAX(0,brut_tutar-MAX(0,ROUND(toplam_tahsilat-?,2))),tam_tahsil_edildi_mi=CASE WHEN MAX(0,toplam_tahsilat-?)>=brut_tutar THEN 1 ELSE 0 END WHERE contract_id=? AND ${active}`).bind(pay.amount,pay.amount,pay.amount,pay.contract_id,pay.id),
       db.prepare("UPDATE payments SET is_cancelled=1,status='İptal Edildi' WHERE id=? AND COALESCE(is_cancelled,0)=0 AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)").bind(pay.id,pay.contract_id)

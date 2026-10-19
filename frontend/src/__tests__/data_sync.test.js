@@ -44,11 +44,91 @@ test('coalesced reads crossing a write both retry against the new generation',as
   }finally{uninstall();}
 });
 import {synchronizedRequest,installAxiosSynchronization,announceChange} from '../lib/dataSync';
+test('relative LGS requests inherit shared ordering and cannot reuse a pre-write bundle',async()=>{
+  const old=deferred();let reads=0;
+  const client=axios.create({baseURL:'/api/lgs',adapter:async config=>({data:config.method==='get'?(++reads===1?await old.promise:'fresh'):'saved',status:200,statusText:'OK',headers:{},config})});
+  const uninstall=installAxiosSynchronization(client);
+  try{
+    const first=client.get('/exams/e/bundle'),second=client.get('/exams/e/bundle');
+    await Promise.resolve();await Promise.resolve();expect(reads).toBe(1);
+    await client.put('/exams/e',{expected_revision:1});old.resolve('obsolete');
+    expect((await first).data).toBe('fresh');expect((await second).data).toBe('fresh');expect(reads).toBe(2);
+    expect((await client.get('/exams/e/bundle')).data).toBe('fresh');expect(reads).toBe(3);
+  }finally{uninstall();}
+});
 import AccountingService from '../lib/edesisAccountingService';
 import StudentService from '../lib/edesisStudentService';
 import {useDataRefresh} from '../hooks/useDataRefresh';
+import {useAppData} from '../hooks/useAppData';
 import {render,cleanup} from './test_helpers';
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
+
+test('exam-only views defer finance reads until the user opens a financial view',async()=>{
+ const get=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({students:[],contracts:[],payments:[]})});
+ function Probe({enabled}){useAppData(null,enabled);return null;}
+ const view=await render(<Probe enabled={false}/>);expect(get).not.toHaveBeenCalled();
+ await act(async()=>window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path:'/api/payments'}})));expect(get).not.toHaveBeenCalled();
+ await act(async()=>view.root.render(<Probe enabled/>));expect(get).toHaveBeenCalledTimes(1);
+});
+test('LGS saves do not reread financial dashboard; financial and account changes still refresh',async()=>{
+  jest.useFakeTimers();const get=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({students:[],contracts:[],payments:[]})});
+  function Probe(){useAppData();return null;}
+  try{
+    await render(<Probe/>);expect(get).toHaveBeenCalledTimes(1);
+    await act(async()=>{window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path:'/api/lgs/exams/e'}}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(1);
+    await act(async()=>{window.dispatchEvent(new StorageEvent('storage',{key:'cozum_data_revision',newValue:JSON.stringify({revision:'other-tab',path:'/api/lgs/exams/e'})}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(1);
+    await act(async()=>{window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path:'/api/payments'}}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(2);
+    await act(async()=>{localStorage.setItem('session_token','new-account');window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path:'/api/lgs/results/r/contact'}}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(3);
+  }finally{jest.useRealTimers();}
+});
+
+test.each([0,80])('one payment shares its dashboard snapshot with the root view (%i ms read)',async(delay)=>{
+  jest.useFakeTimers();
+  const snapshot={students:[{id:'current-student',student_name:'Güncel'}],contracts:[],payments:[],incomes:[],installments:[]};
+  let dashboardReads=0,app;
+  const send=jest.spyOn(globalThis,'fetch').mockImplementation(async(url,options={})=>{
+    if(options.method==='POST')return {ok:true,json:async()=>({id:'saved-payment',amount:5})};
+    dashboardReads++;
+    if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+    return {ok:true,json:async()=>snapshot};
+  });
+  function Probe(){app=useAppData();return <div>{app.data.students?.[0]?.student_name}</div>;}
+  try{
+    const view=await render(<Probe/>);
+    if(delay)await act(async()=>{jest.advanceTimersByTime(delay);});
+    dashboardReads=0;
+    let save;
+    await act(async()=>{save=AccountingService.recordCollection({id:'payment-new',student_id:'s',amount:5});});
+    await act(async()=>{jest.advanceTimersByTime(60);});
+    await act(async()=>{jest.advanceTimersByTime(60);await save;});
+    await act(async()=>{jest.advanceTimersByTime(60);});
+    expect(dashboardReads).toBe(1);expect(view.container.textContent).toBe('Güncel');expect(app.loading).toBe(false);
+    expect(send.mock.calls.filter(([,options={}])=>options.method==='POST')).toHaveLength(1);
+    await act(async()=>{const manual=app.reload();jest.advanceTimersByTime(delay);await manual;});
+    expect(dashboardReads).toBe(2);
+  }finally{jest.useRealTimers();}
+});
+
+test('dashboard refreshes share only the same endpoint and evict failures',async()=>{
+  const pending=[];const send=jest.spyOn(globalThis,'fetch').mockImplementation(url=>new Promise(resolve=>pending.push({url,resolve})));
+  const first=AccountingService.refresh('/api'),same=AccountingService.refresh('/api'),other=AccountingService.refresh('https://inegol-cozum-kurs.pages.dev/api');
+  expect(first).toBe(same);expect(first).not.toBe(other);expect(send).toHaveBeenCalledTimes(2);
+  pending[0].resolve({ok:true,json:async()=>({contracts:[],payments:[]})});
+  pending[1].resolve({ok:true,json:async()=>({contracts:[],payments:[]})});
+  await Promise.all([first,same,other]);
+  send.mockRejectedValueOnce(new Error('Offline'));
+  await expect(AccountingService.refresh()).rejects.toThrow('Offline');
+  send.mockResolvedValueOnce({ok:true,json:async()=>({contracts:[],payments:[]})});
+  await expect(AccountingService.refresh()).resolves.toMatchObject({contracts:[]});
+});
+
+test('a foreign session dashboard event cannot replace the active root snapshot',async()=>{
+  jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({students:[{id:'active',student_name:'Aktif hesap'}],contracts:[],payments:[]})});
+  function Probe(){const app=useAppData();return <div>{app.data.students?.[0]?.student_name}</div>;}
+  const view=await render(<Probe/>);
+  await act(async()=>window.dispatchEvent(new CustomEvent('cozum_dashboard_loaded',{detail:{scope:'different-session',url:'/api/dashboard',data:{students:[{id:'foreign',student_name:'Başka hesap'}]}}})));
+  expect(view.container.textContent).toBe('Aktif hesap');
+});
 beforeEach(()=>{localStorage.clear();AccountingService.resetCustomData();StudentService.resetClientData();});
 afterEach(async()=>{await cleanup();jest.restoreAllMocks();});
 

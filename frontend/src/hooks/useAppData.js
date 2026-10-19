@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import axios from "axios";
 import StudentService from "../lib/edesisStudentService";
 import { getBackendBaseUrl } from "../components/layout/AuthAndNav";
 import AccountingService from "../lib/edesisAccountingService";
@@ -18,7 +17,7 @@ export const computeEffective = (s) => {
   return { total, extraSum, discount, effective: Math.max(0, total + extraSum - discount) };
 };
 
-export function useAppData(initialData = null) {
+export function useAppData(initialData = null, enabled = true) {
   const [data, setData] = useState(() => {
     if (initialData) return initialData;
     return emptyData();
@@ -29,25 +28,23 @@ export function useAppData(initialData = null) {
   const requestVersion=useRef(0);
   const accountScope=useRef(dataScope());
 
+  const acceptSnapshot=useCallback(snapshot=>{
+    const cleanStudents=StudentService.filterActiveStudents(snapshot.students || []);
+    StudentService.acceptSnapshot(cleanStudents);
+    setData({...snapshot,students:cleanStudents});
+    window.dispatchEvent(new Event("cozum_snapshot_updated"));
+    setError(null);
+  },[]);
+
   const reload = useCallback(async () => {
     const version=++requestVersion.current;
     setLoading(true);
     try {
       const baseUrl = typeof getBackendBaseUrl === "function" ? getBackendBaseUrl() : "";
       const apiUrl = `${baseUrl}/api`;
-      const r=await axios.get(`${apiUrl}/dashboard`);
+      const snapshot=await AccountingService.refresh(apiUrl);
       if(version!==requestVersion.current)return;
-      const rawStudents = r.data?.students || [];
-      const cleanStudents = StudentService.filterActiveStudents(rawStudents);
-      const nextData = {
-        ...r.data,
-        students: cleanStudents
-      };
-      StudentService.acceptSnapshot(cleanStudents);
-      AccountingService.acceptDashboard(nextData);
-      setData(nextData);
-      window.dispatchEvent(new Event("cozum_snapshot_updated"));
-      setError(null);
+      acceptSnapshot(snapshot);
     } catch (err) {
       if(version!==requestVersion.current)return;
       console.warn("[useAppData] reload error:", err);
@@ -55,28 +52,36 @@ export function useAppData(initialData = null) {
     } finally {
       if(version===requestVersion.current)setLoading(false);
     }
-  }, []);
+  }, [acceptSnapshot]);
 
   useEffect(() => {
-    reload();
+    if(enabled)reload();else{requestVersion.current++;setLoading(false);setError(null);}
     let timer;
     const invalidate=()=>{requestVersion.current++;};
-    const handleUpdate = () => {
+    const handleSnapshot=event=>{
+      const baseUrl=typeof getBackendBaseUrl==="function"?getBackendBaseUrl():"";
+      if(event.detail?.scope!==dataScope() || event.detail?.url!==`${baseUrl}/api/dashboard`)return;
+      invalidate();clearTimeout(timer);
+      acceptSnapshot(event.detail.data);setLoading(false);
+    };
+    const handleUpdate = (event) => {
+      // Exam-only saves do not change the financial dashboard. Session changes still clear it.
+      if(accountScope.current===dataScope() && /\/api\/lgs(?:\/|$)/.test(event?.detail?.path||''))return;
       if(accountScope.current!==dataScope()){accountScope.current=dataScope();setData(emptyData());}
+      if(!enabled)return;
       invalidate();clearTimeout(timer);timer=setTimeout(reload,50);
     };
     if (typeof window !== "undefined") {
       window.addEventListener("cozum_data_invalidated", handleUpdate);
-      window.addEventListener("cozum_students_updated", handleUpdate);
-      window.addEventListener("cozum_accounting_updated", handleUpdate);
+      // Legacy student/accounting events update view caches; API writes already invalidate once.
+      window.addEventListener("cozum_dashboard_loaded", handleSnapshot);
       return () => {
         invalidate();clearTimeout(timer);
         window.removeEventListener("cozum_data_invalidated", handleUpdate);
-        window.removeEventListener("cozum_students_updated", handleUpdate);
-        window.removeEventListener("cozum_accounting_updated", handleUpdate);
+        window.removeEventListener("cozum_dashboard_loaded", handleSnapshot);
       };
     }
-  }, [reload]);
+  }, [reload,acceptSnapshot,enabled]);
 
   const totalCollected = useMemo(() => {
     return data.summary?.collected ?? (data.students || []).reduce((a, s) => a + (s.paid_amount || 0), 0);

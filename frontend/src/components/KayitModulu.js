@@ -1,34 +1,5 @@
-import React, { useState, useMemo } from "react";
-import {
-  Users,
-  UserPlus,
-  BookOpen,
-  GraduationCap,
-  FileText,
-  Key,
-  RefreshCw,
-  Settings,
-  Sparkles,
-  Search,
-  Filter,
-  CheckCircle2,
-  AlertTriangle,
-  Download,
-  Calendar,
-  Phone,
-  Building,
-  User,
-  Check,
-  ChevronRight,
-  TrendingUp,
-  Award,
-  Clock,
-  Printer,
-  Copy,
-  MessageCircle,
-  ExternalLink,
-  Plus
-} from "lucide-react";
+import React, { useMemo } from "react";
+import { Users, UserPlus, BookOpen, GraduationCap, FileText, RefreshCw, AlertTriangle, ChevronRight, TrendingUp, Printer } from "lucide-react";
 
 export function KayitModulu({
   activeTab = "kokpit",
@@ -41,26 +12,6 @@ export function KayitModulu({
   onEditStudent,
   onNavigate
 }) {
-  const [candidateFilter, setCandidateFilter] = useState("all");
-  const [candidateSearch, setCandidateSearch] = useState("");
-  const [copiedId, setCopiedId] = useState(null);
-  const [newCandidateModal, setNewCandidateModal] = useState(false);
-  const [newCandidate, setNewCandidate] = useState({
-    name: "",
-    phone: "",
-    targetClass: "11. Sınıf",
-    source: "Tavsiye",
-    notes: ""
-  });
-
-  // Demo candidates list with realistic school inquiries
-  const [candidates, setCandidates] = useState([
-    { id: "cand-1", name: "Kaan Arslan", phone: "0533 111 22 33", targetClass: "TYT - AYT", source: "Instagram / Web", date: "2026-10-04", status: "Görüşüldü", notes: "Sayısal grubu için fiyat teklifi verildi, veli düşünecek." },
-    { id: "cand-2", name: "Elif Su Güner", phone: "0542 333 44 55", targetClass: "LGS Hazırlık", source: "Veli Tavsiyesi", date: "2026-10-03", status: "Bekliyor", notes: "Hafta sonu deneme sınavına katılmak istiyor." },
-    { id: "cand-3", name: "Burak Karaca", phone: "0555 777 88 99", targetClass: "12. Sınıf Mezun", source: "Kurum Ziyareti", date: "2026-10-02", status: "Kayda Dönüştü", notes: "Kayıt tamamlandı, muhasebe sözleşmesi imzalandı." },
-    { id: "cand-4", name: "Zeynep Mina Koç", phone: "0535 666 77 88", targetClass: "10. Sınıf", source: "Afiş / Reklam", date: "2026-10-01", status: "Görüşüldü", notes: "Matematik ve Fizik özel ders takviyesi soruldu." }
-  ]);
-
   // Statistics
   const totalStudents = students.length;
   const activeStudents = students.filter(s => (s.status || "Kayitli") === "Kayitli" || !s.status?.includes("İptal")).length;
@@ -99,26 +50,6 @@ export function KayitModulu({
   const missingPhoto = students.filter(s => !s.photo);
   const missingParentPhone = students.filter(s => !s.parent_phone || s.parent_phone === "0");
 
-  const copyToClipboard = (text, id) => {
-    navigator.clipboard?.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2500);
-  };
-
-  const handleAddCandidate = (e) => {
-    e.preventDefault();
-    if (!newCandidate.name || !newCandidate.phone) return;
-    const item = {
-      id: `cand-${Date.now()}`,
-      ...newCandidate,
-      date: new Date().toISOString().slice(0, 10),
-      status: "Bekliyor"
-    };
-    setCandidates([item, ...candidates]);
-    setNewCandidate({ name: "", phone: "", targetClass: "11. Sınıf", source: "Tavsiye", notes: "" });
-    setNewCandidateModal(false);
-  };
-
   return (
     <div className="kayit-modulu-wrapper" style={{ padding: "4px 0 32px 0" }}>
       {/* Top Banner & Module Header */}
@@ -131,7 +62,7 @@ export function KayitModulu({
             Kayıt İşlemleri Yönetimi
           </h1>
           <p style={{ margin: 0, color: "#64748b", fontSize: "14px" }}>
-            Öğrenci kayıt kokpiti, sınıf kontenjanları, kayıt raporları, geçici şifreler ve aday takibi.
+            Öğrenci kayıtları, sınıf kontenjanları ve dönem raporları.
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
@@ -223,31 +154,9 @@ export function KayitModulu({
           <FileText size={16} /> Kayıt Raporları
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("adaylar")}
-          style={{
-            display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", border: "none", background: "none",
-            borderBottom: activeTab === "adaylar" ? "3px solid #2563eb" : "3px solid transparent",
-            color: activeTab === "adaylar" ? "#2563eb" : "#64748b", fontWeight: activeTab === "adaylar" ? "600" : "500",
-            cursor: "pointer", fontSize: "14px", whiteSpace: "nowrap"
-          }}
-        >
-          <Award size={16} /> Bursluluk & Adaylar ({candidates.length})
-        </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("sifreler")}
-          style={{
-            display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", border: "none", background: "none",
-            borderBottom: activeTab === "sifreler" ? "3px solid #2563eb" : "3px solid transparent",
-            color: activeTab === "sifreler" ? "#2563eb" : "#64748b", fontWeight: activeTab === "sifreler" ? "600" : "500",
-            cursor: "pointer", fontSize: "14px", whiteSpace: "nowrap"
-          }}
-        >
-          <Key size={16} /> Geçici Şifreler (SMS)
-        </button>
+
+
 
         <button
           type="button"
@@ -262,18 +171,7 @@ export function KayitModulu({
           <RefreshCw size={16} /> Dönem Geçişi
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("ayarlar")}
-          style={{
-            display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", border: "none", background: "none",
-            borderBottom: activeTab === "ayarlar" ? "3px solid #2563eb" : "3px solid transparent",
-            color: activeTab === "ayarlar" ? "#2563eb" : "#64748b", fontWeight: activeTab === "ayarlar" ? "600" : "500",
-            cursor: "pointer", fontSize: "14px", whiteSpace: "nowrap"
-          }}
-        >
-          <Settings size={16} /> Kayıt Ayarları
-        </button>
+
       </div>
 
       {/* TAB 1: KAYIT KOKPİTİ */}
@@ -322,18 +220,7 @@ export function KayitModulu({
               <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>Derslik ve zümre dağılımı tam</div>
             </div>
 
-            <div style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "13px", fontWeight: "600", color: "#64748b" }}>ÖN KAYIT / ADAY BEKLEYEN</span>
-                <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#fffbeb", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Award size={18} />
-                </div>
-              </div>
-              <div style={{ fontSize: "28px", fontWeight: "700", color: "#0f172a", marginTop: "12px" }}>
-                {candidates.length} <span style={{ fontSize: "14px", fontWeight: "500", color: "#d97706" }}>Görüşülecek</span>
-              </div>
-              <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>Bursluluk ve kayıt randevuları</div>
-            </div>
+
           </div>
 
           {/* Missing Data Alerts & Quick Fix Banner */}
@@ -392,7 +279,7 @@ export function KayitModulu({
                   Kayıt Hızlı İşlemleri
                 </h3>
                 <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 16px 0" }}>
-                  Yeni kayıt girişi, aday yönetimi veya sınıf listesi aktarımı:
+                  Yeni öğrenci kaydı ve kayıt raporları:
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   <button
@@ -404,14 +291,7 @@ export function KayitModulu({
                     <span>Öğrenci Kayıt Sihirbazı</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("adaylar")}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "600", color: "#1e293b", textAlign: "left" }}
-                  >
-                    <Award size={16} color="#d97706" />
-                    <span>Yeni Aday & Ön Kayıt Görüşmesi</span>
-                  </button>
+
 
                   <button
                     type="button"
@@ -422,14 +302,7 @@ export function KayitModulu({
                     <span>Sınıf Kontenjan Raporu Al</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("sifreler")}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "600", color: "#1e293b", textAlign: "left" }}
-                  >
-                    <Key size={16} color="#6366f1" />
-                    <span>Öğrenci & Veli SMS Şifresi Gönder</span>
-                  </button>
+
                 </div>
               </div>
             </div>
@@ -631,139 +504,6 @@ export function KayitModulu({
         </div>
       )}
 
-      {/* TAB 3: BURSLULUK & ADAYLAR */}
-      {activeTab === "adaylar" && (
-        <div className="adaylar-view" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
-              <div>
-                <h3 style={{ margin: "0 0 4px 0", fontSize: "16px", fontWeight: "600", color: "#0f172a" }}>
-                  Aday Öğrenci & Bursluluk Başvuru Havuzu
-                </h3>
-                <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
-                  Kuruma gelen arama, form ve randevuları takip edin; tek tıkla kesin kayda dönüştürün.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setNewCandidateModal(true)}
-                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "600", fontSize: "13px", cursor: "pointer" }}
-              >
-                <Plus size={16} /> + Yeni Aday Ekle
-              </button>
-            </div>
-
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-              <thead>
-                <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", textAlign: "left" }}>
-                  <th style={{ padding: "10px 14px" }}>ADAY ÖĞRENCİ</th>
-                  <th style={{ padding: "10px 14px" }}>İLETİŞİM</th>
-                  <th style={{ padding: "10px 14px" }}>HEDEF PROGRAM</th>
-                  <th style={{ padding: "10px 14px" }}>BAŞVURU KAYNAĞI</th>
-                  <th style={{ padding: "10px 14px" }}>TARİH</th>
-                  <th style={{ padding: "10px 14px" }}>DURUM</th>
-                  <th style={{ padding: "10px 14px", textAlign: "right" }}>AKSİYON</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidates.map((cand) => (
-                  <tr key={cand.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "12px 14px" }}>
-                      <div style={{ fontWeight: "600", color: "#0f172a" }}>{cand.name}</div>
-                      <div style={{ fontSize: "11px", color: "#64748b" }}>{cand.notes}</div>
-                    </td>
-                    <td style={{ padding: "12px 14px", fontWeight: "500", color: "#334155" }}>{cand.phone}</td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span style={{ padding: "4px 8px", background: "#eff6ff", color: "#2563eb", borderRadius: "6px", fontWeight: "600", fontSize: "12px" }}>
-                        {cand.targetClass}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px 14px", color: "#64748b" }}>{cand.source}</td>
-                    <td style={{ padding: "12px 14px", color: "#64748b" }}>{cand.date}</td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span style={{
-                        padding: "4px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: "600",
-                        background: cand.status === "Kayda Dönüştü" ? "#dcfce7" : cand.status === "Görüşüldü" ? "#fef3c7" : "#f1f5f9",
-                        color: cand.status === "Kayda Dönüştü" ? "#166534" : cand.status === "Görüşüldü" ? "#92400e" : "#475569"
-                      }}>
-                        {cand.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px 14px", textAlign: "right" }}>
-                      <button
-                        type="button"
-                        onClick={() => onOpenWizard && onOpenWizard()}
-                        style={{ padding: "6px 12px", background: "#16a34a", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "600", cursor: "pointer", fontSize: "12px" }}
-                        title="Bu aday için öğrenci kayıt sihirbazını başlat"
-                      >
-                        Kesin Kayda Dönüştür
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: GEÇİCİ ŞİFRELER (SMS) */}
-      {activeTab === "sifreler" && (
-        <div className="sifreler-view" style={{ background: "#ffffff", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-          <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600", color: "#0f172a" }}>
-            Öğrenci & Veli Portalı Geçici Şifre Yönetimi
-          </h3>
-          <p style={{ margin: "0 0 20px 0", fontSize: "13px", color: "#64748b" }}>
-            Öğrenci ve velilerinizin mobil uygulamaya ve portala ilk kez giriş yapabilmesi için tek kullanımlık geçici SMS şifreleri üretin.
-          </p>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
-            {students.slice(0, 10).map((s) => {
-              const tempPass = "CZM" + (Math.abs(s.id.split("").reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0)) % 9000 + 1000);
-              const smsText = `Sayın Velimiz, Özel İnegöl Çözüm Kursu mobil portal giriş şifreniz: ${tempPass} Giriş linki: https://inegol-cozum-kurs.pages.dev`;
-              return (
-                <div key={s.id} style={{ border: "1px solid #e2e8f0", borderRadius: "10px", padding: "16px", background: "#f8fafc" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                    <div>
-                      <div style={{ fontWeight: "600", color: "#0f172a" }}>{s.student_name}</div>
-                      <div style={{ fontSize: "12px", color: "#64748b" }}>{s.student_class} · Veli: {s.parent_name || "Veli"}</div>
-                    </div>
-                    <span style={{ padding: "4px 8px", background: "#e0e7ff", color: "#3730a3", borderRadius: "6px", fontFamily: "monospace", fontWeight: "700", fontSize: "13px" }}>
-                      {tempPass}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: "12px", color: "#475569", background: "#ffffff", padding: "8px", borderRadius: "6px", border: "1px solid #e2e8f0", marginBottom: "10px" }}>
-                    {smsText}
-                  </div>
-
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(smsText, s.id)}
-                      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "6px 10px", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "12px", fontWeight: "600", cursor: "pointer", color: "#334155" }}
-                    >
-                      {copiedId === s.id ? <Check size={14} color="#16a34a" /> : <Copy size={14} />}
-                      <span>{copiedId === s.id ? "Kopyalandı!" : "SMS Kopyala"}</span>
-                    </button>
-                    {s.parent_phone && s.parent_phone !== "0" && (
-                      <a
-                        href={`https://wa.me/90${s.parent_phone.replace(/\D/g, "").slice(-10)}?text=${encodeURIComponent(smsText)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "6px 12px", background: "#25D366", color: "#fff", borderRadius: "6px", fontSize: "12px", fontWeight: "600", textDecoration: "none" }}
-                      >
-                        <MessageCircle size={14} /> WhatsApp
-                      </a>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* TAB 5: DÖNEM GEÇİŞİ */}
       {activeTab === "donem" && (
         <div className="donem-view" style={{ background: "#ffffff", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
@@ -776,132 +516,6 @@ export function KayitModulu({
         </div>
       )}
 
-      {/* TAB 6: KAYIT AYARLARI */}
-      {activeTab === "ayarlar" && (
-        <div className="ayarlar-view" style={{ background: "#ffffff", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-          <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600", color: "#0f172a" }}>
-            Edesis Kayıt ve Numara Ayarları
-          </h3>
-          <p style={{ margin: "0 0 20px 0", fontSize: "13px", color: "#64748b" }}>
-            Otomatik öğrenci numarası oluşturma formatı, varsayılan kayıt sözleşmesi maddeleri ve indirim oranları.
-          </p>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
-                Öğrenci Numarası Şablonu
-              </label>
-              <input
-                type="text"
-                defaultValue="2026{NO}"
-                style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "14px" }}
-              />
-              <span style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px", display: "block" }}>
-                Örnek çıktı: 2026101, 2026102
-              </span>
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
-                Varsayılan Taksit Sayısı
-              </label>
-              <select
-                defaultValue="6"
-                style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "14px" }}
-              >
-                <option value="1">1 Taksit (Peşin)</option>
-                <option value="4">4 Taksit</option>
-                <option value="6">6 Taksit (Standart)</option>
-                <option value="8">8 Taksit</option>
-                <option value="10">10 Taksit</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Candidate Modal */}
-      {newCandidateModal && (
-        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "20px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "12px", width: "100%", maxWidth: "480px", padding: "24px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0f172a" }}>Yeni Aday / Ön Kayıt Ekle</h3>
-              <button type="button" onClick={() => setNewCandidateModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}>
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleAddCandidate} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>Öğrenci Adı Soyadı</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Örn: Kaan Arslan"
-                  value={newCandidate.name}
-                  onChange={(e) => setNewCandidate({ ...newCandidate, name: e.target.value })}
-                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>İletişim Numarası (Telefon / WhatsApp)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="0532 ..."
-                  value={newCandidate.phone}
-                  onChange={(e) => setNewCandidate({ ...newCandidate, phone: e.target.value })}
-                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>Hedef Sınıf / Seviye</label>
-                <select
-                  value={newCandidate.targetClass}
-                  onChange={(e) => setNewCandidate({ ...newCandidate, targetClass: e.target.value })}
-                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                >
-                  <option value="LGS Hazırlık">LGS Hazırlık (8. Sınıf)</option>
-                  <option value="10. Sınıf">10. Sınıf Ara Sınıf</option>
-                  <option value="11. Sınıf">11. Sınıf TYT Hazırlık</option>
-                  <option value="TYT - AYT">TYT - AYT (12. Sınıf)</option>
-                  <option value="Mezun Sayısal">Mezun Sayısal</option>
-                  <option value="Mezun Eşit Ağırlık">Mezun Eşit Ağırlık</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>Görüşme Notu</label>
-                <textarea
-                  rows={3}
-                  placeholder="Öğrencinin hedefleri, veli talepleri veya bursluluk detayları..."
-                  value={newCandidate.notes}
-                  onChange={(e) => setNewCandidate({ ...newCandidate, notes: e.target.value })}
-                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                <button
-                  type="button"
-                  onClick={() => setNewCandidateModal(false)}
-                  style={{ flex: 1, padding: "10px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px", fontWeight: "600", cursor: "pointer" }}
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  style={{ flex: 1, padding: "10px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "600", cursor: "pointer" }}
-                >
-                  Adayı Kaydet
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -6,6 +6,17 @@ import { StudentService } from "../lib/edesisService";
 import AccountingService from "../lib/edesisAccountingService";
 import {apiFetch} from "../lib/utils";
 
+export function InstallmentReceipts({payments,onOpen}){
+  if(!payments.length)return null;
+  const money=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n);
+  return <details className="no-print" style={{maxWidth:'100%'}}>
+    <summary style={{cursor:'pointer',padding:'6px 10px',border:'1px solid #cbd5e1',borderRadius:6}}>Makbuzlar ({payments.filter(p=>!p.is_cancelled).length} geçerli)</summary>
+    {payments.map(p=><button key={p.id} type="button" className="btn small secondary" style={{display:'flex',marginTop:6,whiteSpace:'normal',overflowWrap:'anywhere',textAlign:'left'}} title={p.is_cancelled?'İptal edilmiş makbuz geçmişi':'Kayıtlı tahsilat makbuzu'} onClick={e=>{e.stopPropagation();onOpen(p);}}>
+      <Printer size={12} aria-hidden="true"/> {p.is_cancelled?'İptal · ':''}{money(p.tahsilatTutari ?? p.amount)} · {p.tahsilatTarihi || p.payment_date} · {p.id}
+    </button>)}
+  </details>;
+}
+
 function normTr(str) {
   return String(str || "")
     .trim()

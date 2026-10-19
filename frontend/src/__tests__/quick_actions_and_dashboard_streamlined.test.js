@@ -3,7 +3,7 @@ import { render, cleanup, fireEvent, waitFor } from "./test_helpers";
 import { DashboardPage } from "../pages/DashboardPage";
 import { MainApp } from "../App";
 import AccountingService from '../lib/edesisAccountingService';
-import axios from 'axios';
+import {synchronizedRequest} from '../lib/dataSync';
 
 afterEach(cleanup);
 
@@ -13,13 +13,13 @@ describe("Sadeleştirilmiş Hızlı İşlemler & Genel Bakış Test Paketi", () 
   test('main application ignores a slow dashboard response after a newer save refresh',async()=>{
     const previousHash=window.location.hash;window.location.hash='#students';localStorage.removeItem('cozum_dashboard_data_v1');
     AccountingService.setInitialData({contracts:[],installments:[]});
-    const pending=[];const get=jest.spyOn(axios,'get').mockImplementation(()=>new Promise(resolve=>pending.push(resolve)));
+    const pending=[];const get=jest.spyOn(globalThis,'fetch').mockImplementation(()=>new Promise(resolve=>pending.push(resolve)));
     try{
       const {container}=await render(<MainApp me={adminUser} onLogout={()=>{}}/>);
-      await act(async()=>window.dispatchEvent(new Event('cozum_students_updated')));
+      await act(async()=>{await synchronizedRequest('/api/students/student','PATCH',async()=>({ok:true}));});
+      await act(async()=>pending[0]({ok:true,json:async()=>({students:[{id:'outdated',student_name:'Eski yanıt',program:'2026-2027',status:'Kesin Kayıt'}],contracts:[]})}));
       await waitFor(()=>expect(pending.length).toBe(2));
-      await act(async()=>pending[1]({data:{students:[{id:'newest',student_name:'Yeni kaydedilen',program:'2026-2027',status:'Kesin Kayıt'}],contracts:[]}}));
-      await act(async()=>pending[0]({data:{students:[{id:'outdated',student_name:'Eski yanıt',program:'2026-2027',status:'Kesin Kayıt'}],contracts:[]}}));
+      await act(async()=>pending[1]({ok:true,json:async()=>({students:[{id:'newest',student_name:'Yeni kaydedilen',program:'2026-2027',status:'Kesin Kayıt'}],contracts:[]})}));
       expect(container.textContent).toContain('Yeni kaydedilen');expect(container.textContent).not.toContain('Eski yanıt');
     }finally{get.mockRestore();window.location.hash=previousHash;}
   });

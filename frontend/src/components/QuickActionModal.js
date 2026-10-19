@@ -91,8 +91,8 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
         EXTRA_KEYS.forEach((x) => delete payload[`extra_${x.k}`]);
         const res = await axios.post(`${apiBase}/students`, payload);
         const saved = res.data || {};
-        await AccountingService.refreshAfterWrite();
-        StudentService.acceptSnapshot((await StudentService.fetchStudents()));
+        const snapshot=await AccountingService.refreshAfterWrite();
+        StudentService.acceptSnapshot(Array.isArray(snapshot?.students)?StudentService.filterActiveStudents(snapshot.students):await StudentService.fetchStudents());
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("cozum_accounting_updated"));
           window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: { ...payload, ...saved } } }));
@@ -126,7 +126,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
       if (type === "class") {
         await axios.post(`${apiBase}/classes`, { ...form, capacity: Number(form.capacity || 20) });
       }
-      if (reload) await reload();
+      if (reload && type!=="student" && type!=="payment") await reload();
       if (close) close();
     } catch (err) {
       setError(err.response?.data?.detail || err.message || "Kayıt sırasında bir sorun oluştu.");

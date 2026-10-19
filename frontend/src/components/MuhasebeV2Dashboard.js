@@ -1061,6 +1061,7 @@ export function MuhasebeV2Dashboard({
       </div>
 
       {/* 2. MASTER FİNANSAL KPI GÖSTERGE KARTLARI */}
+      {["gecikenler", "vade_takvimi"].includes(activeTab) && <>
       <MuhasebeKpiGrid
         fmtMoney={fmtMoney}
         totalContractRevenue={totalContractRevenue}
@@ -1073,6 +1074,8 @@ export function MuhasebeV2Dashboard({
         totalRemaining={totalRemaining}
         netLiquidBalance={netLiquidBalance}
       />
+      <p style={{color:"var(--muted)",fontSize:12}}>Ciro ve kasa özeti tüm dönemleri kapsar. Dönem filtresi öğrenci ve vade listelerine uygulanır.</p>
+      </>}
 
       {/* 3. KASA & BANKA PORTFÖY ŞERİDİ (5 Edesis Hesabı) */}
       {ENABLE_KASA_BANKA && (
@@ -1154,7 +1157,6 @@ export function MuhasebeV2Dashboard({
       </div>
 
       {/* 4. SEKME İÇERİKLERİ */}
-      <p style={{color:"var(--muted)",fontSize:12}}>Ciro ve kasa özeti tüm dönemleri kapsar. Dönem filtresi öğrenci ve vade listelerine uygulanır.</p>
       {/* SEKME 1: EDESİS KONTROL PANELİ & DASHBOARD */}
       {activeTab === "dashboard" && (
         <OverviewTab

@@ -242,7 +242,7 @@ describe("AŞAMA 5: KAPSAMLI E2E SİSTEM ENTEGRASYONU VE NİHAİ KABUL TESTİ", 
           onCloseKarneModal={jest.fn()}
         />
       );
-      expect(cExam.querySelector('[data-testid="exam-optical-page-container"]')).not.toBeNull();
+      expect(cExam.querySelector('[data-testid="auth-guard-unauthorized"]')).not.toBeNull();
     });
   });
 

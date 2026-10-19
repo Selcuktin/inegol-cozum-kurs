@@ -7,6 +7,7 @@ import EdesisSozlesmeler from '../components/EdesisSozlesmeler';
 import AccountingService from '../lib/edesisAccountingService';
 import StudentService from '../lib/edesisStudentService';
 import {useAppData} from '../hooks/useAppData';
+import {synchronizedRequest} from '../lib/dataSync';
 jest.mock('../App',()=>({getBackendBaseUrl:()=>''}));
 
 beforeEach(()=>{localStorage.clear();AccountingService.resetCustomData();StudentService.resetClientData();window.location.hash='';});
@@ -56,11 +57,11 @@ test('current period counts exclude cancellations and summer while preserving ot
 });
 
 test('a slow old dashboard response cannot roll back a newer refresh',async()=>{
-  const pending=[];jest.spyOn(axios,'get').mockImplementation(()=>new Promise(resolve=>pending.push(resolve)));
+  const pending=[];jest.spyOn(globalThis,'fetch').mockImplementation(()=>new Promise(resolve=>pending.push(resolve)));
   let app;function Probe(){app=useAppData();return <div>{app.data.students?.[0]?.student_name}</div>;}
   const view=await render(<Probe/>);
-  let refresh;await act(async()=>{refresh=app.reload();});
-  await act(async()=>{pending[1]({data:{students:[{id:'new',student_name:'Yeni'}]}});await refresh;});
-  await act(async()=>{pending[0]({data:{students:[{id:'old',student_name:'Eski'}]}});});
+  await act(async()=>{await synchronizedRequest('/api/students/student','PATCH',async()=>({ok:true}));});
+  await act(async()=>{pending[0]({ok:true,json:async()=>({students:[{id:'old',student_name:'Eski'}]})});});
+  await act(async()=>{pending[1]({ok:true,json:async()=>({students:[{id:'new',student_name:'Yeni'}]})});});
   expect(view.container.textContent).toBe('Yeni');expect(localStorage.getItem('cozum_dashboard_data_v1')).toBeNull();
 });

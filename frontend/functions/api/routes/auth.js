@@ -1,5 +1,17 @@
 import { json, errorResponse, ROLE_ADMIN, ROLE_LABELS, logAction, parseCookies } from "../utils.js";
 
+// ponytail: isolate-local fallback is bounded, not a global lockout; bind LOGIN_RATE_LIMIT or use an edge rule for distributed protection.
+const loginWindows=new WeakMap();
+async function loginAllowed(db,env,ip){
+  if(env?.LOGIN_RATE_LIMIT?.limit)return (await env.LOGIN_RATE_LIMIT.limit({key:`admin:${ip}`})).success;
+  let windows=loginWindows.get(db);if(!windows){windows=new Map();loginWindows.set(db,windows);}
+  const now=Date.now();
+  for(const [key,w] of windows)if(w.until<=now)windows.delete(key);
+  const current=windows.get(ip)||{count:0,until:now+60000};
+  if(!windows.has(ip)&&windows.size>=2000)return false;
+  current.count++;windows.set(ip,current);return current.count<=10;
+}
+
 export async function handleAuthRoutes({ request, db, env, path, user, waitUntil }) {
   const clientIp = request?.headers?.get("cf-connecting-ip") || request?.headers?.get("x-real-ip") || "unknown";
   const clientCountry = (request?.headers?.get("cf-ipcountry") || request?.cf?.country || "TR").toUpperCase();
@@ -8,7 +20,11 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
 
   // Reset cookies and clear site data across all devices
   if (path === "/system/reset-cookies" || path === "/auth/clear-all-cookies") {
-    return json({ ok: true, message: "Tüm cihaz çerezleri ve önbellek sıfırlandı" }, 200, {
+    if(request.method!=='POST')return errorResponse('Sıfırlama için POST kullanın.',405,'METHOD_NOT_ALLOWED');
+    if(!user)return errorResponse('Oturum açmanız gerekiyor.',401,'UNAUTHORIZED');
+    const origin=request.headers.get('Origin');
+    if(origin&&origin!==new URL(request.url).origin)return errorResponse('Geçersiz istek kaynağı.',403,'FORBIDDEN');
+    return json({ ok: true, message: "Bu tarayıcının çerezleri ve önbelleği sıfırlandı" }, 200, {
       "Clear-Site-Data": '"cache", "cookies", "storage"',
       "Set-Cookie": "session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax",
     });
@@ -16,17 +32,11 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
 
   // Quick Login with Geo & IP Guard (Enforced Admin-Only)
   if (path === "/auth/quick-login" && request.method === "POST") {
+    if(!db)return errorResponse('Veritabanı bağlantısı hazır değil.',503,'DATABASE_UNAVAILABLE');
+    if(!await loginAllowed(db,env,clientIp))return json({ok:false,error:'Çok fazla giriş denemesi. Bir dakika sonra tekrar deneyin.',code:'RATE_LIMITED'},429,{'Retry-After':'60'});
     const body = await request.json().catch(() => ({}));
     if (body.role && body.role !== ROLE_ADMIN) {
-      await logAction(
-        db,
-        { user_id: "guest", email: "guest@inegolcozumkurs.com", name: "Bilinmeyen Ziyaretçi", role: "guest" },
-        "security.disabled_staff_login_attempt",
-        "security",
-        clientIp,
-        `Personel girişi reddedildi (Talep edilen rol: ${body.role}, IP: ${clientIp})`,
-        waitUntil
-      );
+      console.warn(JSON.stringify({type:'security.disabled_staff_login_attempt',ip:clientIp}));
       return errorResponse("Personel girişi devre dışı bırakılmıştır. Yalnızca Yönetici girişi yapılabilir.", 403, "STAFF_LOGIN_DISABLED");
     }
 
@@ -42,15 +52,7 @@ export async function handleAuthRoutes({ request, db, env, path, user, waitUntil
     if (!adminPasswords.length) return errorResponse("Yönetici giriş ayarı eksik. Kurum yöneticisine başvurunuz.", 503, "AUTH_NOT_CONFIGURED");
 
     if (!password || !adminPasswords.includes(password)) {
-      await logAction(
-        db,
-        { user_id: "guest", email: "admin@inegolcozumkurs.com", name: "Bilinmeyen Ziyaretçi", role: "guest" },
-        "security.failed_login",
-        "security",
-        clientIp,
-        `Hatalı yönetici parolası denemesi (IP: ${clientIp}, Ülke: ${clientCountry}, AS: ${clientAsOrg || "Bilinmiyor"})`,
-        waitUntil
-      );
+      console.warn(JSON.stringify({type:'security.failed_login',ip:clientIp,country:clientCountry}));
       return errorResponse("Hatalı yönetici parolası!", 401, "AUTH_FAILED");
     }
 

@@ -19,15 +19,7 @@
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
         <meta http-equiv="Pragma" content="no-cache" />
         <meta http-equiv="Expires" content="0" />
-        <script>
-          if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-              navigator.serviceWorker.register('/sw.js').then((reg) => {
-                reg.update();
-              }).catch(() => {});
-            });
-          }
-        </script>
+        <script defer src="/register-service-worker.js"></script>
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -31,6 +31,7 @@ function getApiUrl() {
 
 let cacheEpoch = 0;
 const readVersions={contracts:0,installments:0,incomes:0,collections:0,summary:0};
+const installmentReads=new Map();
 // In-memory cache for ultra-fast render lookups
 const _memory = {
   contracts: [],
@@ -288,7 +289,10 @@ export const AccountingService = {
   async fetchInstallments(contractId = null) {
     ensureScope();
     const epoch=cacheEpoch;
-    const version=++readVersions.installments;
+    const key=contractId || '*';
+    const version=(installmentReads.get(key)||0)+1;
+    installmentReads.set(key,version);
+    const snapshotVersion=readVersions.installments;
     if (typeof fetch === "undefined") return _memory.installments;
     try {
       const apiUrl = getApiUrl();
@@ -297,7 +301,10 @@ export const AccountingService = {
       if (!res || !res.ok) return _memory.installments;
       const rows = await res.json();
       if (epoch!==cacheEpoch) return [];
-      if(version!==readVersions.installments)return _memory.installments;
+      if(version!==installmentReads.get(key) || snapshotVersion!==readVersions.installments){
+        const contract=_memory.contracts.find(c=>c.id===contractId||c.sozlesmeNo===contractId);
+        return _memory.installments.filter(i=>!contractId||i.contractId===contractId||i.sozlesmeNo===contractId||(contract?.id && i.contractId===contract.id)||(contract?.sozlesmeNo && i.sozlesmeNo===contract.sozlesmeNo)).map(i=>({...i}));
+      }
       const list = Array.isArray(rows) ? rows : (rows?.data || []);
 
       const formatted = list.map(formatInstallmentRecord);
@@ -557,10 +564,12 @@ export const AccountingService = {
 
   recordCollection(paymentData = {}) {
     if(paymentData.alreadyPersisted)return this.refreshAfterWrite().then(()=>paymentData);
+      const amount=Number(paymentData.amount ?? paymentData.tahsilatTutari);
+      if(!Number.isFinite(amount)||amount<=0||Math.round(amount*100)/100!==amount)return Promise.reject(new Error('Geçerli, sıfırdan büyük bir tahsilat tutarı giriniz.'));
       const id = paymentData.id || "pay_" + crypto.randomUUID();
       return apiFetch(`${getApiUrl()}/api/payments`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         id,student_id:paymentData.studentId || paymentData.student_id,contract_id:paymentData.contractId || paymentData.contract_id,sozlesme_no:paymentData.sozlesmeNo || paymentData.sozlesme_no,
-        installment_id:paymentData.installment_id || paymentData.taksitId,installment_no:paymentData.installment_no ?? paymentData.taksitNo,amount:paymentData.amount || paymentData.tahsilatTutari,
+        installment_id:paymentData.installment_id || paymentData.taksitId,installment_no:paymentData.installment_no ?? paymentData.taksitNo,amount,
         method:paymentData.method,bank:paymentData.bank || paymentData.kasaBankaAdi,payment_date:paymentData.payment_date || paymentData.date || paymentData.tahsilatTarihi,note:paymentData.note
       })}).then(async res => {
         const saved=await res.json();
@@ -578,11 +587,19 @@ export const AccountingService = {
     });
   },
 
-  refresh(){
+  refresh(apiUrl = `${getApiUrl()}/api`){
     ensureScope();
-    if(!this.refreshing){
+    const url=`${apiUrl}/dashboard`;
+    if(!this.refreshing || this.refreshingUrl!==url){
       const epoch=cacheEpoch;
-      const request=apiFetch(`${getApiUrl()}/api/dashboard`).then(r=>r.json()).then(data=>{if(epoch===cacheEpoch)this.acceptDashboard(data);return data;}).finally(()=>{if(this.refreshing===request)this.refreshing=null;});
+      const request=apiFetch(url).then(r=>r.json()).then(data=>{
+        if(epoch===cacheEpoch && this.refreshing===request){
+          this.acceptDashboard(data);
+          if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('cozum_dashboard_loaded',{detail:{data,scope:dataScope(),url}}));
+        }
+        return data;
+      }).finally(()=>{if(this.refreshing===request)this.refreshing=null;});
+      this.refreshingUrl=url;
       this.refreshing=request;
     }
     return this.refreshing;
@@ -615,6 +632,7 @@ export const AccountingService = {
 
   resetCustomData() {
     cacheEpoch++;this.refreshing=null;
+    installmentReads.clear();
     _memory.contractsLoaded=false;_memory.collectionsLoaded=false;
     _memory.contracts = [];
     _memory.incomes = [];

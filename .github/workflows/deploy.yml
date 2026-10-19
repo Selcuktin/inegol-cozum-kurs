@@ -10,12 +10,18 @@ on:
       - 'codex/**'
   workflow_dispatch:
 
+concurrency:
+  group: cozum-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test-build-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -38,6 +44,8 @@ jobs:
           node tests/system_integrity.mjs
           node tests/admin_workflows.mjs
           node tests/income_indexes.mjs
+          node tests/lgs_workflows.mjs
+          node tests/development_fixes.mjs
       - name: Measure read budget on actual local D1 (no production resources)
         run: npx --yes --package=wrangler@4.151.1 -- node tests/d1-query-budget.mjs
 
@@ -47,10 +55,30 @@ jobs:
         env:
           CI: true
 
+      - name: Verify this release includes the current production commit
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: node ops/check-release-order.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Apply pending D1 migrations before publishing code
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.151.1
+          # Existing databases must have a reviewed baseline; never replay legacy data migrations blindly.
+          command: |
+            d1 execute DB --remote --config frontend/wrangler.toml --command "SELECT name FROM d1_migrations LIMIT 1"
+            d1 migrations apply DB --remote --config frontend/wrangler.toml
+
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.151.1
           command: pages deploy frontend/build --project-name=inegol-cozum-kurs --branch=main

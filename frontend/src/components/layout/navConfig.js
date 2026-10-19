@@ -82,17 +82,7 @@ export function buildNavCategories({
             {
               id: "k_araclar", label: "Araçlar ve Ayarlar", isAccordion: true, subKey: "kayit_araclar", icon: Settings,
               children: [
-                { id: "k_sifre", label: "Geçici Şifreler (SMS)", activeCheck: () => page === "kayit" && kayitTab === "sifreler", onClick: () => { setPage("kayit"); setKayitTab("sifreler"); setMobileOpen(false); } },
                 { id: "k_donem", label: "Dönem Geçiş Sihirbazı", activeCheck: () => page === "kayit" && kayitTab === "donem", onClick: () => { setPage("kayit"); setKayitTab("donem"); setMobileOpen(false); } },
-                { id: "k_ayar", label: "Kayıt Ayarları", activeCheck: () => page === "kayit" && kayitTab === "ayarlar", onClick: () => { setPage("kayit"); setKayitTab("ayarlar"); setMobileOpen(false); } }
-              ]
-            },
-            {
-              id: "k_bursluluk", label: "Bursluluk ve STS Modülü", isAccordion: true, subKey: "kayit_bursluluk", icon: Award,
-              children: [
-                { id: "k_aday", label: "Adaylar & Ön Kayıtlar", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } },
-                { id: "k_form", label: "Ön Kayıt Formları & Şubeler", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } },
-                { id: "k_seans", label: "Sınav Seansları & Salonları", activeCheck: () => page === "kayit" && kayitTab === "adaylar", onClick: () => { setPage("kayit"); setKayitTab("adaylar"); setMobileOpen(false); } }
               ]
             }
           ]
@@ -105,10 +95,7 @@ export function buildNavCategories({
         {
           id: "exams", label: "Deneme Sınavları & Karne", icon: Award, perm: "page_exams", isTree: true, treeKey: "olcme",
           subItems: [
-            { id: "exams_list", label: "Deneme Sınavları Listesi", icon: Award, activeCheck: () => page === "exams" && !showGlobalOptikModal && !showGlobalHataKarnesi, onClick: () => { setPage("exams"); setMobileOpen(false); } },
-            { id: "optik_omr", label: "Optik Okuma & Şablonlar (OMR)", icon: Sparkles, onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); } },
-            { id: "hata_karnesi", label: "Kazanım & Hata Karneleri", icon: Target, onClick: () => { setShowGlobalHataKarnesi(true); setMobileOpen(false); } },
-            { id: "kalibrasyon", label: "Milimetrik Kalibrasyon & Baskı", icon: Printer, onClick: () => { setPage("exams"); setShowGlobalOptikModal(true); setMobileOpen(false); } }
+            ...[['exams_list','Sınavlar ve Karneler','/sinavlar',Award],['optik_omr','Yeni Optik Veri Oku','/sinav/yeni',Sparkles],['fmt_templates','FMT Şablonları','/sablonlar',Sparkles],['exam_types','Puanlama Ayarları','/sinav-turleri',Target]].map(([id,label,route,icon])=>({id,label,icon,onClick:()=>{sessionStorage.setItem('lgs_route',route);setPage('exams');window.dispatchEvent(new CustomEvent('lgs:navigate',{detail:route}));setMobileOpen(false);}}))
           ]
         }
       ]

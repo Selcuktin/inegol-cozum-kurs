@@ -97,6 +97,17 @@ await check('large student lists paginate without missing or duplicate IDs and f
 for(const query of ['page=0','page=-1','page=1.5','page=no','limit=-1','limit=0','limit=1001','limit=2.5'])await check('invalid student pagination '+query,async db=>{
   assert.equal((await request(db,'/students?'+query)).status,422);
 });
+await check('single-kind CSV only reads requested domain; complete CSV remains the exact concatenation',async db=>{
+  const c=await student(db,'export-scope');await pay(db,c,12.34);await request(db,'/expenses','POST',expense);
+  const prepare=db.prepare,seen=[];db.prepare=query=>{seen.push(query);return prepare(query);};
+  const parts=[];
+  for(const kind of ['students','payments','expenses','audit']){
+    seen.length=0;const r=await request(db,'/export/'+kind);assert.equal(r.status,200);parts.push(r.data.replace(/^\uFEFF/,''));
+    const reads=seen.filter(q=>/FROM (?:students s|payments p|expenses|audit_logs)\b/.test(q));
+    assert.equal(reads.length,1,JSON.stringify({kind,reads}));assert(reads[0].includes('FROM '+kind));
+  }
+  const all=await request(db,'/export/all');assert.equal(all.status,200);assert.equal(all.data.replace(/^\uFEFF/,''),parts.join(''));
+});
 await check('CSV quotes separators, line breaks and formula prefixes; unknown kinds fail and accountant export excludes audit',async db=>{
   const name=' =HYPERLINK("example");\nİpek';await student(db,'csv',{student_name:name});
   const exported=csv((await request(db,'/export/students')).data);assert.equal(exported[2][0],"'"+name.trim());assert.equal(exported[2].length,12);

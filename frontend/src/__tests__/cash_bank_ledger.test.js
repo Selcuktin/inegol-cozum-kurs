@@ -351,8 +351,8 @@ describe("R2: Kasa & Banka Defteri Çift Yönlü Entegrasyonu (cash_bank_ledger.
         />
       );
 
-      // Step 1: Check initial Net Likit Mevcut (₺45.000)
-      expect(container.textContent).toContain("₺45.000");
+      // The overview retains its own liquidity value; the six-card strip belongs to due-date pages.
+      expect(container.textContent).toContain("Kasa + Banka Durumu45.000 ₺");
 
       // Step 2: Open Kasalar tab and verify all 7 bidirectional transactions rendered
       const kasalarTabBtn = Array.from(container.querySelectorAll("button"))
