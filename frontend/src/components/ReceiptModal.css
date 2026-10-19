@@ -1,0 +1,23 @@
+.receipt-trigger { white-space: nowrap; min-height: 34px; gap: 6px; }
+.installment-receipts-overlay { position: fixed; inset: 0; z-index: 100240; background: rgb(15 23 42 / 45%); }
+.installment-receipts-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100241; width: min(440px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; padding: 24px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; color: #0f172a; box-shadow: 0 20px 60px rgb(15 23 42 / 20%); text-align: left; box-sizing: border-box; }
+.installment-receipts-title { margin: 0 32px 8px 0; font-size: 18px; font-weight: 700; line-height: 1.4; }
+.installment-receipts-description { margin: 0 24px 20px 0; color: #475569; font-size: 13px; line-height: 1.6; }
+.installment-receipts-close { position: absolute; top: 12px; right: 10px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: #475569; cursor: pointer; }
+.installment-receipts-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.installment-receipts-list { list-style: none; margin: 0; padding: 0; }
+.installment-receipt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-top: 1px solid #e2e8f0; }
+.installment-receipt-row strong { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.installment-receipt-date { display: block; margin-top: 4px; color: #64748b; font-size: 13px; }
+.installment-receipt-open { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 10px; flex-shrink: 0; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #1d4ed8; font-size: 13px; font-weight: 600; cursor: pointer; }
+.installment-receipt-open:hover, .installment-receipts-close:hover { background: #f1f5f9; }
+.installment-receipt-open:focus-visible, .installment-receipts-close:focus-visible, .installment-receipts-cancelled summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.installment-receipts-cancelled { margin-top: 16px; border-top: 1px solid #e2e8f0; }
+.installment-receipts-cancelled summary { padding: 16px 0 8px; color: #b91c1c; font-size: 13px; font-weight: 600; cursor: pointer; }
+.installment-receipts-cancelled p { margin: 4px 0 10px; color: #64748b; font-size: 12px; line-height: 1.5; }
+.installment-receipts-cancelled strong { color: #64748b; text-decoration: line-through; }
+@media (max-width: 390px) {
+  .installment-receipts-dialog { padding: 18px; }
+  .installment-receipt-row { gap: 8px; flex-wrap: wrap; }
+  .receipt-trigger { min-height: 44px; }
+}

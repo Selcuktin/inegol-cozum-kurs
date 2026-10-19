@@ -78,14 +78,15 @@ test.each([500,250])('installment collected %s prints individual saved transacti
   const installment={id:'inst',contract_id:contract.id,sozlesme_no:contract.sozlesmeNo,installment_no:1,amount:500,paid_amount:paid,due_date:'2026-10-31'};
   AccountingService.acceptDashboard({contracts:[contract],incomes:[],installments:[installment],payments:[{...payment,id:'p1',installment_id:'inst',amount:paid*0.4},{...payment,id:'p2',installment_id:'inst',amount:paid*0.6}]});
   const view=await render(<EdesisSozlesmeDetay contract={contract} students={[student]}/>);
-  const receipts=[...view.container.querySelectorAll('button')].filter(b=>b.title==='Kayıtlı tahsilat makbuzu');expect(receipts).toHaveLength(2);await fireEvent.click(receipts[0]);
+  await fireEvent.click(view.getByRole('button',{name:'Makbuzlar (2)'}));
+  const receipts=document.querySelectorAll('[role="dialog"] .installment-receipt-open');expect(receipts).toHaveLength(2);await fireEvent.click(receipts[0]);
   expect(view.container.querySelector('.receipt-sheet').textContent).toContain((paid*0.4).toLocaleString('tr-TR',{minimumFractionDigits:2}));expect(view.container.querySelector('.receipt-sheet').textContent).not.toContain('THS-');
 });
 test('income detail installment print opens the saved collection with its actual identity, amount and date',async()=>{
   const rawContract={...contract,student_id:student.id,sozlesme_no:contract.sozlesmeNo};
   AccountingService.acceptDashboard({contracts:[rawContract],incomes:[{id:'income',gelir_kodu:'PRINT-INCOME',contract_id:contract.id,student_id:student.id,sozlesme_no:contract.sozlesmeNo,brut_tutar:1000,toplam_tahsilat:125}],installments:[{id:'inst',contract_id:contract.id,sozlesme_no:contract.sozlesmeNo,installment_no:1,amount:500,paid_amount:125}],payments:[{...payment,installment_id:'inst',installment_no:1}]});
   const view=await render(<GelirDetayModal isOpen student={student} gelirKodu='PRINT-INCOME'/>);
-  const buttons=[...view.container.querySelectorAll('button')].filter(b=>b.title==='Kayıtlı tahsilat makbuzu');expect(buttons).toHaveLength(1);await fireEvent.click(buttons[0]);
+  const buttons=[...view.container.querySelectorAll('button')].filter(b=>b.textContent.trim()==='Makbuz');expect(buttons).toHaveLength(1);await fireEvent.click(buttons[0]);
   const sheet=view.container.querySelector('.receipt-sheet').textContent;expect(sheet).toContain('ODM-001');expect(sheet).toContain('125,00');expect(sheet).toContain('16.10.2026');
   localStorage.setItem('session_token','test-only-token');jest.spyOn(window,'prompt').mockReturnValue('veli@example.invalid');
   const fetchMock=jest.spyOn(global,'fetch').mockResolvedValue({ok:true,json:async()=>({ok:true})});

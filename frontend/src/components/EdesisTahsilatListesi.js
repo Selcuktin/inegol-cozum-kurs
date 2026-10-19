@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import AccountingService from "../lib/edesisAccountingService";
 import { ReceiptModal } from "./ReceiptModal";
-import { trIncludes } from "../lib/utils";
+import { trIncludes, formatTrtDateTime } from "../lib/utils";
 
 // Para birimi formatlayıcı (₺55.000,00)
 export function fmtCurrency(val) {
@@ -33,19 +33,7 @@ export function fmtCurrency(val) {
 
 // Tarih formatlayıcı (26.09.2026 14:30)
 export function fmtDateTime(isoStr) {
-  if (!isoStr) return "—";
-  try {
-    const d = new Date(isoStr);
-    if (isNaN(d.getTime())) return String(isoStr);
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, "0");
-    const mins = String(d.getMinutes()).padStart(2, "0");
-    return `${day}.${month}.${year} ${hours}:${mins}`;
-  } catch {
-    return String(isoStr);
-  }
+  return isoStr ? formatTrtDateTime(isoStr) : "—";
 }
 
 export default function EdesisTahsilatListesi({
@@ -271,7 +259,7 @@ export default function EdesisTahsilatListesi({
   const exportToExcel = () => {
     const headers = [
       "İşlem No (Ödeme Kodu)",
-      "Tarih & Saat",
+      "Tahsilat Tarihi",
       "Müşteri / Öğrenci",
       "Gelir Kodu",
       "Açıklama",
@@ -818,7 +806,7 @@ export default function EdesisTahsilatListesi({
                   style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
                   onClick={() => handleSort("tahsilatTarihi")}
                 >
-                  Tarih & Saat {sortField === "tahsilatTarihi" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
+                  Tahsilat Tarihi {sortField === "tahsilatTarihi" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                 </th>
                 <th
                   scope="col"

@@ -63,14 +63,15 @@ export function trIncludes(haystack, needle) {
 export function formatTrtDateTime(dateVal) {
   if (!dateVal) return "-";
   let s = String(dateVal).trim();
+  const dateOnly=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(dateOnly)return `${dateOnly[3]}.${dateOnly[2]}.${dateOnly[1]}`;
+  if(/^\d{2}\.\d{2}\.\d{4}$/.test(s))return s;
   if (/^\d{10,13}$/.test(s)) {
     const num = Number(s);
     return new Date(num < 1e11 ? num * 1000 : num).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" });
   }
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) {
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(s)) {
     s = s.replace(" ", "T") + "Z";
-  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(s)) {
-    s = s + "Z";
   }
   const d = new Date(s);
   if (isNaN(d.getTime())) return String(dateVal);

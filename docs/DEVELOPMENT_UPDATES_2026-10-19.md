@@ -2,6 +2,8 @@
 
 ## Uygulanan düzeltmeler
 
+- **Makbuz görünümü:** Tek geçerli makbuz doğrudan açılır; çoklu tahsilat/geçmiş ayrı erişilebilir pencerede tutar ve Türkçe tarihle listelenir. Teknik işlem kimlikleri listede gösterilmez. İptal edilenler varsayılan kapalı geçmiş bölümündedir; toplam yalnız geçerli tahsilatlardır.
+- **Tahsilat tarihi/saat:** Yalnız tarih saklanan alanlara gece yarısı/saat dilimi dönüşümü uygulanmaz; sahte 03:00 görünümü kaldırıldı. Gerçek UTC/SQLite zaman damgaları ortak biçimleyiciyle Europe/Istanbul saatinde gösterilir. Eski mali tarihler veya kayıt saatleri değiştirilmedi.
 - **Tahsilat/makbuz:** Bir taksitteki ayrı kısmi ödemeler tek “Makbuzlar” kontrolünde tutar, tarih, işlem kimliği ve iptal etiketiyle açılır. Sözleşme ve gelir ekranı aynı bileşeni kullanır. İptal geçmişi silinmez; aynı tutarlı gerçek ödemeler birleştirilmez. Birden fazla aktif ödeme varsa hangi makbuzun iptal edileceği açıkça seçilir. API belirsiz taksit iptalini `409 PAYMENT_REQUIRED` ile reddeder. Son geçerli makbuz referansı da iptal sonrasında düzeltilir.
 - **F1:** Boş, sıfır, negatif ve kuruş hassasiyeti geçersiz tahsilat tutarı gönderilmez; ortak servis de doğrular.
 - **F2:** Sözleşmeden EFT, kart, nakit ve senet tahsilatı uygun hesapla gönderilir.

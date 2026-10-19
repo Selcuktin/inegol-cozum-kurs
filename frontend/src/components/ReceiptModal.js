@@ -5,16 +5,35 @@ import { numberToTurkishWords } from "./PromissoryNoteModal";
 import { StudentService } from "../lib/edesisService";
 import AccountingService from "../lib/edesisAccountingService";
 import {apiFetch} from "../lib/utils";
+import {Root as Dialog,Trigger as DialogTrigger,Portal as DialogPortal,Overlay as DialogOverlay,Content as DialogContent,Title as DialogTitle,Description as DialogDescription,Close as DialogClose} from '@radix-ui/react-dialog';
+import './ReceiptModal.css';
 
 export function InstallmentReceipts({payments,onOpen}){
+  const [open,setOpen]=useState(false);
   if(!payments.length)return null;
+  const active=payments.filter(p=>!Number(p.is_cancelled)),cancelled=payments.filter(p=>Number(p.is_cancelled));
   const money=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n);
-  return <details className="no-print" style={{maxWidth:'100%'}}>
-    <summary style={{cursor:'pointer',padding:'6px 10px',border:'1px solid #cbd5e1',borderRadius:6}}>Makbuzlar ({payments.filter(p=>!p.is_cancelled).length} geçerli)</summary>
-    {payments.map(p=><button key={p.id} type="button" className="btn small secondary" style={{display:'flex',marginTop:6,whiteSpace:'normal',overflowWrap:'anywhere',textAlign:'left'}} title={p.is_cancelled?'İptal edilmiş makbuz geçmişi':'Kayıtlı tahsilat makbuzu'} onClick={e=>{e.stopPropagation();onOpen(p);}}>
-      <Printer size={12} aria-hidden="true"/> {p.is_cancelled?'İptal · ':''}{money(p.tahsilatTutari ?? p.amount)} · {p.tahsilatTarihi || p.payment_date} · {p.id}
-    </button>)}
-  </details>;
+  const openReceipt=p=>{setOpen(false);onOpen(p);};
+  if(payments.length===1&&active.length===1)return <button type="button" className="btn small secondary no-print receipt-trigger" onClick={()=>openReceipt(active[0])}><Printer size={14} aria-hidden="true"/> Makbuz</button>;
+  const rows=items=>items.map(p=><li className="installment-receipt-row" key={p.id}>
+    <div><strong>{money(p.tahsilatTutari ?? p.amount)}</strong><span className="installment-receipt-date">{p.tahsilatTarihi||p.payment_date?formatPaymentDate(p.tahsilatTarihi||p.payment_date):'Tarih belirtilmemiş'}</span></div>
+    <button type="button" className="installment-receipt-open" aria-label={`${money(p.tahsilatTutari ?? p.amount)} tutarlı ${Number(p.is_cancelled)?'iptal edilmiş ':''}makbuzu aç`} onClick={()=>openReceipt(p)}><Printer size={15} aria-hidden="true"/> Makbuzu aç</button>
+  </li>);
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger asChild><button type="button" className="btn small secondary no-print receipt-trigger"><Receipt size={14} aria-hidden="true"/> {active.length?`Makbuzlar (${active.length})`:'Makbuz geçmişi'}</button></DialogTrigger>
+    <DialogPortal>
+      <DialogOverlay className="installment-receipts-overlay no-print"/>
+      <DialogContent className="installment-receipts-dialog no-print">
+        <DialogTitle className="installment-receipts-title">Tahsilat makbuzları</DialogTitle>
+        <DialogDescription className="installment-receipts-description">{active.length?`${active.length} geçerli tahsilat · Toplam ${money(active.reduce((sum,p)=>sum+Number(p.tahsilatTutari ?? p.amount),0))}`:'Bu taksitte geçerli tahsilat bulunmuyor.'}</DialogDescription>
+        <DialogClose className="installment-receipts-close" aria-label="Makbuz listesini kapat"><X size={18} aria-hidden="true"/></DialogClose>
+        <div className="installment-receipts-body">
+          {active.length>0&&<ul className="installment-receipts-list">{rows(active)}</ul>}
+          {cancelled.length>0&&<details className="installment-receipts-cancelled"><summary>İptal edilen tahsilatlar ({cancelled.length})</summary><p>Bu makbuzlar tahsilat toplamına dahil değildir.</p><ul className="installment-receipts-list">{rows(cancelled)}</ul></details>}
+        </div>
+      </DialogContent>
+    </DialogPortal>
+  </Dialog>;
 }
 
 function normTr(str) {
