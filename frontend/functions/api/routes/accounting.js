@@ -79,11 +79,6 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
       expensesRes,
       teachersRes,
       contractsRes,
-      cRowRes,
-      iRowRes,
-      pRowRes,
-      instRowRes,
-      overdueRowRes,
       incomesRes,
       installmentsRes
     ] = await db.batch([
@@ -92,31 +87,46 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
       db.prepare(paymentsSql),
       db.prepare("SELECT * FROM expenses ORDER BY expense_date DESC"),
       db.prepare("SELECT * FROM teachers ORDER BY name ASC"),
-      db.prepare(`
-        SELECT c.*,
-          COALESCE((SELECT MAX(i.toplam_tahsilat) FROM student_incomes i WHERE (i.contract_id=c.id OR i.sozlesme_no=c.sozlesme_no) AND COALESCE(i.is_deleted,0)=0),(SELECT COALESCE(SUM(p.amount), 0) FROM payments p
-           WHERE p.contract_id = c.id
-             AND (p.is_cancelled = 0 OR p.is_cancelled IS NULL)) ) as calculated_paid
-        FROM contracts c
-        WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)
-        ORDER BY c.sozlesme_tarihi DESC
-      `),
-      db.prepare(contractTotalsSql),
-      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(toplam_tahsilat), 0) as coll, COALESCE(SUM(kalan_alacak), 0) as rem FROM student_incomes WHERE is_deleted = 0"),
-      db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE (is_cancelled = 0 OR is_cancelled IS NULL)"),
-      db.prepare("SELECT COUNT(*) as cnt FROM installments"),
-      db.prepare(`
-        SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount), 0) as amt
-        FROM installments
-        WHERE (date(CASE WHEN due_date LIKE '__.__.____' THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2) ELSE due_date END) < date('now','+3 hours') AND COALESCE(paid_amount,0) < amount)
-          AND EXISTS(SELECT 1 FROM contracts c WHERE c.id=installments.contract_id AND COALESCE(c.is_deleted,0)=0 AND c.durum<>3)
-      `),
+      db.prepare("SELECT * FROM contracts WHERE is_deleted=0 OR is_deleted IS NULL ORDER BY sozlesme_tarihi DESC"),
       db.prepare("SELECT * FROM student_incomes WHERE COALESCE(is_deleted,0)=0"),
-      db.prepare("SELECT i.*,c.sozlesme_no,c.student_name,c.durum AS contract_status,c.period_id,c.period_name FROM installments i JOIN contracts c ON c.id=i.contract_id WHERE COALESCE(c.is_deleted,0)=0 ORDER BY i.due_date,i.installment_no")
+      // SQLite retains legacy date parsing and NULL arithmetic; reuse the rows instead of joining/counting them again.
+      db.prepare(`SELECT *,
+        date(CASE WHEN due_date LIKE '__.__.____' THEN substr(due_date,7,4)||'-'||substr(due_date,4,2)||'-'||substr(due_date,1,2) ELSE due_date END)<date('now','+3 hours') AND COALESCE(paid_amount,0)<amount AS __overdue,
+        amount-paid_amount AS __remaining
+        FROM installments ORDER BY due_date,installment_no`)
     ]);
 
     const students = (studentsRes.results || []).map(enrichStudent);
-    const accountingSummary = await getDynamicAccountingSummary(db, students, [cRowRes.results[0], iRowRes.results[0], pRowRes.results[0], instRowRes.results[0], overdueRowRes.results[0]]);
+    const incomes=incomesRes.results||[],payments=paymentsRes.results||[],allInstallments=installmentsRes.results||[];
+    const byContract=new Map((contractsRes.results||[]).map(c=>[c.id,c]));
+    const incomeById=new Map(),incomeByNo=new Map(),activeIncomeById=new Map(),activeIncomeByNo=new Map(),paidByContract=new Map();
+    const maximum=(map,key,value)=>{if(key!=null&&value!=null)map.set(key,Math.max(map.get(key)??-Infinity,Number(value)));};
+    const iRow={cnt:0,coll:0,rem:0},pRow={cnt:0,total_paid:0},cRow={cnt:0,rev:0,rem:0},overdueRow={cnt:0,amt:0};
+    for(const i of incomes){
+      maximum(incomeById,i.contract_id,i.toplam_tahsilat);maximum(incomeByNo,i.sozlesme_no,i.toplam_tahsilat);
+      if(i.durum!=null&&i.durum!==4){maximum(activeIncomeById,i.contract_id,i.toplam_tahsilat);maximum(activeIncomeByNo,i.sozlesme_no,i.toplam_tahsilat);}
+      // The standalone summary intentionally excludes legacy NULL is_deleted, unlike the visible income list.
+      if(i.is_deleted===0){iRow.cnt++;iRow.coll+=Number(i.toplam_tahsilat)||0;iRow.rem+=Number(i.kalan_alacak)||0;}
+    }
+    for(const p of payments)if(p.is_cancelled===0||p.is_cancelled==null){
+      pRow.cnt++;pRow.total_paid+=Number(p.amount)||0;
+      if(p.contract_id!=null)paidByContract.set(p.contract_id,(paidByContract.get(p.contract_id)||0)+(Number(p.amount)||0));
+    }
+    const incomePaid=(c,byId,byNo)=>{
+      const values=[byId.get(c.id),c.sozlesme_no==null?undefined:byNo.get(c.sozlesme_no)].filter(v=>v!==undefined);
+      return values.length?Math.max(...values):paidByContract.get(c.id)||0;
+    };
+    for(const c of byContract.values()){
+      c.calculated_paid=incomePaid(c,incomeById,incomeByNo);
+      if(c.durum!=null&&c.durum!==3){cRow.cnt++;cRow.rev+=Number(c.brut_tutar)||0;if(c.brut_tutar!=null)cRow.rem+=Math.max(0,(Number(c.brut_tutar)||0)-incomePaid(c,activeIncomeById,activeIncomeByNo));}
+    }
+    const installments=[];
+    for(const {__overdue,__remaining,...i} of allInstallments){
+      const c=byContract.get(i.contract_id);if(!c)continue;
+      installments.push({...i,sozlesme_no:c.sozlesme_no,student_name:c.student_name,contract_status:c.durum,period_id:c.period_id,period_name:c.period_name});
+      if(__overdue&&c.durum!=null&&c.durum!==3){overdueRow.cnt++;overdueRow.amt+=Number(__remaining)||0;}
+    }
+    const accountingSummary = await getDynamicAccountingSummary(db, students, [cRow,iRow,pRow,{cnt:allInstallments.length},overdueRow]);
     const contracts = (contractsRes.results || []).map((r) => {
       const gross = Number(r.brut_tutar) || 0;
       const paid = Number(r.calculated_paid) || 0;
@@ -153,8 +163,8 @@ export async function handleAccountingRoutes({ request, db, env, path, user, wai
     return json({
       students,
       contracts,
-      incomes:incomesRes.results||[],
-      installments:installmentsRes.results||[],
+      incomes,
+      installments,
       classes: classesRes.results || [],
       payments: paymentsRes.results || [],
       expenses: expensesRes.results || [],

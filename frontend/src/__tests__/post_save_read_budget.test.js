@@ -1,4 +1,4 @@
-import React from 'react';
+import React,{act} from 'react';
 import axios from 'axios';
 import {render,cleanup,fireEvent} from './test_helpers';
 import {EdesisStudentModal} from '../components/EdesisStudentModal';
@@ -6,6 +6,7 @@ import {Modal} from '../components/QuickActionModal';
 import {useAppData} from '../hooks/useAppData';
 import {synchronizedRequest} from '../lib/dataSync';
 import AccountingService from '../lib/edesisAccountingService';
+import {MainApp} from '../App';
 import StudentService from '../lib/edesisStudentService';
 
 const student={id:'budget-student',student_name:'Sentetik öğrenci',school:'Eski okul',total_fee:1000,installment_count:2,paid_amount:200,extra_fees:'{}',sozlesme_no:'BUDGET'};
@@ -13,6 +14,47 @@ const plan=[{id:'budget-installment',contract_id:'budget-contract',sozlesme_no:'
 function RootSnapshot(){const app=useAppData();return <output data-testid="root-snapshot">{app.data.students?.map(s=>`${s.student_name}:${s.school}`).join('|')}</output>;}
 beforeEach(()=>{localStorage.clear();AccountingService.resetCustomData();StudentService.resetClientData();});
 afterEach(async()=>{await cleanup();jest.restoreAllMocks();});
+
+test.each(['users','audit','reminders'])('%s page loads its own endpoint without a full financial dashboard',async(page)=>{
+ const previousHash=window.location.hash;window.location.hash='#'+page;
+ const snapshot={students:[],contracts:[],incomes:[],installments:[],payments:[],classes:[],teachers:[],expenses:[]};
+ const fetch=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>snapshot});
+ const get=jest.spyOn(axios,'get').mockResolvedValue({data:[]});
+ try{
+  await render(<MainApp me={{role:'admin',name:'Test'}} onLogout={()=>{}}/>);
+  expect(get).toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled();
+  await act(async()=>{window.location.hash='#students';window.dispatchEvent(new Event('hashchange'));});
+  expect(fetch.mock.calls.filter(([url])=>url==='/api/dashboard')).toHaveLength(1);
+  await act(async()=>{window.location.hash='#'+page;window.dispatchEvent(new Event('hashchange'));});
+  expect(fetch.mock.calls.filter(([url])=>url==='/api/dashboard')).toHaveLength(1);
+  await act(async()=>{window.location.hash='#students';window.dispatchEvent(new Event('hashchange'));});
+  expect(fetch.mock.calls.filter(([url])=>url==='/api/dashboard')).toHaveLength(2);
+ }finally{await cleanup();window.location.hash=previousHash;}
+});
+
+test('global financial search on a deferred system page still loads a fresh snapshot',async()=>{
+ const previousHash=window.location.hash;window.location.hash='#users';
+ const fetch=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({students:[],contracts:[],payments:[]})});
+ jest.spyOn(axios,'get').mockResolvedValue({data:[]});
+ try{
+  await render(<MainApp me={{role:'admin',name:'Test'}} onLogout={()=>{}}/>);expect(fetch).not.toHaveBeenCalled();
+  await act(async()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true})));
+  expect(fetch.mock.calls.filter(([url])=>url==='/api/dashboard')).toHaveLength(1);
+ }finally{await cleanup();window.location.hash=previousHash;}
+});
+
+test('creating a backup or updating a user does not reread finance; restoring a backup still does',async()=>{
+ jest.useFakeTimers();const fetch=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({students:[],contracts:[],payments:[]})});
+ try{
+  await render(<RootSnapshot/>);expect(fetch).toHaveBeenCalledTimes(1);
+  for(const path of ['/api/backup','https://inegol-cozum-kurs.pages.dev/api/backup?manual=1','/api/users/role']){
+   await act(async()=>{window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path}}));jest.advanceTimersByTime(60);});
+   expect(fetch).toHaveBeenCalledTimes(1);
+  }
+  await act(async()=>{window.dispatchEvent(new CustomEvent('cozum_data_invalidated',{detail:{path:'/api/backup/restore'}}));jest.advanceTimersByTime(60);});
+  expect(fetch).toHaveBeenCalledTimes(2);
+ }finally{jest.useRealTimers();}
+});
 
 test('student editor replaces three list reads and the root refresh with one authoritative dashboard',async()=>{
  let committed=false;

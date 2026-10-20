@@ -65,8 +65,8 @@ export function useAppData(initialData = null, enabled = true) {
       acceptSnapshot(event.detail.data);setLoading(false);
     };
     const handleUpdate = (event) => {
-      // Exam-only saves do not change the financial dashboard. Session changes still clear it.
-      if(accountScope.current===dataScope() && /\/api\/lgs(?:\/|$)/.test(event?.detail?.path||''))return;
+      // These writes do not change financial data; backup restore and session changes still refresh.
+      if(accountScope.current===dataScope() && /\/api\/(?:lgs(?:\/|$)|users(?:\/|$)|backup(?:$|\?))/.test(event?.detail?.path||''))return;
       if(accountScope.current!==dataScope()){accountScope.current=dataScope();setData(emptyData());}
       if(!enabled)return;
       invalidate();clearTimeout(timer);timer=setTimeout(reload,50);

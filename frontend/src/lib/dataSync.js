@@ -73,6 +73,10 @@ export function installAxiosSynchronization(axios){
 
 if(typeof window!=='undefined'){
   window.addEventListener('storage',e=>{if([channel,'session_token','custom_api_url'].includes(e.key)){let path='';if(e.key===channel){try{const change=JSON.parse(e.newValue);if(typeof change?.path==='string')path=change.path;}catch{}}announceChange(path,false);}});
-  window.addEventListener('focus',()=>announceChange('',false));
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')announceChange('',false);});
+  // A return usually emits both visible and focus. Refresh once, without delaying real changes.
+  let resumePending=document.visibilityState==='hidden';
+  const resume=()=>{if(resumePending&&document.visibilityState==='visible'){resumePending=false;announceChange('',false);}};
+  window.addEventListener('blur',()=>{resumePending=true;});
+  window.addEventListener('focus',resume);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')resumePending=true;else resume();});
 }

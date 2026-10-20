@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
-import {handleAccountingRoutes} from '../frontend/functions/api/routes/accounting.js';
+import {getDynamicAccountingSummary,handleAccountingRoutes} from '../frontend/functions/api/routes/accounting.js';
+import {handleContractsRoutes} from '../frontend/functions/api/routes/contracts.js';
 
 const sql=new DatabaseSync(':memory:');
 sql.exec(readFileSync(new URL('../frontend/schema.sql',import.meta.url),'utf8'));
@@ -19,11 +20,14 @@ for(let n=0;n<133;n++){
   sql.prepare("INSERT INTO student_incomes(id,contract_id,sozlesme_no,student_id,brut_tutar,toplam_tahsilat,durum,is_deleted,student_name,title,gelir_tarihi,vade_tarihi) VALUES(?,?,?,?,?,?,?,?,'Anonymous','Test','2026-10-17','2026-11-17')").run('g'+n,n%2?'c'+n:null,'N'+n,'s'+n,1000,100+n,n===1?4:1,n===2?1:0);
 }
 const queries=[];
-const db={prepare(query){const execute=()=>{const rows=sql.prepare(query).all();queries.push(query);return{results:rows};};return{execute};},async batch(statements){return statements.map(s=>s.execute());}};
+const db={prepare(query){let params=[];const execute=()=>{const rows=sql.prepare(query).all(...params);queries.push(query);return{results:rows};};const statement={execute,all:execute,bind(...values){params=values;return statement;}};return statement;},async batch(statements){return statements.map(s=>s.execute());}};
 async function dashboard(){const response=await handleAccountingRoutes({request:new Request('https://local.invalid/api/dashboard'),db,path:'/dashboard'});assert.equal(response.status,200);return response.json();}
+async function contracts(){const url=new URL('https://local.invalid/api/contracts');const response=await handleContractsRoutes({request:new Request(url),url,db,path:'/contracts'});assert.equal(response.status,200);return response.json();}
 const before=await dashboard();
+const summaryBefore=await getDynamicAccountingSummary(db),contractsBefore=await contracts();
 sql.exec(indexes.join('\n'));sql.exec(indexes.join('\n')); // Repeat deployment must be harmless.
 const after=await dashboard();assert.deepEqual(after,before,'Indexes must not change financial output');
+assert.deepEqual(await getDynamicAccountingSummary(db),summaryBefore);assert.deepEqual(await contracts(),contractsBefore);
 const totalsQueries=[...new Set(queries)].filter(q=>q.includes('SELECT MAX(i.toplam_tahsilat)'));
 assert.equal(totalsQueries.length,2);
 for(const query of totalsQueries){

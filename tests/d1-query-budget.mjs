@@ -8,7 +8,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
-import {handleAccountingRoutes} from '../frontend/functions/api/routes/accounting.js';
+import {getDynamicAccountingSummary,handleAccountingRoutes} from '../frontend/functions/api/routes/accounting.js';
 import {handleContractsRoutes} from '../frontend/functions/api/routes/contracts.js';
 import {handleLgsRoutes} from '../frontend/functions/api/routes/lgs.js';
 import {extractStudents,defaultMapping} from '../frontend/functions/api/lgs/scoring.js';
@@ -22,13 +22,20 @@ const folder=await mkdtemp(path.join(tmpdir(),'cozum-d1-budget-'));
 const config=path.join(folder,'wrangler.json');
 const run=promisify(execFile);
 const queries=[];
+const captureDb={prepare(sql){return {sql};},async batch(statements){queries.push(...statements.map(s=>s.sql));return statements.map(()=>({results:[]}));}};
+await getDynamicAccountingSummary(captureDb);
+const summaryQueries=queries.splice(0);
 await handleAccountingRoutes({
   request:new Request('https://local.invalid/api/dashboard'),path:'/dashboard',
-  db:{prepare(sql){return {sql};},async batch(statements){queries.push(...statements.map(s=>s.sql));return statements.map(()=>({results:[]}));}},
+  db:captureDb,
 });
-const financial=queries.filter(sql=>sql.includes('SELECT MAX(i.toplam_tahsilat)'));
+const legacyContractPaid=`SELECT c.*,COALESCE((SELECT MAX(i.toplam_tahsilat) FROM student_incomes i WHERE (i.contract_id=c.id OR i.sozlesme_no=c.sozlesme_no) AND COALESCE(i.is_deleted,0)=0),(SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.contract_id=c.id AND (p.is_cancelled=0 OR p.is_cancelled IS NULL))) AS calculated_paid FROM contracts c WHERE c.is_deleted=0 OR c.is_deleted IS NULL ORDER BY c.sozlesme_tarihi DESC`;
+const legacyInstallments="SELECT i.*,c.sozlesme_no,c.student_name,c.durum AS contract_status,c.period_id,c.period_name FROM installments i JOIN contracts c ON c.id=i.contract_id WHERE COALESCE(c.is_deleted,0)=0 ORDER BY i.due_date,i.installment_no";
+const legacyDashboard=[...queries.map(sql=>sql.startsWith('SELECT * FROM contracts ')?legacyContractPaid:sql.includes(' AS __overdue,')?legacyInstallments:sql),...summaryQueries];
+assert.equal(queries.length,8);assert.equal(legacyDashboard.length,13);
+const financial=[summaryQueries[0],legacyContractPaid];
 assert.equal(financial.length,2);
-const overdue=[...new Set(queries.filter(sql=>sql.includes('SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount)')))];
+const overdue=[...new Set(summaryQueries.filter(sql=>sql.includes('SELECT COUNT(*) as cnt, COALESCE(SUM(amount - paid_amount)')))];
 assert.equal(overdue.length,1);
 let contractQuery;
 await handleContractsRoutes({
@@ -91,6 +98,8 @@ try{
   await execute(overdueIndex);
   assert.equal(reads(await probe(overdue)),reads(overdueAfter),'Overdue migration must be replay safe');
   assert.equal(reads(await probe([contractQuery])),reads(contractsAfter));
+  const dashboardBefore=await probe(legacyDashboard),dashboardAfter=await probe(queries);
+  assert(reads(dashboardAfter)<reads(dashboardBefore)/2,'Reusing the same batch must remove aggregate and installment join rereads');
   const proxy=await getPlatformProxy({configPath:config,persist:{path:path.join(folder,'state','v3')},remoteBindings:false,envFiles:[]});
   let scanned=0;const record=r=>{scanned+=r.meta.rows_read||0;return r;};
   const instrument=stmt=>({bind(...args){return instrument(stmt.bind(...args));},async all(){return record(await stmt.all());},async first(){return record(await stmt.all()).results[0]||null;},async run(){return record(await stmt.run());},raw:stmt});
@@ -110,7 +119,7 @@ try{
   for(let replay=0;replay<2;replay++)await run(process.execPath,[cli,'d1','migrations','apply','DB','--local','--config',config,'--persist-to',path.join(folder,'state')],{cwd:root,env:{...process.env,CI:'true',WRANGLER_SEND_METRICS:'false'},maxBuffer:2*1024*1024});
   const checked=await execute('SELECT COUNT(*) AS n FROM d1_migrations; SELECT COUNT(*) AS n FROM contracts; PRAGMA table_info(system_backups);');
   assert.equal(checked[0].results[0].n,10);assert.equal(checked[1].results[0].n,beforeMigrationContracts);assert(checked[2].results.some(c=>c.name==='sha256'));
-  console.log(JSON.stringify({localOnly:true,fixtureContracts:133,beforeRowsRead:reads(before),afterRowsRead:reads(after),overdueBeforeRowsRead:reads(overdueBefore),overdueAfterRowsRead:reads(overdueAfter),contractsBeforeRowsRead:reads(contractsBefore),contractsAfterRowsRead:reads(contractsAfter),lgs2000:lgs,financialParity:true,migrationReplay:true,trackedMigrationReplay:true}));
+  console.log(JSON.stringify({localOnly:true,fixtureContracts:133,beforeRowsRead:reads(before),afterRowsRead:reads(after),overdueBeforeRowsRead:reads(overdueBefore),overdueAfterRowsRead:reads(overdueAfter),contractsBeforeRowsRead:reads(contractsBefore),contractsAfterRowsRead:reads(contractsAfter),dashboardBeforeRowsRead:reads(dashboardBefore),dashboardAfterRowsRead:reads(dashboardAfter),lgs2000:lgs,financialParity:true,migrationReplay:true,trackedMigrationReplay:true}));
 }finally{
   assert(path.resolve(folder).startsWith(path.resolve(tmpdir())+path.sep+'cozum-d1-budget-'));
   await rm(folder,{recursive:true,force:true});

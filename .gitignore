@@ -69,3 +69,4 @@ memory/*credential*
 /test_reports/live-data-preservation.json
 /test_reports/live_deploy_console.txt
 /test_reports/fix_*
+/test_reports/rows_*

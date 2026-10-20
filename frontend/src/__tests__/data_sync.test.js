@@ -177,6 +177,54 @@ test('cross-tab change triggers one refresh batch and keeps query values in the 
   try{await render(<Probe/>);expect(count).toBe(1);await act(async()=>{for(let i=0;i<10;i++)window.dispatchEvent(new StorageEvent('storage',{key:'cozum_data_revision',newValue:String(i)}));jest.advanceTimersByTime(45);});expect(count).toBe(2);}
   finally{jest.useRealTimers();}
 });
+test.each([
+  ['blur','hidden','visible','focus'],
+  ['blur','hidden','focus','visible'],
+  ['hidden','blur','visible','focus'],
+  ['blur','focus'],
+])('return signals %j refresh once and every real return stays fresh',async(...signals)=>{
+  jest.useFakeTimers();let visibility='visible';
+  jest.spyOn(document,'visibilityState','get').mockImplementation(()=>visibility);
+  const get=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({students:[],contracts:[],payments:[]})});
+  function Probe(){useAppData();return null;}
+  const emit=signal=>{if(['visible','hidden'].includes(signal)){visibility=signal;document.dispatchEvent(new Event('visibilitychange'));}else window.dispatchEvent(new Event(signal));};
+  try{
+    await render(<Probe/>);expect(get).toHaveBeenCalledTimes(1);
+    await act(async()=>{emit('focus');emit('visible');jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(1);
+    for(const signal of signals){
+      await act(async()=>{emit(signal);jest.advanceTimersByTime(60);});
+      if(visibility==='hidden')expect(get).toHaveBeenCalledTimes(1);
+    }
+    expect(get).toHaveBeenCalledTimes(2);
+    await act(async()=>{emit('focus');emit('visible');jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(2);
+    // Even an immediate second blur/focus must revalidate; this is not a freshness timeout.
+    await act(async()=>{emit('blur');emit('focus');jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(3);
+  }finally{jest.useRealTimers();}
+});
+
+test('the paired focus signal cannot restart a read already retried for visible',async()=>{
+  let visibility='visible';jest.spyOn(document,'visibilityState','get').mockImplementation(()=>visibility);
+  window.dispatchEvent(new Event('blur'));visibility='hidden';document.dispatchEvent(new Event('visibilitychange'));
+  const old=deferred(),fresh=deferred();let reads=0;
+  const pending=synchronizedRequest('/api/dashboard','GET',()=>++reads===1?old.promise:fresh.promise);
+  visibility='visible';document.dispatchEvent(new Event('visibilitychange'));
+  old.resolve('obsolete');await Promise.resolve();await Promise.resolve();expect(reads).toBe(2);
+  window.dispatchEvent(new Event('focus'));fresh.resolve('current');
+  expect(await pending).toBe('current');expect(reads).toBe(2);
+});
+
+test('resume coalescing leaves writes, cross-tab changes and manual refresh immediate',async()=>{
+  jest.useFakeTimers();jest.spyOn(document,'visibilityState','get').mockReturnValue('visible');let app;
+  const get=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({students:[],contracts:[],payments:[]})});
+  function Probe(){app=useAppData();return null;}
+  try{
+    await render(<Probe/>);
+    await act(async()=>{window.dispatchEvent(new Event('blur'));window.dispatchEvent(new Event('focus'));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(2);
+    await act(async()=>{await synchronizedRequest('/api/payments','POST',async()=>({id:'saved'}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(3);
+    await act(async()=>{window.dispatchEvent(new StorageEvent('storage',{key:'cozum_data_revision',newValue:JSON.stringify({revision:'latest',path:'/api/payments'})}));jest.advanceTimersByTime(60);});expect(get).toHaveBeenCalledTimes(4);
+    await act(async()=>app.reload());expect(get).toHaveBeenCalledTimes(5);
+  }finally{jest.useRealTimers();}
+});
 test('continuous writes have a bounded read retry and never present stale data as success',async()=>{
   let calls=0;await expect(synchronizedRequest('/api/contracts','GET',async()=>{calls++;announceChange('',false);return 'stale';})).rejects.toMatchObject({code:'STALE_RESPONSE'});expect(calls).toBe(3);
 });

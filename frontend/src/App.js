@@ -324,7 +324,7 @@ export function MainApp({ me, onLogout }) {
   useEffect(()=>{if(showGlobalOptikModal||showGlobalHataKarnesi||showGlobalKarne){sessionStorage.setItem('lgs_route',showGlobalOptikModal?'/sablonlar':'/sinavlar');setPage('exams');window.dispatchEvent(new CustomEvent('lgs:navigate',{detail:showGlobalOptikModal?'/sablonlar':'/sinavlar'}));setShowGlobalOptikModal(false);setShowGlobalHataKarnesi(false);setShowGlobalKarne(null);}},[showGlobalOptikModal,showGlobalHataKarnesi,showGlobalKarne,setPage]);
   const [showGlobalPromissory, setShowGlobalPromissory] = useState(false);
   const [showOmniSearch, setShowOmniSearch] = useState(false);
-  const {data,reload:load,error:dataError,loading:dataLoading,totalCollected,totalExpected,totalExpenses}=useAppData(null,page!=='exams'||!!modal||showOmniSearch||showTestBench||showGlobalPromissory);
+  const {data,reload:load,error:dataError,loading:dataLoading,totalCollected,totalExpected,totalExpenses}=useAppData(null,!['exams','users','audit','reminders'].includes(page)||!!modal||!!selected||!!editingStudent||showOmniSearch||showTestBench||showGlobalPromissory);
 
   // Global Ctrl + K / Cmd + K shortcut for Omni Search
   useEffect(() => {
