@@ -216,7 +216,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
   const [contractStudentClass, setContractStudentClass] = useState("8-A");
   const [contractParentName, setContractParentName] = useState("");
   const [contractParentPhone, setContractParentPhone] = useState("");
-  const [contractParentRelation, setContractParentRelation] = useState("Veli");
   const [contractAmount, setContractAmount] = useState(75000);
   const [contractInstallments, setContractInstallments] = useState(10);
   const [contractDueDate, setContractDueDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -232,7 +231,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
           : ""
       );
       setContractParentPhone(preSelectedStudent.parent_phone || "");
-      setContractParentRelation(preSelectedStudent.parent_relation || "Veli");
       setContractAmount(preSelectedStudent.total_fee ? Number(preSelectedStudent.total_fee) : 75000);
     } else {
       setSelectedStudentForContract(null);
@@ -240,7 +238,6 @@ export default function EdesisSozlesmeler({ contracts: propContracts = EMPTY_ARR
       setContractStudentClass("8-A");
       setContractParentName("");
       setContractParentPhone("");
-      setContractParentRelation("Veli");
       setContractAmount(75000);
     }
     setContractInstallments(10);
@@ -1456,8 +1453,6 @@ try {
         setContractParentName={setContractParentName}
         contractParentPhone={contractParentPhone}
         setContractParentPhone={setContractParentPhone}
-        contractParentRelation={contractParentRelation}
-        setContractParentRelation={setContractParentRelation}
         contractAmount={contractAmount}
         setContractAmount={setContractAmount}
         contractInstallments={contractInstallments}

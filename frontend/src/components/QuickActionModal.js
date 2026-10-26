@@ -67,7 +67,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
   const videoRef = useRef();
   const mutationId=useRef();
   const [saving,setSaving]=useState(false);
-  useEffect(()=>{mutationId.current=(type === "expense" ? "exp_" : "pay_")+crypto.randomUUID();},[type]);
+  useEffect(()=>{mutationId.current=(type === "student" ? "student-" : type === "expense" ? "exp_" : "pay_")+crypto.randomUUID();},[type]);
   if (!type) return null;
 
   const change = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -81,6 +81,7 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
       if (type === "student") {
         const payload = {
           ...form,
+          id:mutationId.current,
           parent_name: form.parent_name?.trim() || form.mother_name?.trim() || form.guardian_name?.trim() || "Belirtilmedi",
           total_fee: Number(form.total_fee || 0),
           installment_count: Number(form.installment_count || 1),
@@ -93,9 +94,11 @@ export function Modal({ type, selected, data = {}, close, reload, API: apiProp }
         const saved = res.data || {};
         const snapshot=await AccountingService.refreshAfterWrite();
         StudentService.acceptSnapshot(Array.isArray(snapshot?.students)?StudentService.filterActiveStudents(snapshot.students):await StudentService.fetchStudents());
+        const currentStudent=snapshot?.students?.find(st=>st.id===(saved.id || payload.id));
+        if(!currentStudent)throw Object.assign(new Error('İşlem sunucuda kaydedildi, fakat öğrenci güncel listede bulunamadı. Tekrar kaydetmeden sayfayı yenileyin.'),{code:'WRITE_COMMITTED'});
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("cozum_accounting_updated"));
-          window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: { ...payload, ...saved } } }));
+          window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: currentStudent } }));
         }
       }
       if (type === "payment") {

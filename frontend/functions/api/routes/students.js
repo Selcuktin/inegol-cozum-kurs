@@ -9,8 +9,11 @@ import {
   CORS_HEADERS,
   normalizeDate,
   recordWriteGuard,
+  expectedRecordError,
 } from "../utils.js";
 import { getContractUpdateStatements, installmentWrite } from "./contracts.js";
+
+const validMoney = value => ["number","string"].includes(typeof value) && Number.isFinite(Number(value)) && Number(value)>=0 && Math.round(Number(value)*100)/100===Number(value) && Number.isSafeInteger(Math.round(Number(value)*100));
 
 export async function handleStudentsRoutes({ request, db, env, url, path, user, waitUntil }) {
   // 1. GET /students
@@ -94,25 +97,37 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
   // 2. POST /students
   if ((path === "/students" || path.endsWith("/Ogrencies/CreateOrEdit")) && request.method === "POST") {
     const s = await request.json().catch(() => ({}));
-    if (!s.student_name || !s.student_name.trim()) {
+    if (typeof s.student_name !== "string" || !s.student_name.trim()) {
       return errorResponse("Öğrenci adı zorunludur", 422, "VALIDATION_ERROR");
     }
 
     const id = s.id || "student-" + crypto.randomUUID().slice(0, 8);
-    const previous = await db.prepare("SELECT * FROM students WHERE id = ?").bind(id).first();
-    if (previous) return handleStudentsRoutes({ request: new Request(request.url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) }), db, env, url, path: `/students/${id}`, user, waitUntil });
-    if (![Number(s.total_fee || 0), Number(s.discount_amount || 0), Number(s.paid_amount || 0)].every(n => Number.isFinite(n) && n >= 0) || !Number.isInteger(Number(s.installment_count ?? 1)) || Number(s.installment_count ?? 1) < 1 || Number(s.installment_count ?? 1) > 120 || (s.due_date && !normalizeDate(s.due_date))) return errorResponse("Ücret, taksit veya vade bilgisi geçersiz", 422, "VALIDATION_ERROR");
-    if (Number(s.paid_amount || 0)!==0) return errorResponse("Ödenen tutar tahsilat işlemiyle kaydedilmelidir",422,"PAYMENT_REQUIRED");
-    let extras;
-    try {extras=typeof s.extra_fees==="string" ? JSON.parse(s.extra_fees) : (s.extra_fees || {});} catch {return errorResponse("Geçersiz ek ücretler",422);}
-    if(!extras || Array.isArray(extras) || typeof extras!=="object" || Object.values(extras).some(v=>!Number.isFinite(Number(v)) || Number(v)<0)) return errorResponse("Geçersiz ek ücretler",422);
-    const statements = [];
     const resolvedParentPhone =
       (s.parent_phone || "").trim() ||
       (s.primary_parent === "anne" ? (s.mother_phone || s.mother_work_phone || "") :
        s.primary_parent === "guardian" || s.primary_parent === "vasi" ? (s.guardian_phone || s.guardian_home_phone || s.guardian_work_phone || "") :
        (s.father_work_phone || s.father_phone || "")) ||
       (s.mother_phone || s.guardian_phone || s.father_phone || "").trim();
+    const previous = await db.prepare("SELECT * FROM students WHERE id = ?").bind(id).first();
+    if (previous) {
+      if(path!=="/students") return handleStudentsRoutes({ request: new Request(request.url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) }), db, env, url, path: `/students/${id}`, user, waitUntil });
+      const expected=Object.fromEntries(Object.entries(s).filter(([key])=>key in previous && !["created_at","created_by","created_by_name"].includes(key)));
+      expected.student_name=s.student_name.trim();
+      if("parent_phone" in s)expected.parent_phone=resolvedParentPhone;
+      if(!s.sozlesme_no)delete expected.sozlesme_no;
+      for(const [key,fallback] of Object.entries({program:"2026-2027",gender:"Erkek",department:"Sayısal",status:"Kayitli",primary_parent:"baba"}))if(key in expected)expected[key]=s[key]||fallback;
+      for(const key of ["din_muaf","ing_muaf","uses_service"])if(key in expected)expected[key]=Number(s[key])?1:0;
+      const conflict=expectedRecordError(expected,Object.keys(previous),previous);
+      if(conflict) return conflict;
+      return json({...enrichStudent(previous),already_recorded:true});
+    }
+    if (![s.total_fee ?? 0, s.discount_amount ?? 0, s.paid_amount ?? 0].every(validMoney) || ["total_fee","discount_amount","paid_amount"].some(k=>k in s&&s[k]===null) || !Number.isInteger(Number(s.installment_count ?? 1)) || Number(s.installment_count ?? 1) < 1 || Number(s.installment_count ?? 1) > 120 || (s.due_date && !normalizeDate(s.due_date))) return errorResponse("Ücret, taksit veya vade bilgisi geçersiz", 422, "VALIDATION_ERROR");
+    if (Number(s.paid_amount || 0)!==0) return errorResponse("Ödenen tutar tahsilat işlemiyle kaydedilmelidir",422,"PAYMENT_REQUIRED");
+    let extras;
+    try {extras=typeof s.extra_fees==="string" ? JSON.parse(s.extra_fees) : (s.extra_fees ?? {});} catch {return errorResponse("Geçersiz ek ücretler",422);}
+    if(!extras || Array.isArray(extras) || typeof extras!=="object" || !Object.values(extras).every(validMoney)) return errorResponse("Geçersiz ek ücretler",422);
+    if(!Number.isSafeInteger(Math.round(getEffectiveTotalFee(s)*100)))return errorResponse("Ücret toplamı desteklenen tutar sınırını aşıyor",422,"VALIDATION_ERROR");
+    const statements = [recordWriteGuard(db,'students',null,undefined,[],undefined,{id}).statement];
 
     statements.push(db
       .prepare(`
@@ -216,7 +231,7 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
       }
       statements.push(db.prepare("UPDATE students SET sozlesme_no = ? WHERE id = ?").bind(sozlesmeNo, id));
 
-      const gross = getEffectiveTotalFee(s);
+      const gross = Math.round(getEffectiveTotalFee(s)*100)/100;
       const inst = Math.max(1, parseInt(s.installment_count) || 10);
       const net = Math.round((gross / 1.1) * 100) / 100;
       const vat = Math.round((gross - net) * 100) / 100;
@@ -282,7 +297,7 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
   // 3. Detail route: /students/:id/detail
   const detailMatch = path.match(/^\/students\/([^\/]+)\/detail$/);
   if (detailMatch && request.method === "GET") {
-    const studentId = detailMatch[1];
+    const studentId = decodeURIComponent(detailMatch[1]);
     const student = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
     if (!student) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
 
@@ -292,7 +307,7 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
       .bind(studentId)
       .all();
     const payments = paymentsRes.results || [];
-    const contract=await db.prepare("SELECT * FROM contracts WHERE student_id=? AND COALESCE(is_deleted,0)=0 AND (sozlesme_no=? OR COALESCE(?,'')='') ORDER BY sozlesme_tarihi DESC LIMIT 1").bind(studentId,student.sozlesme_no||'',student.sozlesme_no||'').first();
+    const contract=await db.prepare("SELECT * FROM contracts WHERE (student_id=? OR student_id=('stu-'||?) OR ('stu-'||student_id)=?) AND COALESCE(is_deleted,0)=0 AND (sozlesme_no=? OR COALESCE(?,'')='') ORDER BY sozlesme_tarihi DESC,id DESC LIMIT 1").bind(studentId,studentId,studentId,student.sozlesme_no||'',student.sozlesme_no||'').first();
     const stored=contract ? (await db.prepare('SELECT * FROM installments WHERE contract_id=? ORDER BY installment_no').bind(contract.id).all()).results || [] : [];
     const plan=stored.map(i=>({id:i.id,no:i.installment_no,due_date:normalizeDate(i.due_date),amount:i.amount,paid:i.paid_amount,remaining:contract.durum===3?0:Math.max(0,i.amount-i.paid_amount),status:contract.durum===3?'cancelled':i.paid_amount>=i.amount?'paid':i.paid_amount>0?'partial':'pending'}));
     if(contract){student.contract_status=contract.durum;student.remaining=contract.durum===3?0:plan.reduce((sum,i)=>sum+i.remaining,0);}
@@ -427,7 +442,7 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
   // 6. Single student route: /students/:id (GET, PATCH, DELETE)
   const studentMatch = path.match(/^\/students\/([^\/]+)$/);
   if (studentMatch) {
-    const studentId = studentMatch[1];
+    const studentId = decodeURIComponent(studentMatch[1]);
 
     if (request.method === "GET") {
       const student = await db.prepare("SELECT * FROM students WHERE id = ?").bind(studentId).first();
@@ -438,13 +453,23 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
 
     if (request.method === "PATCH" || request.method === "PUT") {
       const patch = await request.json().catch(() => ({}));
-      const decodedId = decodeURIComponent(studentId);
-      let existing = await db.prepare("SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?").bind(decodedId, decodedId, decodedId).first();
+      const decodedId = studentId;
+      let existing = await db.prepare("SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ? ORDER BY (id=?) DESC LIMIT 1").bind(decodedId, decodedId, decodedId, decodedId).first();
 
       if (!existing) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
       const targetId = existing.id;
-      if (patch.paid_amount != null && Number(patch.paid_amount) !== Number(existing.paid_amount || 0)) return errorResponse("Ödenen tutar yalnızca tahsilat işlemiyle değiştirilebilir", 422, "PAYMENT_REQUIRED");
-      if (["total_fee", "discount_amount", "installment_count"].some(k => k in patch && (!Number.isFinite(Number(patch[k])) || Number(patch[k]) < 0)) || (patch.due_date && !normalizeDate(patch.due_date))) return errorResponse("Geçersiz ücret veya tarih", 422, "VALIDATION_ERROR");
+      if ("student_name" in patch && (typeof patch.student_name !== "string" || !patch.student_name.trim())) return errorResponse("Öğrenci adı zorunludur",422,"VALIDATION_ERROR");
+      if ("student_name" in patch) patch.student_name=patch.student_name.trim();
+      if ("paid_amount" in patch && (patch.paid_amount===null || !Number.isFinite(Number(patch.paid_amount)) || Number(patch.paid_amount) !== Number(existing.paid_amount || 0))) return errorResponse("Ödenen tutar yalnızca tahsilat işlemiyle değiştirilebilir", 422, "PAYMENT_REQUIRED");
+      if (["total_fee", "discount_amount"].some(k => k in patch && !validMoney(patch[k])) || (patch.due_date && !normalizeDate(patch.due_date))) return errorResponse("Geçersiz ücret veya tarih", 422, "VALIDATION_ERROR");
+      if ("installment_count" in patch && (!["number","string"].includes(typeof patch.installment_count) || !Number.isInteger(Number(patch.installment_count)) || Number(patch.installment_count)<1 || Number(patch.installment_count)>120)) return errorResponse("Geçersiz taksit sayısı",422,"VALIDATION_ERROR");
+      if ("extra_fees" in patch) {
+        let extras;
+        try { extras=typeof patch.extra_fees==="string" ? JSON.parse(patch.extra_fees) : (patch.extra_fees ?? {}); } catch { return errorResponse("Geçersiz ek ücretler",422,"VALIDATION_ERROR"); }
+        if (!extras || Array.isArray(extras) || typeof extras!=="object" || !Object.values(extras).every(validMoney)) return errorResponse("Geçersiz ek ücretler",422,"VALIDATION_ERROR");
+        patch.extra_fees=extras;
+      }
+      if(["total_fee","extra_fees","discount_amount"].some(k=>k in patch)&&!Number.isSafeInteger(Math.round(getEffectiveTotalFee({...existing,...patch})*100)))return errorResponse("Ücret toplamı desteklenen tutar sınırını aşıyor",422,"VALIDATION_ERROR");
 
       const allowed = [
         "student_name", "student_phone", "school", "student_class", "student_tc", "student_address",
@@ -466,27 +491,28 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
         }
       }
 
-      if (!patch.parent_phone && (patch.mother_phone || patch.guardian_phone || existing.mother_phone || existing.guardian_phone)) {
-        const pPhone =
-          ((patch.primary_parent || existing.primary_parent) === "anne" ? (patch.mother_phone || existing.mother_phone || "") : "") ||
-          ((patch.primary_parent || existing.primary_parent) === "guardian" || (patch.primary_parent || existing.primary_parent) === "vasi" ? (patch.guardian_phone || existing.guardian_phone || "") : "") ||
-          patch.mother_phone || existing.mother_phone || patch.guardian_phone || existing.guardian_phone || "";
-        if (pPhone && !sets.some((s) => s.startsWith("parent_phone"))) {
+      if (!("parent_phone" in patch) && !existing.parent_phone && ["primary_parent","mother_phone","mother_work_phone","guardian_phone","guardian_home_phone","guardian_work_phone","father_work_phone"].some(k=>k in patch)) {
+        const merged={...existing,...patch};
+        const pPhone = merged.primary_parent==="anne" ? merged.mother_phone || merged.mother_work_phone :
+          ["guardian","vasi"].includes(merged.primary_parent) ? merged.guardian_phone || merged.guardian_home_phone || merged.guardian_work_phone : merged.father_work_phone;
+        if (pPhone) {
           sets.push("parent_phone = ?");
           values.push(pPhone);
         }
       }
 
       if (sets.length > 0) {
-        const guard=recordWriteGuard(db,'students',existing,patch._expected,allowed,enrichStudent(existing));
+        const key={id:targetId,...(["total_fee","extra_fees","discount_amount","installment_count","due_date"].some(k=>k in patch)?{sozlesme_no:existing.sozlesme_no??null}:{})};
+        const guard=recordWriteGuard(db,'students',existing,patch._expected,allowed,enrichStudent(existing),key);
         if(guard.error)return guard.error;
         values.push(targetId);
         let financialContract=null;
         const updates = [db.prepare(`UPDATE students SET ${sets.join(", ")} WHERE id = ?`).bind(...values)];
         if (["total_fee", "extra_fees", "discount_amount", "installment_count", "due_date"].some(k => k in patch && JSON.stringify(patch[k]) !== JSON.stringify(existing[k]))) {
-          const contract = await db.prepare("SELECT * FROM contracts WHERE student_id=? AND is_deleted=0 AND (sozlesme_no=? OR COALESCE(?,'')='') ORDER BY sozlesme_tarihi DESC LIMIT 1").bind(targetId,existing.sozlesme_no||'',existing.sozlesme_no||'').first();
+          const contract = await db.prepare("SELECT * FROM contracts WHERE (student_id=? OR student_id=('stu-'||?) OR ('stu-'||student_id)=?) AND COALESCE(is_deleted,0)=0 AND (sozlesme_no=? OR COALESCE(?,'')='') ORDER BY sozlesme_tarihi DESC,id DESC LIMIT 1").bind(targetId,targetId,targetId,existing.sozlesme_no||'',existing.sozlesme_no||'').first();
+          if (!contract && existing.sozlesme_no) return errorResponse("Öğrencinin güncel sözleşme bağlantısı bulunamadı; mali bilgiler değiştirilmedi. Önce sözleşme kaydını kontrol edin.",409,"RECONCILIATION_REQUIRED");
           if (contract) {
-            const financial = await getContractUpdateStatements(db, contract, { brutTutar: getEffectiveTotalFee({ ...existing, ...patch }), taksitSayisi: patch.installment_count ?? existing.installment_count, due_date: normalizeDate(patch.due_date)!==normalizeDate(existing.due_date) ? patch.due_date : undefined }, false);
+            const financial = await getContractUpdateStatements(db, contract, { brutTutar: Math.round(getEffectiveTotalFee({ ...existing, ...patch })*100)/100, taksitSayisi: patch.installment_count ?? existing.installment_count, due_date: normalizeDate(patch.due_date)!==normalizeDate(existing.due_date) ? patch.due_date : undefined }, false);
             if (financial.error) return financial.error;
             financialContract=contract;
             updates[0]=db.prepare(`UPDATE students SET ${sets.join(', ')} WHERE id=? AND EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)`).bind(...values,contract.id);
@@ -503,10 +529,10 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
     }
 
     if (request.method === "DELETE") {
-      const decodedId = decodeURIComponent(studentId);
+      const decodedId = studentId;
       const student = await db.prepare(
-        "SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ?"
-      ).bind(decodedId, decodedId, decodedId).first();
+        "SELECT * FROM students WHERE id = ? OR id = ('stu-' || ?) OR ('stu-' || id) = ? ORDER BY (id=?) DESC LIMIT 1"
+      ).bind(decodedId, decodedId, decodedId, decodedId).first();
 
       if (!student) {
         return json({ ok: true, deleted_id: decodedId, already_deleted: true });
@@ -515,7 +541,7 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
       const targetId = student.id;
       const targetName = student.student_name;
 
-      const related = await db.prepare(`SELECT
+      const relatedSql = `SELECT
         (SELECT COUNT(*) FROM contracts WHERE student_id=? OR student_id=('stu-' || ?) OR ('stu-' || student_id)=?) +
         (SELECT COUNT(*) FROM payments WHERE student_id=? OR student_id=('stu-' || ?) OR ('stu-' || student_id)=?) +
         (SELECT COUNT(*) FROM installments WHERE student_id=?) +
@@ -524,9 +550,15 @@ export async function handleStudentsRoutes({ request, db, env, url, path, user, 
         (SELECT COUNT(*) FROM exam_results WHERE student_id=?) +
         (SELECT COUNT(*) FROM homework_submissions WHERE student_id=?) +
         (SELECT COUNT(*) FROM mentorship WHERE student_id=?) +
-        (SELECT COUNT(*) FROM appointments WHERE student_id=?) AS count`).bind(...Array(13).fill(targetId)).first();
+        (SELECT COUNT(*) FROM appointments WHERE student_id=?) AS count`;
+      const relatedParams=Array(13).fill(targetId);
+      const related = await db.prepare(relatedSql).bind(...relatedParams).first();
       if (Number(related?.count) > 0) return errorResponse("Finans veya eğitim kaydı bulunan öğrenci silinemez. Öğrenci durumunu Ayrıldı olarak güncelleyiniz; geçmiş kayıtları korunur.", 409, "HAS_HISTORY");
-      await db.prepare("DELETE FROM students WHERE id=?").bind(targetId).run();
+      await db.batch([
+        recordWriteGuard(db,'students',student,undefined,Object.keys(student)).statement,
+        db.prepare(`SELECT CASE WHEN (${relatedSql})=0 THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END`).bind(...relatedParams),
+        db.prepare("DELETE FROM students WHERE id=?").bind(targetId),
+      ]);
 
       await logAction(db, user, "student.delete", "student", targetId, `${targetName} silindi (ilişkili kayıt yok)`, waitUntil);
       return json({ ok: true, deleted_id: targetId, deleted_name: targetName });

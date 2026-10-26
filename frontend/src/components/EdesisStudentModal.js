@@ -109,12 +109,16 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
   const [formData, setFormData] = useState(()=>newStudentForm(classes));
   const changedFields=useRef(new Set());
   const openedForm=useRef(null);
+  const openedStudent=useRef(null);
+  const mutationId=useRef(null);
   const [savedPlan,setSavedPlan]=useState([]);
 
   React.useEffect(() => {
-    if(!isOpen){openedForm.current=null;return;}
+    if(!isOpen){openedForm.current=null;openedStudent.current=null;mutationId.current=null;return;}
     const key=initialData?.id || "new";
     if(openedForm.current===key)return;
+    openedStudent.current=initialData ? JSON.parse(JSON.stringify(initialData)) : null;
+    mutationId.current=initialData?.id || 'student-'+crypto.randomUUID();
     openedForm.current=key;changedFields.current.clear();setError("");setActiveTab("genel");setSavedPlan([]);
     if (initialData) {
       let extras = {};
@@ -144,7 +148,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
   React.useEffect(()=>{
     if(!isOpen || !initialData?.sozlesme_no)return;
     let active=true;
-    AccountingService.fetchInstallments(initialData.sozlesme_no).then(rows=>{if(active)setSavedPlan(rows.filter(i=>i.sozlesmeNo===initialData.sozlesme_no));});
+    AccountingService.fetchInstallments(initialData.sozlesme_no).then(rows=>{if(active)setSavedPlan(rows.filter(i=>i.sozlesmeNo===initialData.sozlesme_no));}).catch(()=>{if(active)setError('Kayıtlı ödeme planı yüklenemedi. Planı düzenlemeden önce pencereyi yeniden açın.');});
     return()=>{active=false;};
   },[isOpen,initialData?.id,initialData?.sozlesme_no]);
 
@@ -249,6 +253,7 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
     try {
       const payload = {
         ...formData,
+        id:mutationId.current,
         student_name: formData.student_name.trim(),
         parent_name: resolvedParent,
         parent_phone: resolvedParentPhone,
@@ -256,10 +261,10 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
         installment_count: Number(formData.installment_count || 1),
         discount_amount: Number(formData.discount_amount || 0),
         has_contract: true,
-        sozlesme_no: formData.sozlesme_no || initialData?.sozlesme_no || "",
-        gelir_kodu: formData.gelir_kodu || initialData?.gelir_kodu || "",
+        sozlesme_no: formData.sozlesme_no || openedStudent.current?.sozlesme_no || "",
+        gelir_kodu: formData.gelir_kodu || openedStudent.current?.gelir_kodu || "",
         extra_fees: {
-          ...(typeof initialData?.extra_fees==="string" ? JSON.parse(initialData.extra_fees||"{}") : initialData?.extra_fees || {}),
+          ...(typeof openedStudent.current?.extra_fees==="string" ? JSON.parse(openedStudent.current.extra_fees||"{}") : openedStudent.current?.extra_fees || {}),
           kaynak: Number(formData.extra_kaynak || 0),
           dijital: Number(formData.extra_dijital || 0),
           dnm: Number(formData.extra_dnm || 0),
@@ -268,25 +273,22 @@ export function EdesisStudentModal({ isOpen, onClose, classes = [], API, onStude
       };
 
       let saved = null;
-      if (initialData?.id) {
-        const patch=Object.fromEntries(Object.entries(payload).filter(([key])=>changedFields.current.has(key) || (key==='extra_fees' && [...changedFields.current].some(k=>k.startsWith('extra_')))));
-        patch._expected=Object.fromEntries(Object.keys(patch).map(k=>[k,initialData[k]??null]));
-        const res = await axios.patch(`${API}/students/${initialData.id}`, patch);
+      if (openedStudent.current?.id) {
+        const patch=Object.fromEntries(Object.entries(payload).filter(([key])=>key==='extra_fees' ? [...changedFields.current].some(k=>k.startsWith('extra_')) : changedFields.current.has(key)&&!key.startsWith('extra_')));
+        const expectedKeys=new Set(Object.keys(patch));
+        const financialFields=['total_fee','extra_fees','discount_amount','installment_count','due_date'];
+        if(financialFields.some(k=>k in patch))financialFields.forEach(k=>expectedKeys.add(k));
+        patch._expected=Object.fromEntries([...expectedKeys].map(k=>[k,openedStudent.current[k]??null]));
+        const res = await axios.patch(`${API}/students/${encodeURIComponent(openedStudent.current.id)}`, patch);
         saved = res.data;
       } else {
         const res = await axios.post(`${API}/students`, payload);
         saved = res.data;
       }
-      const finalStudent = {
-        ...payload,
-        ...(saved || {}),
-        has_contract: true,
-        sozlesme_no: saved?.sozlesme_no || saved?.sozlesmeNo || payload.sozlesme_no || ""
-      };
       const snapshot=await AccountingService.refreshAfterWrite();
       if(Array.isArray(snapshot?.students))StudentService.acceptSnapshot(StudentService.filterActiveStudents(snapshot.students));
-      AccountingService.unTombstone(finalStudent.student_name, finalStudent.sozlesme_no, finalStudent.id);
-      await StudentService.saveStudent(finalStudent, API, { skipRemoteSync: true });
+      const finalStudent=snapshot?.students?.find(st=>st.id===(saved?.id || payload.id));
+      if(!finalStudent)throw Object.assign(new Error('İşlem sunucuda kaydedildi, fakat öğrenci güncel listede bulunamadı. Tekrar kaydetmeden sayfayı yenileyin.'),{code:'WRITE_COMMITTED'});
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("cozum_accounting_updated"));
         window.dispatchEvent(new CustomEvent("cozum_students_updated", { detail: { action: "save", student: finalStudent } }));

@@ -427,7 +427,7 @@ export const AccountingService = {
   // 6. Action Handlers (Mutations sync directly to Cloudflare Pages API)
   addNewIncome(incomeData) {
     if(incomeData.skipRemoteSync||incomeData.contract_id||incomeData.sozlesmeNo)return this.refresh().then(()=>({contract:this.getContracts().find(c=>c.id===incomeData.contract_id||c.sozlesmeNo===incomeData.sozlesmeNo)}));
-    return apiFetch(`${getApiUrl()}/api/contracts`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({student_id:incomeData.studentId || incomeData.student_id,student_name:incomeData.ogrenciAdi || incomeData.ogrenciAdiSoyadi,parent_name:incomeData.veliAdi,student_class:incomeData.sinifAdi,total_amount:incomeData.brutTutar,installment_count:incomeData.taksitSayisi,due_date:incomeData.vadeTarihi})}).then(async res => {
+    return apiFetch(`${getApiUrl()}/api/contracts`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({request_id:incomeData.request_id,student_id:incomeData.studentId || incomeData.student_id,student_name:incomeData.ogrenciAdi || incomeData.ogrenciAdiSoyadi,parent_name:incomeData.veliAdi,parent_phone:incomeData.veliTelefon,student_no:incomeData.ogrenciNo,student_class:incomeData.sinifAdi,total_amount:incomeData.brutTutar,installment_count:incomeData.taksitSayisi,due_date:incomeData.vadeTarihi})}).then(async res => {
       const saved=await res.json();await this.refreshAfterWrite();const contract=this.getContracts().find(c=>c.id===saved.id)||formatContractRecord(saved);
       return {contract,income:this.getIncomes().find(i=>i.contract_id===contract.id||i.sozlesmeNo===contract.sozlesmeNo),installments:this.getInstallments().filter(i=>i.contractId===contract.id)};
     });

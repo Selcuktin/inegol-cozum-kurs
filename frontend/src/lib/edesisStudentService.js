@@ -93,6 +93,7 @@ export const StudentService = {
   async saveStudent(student, apiBaseUrl = "", options = {}) {
     ensureScope();
     const epoch=cacheEpoch;
+    const version=++readVersion;
     if (!student) return null;
     const id = student.id || `student-${crypto.randomUUID().slice(0, 8)}`;
     let studentWithId = { ...student, id };
@@ -117,7 +118,7 @@ export const StudentService = {
       }
     }
 
-    if(epoch!==cacheEpoch)return studentWithId;
+    if(epoch!==cacheEpoch||version!==readVersion)return studentWithId;
     readVersion++;
     _memory.loaded=true;
     const idx = _memory.students.findIndex((s) => s.id === id);

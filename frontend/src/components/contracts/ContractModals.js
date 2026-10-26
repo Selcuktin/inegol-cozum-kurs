@@ -1,5 +1,5 @@
 import { usePrintTarget } from "../../hooks/usePrintTarget";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   FileText,
   Printer,
@@ -1351,8 +1351,6 @@ export function NewContractWizardModal({
   setContractParentName,
   contractParentPhone,
   setContractParentPhone,
-  contractParentRelation,
-  setContractParentRelation,
   contractAmount,
   setContractAmount,
   contractInstallments,
@@ -1362,6 +1360,9 @@ export function NewContractWizardModal({
   setContractsList,
   showToast
 }) {
+  const [saving,setSaving]=useState(false);
+  const savingRef=useRef(false),requestId=useRef(null);
+  useEffect(()=>{if(open)requestId.current=crypto.randomUUID();},[open]);
   if (!open) return null;
   return (
     <div
@@ -1380,7 +1381,7 @@ export function NewContractWizardModal({
         zIndex: 100000,
         padding: "16px"
       }}
-      onClick={onClose}
+      onClick={saving?undefined:onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -1409,26 +1410,31 @@ export function NewContractWizardModal({
             <Plus size={22} color="#2563eb" />
             <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>Yeni Sözleşme Tanımla</h3>
           </div>
-          <button type="button" onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer" }}>
+          <button type="button" disabled={saving} onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer" }}>
             <X size={20} color="#64748b" />
           </button>
         </div>
 
         <form
           onSubmit={async (e) => {
+            e.preventDefault();
+            if(savingRef.current)return;
 try {
 
-            e.preventDefault();
             if (!contractStudentName.trim()) {
               showToast("⚠️ Lütfen öğrenci adını giriniz.");
               return;
             }
 
+            savingRef.current=true;setSaving(true);
             const finalParent = contractParentName.trim() || contractStudentName.trim();
             const res = await AccountingService.addNewIncome({
+              request_id:requestId.current,
               studentId: selectedStudentForContract?.id,
               ogrenciAdi: contractStudentName.trim(),
               veliAdi: finalParent,
+              veliTelefon:contractParentPhone.trim(),
+              ogrenciNo:selectedStudentForContract?.student_no,
               sinifAdi: contractStudentClass || "Genel",
               brutTutar: Number(contractAmount) || 0,
               taksitSayisi: Number(contractInstallments) || 1,
@@ -1436,29 +1442,15 @@ try {
               aciklama: "Kayıt Sözleşmesi"
             });
 
-            const normName = contractStudentName.trim().toUpperCase();
-            const targetStudent =
-              selectedStudentForContract ||
-              allRegisteredStudents.find((st) => (st.student_name || "").trim().toUpperCase() === normName);
-
-            if (targetStudent) {
-              const patch={};
-              if(finalParent!==targetStudent.parent_name)patch.parent_name=finalParent;
-              if(contractParentPhone.trim()&&contractParentPhone.trim()!==targetStudent.parent_phone)patch.parent_phone=contractParentPhone.trim();
-              if(contractParentRelation&&contractParentRelation!==targetStudent.parent_relation)patch.parent_relation=contractParentRelation;
-              if(Object.keys(patch).length){
-                patch._expected=Object.fromEntries(Object.keys(patch).map(k=>[k,targetStudent[k]??null]));
-                await StudentService.saveStudent({id:targetStudent.id,...patch});
-              }
-            }
-
             setContractsList(AccountingService.getContracts(students));
             showToast(`✅ ${res.contract?.sozlesmeNo || "Yeni"} numaralı yeni sözleşme kaydedildi.`);
             onClose();
 
 } catch (error) { window.alert(error.message || "İşlem tamamlanamadı."); }
+finally{savingRef.current=false;setSaving(false);}
 }}
         >
+          <fieldset disabled={saving} style={{border:0,padding:0,margin:0,minWidth:0}}>
           <div style={{ marginBottom: "16px", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
             <label
               style={{
@@ -1486,7 +1478,6 @@ try {
                     found.parent_name && found.parent_name !== "Belirtilmedi" ? found.parent_name : ""
                   );
                   setContractParentPhone(found.parent_phone || "");
-                  setContractParentRelation(found.parent_relation || "Veli");
                   if (found.total_fee && Number(found.total_fee) > 0) {
                     setContractAmount(Number(found.total_fee));
                   }
@@ -1525,7 +1516,7 @@ try {
                   gap: "4px"
                 }}
               >
-                <UserCheck size={13} /> Öğrenci ve veli bilgileri otomatik çekildi. Dilerseniz alanları aşağıdan düzenleyebilirsiniz.
+                <UserCheck size={13} /> Bu bilgiler yeni sözleşmeye kaydedilir. Öğrenci kartını değiştirmek için öğrenci düzenleme ekranını kullanın.
               </div>
             )}
           </div>
@@ -1561,7 +1552,7 @@ try {
             <div style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", marginBottom: "8px" }}>
               2. Veli Bilgileri (Sözleşmede Müşteri Olarak Görünecektir)
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr", gap: "10px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Veli Adı Soyadı *</label>
                 <input
@@ -1580,18 +1571,6 @@ try {
                   placeholder="Örn: (532) 000 00 00"
                   style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
                 />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <label style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Yakınlık</label>
-                <select
-                  value={contractParentRelation}
-                  onChange={(e) => setContractParentRelation(e.target.value)}
-                  style={{ padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff" }}
-                >
-                  <option value="Baba">Baba (♂)</option>
-                  <option value="Anne">Anne (♀)</option>
-                  <option value="Veli">Veli (👤)</option>
-                </select>
               </div>
             </div>
           </div>
@@ -1680,9 +1659,10 @@ try {
                 cursor: "pointer"
               }}
             >
-              Sözleşmeyi Oluştur
+              {saving?'Kaydediliyor…':'Sözleşmeyi Oluştur'}
             </button>
           </div>
+          </fieldset>
         </form>
       </div>
     </div>

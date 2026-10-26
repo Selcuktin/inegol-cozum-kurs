@@ -24,7 +24,7 @@ export async function getContractUpdateStatements(db, row, patch, syncStudent = 
   if (row.durum === 3) return { error: errorResponse('İptal edilmiş sözleşmenin mali planı değiştirilemez',409,'CANCELLED_CONTRACT') };
   const gross = Number(patch.brutTutar ?? row.brut_tutar);
   const count = Number(patch.taksitSayisi ?? row.taksit_sayisi);
-  if (!Number.isFinite(gross) || gross < 0 || !Number.isInteger(count) || count < 1 || count > 120 || (patch.due_date && !normalizeDate(patch.due_date))) return { error: errorResponse("Geçersiz tutar, taksit sayısı veya tarih", 422, "VALIDATION_ERROR") };
+  if (!Number.isFinite(gross) || gross < 0 || Math.round(gross*100)/100!==gross || !Number.isSafeInteger(Math.round(gross*100)) || !Number.isInteger(count) || count < 1 || count > 120 || (patch.due_date && !normalizeDate(patch.due_date))) return { error: errorResponse("Geçersiz tutar, taksit sayısı veya tarih", 422, "VALIDATION_ERROR") };
   const old = (await db.prepare("SELECT * FROM installments WHERE contract_id = ? ORDER BY installment_no").bind(row.id).all()).results || [];
   const changed = gross !== Number(row.brut_tutar) || count !== Number(row.taksit_sayisi) || !!patch.due_date;
   const taxFactor = Number(row.net_tutar)>0 && Number(row.brut_tutar)>0 ? Number(row.brut_tutar)/Number(row.net_tutar) : 1.1;
@@ -34,15 +34,15 @@ export async function getContractUpdateStatements(db, row, patch, syncStudent = 
   const statements = [db.prepare("UPDATE contracts SET brut_tutar=?, net_tutar=?, kdv_tutari=?, taksit_sayisi=?, odeme_turu=?, odeme_turu_text=?, sozlesme_tarihi=? WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0").bind(gross, net, vat, count, count > 1 ? 1 : 2, count > 1 ? `Taksitli (${count} Taksit)` : "Peşin", patch.sozlesmeTarihi || row.sozlesme_tarihi, row.id)];
   if(regeneratePlan)statements.unshift(unchangedPlan(db,row,old));
   if (changed && regeneratePlan) {
-    const income = await db.prepare("SELECT id FROM student_incomes WHERE contract_id=? AND is_deleted=0 LIMIT 1").bind(row.id).first();
+    const income = await db.prepare("SELECT id FROM student_incomes WHERE (contract_id=? OR sozlesme_no=?) AND COALESCE(is_deleted,0)=0 LIMIT 1").bind(row.id,row.sozlesme_no).first();
     const firstDue = normalizeDate(patch.due_date || old[0]?.due_date || row.sozlesme_tarihi);
     const plan = generateContractInstallments({ ...row, brut_tutar: gross, taksit_sayisi: count }, { startDate: firstDue || new Date().toISOString(), dueDay: firstDue ? Number(firstDue.slice(8, 10)) : 15 });
     if (old.some(i => Number(i.paid_amount) > (plan.find(p => p.installment_no === i.installment_no)?.amount ?? 0))) return { error: errorResponse("Yeni plan tahsil edilmiş taksitleri azaltamaz veya kaldıramaz", 409, "PAID_INSTALLMENT") };
     statements.push(db.prepare(`DELETE FROM installments WHERE contract_id=? AND installment_no>? AND paid_amount=0 AND ${active}`).bind(row.id,count,row.id));
     statements.push(installmentWrite(db,plan,row.id,income?.id || "",row.student_id,count));
   }
-  statements.push(db.prepare(`UPDATE student_incomes SET brut_tutar=?,net_tutar=?,kdv_tutari=?,taksit_sayisi=?,kalan_alacak=MAX(0,?-toplam_tahsilat),tam_tahsil_edildi_mi=CASE WHEN toplam_tahsilat>=? THEN 1 ELSE 0 END WHERE (contract_id=? OR sozlesme_no=?) AND ${active}`).bind(gross,net,vat,count,gross,gross,row.id,row.sozlesme_no,row.id));
-  if (syncStudent) statements.push(db.prepare(`UPDATE students SET total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),installment_count=? WHERE id=? AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=?) AND ${active}`).bind(gross,count,row.student_id,row.sozlesme_no,row.id));
+  statements.push(db.prepare(`UPDATE student_incomes SET brut_tutar=?,net_tutar=?,kdv_tutari=?,taksit_sayisi=?,kalan_alacak=MAX(0,?-toplam_tahsilat),tam_tahsil_edildi_mi=CASE WHEN toplam_tahsilat>=? THEN 1 ELSE 0 END WHERE (contract_id=? OR sozlesme_no=?) AND COALESCE(is_deleted,0)=0 AND ${active}`).bind(gross,net,vat,count,gross,gross,row.id,row.sozlesme_no,row.id));
+  if (syncStudent) statements.push(db.prepare(`UPDATE students SET total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),installment_count=? WHERE id=(SELECT id FROM students WHERE id=? OR id=('stu-'||?) OR ('stu-'||id)=? ORDER BY id=? DESC LIMIT 1) AND (COALESCE(sozlesme_no,'')='' OR sozlesme_no=?) AND ${active}`).bind(gross,count,row.student_id,row.student_id,row.student_id,row.student_id,row.sozlesme_no,row.id));
   return { statements };
 }
 
@@ -190,13 +190,28 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     const netTutar = Math.round((brutTutar / 1.1) * 100) / 100;
     const kdvTutari = Math.round((brutTutar - netTutar) * 100) / 100;
 
-    if (!Number.isFinite(brutTutar) || brutTutar<0 || !Number.isInteger(taksitSayisi) || taksitSayisi < 1 || taksitSayisi > 120 || (body.due_date && !normalizeDate(body.due_date))) return errorResponse("Geçersiz tutar, taksit veya vade", 422, "VALIDATION_ERROR");
+    if (!Number.isFinite(brutTutar) || brutTutar<0 || Math.round(brutTutar*100)/100!==brutTutar || !Number.isSafeInteger(Math.round(brutTutar*100)) || !Number.isInteger(taksitSayisi) || taksitSayisi < 1 || taksitSayisi > 120 || (body.due_date && !normalizeDate(body.due_date))) return errorResponse("Geçersiz tutar, taksit veya vade", 422, "VALIDATION_ERROR");
+    if(body.request_id!==undefined&&(typeof body.request_id!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(body.request_id)))return errorResponse('Geçersiz işlem kimliği',422,'VALIDATION_ERROR');
+    const requestedId=body.request_id?'cnt_'+body.request_id.toLowerCase():null;
+    const date = body.sozlesme_tarihi || body.contract_date || new Date().toISOString();
+    const firstDue = normalizeDate(body.due_date || date);
+    if(!normalizeDate(date)||!firstDue)return errorResponse('Geçersiz sözleşme veya ilk vade tarihi',422,'VALIDATION_ERROR');
+    const periodId=body.period_id||113,periodName=body.period_name||'2026-2027';
+    const parentName=body.parent_name||body.parentName||'',parentPhone=body.parent_phone||body.parentPhone||'',studentClass=body.student_class||body.sinifAdi||'8-A';
+    if(requestedId){
+      const replay=await db.prepare('SELECT * FROM contracts WHERE id=?').bind(requestedId).first();
+      if(replay){
+        const first=await db.prepare('SELECT due_date FROM installments WHERE contract_id=? ORDER BY installment_no LIMIT 1').bind(replay.id).first();
+        const same=Number(replay.brut_tutar)===brutTutar&&Number(replay.taksit_sayisi)===taksitSayisi&&(!body.student_id||String(replay.student_id)===String(body.student_id))&&replay.student_name===studentName&&(replay.parent_name||'')===parentName&&(replay.parent_phone||'')===parentPhone&&(replay.student_class||'')===studentClass&&(replay.student_no||'')===(body.student_no||'')&&String(replay.period_id)===String(periodId)&&replay.period_name===periodName&&(!(body.sozlesme_tarihi||body.contract_date)||normalizeDate(replay.sozlesme_tarihi)===normalizeDate(date))&&(!(body.due_date||body.sozlesme_tarihi||body.contract_date)||normalizeDate(first?.due_date)===firstDue)&&(!(body.sozlesme_no||body.sozlesmeNo)||replay.sozlesme_no===(body.sozlesme_no||body.sozlesmeNo));
+        if(!same||replay.is_deleted||replay.durum===3)return errorResponse('İşlem kimliği başka veya kapatılmış bir sözleşmede kullanılmış',409,'IDEMPOTENCY_CONFLICT');
+        return json({...replay,sozlesmeNo:replay.sozlesme_no,brutTutar:replay.brut_tutar,taksitSayisi:replay.taksit_sayisi,already_recorded:true});
+      }
+    }
     const studentId = body.student_id ? String(body.student_id) : "student-" + crypto.randomUUID().slice(0, 8);
     const student = await db.prepare("SELECT * FROM students WHERE id=?").bind(studentId).first();
     if (body.student_id && !student) return errorResponse("Öğrenci bulunamadı", 404, "NOT_FOUND");
     const statements = [];
-    const periodId=body.period_id||113;
-    if (!student) statements.push(db.prepare("INSERT INTO students(id,student_name,parent_name,total_fee,installment_count,program) VALUES(?,?,?,?,?,'2026-2027')").bind(studentId,studentName,body.parent_name || "",brutTutar,taksitSayisi));
+    if (!student) statements.push(db.prepare("INSERT INTO students(id,student_name,parent_name,parent_phone,student_class,student_no,total_fee,installment_count,program) VALUES(?,?,?,?,?,?,?,?,?)").bind(studentId,studentName,parentName,parentPhone,studentClass,body.student_no || "",brutTutar,taksitSayisi,periodName));
 
     // Reuse existing active contract strictly by student_id or sozlesme_no
     const existingContract = await db.prepare(`
@@ -206,20 +221,15 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       LIMIT 1
     `).bind(studentId, body.sozlesme_no || "",periodId).first();
 
-    if(existingContract&&(Number(existingContract.brut_tutar)!==brutTutar||Number(existingContract.taksit_sayisi)!==taksitSayisi))return errorResponse('Bu dönem için aktif sözleşme zaten var. Tutarı mevcut sözleşmenin düzenleme ekranından değiştirin.',409,'ACTIVE_CONTRACT_EXISTS');
+    if(existingContract&&(existingContract.student_id!==studentId||requestedId||Number(existingContract.brut_tutar)!==brutTutar||Number(existingContract.taksit_sayisi)!==taksitSayisi))return errorResponse('Bu dönem için aktif sözleşme zaten var. Tutarı mevcut sözleşmenin düzenleme ekranından değiştirin.',409,'ACTIVE_CONTRACT_EXISTS');
     if (existingContract) return json({ ...existingContract, sozlesmeNo: existingContract.sozlesme_no, brutTutar: existingContract.brut_tutar, taksitSayisi: existingContract.taksit_sayisi }, 201);
 
     let sozlesmeNo = existingContract?.sozlesme_no || body.sozlesme_no || body.sozlesmeNo;
-    let id = existingContract?.id || "cnt_" + crypto.randomUUID().slice(0, 10);
+    let id = requestedId || "cnt_" + crypto.randomUUID().slice(0, 10);
 
     if (!sozlesmeNo) {
       sozlesmeNo = await getNextSequence(db, "SZL_2026", "SZL2026", 5, 153);
     }
-    const date = body.sozlesme_tarihi || body.contract_date || new Date().toISOString();
-    const periodName = body.period_name || "2026-2027";
-    const parentName = body.parent_name || body.parentName || "";
-    const parentPhone = body.parent_phone || body.parentPhone || "";
-    const studentClass = body.student_class || body.sinifAdi || "8-A";
 
     statements.push(db.prepare(`
       INSERT INTO contracts (
@@ -240,6 +250,7 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     ));
 
     statements.unshift(db.prepare("SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM contracts WHERE student_id=? AND period_id=? AND durum<>3 AND COALESCE(is_deleted,0)=0) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END").bind(studentId,periodId));
+    if(requestedId)statements.unshift(db.prepare("SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM contracts WHERE id=?) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END").bind(requestedId));
     if(student){const guard=recordWriteGuard(db,'students',student,undefined,['sozlesme_no','total_fee','extra_fees','discount_amount','installment_count','paid_amount']);statements.unshift(guard.statement);}
 
     // Atomic income code
@@ -264,7 +275,6 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
     ));
 
     // Atomically insert installments with strict UNIQUE(contract_id, installment_no)
-    const firstDue = normalizeDate(body.due_date || date);
     const plan = generateContractInstallments({id,student_id:studentId,brut_tutar:brutTutar,taksit_sayisi:taksitSayisi},{startDate:firstDue,dueDay:Number(firstDue.slice(8,10))});
     statements.push(installmentWrite(db,plan,id,glrId,studentId,taksitSayisi));
     statements.push(db.prepare("UPDATE students SET sozlesme_no=?,program=?,total_fee=MAX(0,?-COALESCE((SELECT SUM(CAST(value AS REAL)) FROM json_each(CASE WHEN json_valid(extra_fees) THEN extra_fees ELSE '{}' END)),0)+COALESCE(discount_amount,0)),paid_amount=0,installment_count=?,due_date=? WHERE id=?").bind(sozlesmeNo,periodName,brutTutar,taksitSayisi,firstDue,studentId));
@@ -402,9 +412,13 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
         return json({ success: true, ok: true, already_deleted: true });
       }
 
-      const paid = await db.prepare("SELECT COUNT(*) AS n FROM payments WHERE contract_id=? AND COALESCE(is_cancelled,0)=0").bind(row.id).first();
-      if (paid?.n) return errorResponse("Tahsilatı olan sözleşme silinemez; önce ilgili tahsilatı iptal edin", 409, "PAYMENT_EXISTS");
+      const collected=`EXISTS(SELECT 1 FROM payments WHERE contract_id=? AND COALESCE(is_cancelled,0)=0)
+        OR EXISTS(SELECT 1 FROM installments WHERE contract_id=? AND paid_amount>0)
+        OR EXISTS(SELECT 1 FROM student_incomes WHERE (contract_id=? OR sozlesme_no=?) AND COALESCE(is_deleted,0)=0 AND toplam_tahsilat>0)`;
+      const paid = await db.prepare(`SELECT (${collected}) AS n`).bind(row.id,row.id,row.id,row.sozlesme_no).first();
+      if (paid?.n) return errorResponse("Tahsilatı olan veya eski tahsilat bakiyesi bulunan sözleşme silinemez; önce ilgili mali kayıtları mutabık hale getirin", 409, "PAYMENT_EXISTS");
       await db.batch([
+        db.prepare(`SELECT CASE WHEN NOT (${collected}) THEN 1 ELSE json_extract('{}','RECORD_CHANGED') END`).bind(row.id,row.id,row.id,row.sozlesme_no),
         db.prepare("UPDATE contracts SET is_deleted=1,durum=3 WHERE id=?").bind(row.id),
         db.prepare("UPDATE student_incomes SET is_deleted=1 WHERE contract_id=? OR sozlesme_no=?").bind(row.id,row.sozlesme_no)
       ]);
@@ -598,25 +612,27 @@ export async function handleContractsRoutes({ request, db, url, path, user, wait
       const amt = Number(inst.taksitTutari ?? inst.amount);
       const due = normalizeDate(inst.vadeTarihi || inst.due_date);
       const existing = previous.find(i=>i.installment_no===no);
-      if (!Number.isInteger(no) || no<0 || no>120 || seen.has(no) || !Number.isFinite(amt) || amt<0 || Math.round(amt*100)/100!==amt || !due || (inst.id && existing && inst.id!==existing.id)) return errorResponse("Geçersiz veya başka sözleşmeye ait taksit",422,"VALIDATION_ERROR");
+      if (!Number.isInteger(no) || no<0 || no>120 || seen.has(no) || !Number.isFinite(amt) || amt<0 || Math.round(amt*100)/100!==amt || !Number.isSafeInteger(Math.round(amt*100)) || !due || (inst.id && existing && inst.id!==existing.id)) return errorResponse("Geçersiz veya başka sözleşmeye ait taksit",422,"VALIDATION_ERROR");
       seen.add(no);
       const paid = Number(existing?.paid_amount || 0);
       if (Number(inst.tahsilEdilen ?? inst.paid_amount ?? paid)!==paid || amt<paid) return errorResponse("Tahsil edilen tutar plan düzenlemesiyle değiştirilemez",422,"PAYMENT_REQUIRED");
       plan.push({id:existing?.id || `inst_${contract.id}_${no}`,installment_no:no,due_date:due,amount:amt});
     }
     if (previous.some(i=>!seen.has(i.installment_no) && Number(i.paid_amount)>0)) return errorResponse("Tahsil edilmiş taksit kaldırılamaz",409,"PAID_INSTALLMENT");
-    const income = await db.prepare("SELECT id FROM student_incomes WHERE contract_id=? AND is_deleted=0 LIMIT 1").bind(contract.id).first();
+    const income = await db.prepare("SELECT id FROM student_incomes WHERE (contract_id=? OR sozlesme_no=?) AND COALESCE(is_deleted,0)=0 LIMIT 1").bind(contract.id,contract.sozlesme_no).first();
     const active="EXISTS(SELECT 1 FROM contracts WHERE id=? AND durum<>3 AND COALESCE(is_deleted,0)=0)";
     const updates = [
       unchangedPlan(db,contract,previous),
       db.prepare(`DELETE FROM installments WHERE contract_id=? AND paid_amount=0 AND installment_no NOT IN (SELECT value FROM json_each(?)) AND ${active}`).bind(contract.id,JSON.stringify([...seen]),contract.id),
       installmentWrite(db,plan,contract.id,income?.id || "",contract.student_id,installments.length)
     ];
-    const total = Math.round(plan.reduce((sum,i)=>sum+i.amount,0)*100)/100;
+    const totalCents=plan.reduce((sum,i)=>sum+Math.round(i.amount*100),0);
+    if(!Number.isSafeInteger(totalCents))return errorResponse('Taksit toplamı desteklenen tutar sınırını aşıyor',422,'VALIDATION_ERROR');
+    const total = totalCents/100;
     const financial=await getContractUpdateStatements(db,contract,{brutTutar:total,taksitSayisi:plan.length},true,false);
     if(financial.error)return financial.error;
     updates.push(...financial.statements);
-    updates.push(db.prepare(`UPDATE students SET due_date=? WHERE id=? AND sozlesme_no=? AND ${active}`).bind([...plan].sort((a,b)=>a.installment_no-b.installment_no)[0].due_date,contract.student_id,contract.sozlesme_no,contract.id));
+    updates.push(db.prepare(`UPDATE students SET due_date=? WHERE id=(SELECT id FROM students WHERE id=? OR id=('stu-'||?) OR ('stu-'||id)=? ORDER BY id=? DESC LIMIT 1) AND sozlesme_no=? AND ${active}`).bind([...plan].sort((a,b)=>a.installment_no-b.installment_no)[0].due_date,contract.student_id,contract.student_id,contract.student_id,contract.student_id,contract.sozlesme_no,contract.id));
     await db.batch(updates);
     if((await db.prepare('SELECT durum FROM contracts WHERE id=?').bind(contract.id).first())?.durum===3)return errorResponse('Sözleşme iptal edildi; değişiklik kaydedilmedi',409,'CANCELLED_CONTRACT');
     await logAction(db,user,"installments.update","contract",contract.id,"Taksit planı güncellendi",waitUntil);

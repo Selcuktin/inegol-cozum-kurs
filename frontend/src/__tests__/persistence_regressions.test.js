@@ -18,6 +18,7 @@ test('student edit submits only touched fields and preserves the stored custom p
   jest.spyOn(AccountingService,'fetchInstallments').mockResolvedValue([{sozlesmeNo:'EDIT',taksitNo:1,taksitTutari:300,vadeTarihi:'2026-10-31'},{sozlesmeNo:'EDIT',taksitNo:2,taksitTutari:700,vadeTarihi:'2027-01-31'}]);
   jest.spyOn(AccountingService,'fetchContracts').mockResolvedValue([]);jest.spyOn(AccountingService,'fetchIncomes').mockResolvedValue([]);
   const patch=jest.spyOn(axios,'patch').mockResolvedValue({data:{...student,school:'Yeni okul'}});
+  jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({students:[{...student,school:'Yeni okul'}],contracts:[],incomes:[],installments:[]})});
   const view=await render(<EdesisStudentModal isOpen initialData={student} API='/api' onClose={()=>{}}/>);
   await fireEvent.change(view.container.querySelector('[name="school"]'),{target:{value:'Yeni okul'}});
   await fireEvent.click(view.getByRole('button',{name:'Kayıt & Taksit Planı'}));

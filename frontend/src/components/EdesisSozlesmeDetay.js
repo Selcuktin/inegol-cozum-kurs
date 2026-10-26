@@ -287,7 +287,6 @@ try {
       gelirKodu: taksit.gelirKodu || contract.gelirKodu
     });
 
-    setLocalInstallments(await AccountingService.fetchInstallments(contract.id));
     showToast(`✅ ${taksit.taksitNo}. Taksit (${fmtTRY(paidAmount)}) tahsil edildi ve kaydedildi.`);
     setCollectModal(null);
 
@@ -319,7 +318,6 @@ finally{setSavingPayment(false);}
       installment_id: taksit.id,
     });
 
-    setLocalInstallments(await AccountingService.fetchInstallments(contract.id));
     showToast(`↩️ ${taksit.taksitNo}. Taksit tahsilatı iptal edildi ve geri alındı.`);
     setCancelModal(null);
     } catch(error) { window.alert(error.message || "İptal edilemedi"); }
