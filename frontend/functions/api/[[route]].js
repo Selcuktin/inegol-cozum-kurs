@@ -77,10 +77,14 @@ export async function onRequest(context) {
     };
 
     // Validate the shared JSON boundary before any domain can apply a partial or malformed body.
-    if((request.method!=='DELETE'||request.body!==null)&&(user||path.startsWith('/auth/'))&&['POST','PUT','PATCH','DELETE'].includes(request.method)&&request.headers.get('content-type')?.includes('application/json')){
-      let body;
-      try{body=await request.clone().json();}catch{return finalize(errorResponse('Geçersiz JSON isteği',400,'INVALID_JSON'));}
-      if(!body||typeof body!=='object')return finalize(errorResponse('İstek bir kayıt veya kayıt listesi içermelidir',422,'VALIDATION_ERROR'));
+    if((user||path.startsWith('/auth/'))&&['POST','PUT','PATCH','DELETE'].includes(request.method)&&request.headers.get('content-type')?.includes('application/json')){
+      const text=await request.clone().text();
+      // Workers may expose an empty DELETE as a non-null stream. Validate content, not stream presence.
+      if(request.method!=='DELETE'||text.length){
+        let body;
+        try{body=JSON.parse(text);}catch{return finalize(errorResponse('Geçersiz JSON isteği',400,'INVALID_JSON'));}
+        if(!body||typeof body!=='object')return finalize(errorResponse('İstek bir kayıt veya kayıt listesi içermelidir',422,'VALIDATION_ERROR'));
+      }
     }
 
     // 4. Dispatch Auth domain routes first

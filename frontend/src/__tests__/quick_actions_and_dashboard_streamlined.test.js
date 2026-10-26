@@ -6,6 +6,7 @@ import AccountingService from '../lib/edesisAccountingService';
 import {synchronizedRequest} from '../lib/dataSync';
 
 afterEach(cleanup);
+afterEach(()=>jest.useRealTimers());
 
 describe("Sadeleştirilmiş Hızlı İşlemler & Genel Bakış Test Paketi", () => {
   const adminUser = { id: 1, username: "admin", role: "admin", name: "Yönetici" };
@@ -54,6 +55,7 @@ describe("Sadeleştirilmiş Hızlı İşlemler & Genel Bakış Test Paketi", () 
   });
 
   test("DashboardPage sade ve öz metrikleri, yaklaşan tahsilatları ve sınıf kontenjanlarını render eder", async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-19T12:00:00Z'));
     AccountingService.setInitialData({installments:[{id:'recorded-due',studentId:101,sozlesmeNo:'SZL202600101',taksitNo:2,taksitTutari:10000,kalanTutar:10000,vadeTarihi:'2026-10-25',ogrenciAdi:'Ayşe Melek'}]});
     const mockData = {
       students: [

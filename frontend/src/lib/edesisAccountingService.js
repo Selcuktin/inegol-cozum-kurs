@@ -434,7 +434,7 @@ export const AccountingService = {
   },
 
   deleteContract(contractOrNo) {
-    return apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(typeof contractOrNo === "object" ? contractOrNo.id || contractOrNo.sozlesmeNo : contractOrNo)}`, {method:"DELETE",headers:{"Content-Type":"application/json"},body:undefined}).then(async res => {
+    return apiFetch(`${getApiUrl()}/api/contracts/${encodeURIComponent(typeof contractOrNo === "object" ? contractOrNo.id || contractOrNo.sozlesmeNo : contractOrNo)}`, {method:"DELETE"}).then(async res => {
       const saved=await res.json(); await this.refreshAfterWrite();
       if(typeof window!=="undefined"){window.dispatchEvent(new Event("cozum_accounting_updated"));window.dispatchEvent(new Event("cozum_students_updated"));}
       return saved;

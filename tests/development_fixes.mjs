@@ -8,6 +8,31 @@ const logs={...console};console.log=console.error=console.warn=()=>{};
 const passed=[];
 async function check(name,fn){const db=database();try{await fn(db);passed.push(name);}finally{db.sql.close();}}
 try{
+ await check('empty DELETE streams accept a contract delete without bypassing JSON, role or payment guards',async db=>{
+  const jsonHeaders={headers:{'Content-Type':'application/json'}};
+  const c=await student(db,'delete-empty-stream'),plan=rows(db,'SELECT * FROM installments WHERE contract_id=?',c.id);
+  for(const invalid of ['{',' ','null','123','"text"']){
+   const r=await request(db,'/contracts/'+c.id,'DELETE',invalid,jsonHeaders);
+   assert.equal(r.status,['null','123','"text"'].includes(invalid)?422:400);
+   assert.equal(row(db,'SELECT is_deleted FROM contracts WHERE id=?',c.id).is_deleted,0);
+  }
+  assert.equal((await request(db,'/contracts/'+c.id,'DELETE','',{headers:{...jsonHeaders.headers,Authorization:''}})).status,401);
+  db.sql.exec("INSERT INTO users(user_id,name,email,role) VALUES('delete-accountant','Test','delete@example.invalid','muhasebe'); INSERT INTO user_sessions(session_token,user_id,expires_at) VALUES('delete-accountant-token','delete-accountant','2099-01-01');");
+  assert.equal((await request(db,'/contracts/'+c.id,'DELETE','',{headers:{...jsonHeaders.headers,Authorization:'Bearer delete-accountant-token'}})).status,403);
+  const result=await request(db,'/contracts/'+c.id,'DELETE','',jsonHeaders);assert.equal(result.status,200,JSON.stringify(result.data));
+  assert.equal(row(db,'SELECT is_deleted FROM contracts WHERE id=?',c.id).is_deleted,1);
+  assert.equal(row(db,'SELECT is_deleted FROM student_incomes WHERE contract_id=?',c.id).is_deleted,1);
+  assert.deepEqual(rows(db,'SELECT * FROM installments WHERE contract_id=?',c.id),plan);
+  assert.equal((await request(db,'/contracts/'+c.id,'DELETE',undefined,jsonHeaders)).data.already_deleted,true);
+  const paid=await student(db,'delete-paid');await pay(db,paid,50);
+  const before=rows(db,'SELECT * FROM payments');
+  const blocked=await request(db,'/contracts/'+paid.id,'DELETE','',jsonHeaders);assert.equal(blocked.status,409);assert.equal(blocked.data.code,'PAYMENT_EXISTS');
+  assert.equal(row(db,'SELECT is_deleted FROM contracts WHERE id=?',paid.id).is_deleted,0);assert.deepEqual(rows(db,'SELECT * FROM payments'),before);
+  for(const method of ['POST','PATCH','PUT'])assert.equal((await request(db,'/contracts',method,'',jsonHeaders)).status,400);
+  const template=row(db,"SELECT * FROM lgs_templates WHERE id='pronet-lgs'");
+  assert.equal((await request(db,'/lgs/templates/pronet-lgs','DELETE','',jsonHeaders)).status,422);
+  assert.deepEqual(row(db,"SELECT * FROM lgs_templates WHERE id='pronet-lgs'"),template);
+ });
  await check('release guard rejects a branch that excludes the published commit',()=>{
   checkReleaseOrder('a'.repeat(40),'a'.repeat(40),()=>false);
   checkReleaseOrder('a'.repeat(40),'b'.repeat(40),()=>true);

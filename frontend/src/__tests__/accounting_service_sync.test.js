@@ -3,6 +3,15 @@ import AccountingService from '../lib/edesisAccountingService';
 beforeEach(()=>{AccountingService.resetCustomData();localStorage.clear();});
 afterEach(()=>jest.restoreAllMocks());
 
+test('contract deletion sends no JSON content type or body and refreshes only after success',async()=>{
+  const send=jest.spyOn(globalThis,'fetch').mockResolvedValue({ok:true,json:async()=>({ok:true})});
+  const refresh=jest.spyOn(AccountingService,'refreshAfterWrite').mockResolvedValue({});
+  await AccountingService.deleteContract({id:'contract-to-delete'});
+  expect(send).toHaveBeenCalledWith('/api/contracts/contract-to-delete',expect.objectContaining({method:'DELETE'}));
+  const options=send.mock.calls[0][1];expect(options.headers['Content-Type']).toBeUndefined();expect(options.body).toBeUndefined();
+  expect(refresh).toHaveBeenCalledTimes(1);
+});
+
 test('getters cannot overwrite an authoritative snapshot from old props or mutate it by reference',()=>{
   AccountingService.acceptDashboard({contracts:[{id:'current',brut_tutar:1200,durum:1}],payments:[{id:'saved',amount:200}],installments:[],incomes:[]});
   expect(AccountingService.getContracts([],[{id:'old'}])[0].id).toBe('current');
