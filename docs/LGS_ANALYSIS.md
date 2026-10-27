@@ -10,6 +10,10 @@ Ana menüde **Deneme Sınavları & Karne** bölümünü açın. FMT şablonunu v
 
 ## Kalıcılık ve maliyet
 
+Deneme açıldığında **Deneme Analizi** sekmesinde grafikli özet gösterilir: derslerin net başarı yüzdeleri, ortalama doğru/yanlış/boş dağılımı, standart sapmalı puan dağılımı ve şube karşılaştırması. Şube grafiği toplam net veya iki puan türü arasında değiştirilebilir; kesikli çizgi kurum ortalamasını gösterir. Negatif net yüzdeleri korunur. Kesin sayılar grafik altındaki açılır ayrıntılarda, öğrenci listesi **Sonuçlar** sekmesindedir. Eski yorumlar **Sıralama ve kayıtlı değerlendirme** altında korunur.
+
+**Yazdır / PDF Kaydet**, yalnız grafikli analiz özetini tarayıcıdan yazdırır; üstteki **PDF Liste** öğrenci sonuç listesini, **Tüm Karneler** ise bireysel karneleri üretmeye devam eder. Grafikler mevcut detay yanıtındaki analizden oluşturulur; sekme ve grafik ölçüsü değiştirmek yeni D1 sorgusu veya yapay zekâ isteği göndermez.
+
 `/api/lgs/*` işlemleri mevcut yönetici oturumunu kullanır. MongoDB/Python servisi veya ayrı demo giriş sistemi kullanılmaz. Yeni veriler D1 içindeki `lgs_templates`, `lgs_exam_types`, `lgs_exams`, `lgs_results`, `lgs_contacts` tablolarında saklanır ve otomatik yedeğe dahildir. Eski `exams`/`exam_results` geçmişi ve mali kayıtlar korunur; eski sınav ekranları ana iş akışından kaldırılmıştır. Dosyaların fiziksel optik cihazda okunması cihazın kendi yazılımıyla yapılır; uygulama FMT tanımını ve üretilmiş veri dosyasını işler.
 
 Sınav yapılandırması, sonuçları ve hazır analiz aynı atomik D1 batch işleminde yazılır. Sürüm uyuşmazlığı 409 döndürür; kullanıcı güncel kaydı yeniden açar. İçe aktarma işlem kimliği yanıt kaybolduğunda mükerrer sınav oluşmasını önler. Tekrar hesaplama mevcut sonuç kimliklerini, veli bağlantılarını ve iletişim bilgilerini korur. Kayıtlı sınav, şablon sonradan değiştirilse bile kendi şablon kopyasını kullanır. Sınav silme arşivleme yapar; ham veri ve sonuçları fiziksel olarak silmez ve paylaşımı kapatır.

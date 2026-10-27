@@ -66,7 +66,7 @@ export default function ExamDetail() {
           <ExportButton path={`/exams/${eid}/export/sube-karneleri`} file={`${slug}_sube_karneleri.pdf`} label="Şube Karneleri" icon={School} testId="export-branches-button" />
         </div>}
       />
-      <Tabs defaultValue="results">
+      <Tabs defaultValue="analysis" key={eid}>
         <TabsList className="mb-6 grid w-full grid-cols-2 sm:inline-flex sm:w-auto h-auto bg-white p-1 shadow-sm">
           <TabsTrigger value="results" data-testid="tab-results">Sonuçlar</TabsTrigger>
           <TabsTrigger value="analysis" data-testid="tab-analysis">Deneme Analizi</TabsTrigger>

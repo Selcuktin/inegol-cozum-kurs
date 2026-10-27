@@ -1,22 +1,33 @@
 import { useState } from "react";
-import { FileDown, Loader2 } from "lucide-react";
+import { FileDown, Loader2, Printer } from "lucide-react";
 import { toast } from "sonner";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Panel, StatCard } from "@/modules/lgs/components/common";
 import { AiStream } from "@/modules/lgs/components/exam/AiStream";
 import { download, errMsg, num, subjectColor } from "@/modules/lgs/api";
+import { usePrintTarget } from "@/hooks/usePrintTarget";
 
-function SubjectChart({ data }) {
+function SubjectChart({ data, responses = false }) {
+  const lowest = Math.min(0, ...data.map(s => s.success_pct));
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-        <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} />
-        <YAxis tick={{ fontSize: 11 }} />
-        <Tooltip formatter={(v, n) => [num(v), n === "success_pct" ? "Başarı %" : "Ort. Net"]} />
-        <Bar dataKey="success_pct" radius={[4, 4, 0, 0]}>
-          {data.map((s, i) => <Cell key={s.key} fill={subjectColor(s.key, i)} />)}
-        </Bar>
+    <ResponsiveContainer width="100%" height={Math.max(260, data.length * 52 + 55)}>
+      <BarChart data={data} layout="vertical" margin={{ top: 10, right: responses ? 14 : 44, left: 0, bottom: 0 }} accessibilityLayer>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+        <XAxis type="number" domain={responses ? [0, "auto"] : [Math.floor(lowest / 10) * 10, 100]} tick={{ fontSize: 11 }} tickFormatter={v => responses ? num(v, 0) : `%${v}`} />
+        <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={name => name.length > 18 ? `${name.slice(0, 17)}…` : name} />
+        <Tooltip formatter={(value, name) => [responses ? num(value) : `%${num(value, 1)}`, name]} />
+        {responses ? <>
+          <Legend />
+          <Bar dataKey="avg_d" name="Doğru" stackId="answers" fill="#047857" isAnimationActive={false} />
+          <Bar dataKey="avg_y" name="Yanlış" stackId="answers" fill="#dc2626" isAnimationActive={false} />
+          <Bar dataKey="avg_b" name="Boş" stackId="answers" fill="#94a3b8" radius={[0, 4, 4, 0]} isAnimationActive={false} />
+        </> : <>
+          <ReferenceLine x={0} stroke="#94a3b8" />
+          <Bar dataKey="success_pct" name="Net başarı oranı" radius={4} isAnimationActive={false}>
+            {data.map((s, i) => <Cell key={s.key} fill={subjectColor(s.key, i)} />)}
+            <LabelList dataKey="success_pct" position="right" formatter={v => `%${num(v, 1)}`} fontSize={11} fill="#334155" />
+          </Bar>
+        </>}
       </BarChart>
     </ResponsiveContainer>
   );
@@ -25,15 +36,43 @@ function SubjectChart({ data }) {
 function Histogram({ data }) {
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 24, right: 10, left: -20, bottom: 0 }} accessibilityLayer>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-        <XAxis dataKey="range" tick={{ fontSize: 10 }} interval={0} angle={-35} textAnchor="end" height={50} />
+        <XAxis dataKey="range" tick={{ fontSize: 10 }} minTickGap={12} angle={-35} textAnchor="end" height={50} />
         <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
         <Tooltip formatter={(v) => [v, "Öğrenci"]} />
-        <Bar dataKey="count" fill="#1E40AF" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="count" name="Öğrenci" fill="#1E40AF" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+          <LabelList dataKey="count" position="top" fontSize={11} formatter={v => v || ""} />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
+}
+
+function BranchChart({ analysis, examId }) {
+  const [metric, setMetric] = useState("avg_net");
+  const options = [{ key: "avg_net", label: "Toplam net", average: analysis.avg_total_net }, { key: "avg_sd", label: "Puan (SS’li)", average: analysis.avg_sd }, { key: "avg_raw", label: "Puan (SS’siz)", average: analysis.avg_raw }];
+  const selected = options.find(o => o.key === metric);
+  return <>
+    <div role="group" aria-label="Şube karşılaştırma ölçüsü" className="analysis-metrics no-print">
+      {options.map(o => <button key={o.key} type="button" aria-pressed={metric === o.key} onClick={() => setMetric(o.key)}>{o.label}</button>)}
+    </div>
+    <p className="mb-3 text-sm text-slate-600" aria-live="polite">{selected.label} · Kurum ortalaması: <strong>{num(selected.average)}</strong></p>
+    <ResponsiveContainer width="100%" height={Math.max(220, analysis.branches.length * 46 + 40)}>
+      <BarChart data={analysis.branches} layout="vertical" margin={{ top: 10, right: 55, left: 0, bottom: 0 }} accessibilityLayer>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+        <XAxis type="number" tick={{ fontSize: 11 }} />
+        <YAxis type="category" dataKey="branch" width={72} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+        <Tooltip formatter={value => [num(value), selected.label]} labelFormatter={(label, payload) => `${label} · ${payload?.[0]?.payload.count || 0} öğrenci`} />
+        <ReferenceLine x={selected.average} stroke="#dc2626" strokeDasharray="4 4" />
+        <Bar dataKey={metric} name={selected.label} fill="#1E40AF" radius={4} isAnimationActive={false}>
+          <LabelList dataKey={metric} position="right" formatter={v => num(v, 1)} fontSize={11} fill="#334155" />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+    <p className="mt-2 text-xs text-slate-500">Mavi çubuk: şube ortalaması · Kesikli kırmızı çizgi: kurum ortalaması</p>
+    <details className="analysis-details"><summary>Şube değerleri ve PDF karneleri</summary><BranchTable examId={examId} branches={analysis.branches} subjects={analysis.subjects} /></details>
+  </>;
 }
 
 function SubjectTable({ subjects }) {
@@ -97,23 +136,36 @@ function BranchTable({ examId, branches, subjects }) {
 }
 
 export function AnalysisPanel({ exam, analysis }) {
+  const printRef = usePrintTarget(!!analysis.count);
   if (!analysis.count) return <div className="py-10 text-sm text-slate-500">Bu sınavda sonuç yok.</div>;
   return (
-    <div className="space-y-6" data-testid="analysis-panel">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+    <div ref={printRef} className="analysis-overview space-y-6" data-testid="analysis-panel">
+      <div className="analysis-heading">
+        <div><p className="mb-1 text-xs font-semibold uppercase tracking-wider text-red-600">Grafikli deneme analizi</p><h2 className="text-xl font-bold">{exam.name}</h2><p className="mt-1 text-sm text-slate-500">{exam.date} · {analysis.count} öğrenci · {analysis.branches.length} şube</p></div>
+        <button type="button" className="analysis-print no-print" onClick={() => window.print()}><Printer size={16} aria-hidden="true" />Yazdır / PDF Kaydet</button>
+      </div>
+      <div className="analysis-stats grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard label="Öğrenci" value={analysis.count} testId="analysis-count" />
         <StatCard label="Ort. Puan (SS'li)" value={num(analysis.avg_sd)} hint={`En yüksek ${num(analysis.max_sd)}`} testId="analysis-avg-sd" delay={50} />
         <StatCard label="Ort. Puan (SS'siz)" value={num(analysis.avg_raw)} hint={`En yüksek ${num(analysis.max_raw)}`} accent="blue" testId="analysis-avg-raw" delay={100} />
         <StatCard label="Ort. Toplam Net" value={num(analysis.avg_total_net)} accent="green" testId="analysis-avg-net" delay={150} />
         <StatCard label="Puan Std. Sapması" value={num(analysis.std_sd)} accent="amber" testId="analysis-std" delay={200} />
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Ders Bazlı Başarı (%)"><SubjectChart data={analysis.subjects} /></Panel>
-        <Panel title="Puan Dağılımı (SS'li)"><Histogram data={analysis.histogram} /></Panel>
+      <div className="analysis-chart-grid">
+        <Panel title="Ders Bazlı Başarı (%)" testId="subject-success-chart">
+          <figure aria-label="Derslerin ortalama net başarı oranları"><SubjectChart data={analysis.subjects} /><figcaption className="mt-2 text-xs text-slate-500">Değerlendirilen soru sayısına göre net yüzdesi. Yanlışların etkisiyle oran sıfırın altına inebilir.</figcaption></figure>
+          <details className="analysis-details"><summary>Derslerin ayrıntılı değerleri</summary><SubjectTable subjects={analysis.subjects} /></details>
+        </Panel>
+        <Panel title="Doğru · Yanlış · Boş" testId="subject-answer-chart">
+          <figure aria-label="Ders başına ortalama doğru, yanlış ve boş sayıları"><SubjectChart data={analysis.subjects} responses /><figcaption className="mt-2 text-xs text-slate-500">Her çubuk, öğrenci başına ortalama cevap sayılarını gösterir. Değerlendirme dışı sorular dahil değildir.</figcaption></figure>
+        </Panel>
+        <Panel title="Puan Dağılımı (SS'li)" testId="score-distribution-chart">
+          <figure aria-label="Standart sapmalı puan aralıklarına göre öğrenci sayıları"><Histogram data={analysis.histogram} /><figcaption className="mt-2 text-xs text-slate-500">Yatay eksen: puan aralığı · Dikey eksen: öğrenci sayısı</figcaption></figure>
+          <details className="analysis-details"><summary>Puan aralıklarının öğrenci sayıları</summary><dl className="grid grid-cols-2 gap-x-5 gap-y-2 text-sm">{analysis.histogram.map(h => <div key={h.range} className="flex justify-between gap-2"><dt>{h.range}</dt><dd>{h.count} öğrenci</dd></div>)}</dl></details>
+        </Panel>
+        <Panel title="Şube Karşılaştırması" testId="branch-comparison-chart"><BranchChart analysis={analysis} examId={exam.id} /></Panel>
       </div>
-      <Panel title="Ders Analizi"><div className="overflow-x-auto"><SubjectTable subjects={analysis.subjects} /></div></Panel>
-      <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <Panel title="Şube Karşılaştırması"><BranchTable examId={exam.id} branches={analysis.branches} subjects={exam.exam_type.subjects} /></Panel>
+      <details className="analysis-details analysis-secondary"><summary>Sıralama ve kayıtlı değerlendirme</summary>
         <Panel title="İlk 10" testId="top-students">
           <ol className="space-y-2">
             {analysis.top.map((t) => (
@@ -125,8 +177,8 @@ export function AnalysisPanel({ exam, analysis }) {
             ))}
           </ol>
         </Panel>
-      </div>
       <AiStream path={`/exams/${exam.id}/ai-analysis`} initial={exam.ai_analysis} title="Yapay Zeka Deneme Analizi" testId="ai-analysis" />
+      </details>
     </div>
   );
 }

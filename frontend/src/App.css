@@ -4243,7 +4243,7 @@ td[colspan] {
 /* Print only the active document; long content must flow rather than be clipped. */
 @media print {
   @page { size: A4 portrait; margin: 10mm; }
-  [data-print-hidden] { display: none !important; }
+  body [data-print-hidden] { display: none !important; }
   [data-print-path] {
     display: block !important; position: static !important; inset: auto !important;
     width: 100% !important; max-width: none !important; height: auto !important;

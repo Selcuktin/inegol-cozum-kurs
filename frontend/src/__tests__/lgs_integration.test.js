@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {act} from 'react';
 import {render,cleanup,fireEvent} from './test_helpers';
 import {TextEncoder,TextDecoder} from 'util';
 global.TextEncoder=TextEncoder;global.TextDecoder=TextDecoder;
@@ -23,7 +23,8 @@ const wrap=children=><MemoryRouter>{children}</MemoryRouter>;
 test('exam opens through one coherent bundle rather than three requests',async()=>{
  api.get.mockResolvedValue({data:{exam,results:[r],analysis}});
  const view=await render(<MemoryRouter initialEntries={['/sinav/exam']}><Routes><Route path="/sinav/:eid" element={<ExamDetail/>}/></Routes></MemoryRouter>);
- expect(api.get).toHaveBeenCalledTimes(1);expect(api.get).toHaveBeenCalledWith('/exams/exam/bundle');expect(view.container.textContent).toContain('Anonim Öğrenci');
+ expect(api.get).toHaveBeenCalledTimes(1);expect(api.get).toHaveBeenCalledWith('/exams/exam/bundle');expect(view.container.querySelector('[data-testid="analysis-panel"]')).not.toBeNull();
+ await act(async()=>view.container.querySelector('[data-testid="tab-results"]').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0,ctrlKey:false})));expect(view.container.textContent).toContain('Anonim Öğrenci');expect(api.get).toHaveBeenCalledTimes(1);
 });
 test('settings submit displayed revision and user edits; successful save reloads authoritative data',async()=>{
  api.get.mockResolvedValue({data:[{id:'lgs',subjects:[subject]}]});const saved=jest.fn();
